@@ -460,6 +460,7 @@ pub struct HostSession {
     /// The sequence number of the next intent.
     next_seq: u64,
     active_command: Rc<Cell<Option<u64>>>,
+    screen_updating: Rc<Cell<bool>>,
 }
 
 struct CommandLoan {
@@ -577,6 +578,7 @@ impl HostSession {
             log: Vec::new(),
             next_seq: 1,
             active_command: Rc::new(Cell::new(None)),
+            screen_updating: Rc::new(Cell::new(true)),
         }
     }
 
@@ -736,6 +738,25 @@ impl HostSession {
     /// Borrows the current selection and its active cell.
     pub fn selection(&self) -> &Selection {
         &self.selection
+    }
+
+    /// Whether workbook presentation frames may be delivered.
+    pub fn screen_updating(&self) -> bool {
+        self.screen_updating.get()
+    }
+
+    /// Set the application presentation switch for this session.
+    pub fn set_screen_updating(&self, enabled: bool) {
+        self.screen_updating.set(enabled);
+    }
+
+    pub(crate) fn screen_updating_switch(&self) -> Rc<Cell<bool>> {
+        self.screen_updating.clone()
+    }
+
+    /// Metadata from the same undo and redo steps used by workbook commands.
+    pub fn skin_history(&self) -> (Vec<calc_skin::HistoryEntry>, Vec<calc_skin::HistoryEntry>) {
+        self.history.skin_entries()
     }
 
     /// The selection `sheet` held when it was last left, if it was ever the active sheet with one.
@@ -1049,6 +1070,20 @@ impl HostSession {
     /// Automation uses the same authored transaction and evaluator as the UI.
     /// Its synchronous automatic calculation precedes Change (P22, 20527 COM).
     pub fn dispatch_from(&mut self, ingress: CommandIngress, intent: SkinIntent) -> IntentReceipt {
+        self.dispatch_with_history(ingress, intent, None)
+    }
+
+    /// Commit a prepared skin edit using the workbook's existing transaction and history.
+    pub fn dispatch_skin_edit(&mut self, edits: Vec<CellEdit>, history: calc_skin::HistoryEntry) -> IntentReceipt {
+        self.dispatch_with_history(CommandIngress::UserInterface, SkinIntent::Edit { edits }, Some(history))
+    }
+
+    fn dispatch_with_history(
+        &mut self,
+        ingress: CommandIngress,
+        intent: SkinIntent,
+        history: Option<calc_skin::HistoryEntry>,
+    ) -> IntentReceipt {
         let seq = self.next_seq;
         self.next_seq = self
             .next_seq
@@ -1145,7 +1180,7 @@ impl HostSession {
             },
             SkinIntent::Edit { edits } => {
                 let edits = self.authored_edits(edits);
-                self.edit(edits, &mut receipt)
+                self.edit_with_history(edits, None, None, history, &mut receipt)
             }
             SkinIntent::EditAxis(edit) => self.edit(vec![CellEdit::Axis(edit)], &mut receipt),
             SkinIntent::Copy { from, to, cut } => {
@@ -1566,6 +1601,17 @@ impl HostSession {
         after_selection: Option<Selection>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
+        self.edit_with_history(edits, coordinates, after_selection, None, receipt)
+    }
+
+    fn edit_with_history(
+        &mut self,
+        edits: Vec<CellEdit>,
+        coordinates: Option<calc_fml::reference::StructuralEdit>,
+        after_selection: Option<Selection>,
+        skin: Option<calc_skin::HistoryEntry>,
+        receipt: &mut IntentReceipt,
+    ) -> Result<(), IntentError> {
         let before = self.selection.clone();
         let mut edits = edits;
         if let Some(change) = coordinates.as_ref()
@@ -1584,7 +1630,16 @@ impl HostSession {
         if let Some(selection) = after_selection {
             self.select_quietly(selection, receipt);
         }
+        let skin = skin.map(|mut entry| {
+            entry.id = calc_skin::EntryId(receipt.seq);
+            entry.at = self.host.skin_stamp();
+            if let Err(reason) = &inverse {
+                entry.reversibility = calc_skin::Reversibility::Irreversible { reason: reason.to_string() };
+            }
+            entry
+        });
         self.history.record(Step {
+            skin,
             forward: edits,
             imported: None,
             coordinates,
@@ -1711,6 +1766,7 @@ impl HostSession {
             self.host.sheet_identities.insert(sheet.key(), sheet.id());
         }
         self.history.record(Step {
+            skin: None,
             forward: Vec::new(),
             coordinates: None,
             imported: Some(source),

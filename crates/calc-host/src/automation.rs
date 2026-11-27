@@ -143,6 +143,7 @@ struct Snapshot {
     full_name: String,
     active: Option<CellKey>,
     enabled: Rc<Cell<bool>>,
+    screen_updating: Option<Rc<Cell<bool>>>,
     workbook: u64,
     from_session: bool,
     /// The sheets that are chart sheets (dc-oxh8w.23); the rest of a workbook's sheets are worksheets.
@@ -555,6 +556,7 @@ impl WorkbookAutomation {
             full_name: full_name.to_owned(),
             active,
             enabled,
+            screen_updating: previous.as_ref().and_then(|state| state.screen_updating.clone()),
             workbook,
             from_session: false,
             chart_sheets: Rc::new(sheet_kinds(host, "chart sheet")),
@@ -573,6 +575,7 @@ impl WorkbookAutomation {
                 full_name: full_name.to_owned(),
                 active: old.active,
                 enabled: old.enabled.clone(),
+                screen_updating: old.screen_updating.clone(),
                 workbook: old.workbook,
                 from_session: old.from_session,
                 chart_sheets: old.chart_sheets.clone(),
@@ -584,6 +587,8 @@ impl WorkbookAutomation {
     /// Refresh the workbook identity and selection used by the Automation profile.
     pub fn context_changed(&self, session: &HostSession) {
         let enabled = session.workbook_events_switch();
+        let screen_updating = session.screen_updating_switch();
+        screen_updating.set(self.screen_updating.get());
         let previous = self.snapshot.borrow().clone();
         let same_workbook = matches!(
             previous.as_ref(),
@@ -623,6 +628,7 @@ impl WorkbookAutomation {
             full_name,
             active,
             enabled,
+            screen_updating: Some(screen_updating),
             workbook,
             from_session: true,
             chart_sheets: Rc::new(sheet_kinds(session.host(), "chart sheet")),

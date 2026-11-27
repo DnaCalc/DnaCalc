@@ -392,7 +392,11 @@ impl WorkbookAutomation {
         if call.args.len() != 1 {
             return Err(geometry::bad_count());
         }
-        self.screen_updating.set(geometry::boolean(call.arg(0))?);
+        let enabled = geometry::boolean(call.arg(0))?;
+        self.screen_updating.set(enabled);
+        if let Some(switch) = self.snapshot.borrow().as_ref().and_then(|state| state.screen_updating.as_ref()) {
+            switch.set(enabled);
+        }
         Ok(AutoValue::Empty)
     }
 

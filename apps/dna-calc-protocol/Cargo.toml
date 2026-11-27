@@ -7,6 +7,7 @@ license.workspace = true
 [package.metadata.dnacalc]
 portability = "portable"
 [dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
 dna-calc-model = {path="../dna-calc-model"}
 serde = {version="=1.0.229",features=["derive"]}
 serde_json = "=1.0.154"

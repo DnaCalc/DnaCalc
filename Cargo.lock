@@ -518,6 +518,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-skin-host"
+version = "0.1.0"
+dependencies = [
+ "calc-doc-model",
+ "calc-formula-kernel",
+ "calc-func",
+ "calc-host",
+ "calc-skin",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-surrogate-wire"
 version = "0.1.0"
 dependencies = [
@@ -1361,9 +1376,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "dna-calc-preview"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "dna-kit",
+ "dna-shell",
+ "dna-skin-runtime",
+ "dna-view-classic",
+ "js-sys",
+ "leptos",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "dna-calc-preview-worker"
+version = "0.1.0"
+dependencies = [
+ "calc-host",
+ "calc-skin",
+ "calc-skin-host",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "dna-calc-protocol"
 version = "0.1.0"
 dependencies = [
+ "calc-skin",
  "dna-calc-model",
  "js-sys",
  "serde",
@@ -1413,6 +1459,15 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "dna-grid"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "dna-kit",
+ "leptos",
 ]
 
 [[package]]
@@ -1478,7 +1533,10 @@ version = "0.1.0"
 dependencies = [
  "calc-skin",
  "dna-kit",
+ "dna-skin-runtime",
  "leptos",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1486,6 +1544,7 @@ name = "dna-skin-runtime"
 version = "0.1.0"
 dependencies = [
  "calc-skin",
+ "serde_json",
  "wasm-bindgen-test",
 ]
 
@@ -1494,6 +1553,15 @@ name = "dna-strand"
 version = "0.1.0"
 dependencies = [
  "wasm-bindgen-test",
+]
+
+[[package]]
+name = "dna-view-classic"
+version = "0.1.0"
+dependencies = [
+ "dna-grid",
+ "dna-kit",
+ "leptos",
 ]
 
 [[package]]

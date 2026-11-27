@@ -10,7 +10,8 @@
         "calc-doc",
         "calc-engine",
         "calc-host",
-        "calc-vba"
+        "calc-vba",
+        "calc-skin-host"
       ],
       "forbid_apps": true,
       "reason": "Skin architecture section 3.2: neutral wire and view types shared by page and host"
@@ -34,7 +35,8 @@
       "scope": "closure",
       "forbidden": [
         "calc-engine",
-        "calc-host"
+        "calc-host",
+        "calc-skin-host"
       ],
       "forbid_apps": true,
       "reason": "Skin architecture section 5.1: level zero has a formula session and no workbook engine"
@@ -48,7 +50,12 @@
         "calc-engine",
         "calc-host",
         "calc-formula-host",
-        "calc-chart-render"
+        "calc-chart-render",
+        "calc-skin-host",
+        "dna-shell",
+        "dna-view-classic",
+        "dna-view-explorer",
+        "dna-grid"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
     },
@@ -61,7 +68,8 @@
         "calc-engine",
         "calc-host",
         "calc-formula-host",
-        "calc-chart-render"
+        "calc-chart-render",
+        "calc-skin-host"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
     },
@@ -74,7 +82,8 @@
         "calc-engine",
         "calc-host",
         "calc-formula-host",
-        "calc-chart-render"
+        "calc-chart-render",
+        "calc-skin-host"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
     },
@@ -88,9 +97,63 @@
         "calc-host",
         "calc-formula-host",
         "calc-chart-render",
-        "dna-shell"
+        "dna-shell",
+        "calc-skin-host",
+        "dna-grid",
+        "dna-view-classic"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
+    },
+    {
+      "package": "calc-skin-host",
+      "scope": "closure",
+      "forbidden": [],
+      "forbid_apps": true,
+      "reason": "Skin architecture section 3.2: the workbook service has no page dependencies"
+    },
+    {
+      "package": "dna-grid",
+      "scope": "closure",
+      "forbidden": [
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-skin-host",
+        "calc-formula-host",
+        "calc-chart-render"
+      ],
+      "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
+    },
+    {
+      "package": "dna-view-classic",
+      "scope": "closure",
+      "forbidden": [
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-skin-host",
+        "calc-formula-host",
+        "calc-chart-render",
+        "dna-shell",
+        "dna-view-explorer"
+      ],
+      "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
+    },
+    {
+      "package": "dna-calc-preview",
+      "scope": "closure",
+      "forbidden": [
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-skin-host",
+        "calc-formula-host",
+        "calc-chart-render"
+      ],
+      "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
     },
     {
       "package": "calc-host",
@@ -180,7 +243,10 @@
       "scope": "closure",
       "forbidden": [
         "calc-engine",
-        "calc-host"
+        "calc-host",
+        "calc-skin-host",
+        "dna-grid",
+        "dna-view-classic"
       ],
       "reason": "plan 1.3 and the owner's ruling of 2026-11-07: OneCalc's transitive dependency closure contains no CalcEngine or CalcHost; it may use calc-doc, since its file is a constrained Excel workbook read and written through the CalcDoc codec"
     },
@@ -189,7 +255,10 @@
       "scope": "closure",
       "forbidden": [
         "calc-engine",
-        "calc-host"
+        "calc-host",
+        "calc-skin-host",
+        "dna-grid",
+        "dna-view-classic"
       ],
       "reason": "plan 8.7: the formula UI both applications show reaches no CalcEngine and no CalcHost (it may use calc-doc, as dna-onecalc may)"
     },
@@ -394,7 +463,10 @@
         "calc-host",
         "calc-engine",
         "dna-calc-desktop",
-        "dna-calc-worker"
+        "dna-calc-worker",
+        "calc-skin-host",
+        "dna-grid",
+        "dna-view-classic"
       ],
       "reason": "plan 8.7 and the OneCalc desktop note: the shipped OneCalc executable reaches no CalcHost and no CalcEngine (also checked by `cargo xtask sweep`'s ceiling step)"
     },

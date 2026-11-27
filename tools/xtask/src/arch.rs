@@ -838,7 +838,16 @@ mod tests {
     fn the_real_configuration_parses_and_names_the_plan_rules() {
         let config = real_config();
         let rule = |package: &str| config.rules.iter().find(|r| r.package == package).unwrap();
-        assert_eq!(rule("dna-onecalc").forbidden, ["calc-engine", "calc-host"]);
+        assert_eq!(
+            rule("dna-onecalc").forbidden,
+            [
+                "calc-engine",
+                "calc-host",
+                "calc-skin-host",
+                "dna-grid",
+                "dna-view-classic"
+            ]
+        );
         assert!(!rule("dna-onecalc").direct);
         assert_eq!(
             rule("calc-fml").forbidden,

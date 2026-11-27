@@ -1,5 +1,7 @@
 //! The shared application frame in its level-zero configuration.
 
+pub mod workbook;
+
 use calc_skin::FormulaPort;
 use dna_kit::{FormulaContext, Registry};
 use leptos::prelude::*;

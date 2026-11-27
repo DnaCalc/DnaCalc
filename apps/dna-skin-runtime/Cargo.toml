@@ -10,6 +10,7 @@ description = "Toolkit-independent request state for DNA Calc views."
 portability = "portable"
 
 [dependencies]
+serde_json = "=1.0.154"
 calc-skin = { path = "../../crates/calc-skin" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]

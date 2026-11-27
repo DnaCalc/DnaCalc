@@ -75,7 +75,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app cast calc --out <dir>\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate]
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc|classic-preview [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc|classic-preview [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app cast calc --out <dir>\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate]
        cargo xtask app xll-accept calc --exe <dna-calc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
        cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
@@ -181,7 +181,7 @@ impl App {
 pub(crate) const CALC_FONT_LICENCE: &str = "apps/dna-calc/web/fonts/LICENSE.txt";
 
 /// The applications.
-pub static APPS: [App; 2] = [
+pub static APPS: [App; 3] = [
     App {
         key: "onecalc",
         label: "ONECALC",
@@ -258,6 +258,25 @@ pub static APPS: [App; 2] = [
         faults: "__dnacalcFaults",
         cases: CALC_CASES,
         groups: CALC_GROUPS,
+    },
+    App {
+        key: "classic-preview",
+        label: "CLASSIC PREVIEW",
+        package: "dna-calc-preview",
+        entry: "dna-calc-preview-web",
+        worker: Some(("dna-calc-preview-worker", "dna-calc-preview-worker-web")),
+        page: "apps/dna-calc-preview/web/index.html",
+        stack_bytes: PAGE_STACK_BYTES,
+        scripts: &["apps/dna-calc-preview/web/worker.js"],
+        files: &[],
+        styles: &["apps/dna-kit/web/formula.css"],
+        default_out: "target/classic-preview-bundle",
+        role_attribute: "data-dnacalc",
+        panic_attribute: "data-dnacalc-preview-panic",
+        ready_attribute: "data-dnacalc-preview-ready",
+        faults: "__dnacalcPreviewFaults",
+        cases: PREVIEW_CASES,
+        groups: PREVIEW_GROUPS,
     },
 ];
 
@@ -1530,6 +1549,9 @@ mod calc_cases;
 mod onecalc_cases;
 use calc_cases::{CALC_CASES, CALC_GROUPS, CALC_LATENCY_CASES, CALC_WORKER_FAULT_CASES};
 use onecalc_cases::{ONECALC_CASES, ONECALC_GROUPS};
+#[path = "../../../apps/dna-calc-preview/tests/smoke/cases.rs"]
+mod preview_cases;
+use preview_cases::{PREVIEW_CASES, PREVIEW_GROUPS};
 const BAR: &str = "[data-onecalc=\"formula\"]";
 
 const READ_PLANS: &str = r#"var plans=Object.values(window.__dnacalcRenderPlans||{}).map(f=>{try{return JSON.parse(f());}catch(e){return null;}}).filter(s=>s&&s.active&&s.plan&&s.plan.publication&&!s.plan.interrupted);"#;

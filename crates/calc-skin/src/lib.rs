@@ -6,6 +6,7 @@ pub mod grid;
 pub mod metrics;
 pub mod parts;
 pub mod print;
+pub mod tiles;
 
 mod declarations;
 mod formula;

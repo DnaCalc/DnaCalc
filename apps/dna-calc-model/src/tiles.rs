@@ -1,74 +1,29 @@
-//! Subscription publications, independent of a painter and of calculation completion.
-//!
-//! These receipts close a projection of already installed host results. They are not engine
-//! AdmissionReceipt/CompletionReceipt or a claim that a workbook is fresh. Engine publication
-//! identities travel alongside stream identities without upgrading individual cell provenance.
-use crate::projection::{Cell, Geometry, Key, Sheet};
-use serde::{Deserialize, Serialize};
+//! The frozen grid's cell and geometry atoms over the shared bounded tile records.
+use crate::projection::{Cell, Geometry, Key};
+pub use calc_skin::tiles::{
+    CELL_BYTES, MAX_PENDING_REQUESTS, MAX_PUBLICATION_BYTES, MAX_PUBLICATION_RECORDS,
+    MAX_SUBSCRIPTIONS, MAX_TILE_BYTES, MAX_TILE_CELLS, MAX_TILE_RECORDS, TileBarrier, TileStamp,
+};
 
-pub const MAX_SUBSCRIPTIONS: usize = 32;
-pub const MAX_TILE_CELLS: usize = 65_536;
-/// A delta can remove the old root and install a disjoint new root.
-pub const MAX_PUBLICATION_RECORDS: usize = MAX_TILE_CELLS * 2;
-/// Sized so that MAX_TILE_CELLS ordinary cells fit: each is charged CELL_BYTES plus its text.
-pub const MAX_PUBLICATION_BYTES: usize = 80 * 1024 * 1024;
-/// What a Cell holds inline, rounded up (896 bytes on 64-bit native). Heap text is added on top.
-pub const CELL_BYTES: usize = 1024;
-pub const MAX_TILE_BYTES: usize = 512 * 1024;
-pub const MAX_TILE_RECORDS: usize = 256;
-pub const MAX_PENDING_REQUESTS: usize = 256;
+pub type TileBatch = calc_skin::tiles::TileBatch<Cell, Geometry>;
 
-/// A stream-local publication identity. `workbook` changes on replacement. `next` counts
-/// publications for this subscription, independently of host deltas coalesced under pressure.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TileStamp {
-    /// Latest engine publication incorporated by this root, possibly followed by authored
-    /// edits. This correlates delivery; cell provenance still determines freshness.
-    #[serde(default)]
-    pub calculation_through: Option<crate::projection::Publication>,
-    pub id: u64,
-    pub workbook: u64,
-    pub transaction: u64,
-    pub base: u64,
-    pub next: u64,
-    pub revision: u64,
-    /// Geometry and styles share this publication's root epoch. They can change without an
-    /// authored revision changing, for example when conditional formatting recalculates.
-    pub geometry_version: u64,
-    pub style_version: u64,
-    /// Dictionaries are local to a publication and are released with it.
-    pub dictionary: u64,
-    pub reset: bool,
+impl calc_skin::tiles::TileCell for Cell {
+    fn key(&self) -> Key {
+        self.at
+    }
+
+    fn set_key(&mut self, at: Key) {
+        self.at = at;
+    }
+
+    fn retained_bytes(&self) -> usize {
+        Cell::retained_bytes(self)
+    }
 }
 
-/// One bounded binary fragment. Dictionary definitions precede its address/index records on
-/// the wire. Removals are explicit. No fragment is observable until the transaction closes.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TileBatch {
-    pub stamp: TileStamp,
-    pub fragment: u32,
-    pub final_fragment: bool,
-    /// Geometry travels in the first fragment and commits with its cells.
-    pub geometry: Vec<(Sheet, Geometry)>,
-    pub cells: Vec<Cell>,
-    pub removed: Vec<Key>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TileBarrier {
-    pub id: u64,
-    pub workbook: u64,
-    pub transaction: u64,
-    pub through: u64,
-}
-impl TileStamp {
-    pub fn barrier(self) -> TileBarrier {
-        TileBarrier {
-            id: self.id,
-            workbook: self.workbook,
-            transaction: self.transaction,
-            through: self.next,
-        }
+impl calc_skin::tiles::TileGeometry for Geometry {
+    fn retained_bytes(&self) -> usize {
+        geometry_bytes(self)
     }
 }
 
@@ -137,19 +92,6 @@ impl Cell {
             .fold(CELL_BYTES.saturating_add(brush_bytes), |n, s| {
                 n.saturating_add(s.len())
             })
-    }
-}
-impl TileBatch {
-    pub fn retained_bytes(&self) -> usize {
-        self.cells
-            .iter()
-            .fold(512usize, |n, c| n.saturating_add(c.retained_bytes()))
-            .saturating_add(self.removed.len().saturating_mul(16))
-            .saturating_add(
-                self.geometry
-                    .iter()
-                    .fold(0usize, |n, (_, g)| n.saturating_add(geometry_bytes(g))),
-            )
     }
 }
 pub fn geometry_bytes(g: &Geometry) -> usize {

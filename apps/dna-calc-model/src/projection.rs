@@ -2154,12 +2154,7 @@ pub struct SheetTab {
 
 /// Initial notebook projection page size.
 pub const NOTEBOOK_PAGE: usize = 40;
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Publication {
-    pub domain: u64,
-    pub command: u64,
-    pub sequence: u64,
-}
+pub use calc_skin::tiles::Publication;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalculationScope {

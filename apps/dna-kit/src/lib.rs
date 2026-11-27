@@ -1,5 +1,8 @@
 //! Strand components and the registration surface for formula views.
 
+mod workbook;
+pub use workbook::{WorkbookContext, WorkbookView};
+
 use calc_skin::{FormulaPort, Provenance, RawValue, Shown, TrialCell, TrialValue};
 use leptos::prelude::*;
 use std::rc::Rc;
@@ -18,6 +21,7 @@ pub trait FormulaView {
 #[derive(Default)]
 pub struct Registry {
     formula: Option<fn(FormulaContext) -> AnyView>,
+    workbook: Option<fn(WorkbookContext) -> AnyView>,
 }
 
 impl Registry {

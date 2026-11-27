@@ -480,9 +480,11 @@ fn pack(
     let staging = base.join(".staging");
     let _ = fs::remove_dir_all(&staging);
     let staged_assets = staging.join("assets");
+    let mut classic_preview = None;
     let entries = if site.key == "content" {
         let explorer = stage_app(ws, &APPS[0], &staged_assets.join("explorer"))?;
         let calc = stage_app(ws, site.app, &staged_assets.join("calc"))?;
+        classic_preview = Some(stage_app(ws, &APPS[2], &staged_assets.join("classic-preview"))?);
         marketing::stage_assets(ws, &staged_assets)?;
         (calc, Some(explorer))
     } else {
@@ -495,7 +497,7 @@ fn pack(
     let version = workspace_version(ws)?;
 
     let apps: &[&App] = if site.key == "content" {
-        &[site.app, &APPS[0]]
+        &[site.app, &APPS[0], &APPS[2]]
     } else {
         &[site.app]
     };
@@ -525,6 +527,10 @@ fn pack(
         if site.key == "calc" {
             blog::build(&ws.root, &dir, site.host, false, None)?;
         }
+    }
+    if let Some(page) = classic_preview {
+        let page = app_page(page, &format!("{prefix}/classic-preview"))?;
+        write_nested(&dir.join("app/preview/index.html"), page.as_bytes())?;
     }
     write(&dir.join("LICENSE"), &read(&ws.root.join("LICENSE"))?)?;
     write(&dir.join("THIRD-PARTY-NOTICES.txt"), notices.as_bytes())?;
@@ -995,7 +1001,7 @@ fn site_smoke(ws: &Workspace, site: &Site, dir: &Path, browser: Option<&str>) ->
         println!("SITE verify failed: {failure}");
     }
     let fronts: &[(&App, &str)] = if site.key == "content" {
-        &[(&APPS[0], "onecalc/"), (&APPS[1], "app/")]
+        &[(&APPS[0], "onecalc/"), (&APPS[1], "app/"), (&APPS[2], "app/preview/")]
     } else {
         &[(site.app, "")]
     };

@@ -1,5 +1,8 @@
 //! Formula view state independent of the UI toolkit and the host carrier.
 
+pub mod workbook;
+pub mod workbook_tiles;
+
 use calc_skin::Refusal;
 
 #[derive(Clone, Debug, PartialEq)]

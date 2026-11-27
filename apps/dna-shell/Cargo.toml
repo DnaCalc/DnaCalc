@@ -10,6 +10,9 @@ description = "The shared DNA Calc application frame."
 portability = "portable"
 
 [dependencies]
+dna-skin-runtime = { path = "../dna-skin-runtime" }
+serde = "=1.0.229"
+serde_json = "=1.0.154"
 calc-skin = { path = "../../crates/calc-skin" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 dna-kit = { path = "../dna-kit" }

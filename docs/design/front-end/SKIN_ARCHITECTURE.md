@@ -325,6 +325,7 @@ pub enum Change {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Batch {
     pub id: CommandIdToken,             // deduplicated by host CommandJournal across retries/recovery
+    pub workbook: Option<WorkbookId>,   // identity of the workbook that supplied the draft
     pub base: Option<Revision>,         // model revision read when building this batch
     pub expects: Vec<SourceRef>,        // read-set checked for conflicts if model > base
     pub selection_seq: Option<u64>,     // refuses commands resolved against a superseded cursor
@@ -450,7 +451,7 @@ Every query implements `Query` (`FormulaQuery` at level 0, `WorkbookQuery` at le
 | `Find`, `Special`, `Stats`, `Resolve` | Find/Go To Special, status-bar selection aggregates, complex reference resolution | Shell, Strip |
 
 **Watches and atomic `Frame`s:**
-- `Cells` watches use the proven binary tile stream (admission, fragments, completion barrier, single in-flight window, slow-subscriber reset coalescing).
+- `Cells` watches use the proven binary tile stream (admission, fragments, completion barrier, single in-flight window, slow-subscriber reset coalescing). The preview shares the bounded record and dictionary codec with the frozen page. Level-1 watch fragments carry neutral cell atoms. Their completion barriers travel in the same frame as the other updates. The host sends a current window on acknowledgement when edits accumulated in flight.
 - Every other watched `WorkbookQuery` records its read footprint (sheets, areas, names, view-part sections) in `calc-skin-host`. When a commit or calculation intersects that footprint, `calc-skin-host` re-evaluates it within its budget (or marks it `Update::Outdated { since }` while computing) and bundles all resulting updates and `Event`s of that step into one **`Frame { stamp, events, updates }`**.
 - `dna-skin-runtime` applies each `Frame` atomically before notifying signals, preventing any component from observing half-updated state across watches. While a macro runs with `Application.ScreenUpdating = False`, `calc-skin-host` withholds view frames (except Strip `Macro` progress events) until `ScreenUpdating = True` or the run ends.
 - **Consistent snapshot barrier (`consistent()`):** Print jobs, exports and multi-output App summaries read through `runtime.consistent(...)`, which yields once all bound reads stand at the same `CalcGeneration` (or pins the last complete generation with a timestamp badge when continuous RTD ticks prevent quiescence, §17.10).
@@ -837,7 +838,7 @@ Excel save-route retention (`.xlsx`, `.xlsm` in desktop Excel; explicit loss war
 
 1. **Move kept logic once (`git mv`):** Extract `calc-formula-host`, move `printing.rs` (and its calibration/test submodules) into `calc-host`, and move kept grid/worker modules into `dna-grid` and `calc-skin-host` with re-exports so the old page compiles unchanged with zero code duplication.
 2. **Freeze the old page:** Defect fixes only; zero feature additions on `apps/dna-calc` old modules.
-3. **Publish side-by-side from Milestone 2:** Serve the new page alongside the old one for live feedback while running the smoke suite against both.
+3. **Publish side-by-side from Milestone 2:** Serve the new page alongside the old one for live feedback while running the smoke suite against both. The site pack exposes the Classic preview at `/app/preview/` and the established workbook page at `/app/`. Separate preview compositions keep the page and workbook worker independently linked until the switch.
 4. **One deletion commit at Milestone 3:** Once Classic/shell's smoke cases (`869` non-skin-group cases, minus any cross-skin switcher cases replaced by new view tests) pass in headless Chromium and Firefox on the new page, delete all ~39,400 lines of old page, old worker handlers, `dna-calc-model`, `dna-calc-protocol` and `SkinIntent` in a single commit.
 
 ---

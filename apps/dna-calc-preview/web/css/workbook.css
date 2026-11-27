@@ -1,0 +1,111 @@
+:root, body, #dna-classic { margin: 0; min-height: 100%; }
+.dna-workbook {
+    display: grid;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+    height: 100dvh;
+    background: var(--dna-bg);
+    color: var(--dna-ink);
+    font: 0.875rem / 1.4 system-ui, sans-serif;
+}
+.dna-book-mast, .dna-book-deck, .dna-book-bridge, .dna-book-search,
+.dna-book-sheets, .dna-book-strip {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: var(--dna-gap-2);
+    padding-inline: var(--dna-gap-3);
+}
+.dna-book-mast {
+    min-height: 2.75rem;
+    background: var(--dna-chrome);
+    color: var(--dna-chrome-ink);
+}
+.dna-book-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dna-book-view { margin-inline-start: auto; }
+.dna-book-mast kbd { margin-inline-start: var(--dna-gap-2); font-size: 0.75rem; }
+.dna-book-deck, .dna-book-bridge, .dna-book-search, .dna-book-sheets {
+    min-height: 2rem;
+    border-block-end: 1px solid var(--dna-line);
+    background: var(--dna-paper-2);
+}
+.dna-workbook :is(button, input) {
+    font: inherit;
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-chip);
+    color: var(--dna-ink);
+    background: var(--dna-paper);
+}
+.dna-workbook button { cursor: pointer; padding: 0 var(--dna-gap-2); }
+.dna-workbook button:hover { background: var(--dna-paper-2); }
+.dna-workbook :is(button, input, .dna-sheet):focus-visible {
+    outline: 2px solid var(--dna-accent-ink);
+    outline-offset: -2px;
+}
+.dna-book-name { inline-size: 7rem; }
+.dna-book-formula { flex: 1 1 8rem; min-width: 4rem; font-family: monospace !important; }
+.dna-book-fx { font-family: Georgia, serif; font-style: italic; color: var(--dna-ink-2); }
+.dna-book-search[hidden] { display: none; }
+.dna-book-seam { color: var(--dna-ink-2); white-space: nowrap; }
+.dna-book-stage { display: flex; overflow: hidden; background: var(--dna-paper); }
+.dna-sheet {
+    flex: 1 1 auto;
+    overflow: auto;
+    min-width: 0;
+    outline: none;
+}
+.dna-sheet table { table-layout: fixed; border-spacing: 0; border-collapse: separate; }
+.dna-sheet td, .dna-sheet th {
+    box-sizing: border-box;
+    min-width: 3rem;
+    padding-inline: var(--dna-gap-1);
+    border-inline-end: 1px solid var(--dna-line);
+    border-block-end: 1px solid var(--dna-line);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dna-sheet td { max-width: 12rem; }
+.dna-sheet th {
+    background: var(--dna-paper-2);
+    color: var(--dna-ink-2);
+    font-weight: 500;
+}
+.dna-sheet thead { position: sticky; top: 0; z-index: 1; }
+.dna-sheet tbody th { position: sticky; inset-inline-start: 0; }
+.dna-sheet .dna-selected { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
+.dna-sheet .dna-number { text-align: end; }
+.dna-sheet .dna-error { color: var(--dna-red-ink); }
+.dna-sheet [data-provenance="refused"]::after { content: "Refused"; color: var(--dna-red-ink); }
+.dna-sheet-loading { margin: var(--dna-gap-3); color: var(--dna-ink-2); }
+.dna-book-details {
+    flex: 0 0 min(16rem, 35vw);
+    border-inline-start: 1px solid var(--dna-line);
+    padding-inline: var(--dna-gap-3);
+    overflow: auto;
+    background: var(--dna-paper-2);
+}
+.dna-book-details h2 { font-size: 1rem; }
+.dna-book-details dd { margin-inline-start: 0; overflow-wrap: anywhere; }
+.dna-book-sheets { border-block-start: 1px solid var(--dna-line); overflow: auto; }
+.dna-book-sheets [aria-current="true"] { border-block-end: 2px solid var(--dna-accent-ink); }
+.dna-book-strip {
+    min-height: 1.625rem;
+    background: var(--dna-chrome);
+    color: var(--dna-chrome-ink);
+}
+@media (max-width: 38rem) {
+    .dna-book-name { inline-size: 3.5rem; }
+    .dna-book-bridge { flex-wrap: wrap; }
+    .dna-book-seam { flex-basis: 100%; }
+}
+
+.dna-book-mast { grid-row: 1; }
+.dna-book-deck { grid-row: 2; }
+.dna-book-bridge { grid-row: 3; }
+.dna-book-search { grid-row: 4; }
+.dna-book-stage { grid-row: 5; }
+.dna-book-sheets { grid-row: 6; }
+.dna-book-strip { grid-row: 7; }
+
+.dna-book-open { display: inline-flex; align-items: center; gap: var(--dna-gap-1); }
+.dna-book-open input { max-inline-size: 11rem; }

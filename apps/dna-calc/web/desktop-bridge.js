@@ -51,7 +51,7 @@
     return mark < 0 ? 0 : parseInt(text.slice(1, mark), 10);
   }
 
-  if (!socketCarrier) {
+  if (!socketCarrier && typeof host.releaseBuffer === "function") {
     host.addEventListener("sharedbufferreceived", function (event) {
       var buffer = event.getBuffer();
       try {

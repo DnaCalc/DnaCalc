@@ -68,6 +68,7 @@ pub(crate) enum Inverse {
 /// One undo step: a committed edit, the edits that undo it, and the selection before and after.
 #[derive(Clone, Debug)]
 pub(crate) struct Step {
+    pub(crate) skin: Option<calc_skin::HistoryEntry>,
     pub(crate) forward: Vec<CellEdit>,
     pub(crate) coordinates: Option<calc_fml::reference::StructuralEdit>,
     pub(crate) imported: Option<calc_doc::LoadedWorkbook>,
@@ -494,6 +495,11 @@ impl History {
     /// A step a redo committed: an undo takes it back again.
     pub(crate) fn redone(&mut self, step: Step) {
         self.undo.push(step);
+    }
+
+    pub(crate) fn skin_entries(&self) -> (Vec<calc_skin::HistoryEntry>, Vec<calc_skin::HistoryEntry>) {
+        let entries = |steps: &[Step]| steps.iter().rev().filter_map(|step| step.skin.clone()).collect();
+        (entries(&self.undo), entries(&self.redo))
     }
 
     pub(crate) fn undo_depth(&self) -> usize {

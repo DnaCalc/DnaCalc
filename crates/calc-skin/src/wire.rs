@@ -1,4 +1,7 @@
-use crate::{Frame, Refusal};
+use crate::{
+    Answer, Batch, Budget, Frame, Operation, Preview, PreviewDepth, Refusal, Selection, Stamp,
+    Target, WatchId, WorkbookQuery,
+};
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
@@ -7,8 +10,51 @@ pub const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Message {
+    WorkbookRequest(WorkbookRequest),
+    WorkbookReply(WorkbookReply),
     Frame(Frame),
+    Tile(crate::tiles::TileStamp),
     Failure(Refusal),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum WorkbookRequest {
+    Open {
+        name: String,
+    },
+    Ask {
+        query: WorkbookQuery,
+        budget: Budget,
+    },
+    Watch {
+        query: WorkbookQuery,
+        budget: Budget,
+    },
+    Unwatch(WatchId),
+    AcknowledgeTiles {
+        transaction: u64,
+    },
+    ResetTiles,
+    Select {
+        selection: Selection,
+        client_seq: u64,
+    },
+    Navigate(Target),
+    Preview {
+        batch: Batch,
+        depth: PreviewDepth,
+    },
+    Commit(Batch),
+    Run(Operation),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum WorkbookReply {
+    Answer(Answer<serde_json::Value>),
+    Watching(WatchId),
+    Preview(Preview),
+    Stamp(Stamp),
+    Accepted,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

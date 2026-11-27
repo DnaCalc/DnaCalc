@@ -1,0 +1,797 @@
+//! Level-one serving of the authoritative CalcHost workbook through the skin contract.
+
+mod batch;
+mod publication;
+mod query;
+
+use calc_host::value::{CellKey, GridArea, Selection as HostSelection};
+use calc_host::{CommandJournal, CommandStamp, HostSession, SkinIntent};
+use calc_skin::grid::{Area, Key, Sheet};
+use calc_skin::*;
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, VecDeque};
+use std::rc::Rc;
+
+const TOUCH_HISTORY: usize = 100;
+const MAX_WATCHES: usize = 32;
+
+fn invalid(reason: impl Into<String>) -> Refusal {
+    Refusal::Invalid {
+        reason: reason.into(),
+    }
+}
+
+fn unavailable(owner: &str, what: &str) -> Refusal {
+    Refusal::NotModelled {
+        owner: owner.into(),
+        what: what.into(),
+    }
+}
+
+fn cell(key: Key) -> Result<CellKey, Refusal> {
+    key.cell()
+        .ok_or_else(|| invalid("Cell is outside the worksheet"))
+}
+
+fn grid_area(area: Area) -> Result<GridArea, Refusal> {
+    area.area().ok_or_else(|| invalid("Invalid worksheet area"))
+}
+
+struct Touch {
+    revision: Revision,
+    // A step with no known write footprint invalidates every stale read set.
+    areas: Option<Vec<GridArea>>,
+    pending: Vec<CellKey>,
+}
+
+struct State {
+    session: HostSession,
+    selection_seq: u64,
+    selection: HostSelection,
+    selection_cause: SelectionCause,
+    selection_sender: Option<u64>,
+    touches: VecDeque<Touch>,
+    read_only: bool,
+    opened_at: Stamp,
+}
+
+impl State {
+    fn stamp(&self) -> Stamp {
+        self.session.host().skin_stamp()
+    }
+
+    fn update_selection(&mut self, cause: SelectionCause) {
+        self.selection = self.session.selection().clone();
+        self.selection_seq += 1;
+        self.selection_cause = cause;
+        self.selection_sender = None;
+    }
+
+    fn selection(&self) -> Selection {
+        let active = self.selection.active;
+        Selection {
+            seq: self.selection_seq,
+            target: active.map_or(SourceRef::Workbook, |at| SourceRef::Cells {
+                sheet: Sheet::of(at.sheet()),
+                areas: self.selection.areas.iter().copied().map(Area::of).collect(),
+            }),
+            active: active.map(Key::of),
+            grouped: Vec::new(),
+            item: None,
+        }
+    }
+
+    fn record_touch(&mut self, before: Stamp, areas: Option<Vec<GridArea>>, pending: Vec<CellKey>) {
+        let revision = self.stamp().model;
+        if revision != before.model {
+            self.touches.push_back(Touch {
+                revision,
+                areas: if revision.0 == before.model.0 + 1 {
+                    areas
+                } else {
+                    None
+                },
+                pending,
+            });
+            if self.touches.len() > TOUCH_HISTORY {
+                self.touches.pop_front();
+            }
+        }
+    }
+
+    fn check_base(&self, request: &Batch) -> Result<(), Refusal> {
+        if request
+            .workbook
+            .is_some_and(|workbook| workbook != self.stamp().workbook)
+        {
+            return Err(invalid("This edit belongs to a different workbook"));
+        }
+        let Some(base) = request.base else {
+            return Ok(());
+        };
+        let current = self.stamp().model;
+        if base == current {
+            return Ok(());
+        }
+        if base > current
+            || self
+                .touches
+                .front()
+                .is_none_or(|oldest| oldest.revision.0 > base.0 + 1)
+        {
+            return Err(Refusal::Conflict {
+                base,
+                conflicts: vec![Target::Source(SourceRef::Workbook)],
+            });
+        }
+
+        let mut expects = request.expects.clone();
+        for change in &request.changes {
+            match change {
+                Change::Model(
+                    ModelChange::Enter { at, .. } | ModelChange::RewriteFormula { at, .. },
+                ) => {
+                    expects.push(batch::source_area(GridArea::cell(cell(*at)?)));
+                }
+                Change::Model(ModelChange::ClearContents { areas }) => {
+                    for area in areas {
+                        expects.push(batch::source_area(grid_area(*area)?));
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut conflicts = Vec::new();
+        for source in expects {
+            let areas = query::source_areas(self, &source).ok();
+            let intersects = self
+                .touches
+                .iter()
+                .filter(|touch| touch.revision > base)
+                .any(|touch| match (&touch.areas, &areas) {
+                    (Some(writes), Some(reads)) => reads.iter().any(|read| {
+                        writes
+                            .iter()
+                            .any(|write| write.intersection(*read).is_some())
+                    }),
+                    _ => true,
+                });
+            let target = Target::Source(source);
+            if intersects && !conflicts.contains(&target) {
+                conflicts.push(target);
+            }
+        }
+        if conflicts.is_empty() {
+            Ok(())
+        } else {
+            Err(Refusal::Conflict { base, conflicts })
+        }
+    }
+}
+
+pub struct SkinHost {
+    state: Rc<RefCell<State>>,
+    next_connection: Cell<u64>,
+}
+
+impl SkinHost {
+    pub fn new(session: HostSession) -> Self {
+        Self::with_read_only(session, false)
+    }
+
+    pub fn with_read_only(mut session: HostSession, read_only: bool) -> Self {
+        Self::initial_selection(&mut session);
+        let opened_at = session.host().skin_stamp();
+        Self {
+            next_connection: Cell::new(1),
+            state: Rc::new(RefCell::new(State {
+                selection: session.selection().clone(),
+                session,
+                selection_seq: 1,
+                selection_cause: SelectionCause::Open,
+                selection_sender: None,
+                touches: VecDeque::new(),
+                read_only,
+                opened_at,
+            })),
+        }
+    }
+
+    fn initial_selection(session: &mut HostSession) {
+        if session.selection().active.is_none()
+            && let Some(sheet) = session.host().sheets().iter().find(|sheet| {
+                sheet.visibility() == calc_doc_model::SheetVisibility::Visible
+                    && sheet.kind() == calc_doc_model::SheetKind::Worksheet
+            })
+        {
+            let at = CellKey::new(sheet.id(), 1, 1).expect("A1 is in the worksheet");
+            session.dispatch(SkinIntent::Select(HostSelection::cell(at)));
+        }
+    }
+
+    pub fn connect(&self, origin: Origin, policy: WritePolicy) -> Connection {
+        let id = self.next_connection.get();
+        self.next_connection.set(id + 1);
+        Connection {
+            id,
+            host: self.state.clone(),
+            origin,
+            policy,
+            local: RefCell::new(Local {
+                journal: CommandJournal::new(128, 1024 * 1024),
+                watches: BTreeMap::new(),
+                last_stamp: None,
+                last_selection: 0,
+                next_watch: 1,
+                next_publication: 1,
+                awaiting_tiles: None,
+                last_client_seq: 0,
+            }),
+        }
+    }
+
+    /// Drive one host calculation slice. A carrier calls this while work remains.
+    pub fn advance(&self) -> bool {
+        let mut state = self.state.borrow_mut();
+        if state.session.has_pending_calculation() {
+            state.session.advance_calculation();
+        }
+        state.session.has_pending_calculation()
+    }
+
+    /// Lets the native application perform its existing file or automation operation on this session.
+    pub fn with_session<R>(
+        &self,
+        cause: SelectionCause,
+        apply: impl FnOnce(&mut HostSession) -> R,
+    ) -> R {
+        let mut state = self.state.borrow_mut();
+        let before = state.stamp();
+        let result = apply(&mut state.session);
+        if &state.selection != state.session.selection() {
+            state.update_selection(cause);
+        }
+        state.record_touch(before, None, Vec::new());
+        result
+    }
+}
+
+type AnswerResult = Result<Answer<serde_json::Value>, Refusal>;
+
+struct Watch {
+    query: WorkbookQuery,
+    budget: Budget,
+    answer: Option<AnswerResult>,
+}
+
+struct Local {
+    journal: CommandJournal<Result<Stamp, Refusal>>,
+    watches: BTreeMap<WatchId, Watch>,
+    last_stamp: Option<Stamp>,
+    last_selection: u64,
+    next_watch: u64,
+    next_publication: u64,
+    awaiting_tiles: Option<u64>,
+    last_client_seq: u64,
+}
+
+pub struct Connection {
+    id: u64,
+    host: Rc<RefCell<State>>,
+    origin: Origin,
+    policy: WritePolicy,
+    local: RefCell<Local>,
+}
+
+impl Connection {
+    fn check_write(&self, state: &State) -> Result<(), Refusal> {
+        if state.read_only {
+            Err(Refusal::ReadOnly)
+        } else if matches!(self.policy, WritePolicy::Look | WritePolicy::Propose) {
+            Err(Refusal::PolicyRefused)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn select_source(
+        &self,
+        state: &mut State,
+        target: SourceRef,
+        active: Option<Key>,
+        cause: SelectionCause,
+    ) -> Result<(), Refusal> {
+        let areas = query::source_areas(state, &target)?;
+        let first = areas.first().ok_or_else(|| invalid("Selection is empty"))?;
+        if areas.iter().any(|area| area.sheet() != first.sheet()) {
+            return Err(invalid("Selection areas must share one worksheet"));
+        }
+        let active = active
+            .map(cell)
+            .transpose()?
+            .unwrap_or_else(|| first.first());
+        if !areas.iter().any(|area| area.contains(active)) {
+            return Err(invalid("The active cell is outside selection"));
+        }
+        let receipt = state.session.dispatch(SkinIntent::Select(HostSelection {
+            active: Some(active),
+            areas,
+        }));
+        if let Some(error) = receipt.error {
+            return Err(batch::refusal(error));
+        }
+        state.update_selection(cause);
+        Ok(())
+    }
+}
+
+impl WorkbookPort for Connection {
+    fn capabilities(&self) -> Capabilities {
+        query::capabilities(&self.host.borrow())
+    }
+
+    fn ask(&self, query: WorkbookQuery, budget: Budget) -> AnswerResult {
+        query::answer(&self.host.borrow(), &query, budget)
+    }
+
+    fn watch(&self, query: WorkbookQuery, budget: Budget) -> Result<WatchId, Refusal> {
+        let mut local = self.local.borrow_mut();
+        if local.watches.len() >= MAX_WATCHES {
+            return Err(invalid("Too many workbook watches"));
+        }
+        let id = WatchId(local.next_watch);
+        local.next_watch += 1;
+        local.watches.insert(
+            id,
+            Watch {
+                query,
+                budget,
+                answer: None,
+            },
+        );
+        Ok(id)
+    }
+
+    fn unwatch(&self, watch: WatchId) {
+        self.local.borrow_mut().watches.remove(&watch);
+    }
+
+    fn select(&self, selection: Selection, client_seq: u64) -> Result<(), Refusal> {
+        if !selection.grouped.is_empty() || selection.item.is_some() {
+            return Err(unavailable(
+                "dc-s2xup",
+                "Group or presentation-item selection",
+            ));
+        }
+        let mut local = self.local.borrow_mut();
+        if client_seq <= local.last_client_seq {
+            return Err(Refusal::StaleSelection);
+        }
+        local.last_client_seq = client_seq;
+        let mut state = self.host.borrow_mut();
+        self.select_source(
+            &mut state,
+            selection.target,
+            selection.active,
+            SelectionCause::ClientEcho { client_seq },
+        )?;
+        state.selection_sender = Some(self.id);
+        Ok(())
+    }
+
+    fn navigate(&self, target: Target) -> Result<(), Refusal> {
+        let mut state = self.host.borrow_mut();
+        let source = match target {
+            Target::Source(source) => source,
+            Target::Anchor(id) => query::anchor_source(&state, id)?,
+            Target::Item(_) => {
+                return Err(unavailable("dc-aje2v", "Navigation to presentation items"));
+            }
+        };
+        let cause = match &self.origin {
+            Origin::Agent { agent, .. } => SelectionCause::Agent {
+                agent: agent.clone(),
+            },
+            Origin::Macro { procedure, .. } => SelectionCause::Macro {
+                procedure: procedure.clone(),
+            },
+            _ => SelectionCause::Open,
+        };
+        self.select_source(&mut state, source, None, cause)
+    }
+
+    fn preview(&self, request: &Batch, depth: PreviewDepth) -> Result<Preview, Refusal> {
+        if !matches!(depth, PreviewDepth::WritesOnly) {
+            return Err(unavailable("dc-zh096", "Preview with calculation effects"));
+        }
+        let mut state = self.host.borrow_mut();
+        let base = state.stamp();
+        Ok(
+            match self
+                .check_write(&state)
+                .and_then(|()| batch::prepare(&mut state, request))
+            {
+                Ok(staged) => staged.preview,
+                Err(refusal) => Preview {
+                    base,
+                    writes: Vec::new(),
+                    presentation: Vec::new(),
+                    warnings: Vec::new(),
+                    refusal: Some(refusal),
+                },
+            },
+        )
+    }
+
+    fn commit(&self, request: Batch) -> Result<Stamp, Refusal> {
+        let mut state = self.host.borrow_mut();
+        self.check_write(&state)?;
+        let id = request
+            .id
+            .parse::<u64>()
+            .ok()
+            .filter(|id| *id > 0 && id.to_string() == request.id)
+            .ok_or_else(|| invalid("A command ID must be a positive serial number"))?;
+        let payload =
+            serde_json::to_string(&request).map_err(|error| invalid(error.to_string()))?;
+        let before = state.stamp();
+        let mut local = self.local.borrow_mut();
+        let command = CommandStamp {
+            id,
+            workbook: before.workbook.0,
+            base_revision: before.model.0,
+        };
+        if let Some(receipt) = local
+            .journal
+            .admit(command, before.workbook.0, before.model.0, &payload)
+            .map_err(|error| invalid(error.to_string()))?
+        {
+            return receipt;
+        }
+        let result =
+            (|| {
+                let prepared = batch::prepare(&mut state, &request)?;
+                let Some(kind) = prepared.preview.kind() else {
+                    return Ok(before);
+                };
+                let mut targets = Vec::new();
+                for write in &prepared.preview.writes {
+                    targets.push(Target::Source(batch::source_area(GridArea::cell(cell(
+                        write.at,
+                    )?))));
+                }
+                for change in &prepared.preview.presentation {
+                    if let PresentationChange::Bind { anchor, .. }
+                    | PresentationChange::RemoveAnchor { anchor } = change
+                    {
+                        let target = Target::Anchor(*anchor);
+                        if !targets.contains(&target) {
+                            targets.push(target);
+                        }
+                    }
+                }
+                let label = request.label.clone().unwrap_or_else(|| {
+                    match prepared.preview.writes.as_slice() {
+                        [write] => format!(
+                            "Entered {}{}",
+                            address::column_letters(write.at.3),
+                            write.at.2
+                        ),
+                        [] => "Edited layout".into(),
+                        writes => format!("Edited {} cells", writes.len()),
+                    }
+                });
+                let entry = HistoryEntry {
+                    id: EntryId(0),
+                    at: before,
+                    label,
+                    origin: self.origin.clone(),
+                    kind,
+                    targets,
+                    cells_touched: prepared.preview.writes.len() as u64,
+                    reversibility: Reversibility::Reversible,
+                    group: None,
+                    unreviewed: self.policy == WritePolicy::ApplyThenReview,
+                };
+                let receipt = state.session.dispatch_skin_edit(prepared.edits, entry);
+                if let Some(error) = receipt.error {
+                    return Err(batch::refusal(error));
+                }
+                let pending = receipt
+                    .committed
+                    .as_ref()
+                    .map_or_else(Vec::new, |commit| commit.pending().to_vec());
+                state.record_touch(
+                    before,
+                    receipt
+                        .committed
+                        .map(|commit| commit.input_writes().to_vec()),
+                    pending,
+                );
+                if &state.selection != state.session.selection() {
+                    state.update_selection(SelectionCause::History);
+                }
+                Ok(state.stamp())
+            })();
+        local.journal.remember(id, payload, result.clone(), 512);
+        result
+    }
+
+    fn run(&self, operation: Operation) -> Result<Stamp, Refusal> {
+        let mut state = self.host.borrow_mut();
+        let before = state.stamp();
+        let intent = match operation {
+            Operation::Undo => {
+                self.check_write(&state)?;
+                SkinIntent::Undo
+            }
+            Operation::Redo => {
+                self.check_write(&state)?;
+                SkinIntent::Redo
+            }
+            Operation::CancelCalculation => {
+                state.session.cancel_calculation();
+                return Ok(state.stamp());
+            }
+            Operation::Calculate {
+                scope: SourceRef::Workbook,
+            } => SkinIntent::Recalculate,
+            Operation::Calculate { scope } => SkinIntent::CalculateRange {
+                areas: query::source_areas(&state, &scope)?,
+            },
+            Operation::Revert(_) => {
+                return Err(unavailable("dc-zh096", "Reverting an earlier edit"));
+            }
+        };
+        let receipt = state.session.dispatch(intent);
+        if let Some(error) = receipt.error {
+            return Err(batch::refusal(error));
+        }
+        if &state.selection != state.session.selection() {
+            state.update_selection(SelectionCause::History);
+        }
+        let pending = receipt
+            .committed
+            .as_ref()
+            .map_or_else(Vec::new, |commit| commit.pending().to_vec());
+        state.record_touch(
+            before,
+            receipt.committed.and_then(|change| {
+                (!change.input_writes().is_empty()).then(|| change.input_writes().to_vec())
+            }),
+            pending,
+        );
+        Ok(state.stamp())
+    }
+
+    fn next_frame(&self) -> Result<Option<Frame>, Refusal> {
+        let state = self.host.borrow();
+        if !state.session.screen_updating() {
+            return Ok(None);
+        }
+        let mut local = self.local.borrow_mut();
+        let stamp = state.stamp();
+        let mut updates = Vec::new();
+        let mut events = Vec::new();
+        let prior = local.last_stamp;
+        let selection_changed = local.last_selection != state.selection_seq;
+        for (&watch, slot) in &mut local.watches {
+            if slot.answer.is_some()
+                && !query::invalidated(&state, &slot.query, prior, selection_changed)
+            {
+                continue;
+            }
+            let answer = query::answer(&state, &slot.query, slot.budget);
+            let same = prior.is_some_and(|previous| previous.workbook == stamp.workbook)
+                && match (slot.answer.as_ref(), &answer) {
+                    (Some(Ok(old)), Ok(new)) => {
+                        old.coverage == new.coverage && old.body == new.body
+                    }
+                    (Some(Err(old)), Err(new)) => old == new,
+                    _ => false,
+                };
+            if !same {
+                updates.push(match &answer {
+                    Ok(answer) => Update::Ready {
+                        watch,
+                        coverage: answer.coverage.clone(),
+                        body: answer.body.clone(),
+                    },
+                    Err(reason) => Update::Refused {
+                        watch,
+                        reason: reason.clone(),
+                    },
+                });
+            }
+            slot.answer = Some(answer);
+        }
+        if selection_changed {
+            let cause = if state
+                .selection_sender
+                .is_some_and(|sender| sender != self.id)
+            {
+                SelectionCause::Open
+            } else {
+                state.selection_cause.clone()
+            };
+            events.push(Event::Selection {
+                selection: state.selection(),
+                cause,
+            });
+        }
+        local.last_stamp = Some(stamp);
+        local.last_selection = state.selection_seq;
+        if updates.is_empty() && events.is_empty() && prior == Some(stamp) {
+            return Ok(None);
+        }
+        Ok(Some(Frame {
+            stamp,
+            events,
+            updates,
+        }))
+    }
+}
+
+impl Connection {
+    /// Dispatch one control packet on this connection. The origin and write policy stay at the host.
+    pub fn handle(&self, packet: Packet) -> Packet {
+        let request = packet.envelope.request;
+        let result = match (packet.envelope.message, packet.bytes) {
+            (Message::WorkbookRequest(WorkbookRequest::Open { name }), Some(bytes)) => {
+                self.open(name, bytes).map(WorkbookReply::Stamp)
+            }
+            (Message::WorkbookRequest(message), None) => self.request(message),
+            _ => Err(invalid("Unexpected workbook packet")),
+        };
+        let message = match result {
+            Ok(reply) => Message::WorkbookReply(reply),
+            Err(reason) => Message::Failure(reason),
+        };
+        Packet {
+            envelope: Envelope::new(request, message),
+            bytes: None,
+        }
+    }
+
+    /// Produce one atomic update. A connection has one binary publication in flight.
+    pub fn next_packets(&self) -> Result<Vec<Packet>, Refusal> {
+        if self.local.borrow().awaiting_tiles.is_some() {
+            return Ok(Vec::new());
+        }
+        let Some(mut frame) = self.next_frame()? else {
+            return Ok(Vec::new());
+        };
+        let mut local = self.local.borrow_mut();
+        let sequence = local.next_publication;
+        let mut packets = Vec::new();
+        let mut remaining = calc_skin::tiles::MAX_PUBLICATION_BYTES;
+        for update in &mut frame.updates {
+            let Update::Ready {
+                watch,
+                coverage,
+                body,
+            } = update
+            else {
+                continue;
+            };
+            if !matches!(
+                local.watches.get(watch).map(|slot| &slot.query),
+                Some(WorkbookQuery::Cells { .. })
+            ) {
+                continue;
+            }
+            let result = serde_json::from_value(body.take())
+                .map_err(|error| error.to_string())
+                .and_then(|window| {
+                    publication::window(frame.stamp, *watch, sequence, window, remaining)
+                });
+            match result {
+                Ok((mut batch, retained)) => {
+                    remaining -= retained;
+                    let Some(Message::Tile(stamp)) =
+                        batch.last().map(|part| &part.envelope.message)
+                    else {
+                        return Err(Refusal::Transport("No binary window completion".into()));
+                    };
+                    *update = Update::Tiles {
+                        watch: *watch,
+                        coverage: coverage.clone(),
+                        barrier: stamp.barrier(),
+                    };
+                    packets.append(&mut batch);
+                }
+                Err(reason) => {
+                    *update = Update::Refused {
+                        watch: *watch,
+                        reason: Refusal::Transport(reason),
+                    }
+                }
+            }
+        }
+        if !packets.is_empty() {
+            local.awaiting_tiles = Some(sequence);
+            local.next_publication += 1;
+        }
+        packets.push(Packet {
+            envelope: Envelope::new(0, Message::Frame(frame)),
+            bytes: None,
+        });
+        Ok(packets)
+    }
+
+    fn open(&self, name: String, bytes: Vec<u8>) -> Result<Stamp, Refusal> {
+        if !matches!(self.policy, WritePolicy::Commit)
+            || !matches!(self.origin, Origin::User { .. })
+        {
+            return Err(Refusal::PolicyRefused);
+        }
+        let mut session = calc_host::HostSession::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(bytes)),
+            &calc_host::OpenPolicy::default(),
+            calc_host::HostOptions::default(),
+        )
+        .map_err(|error| Refusal::Excel {
+            reason: format!("{error:?}"),
+        })?;
+        let macro_enabled = session.host().model().definitions().macro_enabled();
+        session.set_file_identity(&name, macro_enabled);
+        session.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
+        SkinHost::initial_selection(&mut session);
+        let stamp = session.host().skin_stamp();
+        let mut state = self.host.borrow_mut();
+        state.session = session;
+        state.opened_at = stamp;
+        state.touches.clear();
+        state.update_selection(SelectionCause::Open);
+        Ok(stamp)
+    }
+
+    fn request(&self, message: WorkbookRequest) -> Result<WorkbookReply, Refusal> {
+        Ok(match message {
+            WorkbookRequest::Open { .. } => return Err(invalid("The workbook file is missing")),
+            WorkbookRequest::Ask { query, budget } => {
+                WorkbookReply::Answer(self.ask(query, budget)?)
+            }
+            WorkbookRequest::Watch { query, budget } => {
+                WorkbookReply::Watching(self.watch(query, budget)?)
+            }
+            WorkbookRequest::Unwatch(id) => {
+                self.unwatch(id);
+                WorkbookReply::Accepted
+            }
+            WorkbookRequest::AcknowledgeTiles { transaction } => {
+                let mut local = self.local.borrow_mut();
+                if local.awaiting_tiles == Some(transaction) {
+                    local.awaiting_tiles = None;
+                }
+                WorkbookReply::Accepted
+            }
+            WorkbookRequest::ResetTiles => {
+                let mut local = self.local.borrow_mut();
+                local.awaiting_tiles = None;
+                for watch in local.watches.values_mut() {
+                    if matches!(watch.query, WorkbookQuery::Cells { .. }) {
+                        watch.answer = None;
+                    }
+                }
+                WorkbookReply::Accepted
+            }
+            WorkbookRequest::Select {
+                selection,
+                client_seq,
+            } => {
+                self.select(selection, client_seq)?;
+                WorkbookReply::Accepted
+            }
+            WorkbookRequest::Navigate(target) => {
+                self.navigate(target)?;
+                WorkbookReply::Accepted
+            }
+            WorkbookRequest::Preview { batch, depth } => {
+                WorkbookReply::Preview(self.preview(&batch, depth)?)
+            }
+            WorkbookRequest::Commit(batch) => WorkbookReply::Stamp(self.commit(batch)?),
+            WorkbookRequest::Run(operation) => WorkbookReply::Stamp(self.run(operation)?),
+        })
+    }
+}

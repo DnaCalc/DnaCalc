@@ -1,0 +1,15 @@
+[package]
+name = "dna-view-classic"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The Classic workbook view."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+dna-kit = { path = "../dna-kit" }
+dna-grid = { path = "../dna-grid" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }

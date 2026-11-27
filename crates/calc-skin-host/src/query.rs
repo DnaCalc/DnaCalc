@@ -1,0 +1,564 @@
+use crate::{AnswerResult, State, batch, cell, grid_area, invalid, unavailable};
+use calc_doc_model::{SheetKind, SheetVisibility};
+use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea};
+use calc_host::{HostState, ProjectedCell, ProjectedValue, ProjectionRequest, search::entry_text};
+use calc_skin::grid::{Area, Key, Sheet};
+use calc_skin::*;
+use serde::Serialize;
+use serde_json::{Value, json};
+use std::collections::BTreeSet;
+
+const MAX_QUERY_CELLS: u64 = 65_536;
+
+pub(crate) fn capabilities(state: &State) -> Capabilities {
+    Capabilities {
+        read_only: state.read_only,
+        supported: vec![Capability::Workbook, Capability::Printing],
+        platform_reserved_chords: Vec::new(),
+    }
+}
+
+fn checked_sheet(host: &HostState, sheet: Sheet) -> Result<calc_host::value::SheetId, Refusal> {
+    let id = sheet.id();
+    host.model()
+        .sheet_by_id(id)
+        .ok_or_else(|| invalid("The worksheet is unavailable"))?;
+    Ok(id)
+}
+
+pub(crate) fn raw(value: &CalcValue) -> RawValue {
+    match value.core() {
+        CoreValue::Number(value) => RawValue::Number {
+            bits: value.to_bits(),
+        },
+        CoreValue::Text(value) => RawValue::Text(value.utf16_code_units().to_vec()),
+        CoreValue::Logical(value) => RawValue::Logical(*value),
+        CoreValue::Error(code) => RawValue::Error(code.excel_spelling().into()),
+        CoreValue::Empty | CoreValue::Missing => RawValue::Blank,
+        CoreValue::Array(array) => array.get(0, 0).map_or(RawValue::Blank, raw),
+        CoreValue::Reference(_) => RawValue::Other {
+            kind: "reference".into(),
+            display: String::new(),
+        },
+    }
+}
+
+pub(crate) fn anchor_source(state: &State, id: AnchorId) -> Result<SourceRef, Refusal> {
+    let anchor = state
+        .session
+        .host()
+        .model()
+        .view_part()
+        .anchor(id)
+        .ok_or_else(|| invalid("The anchor does not exist"))?;
+    let area = anchor
+        .area()
+        .ok_or_else(|| invalid("The anchor is orphaned"))?;
+    Ok(if anchor.spill {
+        SourceRef::Spill {
+            anchor: Key::of(area.first()),
+        }
+    } else {
+        batch::source_area(area)
+    })
+}
+
+pub(crate) fn source_areas(state: &State, source: &SourceRef) -> Result<Vec<GridArea>, Refusal> {
+    let host = state.session.host();
+    match source {
+        SourceRef::Cells { sheet, areas } => {
+            let id = checked_sheet(host, *sheet)?;
+            let result = areas
+                .iter()
+                .copied()
+                .map(grid_area)
+                .collect::<Result<Vec<_>, _>>()?;
+            if result.is_empty() || result.iter().any(|area| area.sheet() != id) {
+                return Err(invalid("The source must specify areas on its worksheet"));
+            }
+            Ok(result)
+        }
+        SourceRef::Spill { anchor } => {
+            let at = cell(*anchor)?;
+            checked_sheet(host, Sheet::of(at.sheet()))?;
+            Ok(vec![
+                host.spill_area(at).unwrap_or_else(|| GridArea::cell(at)),
+            ])
+        }
+        SourceRef::Sheet(sheet) => Ok(vec![GridArea::full_sheet(checked_sheet(host, *sheet)?)]),
+        SourceRef::Workbook => Ok(host
+            .sheets()
+            .iter()
+            .map(|sheet| GridArea::full_sheet(sheet.id()))
+            .collect()),
+        _ => Err(unavailable(
+            "dc-b67gh",
+            "Resolving this source to worksheet cells",
+        )),
+    }
+}
+
+pub(crate) fn interest_areas(state: &State, interest: &Interest) -> Result<Vec<GridArea>, Refusal> {
+    let host = state.session.host();
+    match interest {
+        Interest::Sheet(sheet) => Ok(host
+            .used_area(checked_sheet(host, *sheet)?)
+            .into_iter()
+            .collect()),
+        Interest::Selection => Ok(state.selection.areas.clone()),
+        Interest::Anchors(ids) => {
+            let areas = ids
+                .iter()
+                .map(|&id| source_areas(state, &anchor_source(state, id)?))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(areas.into_iter().flatten().collect())
+        }
+        _ => {
+            let list = match interest {
+                Interest::Area(area) => std::slice::from_ref(area),
+                Interest::Areas(areas) => areas.as_slice(),
+                _ => unreachable!("handled above"),
+            };
+            list.iter()
+                .map(|&area| {
+                    let area = grid_area(area)?;
+                    checked_sheet(host, Sheet::of(area.sheet()))?;
+                    Ok(area)
+                })
+                .collect()
+        }
+    }
+}
+
+pub(crate) fn invalidated(
+    state: &State,
+    query: &WorkbookQuery,
+    prior: Option<Stamp>,
+    selection_changed: bool,
+) -> bool {
+    let Some(prior) = prior else { return true };
+    let now = state.stamp();
+    if now.workbook != prior.workbook {
+        return true;
+    }
+    let authored = prior.model != now.model;
+    let recalculated = prior.calc != now.calc;
+    let presentation = prior.view != now.view;
+    let intersects = |areas: &[GridArea], pending: bool| {
+        let mut touches = state
+            .touches
+            .iter()
+            .filter(|touch| touch.revision > prior.model)
+            .peekable();
+        if touches
+            .peek()
+            .is_none_or(|touch| touch.revision.0 != prior.model.0 + 1)
+        {
+            return authored;
+        }
+        touches.any(|touch| {
+            touch.areas.as_ref().is_none_or(|writes| {
+                writes
+                    .iter()
+                    .any(|write| areas.iter().any(|area| area.intersection(*write).is_some()))
+                    || (pending
+                        && touch
+                            .pending
+                            .iter()
+                            .any(|at| areas.iter().any(|area| area.contains(*at))))
+            })
+        })
+    };
+    match query {
+        WorkbookQuery::Cells { interest } => {
+            recalculated
+                || (selection_changed && matches!(interest, Interest::Selection))
+                || (presentation && matches!(interest, Interest::Anchors(_)))
+                || (authored
+                    && match interest_areas(state, interest) {
+                        Ok(areas) if !matches!(interest, Interest::Sheet(_)) => {
+                            intersects(&areas, true)
+                        }
+                        _ => true,
+                    })
+        }
+        WorkbookQuery::Formula { at } => {
+            authored
+                && at
+                    .cell()
+                    .is_none_or(|at| intersects(&[GridArea::cell(at)], false))
+        }
+        WorkbookQuery::Geometry { .. } | WorkbookQuery::PrintPlan { .. } => authored,
+        WorkbookQuery::ViewPart => presentation || recalculated,
+        WorkbookQuery::Resolve { .. } => authored || selection_changed,
+        WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
+        WorkbookQuery::Census { .. } => authored || recalculated,
+        WorkbookQuery::CalcState => true,
+        WorkbookQuery::Rules { .. } => authored || recalculated,
+    }
+}
+
+fn encode(value: impl Serialize) -> Result<Value, Refusal> {
+    serde_json::to_value(value).map_err(|error| Refusal::Transport(error.to_string()))
+}
+
+pub(crate) fn over_budget(cells: u64, bytes: u64) -> Refusal {
+    Refusal::OverBudget {
+        counts: Budget {
+            cells,
+            nodes: 0,
+            edges: 0,
+            bytes,
+            millis: 0,
+        },
+        alternatives: vec!["Choose a smaller worksheet area".into()],
+    }
+}
+
+pub(crate) fn area_size(areas: &[GridArea], budget: Budget) -> Result<(), Refusal> {
+    let count = areas
+        .iter()
+        .fold(0u64, |n, area| n.saturating_add(area.cell_count()));
+    if count > budget.cells.min(MAX_QUERY_CELLS) {
+        return Err(over_budget(count, 0));
+    }
+    Ok(())
+}
+
+fn project_window(
+    state: &State,
+    interest: &Interest,
+    budget: Budget,
+) -> Result<CellWindow, Refusal> {
+    let areas = interest_areas(state, interest)?;
+    area_size(&areas, budget)?;
+    let host = state.session.host();
+    let mut keys = BTreeSet::new();
+    for area in &areas {
+        for row in area.first().row()..=area.last().row() {
+            for column in area.first().column()..=area.last().column() {
+                keys.insert(
+                    CellKey::new(area.sheet(), row, column).expect("within the checked area"),
+                );
+            }
+        }
+    }
+    let page = calc_host::project(
+        host,
+        &ProjectionRequest {
+            cells: keys.into_iter().collect(),
+        },
+    )
+    .map_err(|error| invalid(error.to_string()))?;
+    let cells = page
+        .cells()
+        .iter()
+        .filter_map(|projected| {
+            let visible = !matches!(projected.value(), ProjectedValue::Empty)
+                || host.cell_style(projected.at()) != 0;
+            visible.then(|| show_cell(state, projected))
+        })
+        .collect();
+    Ok(CellWindow {
+        areas: areas.into_iter().map(Area::of).collect(),
+        cells,
+    })
+}
+
+fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCell {
+    let host = state.session.host();
+    let at = projected.at();
+    let stamp = state.stamp();
+    let (value, provenance) = match projected.value() {
+        ProjectedValue::Empty => (None, Provenance::Empty),
+        ProjectedValue::Literal(value) => (Some(value.clone()), Provenance::Literal),
+        ProjectedValue::FileCached(cache) => (Some(cache.value().to_value()), Provenance::AsSaved),
+        ProjectedValue::Calculated { value, calculation } => {
+            let provenance = if calculation.held_by_circular_rule() {
+                Provenance::Stale {
+                    since: stamp.model,
+                    cause: StaleCause::CircularHold,
+                }
+            } else if calculation.reads_external_links() {
+                Provenance::External {
+                    source: "Workbook link cache".into(),
+                    observed_at: None,
+                }
+            } else {
+                Provenance::Calculated { calc: stamp.calc }
+            };
+            (Some(value.clone()), provenance)
+        }
+        ProjectedValue::NotModeled { refusal, .. } => (
+            None,
+            Provenance::Refused {
+                owner: "dc-b67gh".into(),
+                reason: format!("{refusal:?}"),
+            },
+        ),
+        ProjectedValue::Stale(stale) => {
+            let cause = if stale.cause() == calc_host::StaleCause::RecalcFailed {
+                StaleCause::CalcFailed
+            } else if host.calc_mode() == calc_host::CalcMode::Manual {
+                StaleCause::ManualMode
+            } else {
+                StaleCause::Calculating
+            };
+            (
+                stale
+                    .last_value()
+                    .cloned()
+                    .or_else(|| stale.file_cache().map(|cache| cache.value().to_value())),
+                Provenance::Stale {
+                    since: stamp.model,
+                    cause,
+                },
+            )
+        }
+    };
+    let input = entry_text(projected.input());
+    let input = if matches!(
+        projected.input(),
+        Some(calc_doc_model::CellInput::Formula(_))
+    ) {
+        calc_formula_kernel::display::formula(&input)
+    } else {
+        input
+    };
+    let locale = host.options().locale.as_ref();
+    let text = value.as_ref().map_or_else(String::new, |value| {
+        if let Some(alt) = value.image_value() {
+            return alt.alt_text.clone().unwrap_or_default();
+        }
+        let Some((profile, code)) = locale.zip(host.number_format(at)) else {
+            return calc_formula_kernel::result::shown(value, locale);
+        };
+        let system = if host.declared_date1904() {
+            calc_func::locale::DateSystem::System1904
+        } else {
+            calc_func::locale::DateSystem::System1900
+        };
+        match calc_func::cell_text_localized(profile, system, value, code) {
+            Ok(text) => text,
+            Err(calc_func::CellFormatError::Unshowable) => "#####".into(),
+            Err(calc_func::CellFormatError::NotModelled) => {
+                calc_formula_kernel::result::shown(value, locale)
+            }
+        }
+    });
+    let spill = projected.spill().map(|spill| match spill {
+        calc_host::ProjectedSpill::Filled(area) => SpillExtent::Filled(Area::of(area)),
+        calc_host::ProjectedSpill::Blocked(area) => SpillExtent::Blocked(Area::of(area)),
+    });
+    WorkbookCell {
+        at: Key::of(at),
+        input,
+        shown: Shown {
+            value: value.as_ref().map_or(RawValue::Blank, raw),
+            provenance,
+        },
+        text,
+        spill,
+        style: host.cell_style(at),
+    }
+}
+
+fn address_book(state: &State) -> AddressBook {
+    let host = state.session.host();
+    AddressBook {
+        sheets: host
+            .sheets()
+            .iter()
+            .map(|sheet| (Sheet::of(sheet.id()), sheet.name().text().to_string_lossy()))
+            .collect(),
+        names: host
+            .defined_names()
+            .iter()
+            .map(|name| {
+                let scope = match name.scope {
+                    calc_doc_model::NameScope::Workbook => NameScope::Workbook,
+                    calc_doc_model::NameScope::Sheet(sheet) => NameScope::Sheet(Sheet::of(sheet)),
+                };
+                (scope, name.name.clone())
+            })
+            .collect(),
+        tables: host
+            .model()
+            .definitions()
+            .tables()
+            .iter()
+            .map(|table| table.display_name.clone())
+            .collect(),
+        active: state.selection.active.map(Key::of),
+    }
+}
+
+pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> AnswerResult {
+    let host = state.session.host();
+    let stamp = state.stamp();
+    let mut coverage = Coverage::Complete;
+    let body = match query {
+        WorkbookQuery::Summary => encode(WorkbookSummary {
+            name: host
+                .model()
+                .definitions()
+                .workbook_name()
+                .unwrap_or("Book1")
+                .to_owned(),
+            sheets: host
+                .sheets()
+                .iter()
+                .map(|sheet| SheetSummary {
+                    sheet: Sheet::of(sheet.id()),
+                    name: sheet.name().text().to_string_lossy(),
+                    visible: sheet.visibility() == SheetVisibility::Visible,
+                    worksheet: sheet.kind() == SheetKind::Worksheet,
+                })
+                .collect(),
+            edited: stamp.model != state.opened_at.model,
+            layout_edited: stamp.view != state.opened_at.view,
+            date1904: host.declared_date1904(),
+            macros: host.model().definitions().macro_enabled(),
+            capabilities: capabilities(state),
+        })?,
+        WorkbookQuery::Census { scope } => {
+            let areas = source_areas(state, scope)?;
+            let mut cells = 0u64;
+            let mut formulas = 0u64;
+            let mut seen = BTreeSet::new();
+            'areas: for area in areas {
+                for (at, input) in host.model().cells(area).into_iter().flatten() {
+                    if !seen.insert(at) {
+                        continue;
+                    }
+                    if cells >= budget.cells.min(MAX_QUERY_CELLS) {
+                        coverage = Coverage::Partial {
+                            done: cells,
+                            total: None,
+                            why: PartialWhy::Budget,
+                        };
+                        break 'areas;
+                    }
+                    cells += 1;
+                    formulas += u64::from(matches!(input, calc_doc_model::CellInput::Formula(_)));
+                }
+            }
+            json!({ "formulas": formulas, "literals": cells - formulas })
+        }
+        WorkbookQuery::Cells { interest } => encode(project_window(state, interest, budget)?)?,
+        WorkbookQuery::Geometry { sheet } => {
+            let id = checked_sheet(host, *sheet)?;
+            geometry(host, id)?
+        }
+        WorkbookQuery::Formula { at } => {
+            let at = cell(*at)?;
+            checked_sheet(host, Sheet::of(at.sheet()))?;
+            let input = host.model().cell(at);
+            let formula = matches!(input, Some(calc_doc_model::CellInput::Formula(_)));
+            let text = entry_text(input);
+            let precedents = host.precedents(at).unwrap_or_default();
+            if precedents.len() as u64 > budget.edges {
+                return Err(over_budget(precedents.len() as u64, 0));
+            }
+            json!({
+                "input": if formula { calc_formula_kernel::display::formula(&text) } else { text },
+                "formula": formula,
+                "precedents": precedents.into_iter().map(Area::of).collect::<Vec<_>>(),
+            })
+        }
+        WorkbookQuery::Rules { at } => {
+            let at = cell(*at)?;
+            checked_sheet(host, Sheet::of(at.sheet()))?;
+            let refusal = if state.read_only {
+                Some(Refusal::ReadOnly)
+            } else {
+                batch::rules(&state.session, at).err()
+            };
+            let validation = host.validation(at).map(|rule| format!("{rule:?}"));
+            json!({ "refusal": refusal, "validation": validation })
+        }
+        WorkbookQuery::CalcState => json!({
+            "mode": format!("{:?}", host.calc_mode()),
+            "state": host.calculation_state(),
+            "circular": host.circular_reported().map(Key::of)
+        }),
+        WorkbookQuery::ViewPart => {
+            let part = host.model().view_part();
+            let anchors = part.anchors().map(|anchor| {
+                json!({
+                    "id": anchor.id,
+                    "source": anchor_source(state, anchor.id).ok(),
+                    "area": anchor_source(state, anchor.id).ok().and_then(|source| source_areas(state, &source).ok())
+                        .and_then(|areas| areas.first().copied()).map(Area::of),
+                })
+            }).collect::<Vec<_>>();
+            json!({ "opaque": part.is_opaque(), "anchors": anchors })
+        }
+        WorkbookQuery::History => {
+            let (undo, redo) = state.session.history_depth();
+            let (undo_entries, redo_entries) = state.session.skin_history();
+            json!({ "undo": undo, "redo": redo, "undo_entries": undo_entries, "redo_entries": redo_entries })
+        }
+        WorkbookQuery::Resolve { address } => {
+            let source = SourceRef::parse(address, Notation::A1, &address_book(state))
+                .map_err(|error| invalid(format!("Cannot resolve the address ({error:?})")))?;
+            encode(source)?
+        }
+        WorkbookQuery::PrintPlan { source } => {
+            let areas = source_areas(state, source)?;
+            let sheet = areas
+                .first()
+                .map(|area| area.sheet())
+                .ok_or_else(|| invalid("Nothing to print"))?;
+            if !matches!(source, SourceRef::Sheet(_)) {
+                return Err(unavailable(
+                    "dc-s2xup",
+                    "Print plan for a selection or workbook",
+                ));
+            }
+            let geometry = calc_host::print_plan::print_geometry(host, sheet);
+            let plan = calc_host::print_plan::print_plan(host, sheet, &geometry, (0, 0))
+                .map_err(|reason| Refusal::Excel { reason })?;
+            encode(plan)?
+        }
+    };
+    let bytes = serde_json::to_vec(&body)
+        .map_err(|error| Refusal::Transport(error.to_string()))?
+        .len() as u64;
+    if bytes > budget.bytes {
+        return Err(over_budget(0, bytes));
+    }
+    Ok(Answer {
+        stamp,
+        coverage,
+        body,
+    })
+}
+
+fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Refusal> {
+    let geometry = host.sheet_geometry(id);
+    let size = geometry.as_ref();
+    let view = host.sheet_view(id);
+    let panes = host.model().definitions().frozen_panes(id);
+    encode(WorksheetGeometry {
+        rows: size
+            .into_iter()
+            .flat_map(|g| g.rows.iter())
+            .map(|(&row, format)| (row, format.height, format.hidden))
+            .collect(),
+        columns: size
+            .into_iter()
+            .flat_map(|g| &g.columns)
+            .map(|span| (span.first, span.last, span.width, span.hidden))
+            .collect(),
+        default_row_height: size
+            .and_then(|g| g.default_row_height)
+            .unwrap_or_else(|| host.default_font_row_points()),
+        default_column_width: size.and_then(|g| g.default_column_width).unwrap_or(8.43),
+        default_digit_px: host.default_digit_px(),
+        merges: host.merged_areas(id).into_iter().map(Area::of).collect(),
+        frozen_rows: panes.map_or(0, |p| p.rows()),
+        frozen_columns: panes.map_or(0, |p| p.columns()),
+        zoom: view.and_then(|v| v.zoom).unwrap_or(100),
+    })
+}

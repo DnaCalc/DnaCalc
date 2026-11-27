@@ -71,6 +71,7 @@ pub enum StaleCause {
     Calculating,
     CalcFailed,
     Cancelled,
+    CircularHold,
     SourceUnavailable,
     UnrefreshedPivotCache { source_revision: Revision },
 }
@@ -218,15 +219,73 @@ pub enum WorkbookQuery {
     Cells { interest: Interest },
     Geometry { sheet: Sheet },
     Formula { at: Key },
+    Rules { at: Key },
+    CalcState,
     ViewPart,
     History,
     Resolve { address: String },
     PrintPlan { source: SourceRef },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SheetSummary {
+    pub sheet: Sheet,
+    pub name: String,
+    pub visible: bool,
+    pub worksheet: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkbookSummary {
+    pub name: String,
+    pub sheets: Vec<SheetSummary>,
+    pub edited: bool,
+    pub layout_edited: bool,
+    pub date1904: bool,
+    pub macros: bool,
+    pub capabilities: Capabilities,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorksheetGeometry {
+    pub rows: Vec<(u32, Option<f64>, bool)>,
+    pub columns: Vec<(u32, u32, Option<f64>, bool)>,
+    pub default_row_height: f64,
+    pub default_column_width: f64,
+    pub default_digit_px: f64,
+    pub merges: Vec<Area>,
+    pub frozen_rows: u32,
+    pub frozen_columns: u32,
+    pub zoom: u16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpillExtent {
+    Filled(Area),
+    Blocked(Area),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorkbookCell {
+    pub at: Key,
+    pub input: String,
+    pub shown: Shown<crate::RawValue>,
+    pub text: String,
+    pub spill: Option<SpillExtent>,
+    pub style: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CellWindow {
+    pub areas: Vec<Area>,
+    pub cells: Vec<WorkbookCell>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Batch {
     pub id: String,
+    #[serde(default)]
+    pub workbook: Option<WorkbookId>,
     pub base: Option<Revision>,
     pub expects: Vec<SourceRef>,
     pub selection_seq: Option<u64>,
@@ -379,6 +438,11 @@ pub enum Update {
         watch: WatchId,
         coverage: Coverage,
         body: Value,
+    },
+    Tiles {
+        watch: WatchId,
+        coverage: Coverage,
+        barrier: crate::tiles::TileBarrier,
     },
     Outdated {
         watch: WatchId,
