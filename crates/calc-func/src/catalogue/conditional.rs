@@ -96,6 +96,15 @@ attach_eager_family! {
     MINIFS => minifs_lifted;
 }
 
+/// A passive inspection of a conditional aggregate using the kernel's actual verdicts.
+pub trait ConditionalObserver {
+    /// Admit the full scan before any criteria range is read. False ends the diagnostic call.
+    fn begin(&mut self, id: super::FunctionId, ranges: &[GridArea], target: Option<GridArea>) -> bool;
+
+    /// The verdict of every criterion at a row-major offset. False ends the diagnostic call.
+    fn observe(&mut self, offset: u64, verdicts: &[CriterionVerdict]) -> bool;
+}
+
 type Kernel = fn(&[CalcValue], &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault>;
 
 /// The call once per element when a criterion is an array or a reference of several cells: an
@@ -220,7 +229,9 @@ fn countifs(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(COUNTIFS, services);
     Site::finish(pairs(&site, arguments, services, false).and_then(|plan| {
+        plan.admit_observation(&site, services)?;
         let conditions = plan.read_conditions(&site, services)?;
+        plan.observe(&site, services, &conditions)?;
         count(&site, &conditions, plan.size)
     }))
 }
@@ -512,6 +523,37 @@ enum Used {
 }
 
 impl Plan {
+    fn inspecting(site: &Site<'_>) -> bool {
+        matches!(site.id(), COUNTIFS | SUMIFS | AVERAGEIFS)
+    }
+
+    fn admit_observation(&self, site: &Site<'_>, services: &mut EvalServices<'_>) -> Step<()> {
+        if Self::inspecting(site) && let Some(observer) = services.conditional_observer() {
+            let ranges: Vec<_> = self.conditions.iter().map(|(range, _)| range.area).collect();
+            if !observer.begin(site.id(), &ranges, self.target.map(|range| range.area)) {
+                return Err(site.not_modelled(None));
+            }
+        }
+        Ok(())
+    }
+
+    fn observe(&self, site: &Site<'_>, services: &mut EvalServices<'_>, conditions: &[Verdicts]) -> Step<()> {
+        if Self::inspecting(site) && let Some(observer) = services.conditional_observer() {
+            let mut cursors = vec![0; conditions.len()];
+            let mut decisions = Vec::with_capacity(conditions.len());
+            for offset in 0..self.size {
+                decisions.clear();
+                decisions.extend(conditions.iter().zip(&mut cursors).map(|(verdicts, cursor)| {
+                    verdict_at(verdicts, cursor, offset)
+                }));
+                if !observer.observe(offset, &decisions) {
+                    return Err(site.not_modelled(None));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Reads every criteria range, in argument order, into its verdicts.
     fn read_conditions(
         &self,
@@ -535,6 +577,7 @@ impl Plan {
         take: &mut dyn FnMut(f64, Option<&CalcValue>) -> Step<()>,
     ) -> Step<()> {
         let target = self.target.expect("a function with a target range");
+        self.admit_observation(site, services)?;
         let mut used: Option<Vec<(u64, Used)>> = None;
         let mut conditions = Vec::with_capacity(self.conditions.len());
         for (range, criterion) in &self.conditions {
@@ -555,6 +598,7 @@ impl Plan {
             Some(used) => used,
             None => target_cells(site, services, target)?,
         };
+        self.observe(site, services, &conditions)?;
         let mut cursors = vec![0usize; conditions.len()];
         for (offset, cell) in used {
             match row(&conditions, &mut cursors, offset) {
@@ -587,18 +631,7 @@ enum Row {
 fn row(conditions: &[Verdicts], cursors: &mut [usize], offset: u64) -> Row {
     let mut unknown = None;
     for (verdicts, cursor) in conditions.iter().zip(cursors.iter_mut()) {
-        while verdicts
-            .held
-            .get(*cursor)
-            .is_some_and(|&(at, _)| at < offset)
-        {
-            *cursor += 1;
-        }
-        let verdict = match verdicts.held.get(*cursor) {
-            Some(&(at, verdict)) if at == offset => verdict,
-            _ => verdicts.blank,
-        };
-        match verdict {
+        match verdict_at(verdicts, cursor, offset) {
             Match::No => return Row::No,
             Match::Unknown => {
                 unknown.get_or_insert(verdicts.index);
@@ -609,6 +642,16 @@ fn row(conditions: &[Verdicts], cursors: &mut [usize], offset: u64) -> Row {
     match unknown {
         Some(index) => Row::Unknown(index),
         None => Row::Yes,
+    }
+}
+
+fn verdict_at(verdicts: &Verdicts, cursor: &mut usize, offset: u64) -> Match {
+    while verdicts.held.get(*cursor).is_some_and(|&(at, _)| at < offset) {
+        *cursor += 1;
+    }
+    match verdicts.held.get(*cursor) {
+        Some(&(at, verdict)) if at == offset => verdict,
+        _ => verdicts.blank,
     }
 }
 
@@ -752,14 +795,18 @@ fn used(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Used>> 
 
 /// A cell's verdict under a criterion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Match {
+pub enum CriterionVerdict {
+    /// The cell passes the criterion.
     Yes,
+    /// The cell fails the criterion.
     No,
     /// Excel's verdict needs a rule that is not modelled.
     Unknown,
 }
 
-impl Match {
+pub(super) type Match = CriterionVerdict;
+
+impl CriterionVerdict {
     fn of(holds: bool) -> Self {
         if holds { Match::Yes } else { Match::No }
     }

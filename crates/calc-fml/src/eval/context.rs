@@ -152,6 +152,7 @@ pub struct FormulaEvaluationContext<'s> {
     pub(super) pass: PassServices<'s>,
     pub(super) request: ReadRequest,
     pub(super) observer: Option<&'s mut dyn EvaluationObserver>,
+    pub(super) conditional: Option<&'s mut dyn calc_func::ConditionalObserver>,
     pub(super) catalog: Option<&'s dyn ReferenceCatalog>,
     pub(super) functions: Option<&'s crate::CallableTable>,
     pub(super) invocation: Option<calc_func::UserInvocationFrame>,
@@ -188,6 +189,7 @@ impl<'s> FormulaEvaluationContext<'s> {
                 week: None,
             },
             observer: None,
+            conditional: None,
             catalog: None,
             functions: None,
             invocation: None,
@@ -199,6 +201,12 @@ impl<'s> FormulaEvaluationContext<'s> {
             function_diagnostics: None,
             user_function_effects: None,
         }
+    }
+
+    /// Requests the criteria verdicts produced by this evaluation's conditional aggregate.
+    pub fn with_conditional_observer(mut self, observer: &'s mut dyn calc_func::ConditionalObserver) -> Self {
+        self.conditional = Some(observer);
+        self
     }
 
     /// Explicit name inspection asks for the reference or value the expression produced,

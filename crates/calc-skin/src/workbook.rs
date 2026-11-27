@@ -126,6 +126,7 @@ pub enum Evidence<T> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Derivation {
     Dependencies,
+    Contributions,
     Structure,
     FileInventory,
 }
@@ -217,6 +218,25 @@ pub enum WorkbookQuery {
     Summary,
     Census {
         scope: SourceRef,
+    },
+    Inventory {
+        kinds: Vec<crate::InventoryKind>,
+    },
+    Structure {
+        scope: SourceRef,
+    },
+    Sources,
+    Deps {
+        of: SourceRef,
+        dir: crate::DependencyDirection,
+        depth: u16,
+        group: crate::DependencyGrouping,
+    },
+    Issues {
+        scope: SourceRef,
+    },
+    Contributions {
+        at: Key,
     },
     Cells {
         interest: Interest,

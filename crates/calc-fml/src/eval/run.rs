@@ -595,6 +595,7 @@ fn evaluate_slice(
         user_function_effects: services.user_function_effects.as_deref_mut(),
         // Reborrowed for this evaluation only: the coercion shortens the observer's lifetime to
         // the run's, which `Option::as_deref_mut` cannot.
+        conditional: services.conditional.as_mut().map(|observer| &mut **observer as &mut dyn calc_func::ConditionalObserver),
         observer: match services.observer.as_mut() {
             Some(observer) => Some(&mut **observer),
             None => None,
@@ -692,6 +693,7 @@ struct Run<'a, 'r> {
     function_diagnostics: Option<&'a mut Vec<String>>,
     user_function_effects: Option<&'a mut super::UserFunctionEffects>,
     observer: Option<&'a mut dyn EvaluationObserver>,
+    conditional: Option<&'a mut dyn calc_func::ConditionalObserver>,
     /// Observer events a call lifted over several elements holds back until it completes: a wait
     /// in a later element runs the whole call again, and an event shown for an element that ran
     /// would be shown twice ([`Run::lifted`]).
@@ -1767,6 +1769,9 @@ impl Run<'_, '_> {
             );
             if let Some(text) = text.as_mut() {
                 services = services.with_reference_text(text);
+            }
+            if let Some(observer) = self.conditional.as_mut() {
+                services = services.with_conditional_observer(&mut **observer);
             }
             invoke_slice(
                 target.0,
@@ -3129,6 +3134,7 @@ mod tests {
                 function_diagnostics: None,
                 user_function_effects: None,
                 observer: None,
+                conditional: None,
             };
             let mut admitted = Vec::new();
             for entry in calc_catalogue::declarations()
@@ -5403,6 +5409,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             observation_reader: self.run.observation_reader,
             function_diagnostics: self.run.function_diagnostics.as_deref_mut(),
             user_function_effects: self.run.user_function_effects.as_deref_mut(),
+            conditional: None,
             observer: match self.run.observer.as_mut() {
                 Some(observer) => Some(&mut **observer),
                 None => None,

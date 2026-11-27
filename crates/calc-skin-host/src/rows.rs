@@ -30,6 +30,19 @@ pub(crate) fn footprint(state: &State, source: &SourceRef) -> Result<GridArea, R
     Ok(resolve(state, source)?.bounds)
 }
 
+pub(crate) fn table_area(state: &State, source: &SourceRef) -> Result<Option<GridArea>, Refusal> {
+    let selected = resolve(state, source)?;
+    Ok((selected.length != 0).then(|| {
+        area(
+            selected.bounds,
+            selected.first_row,
+            selected.bounds.first().column(),
+            selected.first_row + selected.length - 1,
+            selected.bounds.last().column(),
+        )
+    }))
+}
+
 fn resolve<'a>(state: &'a State, source: &SourceRef) -> Result<Source<'a>, Refusal> {
     let bounds = match source {
         SourceRef::Cells { .. } | SourceRef::Spill { .. } => {

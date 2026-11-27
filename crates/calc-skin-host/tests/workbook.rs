@@ -560,3 +560,440 @@ fn every_answer_decodes_as_its_query_type() {
     );
     assert_eq!(window.cells.len(), 2);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn census_counts_sparse_scopes_and_current_errors_without_calculating() {
+    use calc_skin::query::{CensusOf, Query};
+
+    let (host, sheet) = workbook();
+    host.with_session(SelectionCause::Open, |session| {
+        session.dispatch(calc_host::SkinIntent::SetCalcMode(
+            calc_host::CalcMode::Manual,
+        ));
+    });
+    let port = port(&host);
+    let a1 = Key(sheet.0, sheet.1, 1, 1);
+    let a2 = Key(sheet.0, sheet.1, 2, 1);
+    let a3 = Key(sheet.0, sheet.1, 3, 1);
+    let z9 = Key(sheet.0, sheet.1, 9, 26);
+    port.commit(batch(
+        1,
+        vec![enter(a1, "7"), enter(a3, "=1/0"), enter(z9, "=NA()")],
+    ))
+    .unwrap();
+    let query = CensusOf {
+        scope: SourceRef::Cells {
+            sheet,
+            areas: vec![Area(a1, a3), Area(a2, a3)],
+        },
+    };
+    let budget = Budget { cells: 2, ..BUDGET };
+    let pending = CensusOf::decode(port.ask(query.request(), budget).unwrap()).unwrap();
+    assert_eq!(pending.coverage, Coverage::Complete);
+    assert_eq!(pending.body.formulas, 1);
+    assert_eq!(pending.body.literals, 1);
+    assert!(pending.body.sheets[0].errors.is_empty());
+
+    port.run(Operation::Calculate {
+        scope: SourceRef::Workbook,
+    })
+    .unwrap();
+    while host.advance() {}
+    let calculated = CensusOf::decode(port.ask(query.request(), budget).unwrap()).unwrap();
+    assert!(calculated.stamp.calc > pending.stamp.calc);
+    assert_eq!(calculated.body.sheets[0].used, Some(Area(a1, a3)));
+    assert_eq!(
+        calculated.body.sheets[0].errors,
+        [("#DIV/0!".into(), 1)].into()
+    );
+
+    assert!(matches!(
+        port.ask(query.request(), Budget { cells: 1, ..BUDGET }),
+        Err(Refusal::OverBudget { counts, .. }) if counts.cells == 2
+    ));
+    assert!(matches!(
+        port.ask(
+            query.request(),
+            Budget {
+                millis: 0,
+                ..BUDGET
+            }
+        ),
+        Err(Refusal::OverBudget { .. })
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn inventory_preserves_visibility_and_named_scope_with_a_node_budget() {
+    use calc_skin::query::{Inventory, Query};
+
+    let (host, sheet) = workbook();
+    let notes = host.with_session(SelectionCause::Open, |session| {
+        use calc_host::{CellEdit, SheetEdit, SheetKey, SheetName, SkinIntent};
+        let insert = session.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Sheet(SheetEdit::Insert {
+                key: SheetKey::new(2),
+                name: SheetName::new(calc_host::value::ExcelText::from_utf16_code_units(
+                    "Notes".encode_utf16().collect(),
+                ))
+                .unwrap(),
+                position: std::num::NonZeroU32::new(2).unwrap(),
+            })],
+        });
+        assert!(insert.error.is_none(), "{:?}", insert.error);
+        let other = session.host().sheets()[1].id();
+        let visibility = session.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Sheet(SheetEdit::SetVisibility {
+                sheet: other,
+                visibility: calc_host::SheetVisibility::VeryHidden,
+            })],
+        });
+        assert!(visibility.error.is_none(), "{:?}", visibility.error);
+        let name = session.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "RevenueWindow".into(),
+                scope: calc_host::NameScope::Sheet(other),
+                formula: Some("#REF!".into()),
+            }],
+        });
+        assert!(name.error.is_none(), "{:?}", name.error);
+        Sheet::of(other)
+    });
+    let port = port(&host);
+    let query = Inventory {
+        kinds: vec![InventoryKind::Sheets, InventoryKind::Names],
+    };
+    let entries = Inventory::decode(port.ask(query.request(), BUDGET).unwrap())
+        .unwrap()
+        .body;
+    assert_eq!(entries.len(), 3);
+    assert!(matches!(
+        &entries[0], InventoryItem::Sheet { sheet: id, visibility: SheetVisibility::Visible, .. }
+        if *id == sheet
+    ));
+    assert!(matches!(
+        &entries[1], InventoryItem::Sheet { sheet: id, visibility: SheetVisibility::VeryHidden, .. }
+        if *id == notes
+    ));
+    assert!(matches!(
+        &entries[2], InventoryItem::Name { scope: NameScope::Sheet(id), name, formula, .. }
+        if *id == notes && name == "RevenueWindow" && formula == "=#REF!"
+    ));
+    assert!(matches!(
+        port.ask(query.request(), Budget { nodes: 2, ..BUDGET }),
+        Err(Refusal::OverBudget { counts, .. }) if counts.nodes == 3
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn structure_reports_exact_run_members_around_an_override() {
+    use calc_skin::query::{Query, StructureOf};
+
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let key = |row| Key(sheet.0, sheet.1, row, 2);
+    let b1 = key(1);
+    let b2 = key(2);
+    let b3 = key(3);
+    let b4 = key(4);
+    let b5 = key(5);
+    port.commit(batch(
+        1,
+        vec![
+            enter(b1, "=A1*2"),
+            enter(b2, "=A2*2"),
+            enter(b3, "100"),
+            enter(b4, "=A4*2"),
+            enter(b5, "=A5*2"),
+        ],
+    ))
+    .unwrap();
+    let answer = port
+        .ask(
+            (StructureOf {
+                scope: SourceRef::Sheet(sheet),
+            })
+            .request(),
+            BUDGET,
+        )
+        .unwrap();
+    let answer = StructureOf::decode(answer).unwrap();
+    assert_eq!(
+        answer.body,
+        Evidence::Derived {
+            from: Derivation::Structure,
+            at: answer.stamp,
+            body: Structure {
+                tables: Vec::new(),
+                runs: vec![FormulaRun {
+                    extent: Area(b1, b5),
+                    r1c1: "=RC[-1]*2".into(),
+                    members: vec![Area(b1, b2), Area(b4, b5)],
+                    exceptions: vec![b3],
+                }],
+            },
+        }
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn source_watch_tracks_rtd_admission_without_calculating() {
+    use calc_skin::query::{Query, SourceInventory};
+
+    let (host, _) = workbook();
+    let port = port(&host);
+    let query = SourceInventory;
+    let watch = port.watch(query.request(), BUDGET).unwrap();
+    let original = port.next_frame().unwrap().unwrap();
+    let topic = calc_host::TopicKey::new("DnaCalc.Price", "", &["LARK".into(), "last".into()]);
+    let lease = calc_host::RtdLease(1);
+    host.with_session(SelectionCause::Open, |session| {
+        assert_eq!(
+            session.update_rtd(
+                topic.clone(),
+                lease,
+                3,
+                calc_host::value::CalcValue::number(42.0)
+            ),
+            calc_host::RtdDisposition::Accepted
+        );
+    });
+    let updated = port
+        .next_frame()
+        .unwrap()
+        .expect("source observation frame");
+    assert_eq!(updated.stamp, original.stamp);
+    assert!(matches!(&updated.updates[..], [Update::Ready { watch: id, .. }] if *id == watch));
+    let answer = SourceInventory::decode(port.ask(query.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.topics[0].sequence, 3);
+    assert_eq!(
+        answer.body.topics[0].last.value,
+        RawValue::Number {
+            bits: 42.0f64.to_bits()
+        }
+    );
+    assert!(matches!(
+        answer.body.topics[0].last.provenance,
+        Provenance::External { .. }
+    ));
+    host.with_session(SelectionCause::Open, |session| {
+        assert_eq!(
+            session.retire_rtd(topic, lease),
+            calc_host::RtdDisposition::Accepted
+        );
+    });
+    let retired = port.next_frame().unwrap().expect("source retirement frame");
+    assert_eq!(retired.stamp, original.stamp);
+    assert!(
+        SourceInventory::decode(port.ask(query.request(), BUDGET).unwrap())
+            .unwrap()
+            .body
+            .topics
+            .is_empty()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dependency_query_preserves_dynamic_edges_and_bounds_both_directions() {
+    use calc_skin::query::{Deps, Query};
+
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let a1 = Key(sheet.0, sheet.1, 1, 1);
+    let b1 = Key(sheet.0, sheet.1, 1, 2);
+    let c1 = Key(sheet.0, sheet.1, 1, 3);
+    port.commit(batch(
+        1,
+        vec![
+            enter(a1, "4"),
+            enter(b1, "=INDIRECT(\"A1\")"),
+            enter(c1, "=B1+1"),
+        ],
+    ))
+    .unwrap();
+    while host.advance() {}
+    let upstream = Deps {
+        of: target(c1),
+        dir: DependencyDirection::Precedents,
+        depth: 2,
+        group: DependencyGrouping::Sheet,
+    };
+    let upstream = Deps::decode(port.ask(upstream.request(), BUDGET).unwrap()).unwrap();
+    let at = upstream.stamp;
+    assert_eq!(
+        upstream.body,
+        Evidence::Derived {
+            from: Derivation::Dependencies,
+            at,
+            body: Dependencies {
+                roots: vec![0],
+                nodes: vec![c1, b1, a1]
+                    .into_iter()
+                    .map(|cell| DependencyTarget::Source(target(cell)))
+                    .collect(),
+                edges: vec![
+                    DependencyEdge {
+                        from: 0,
+                        to: 1,
+                        kind: DependencyKind::Placed
+                    },
+                    DependencyEdge {
+                        from: 1,
+                        to: 2,
+                        kind: DependencyKind::Dynamic
+                    },
+                ],
+                sheets: vec![DependencySheetGroup {
+                    sheet,
+                    members: vec![0, 1, 2]
+                }],
+                unbound: Vec::new(),
+            },
+        }
+    );
+
+    let downstream = Deps {
+        of: target(a1),
+        dir: DependencyDirection::Dependents,
+        depth: 2,
+        group: DependencyGrouping::Reference,
+    };
+    let answer = Deps::decode(port.ask(downstream.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body, .. } = answer.body else {
+        panic!("derived dependencies");
+    };
+    assert_eq!(
+        body.nodes,
+        vec![a1, b1, c1]
+            .into_iter()
+            .map(|cell| DependencyTarget::Source(target(cell)))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(body.edges.len(), 2);
+    assert!(matches!(
+        port.ask(downstream.request(), Budget { edges: 1, ..BUDGET }),
+        Err(Refusal::OverBudget { counts, .. }) if counts.edges == 2
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn issues_retain_distinct_error_origins_and_count_possible_affected_cells() {
+    use calc_skin::query::{IssuesIn, Query};
+
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let a1 = Key(sheet.0, sheet.1, 1, 1);
+    let a2 = Key(sheet.0, sheet.1, 2, 1);
+    let a3 = Key(sheet.0, sheet.1, 3, 1);
+    let b1 = Key(sheet.0, sheet.1, 1, 2);
+    port.commit(batch(
+        1,
+        vec![
+            enter(a1, "=1/0"),
+            enter(a2, "=A1"),
+            enter(a3, "=A2+1"),
+            enter(b1, "=NA()"),
+        ],
+    ))
+    .unwrap();
+    while host.advance() {}
+    let query = IssuesIn {
+        scope: SourceRef::Workbook,
+    };
+    let reply = IssuesIn::decode(port.ask(query.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body, .. } = reply.body else {
+        panic!("derived issue roots");
+    };
+    assert_eq!(
+        body.roots,
+        vec![
+            ErrorRoot {
+                at: a1,
+                affected: 2
+            },
+            ErrorRoot {
+                at: b1,
+                affected: 0
+            }
+        ]
+    );
+    assert_eq!(
+        body.errors[0],
+        ErrorIssue {
+            at: a1,
+            code: "#DIV/0!".into(),
+            origin: ErrorOrigin::RootCandidate
+        }
+    );
+    for at in [a2, a3] {
+        assert!(body.errors.contains(&ErrorIssue {
+            at,
+            code: "#DIV/0!".into(),
+            origin: ErrorOrigin::CandidatePropagation { roots: vec![a1] },
+        }));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contributions_scan_every_position_and_use_the_formula_kernels_matches() {
+    use calc_skin::query::{ContributionsAt, Query};
+
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let key = |row, col| Key(sheet.0, sheet.1, row, col);
+    let mut writes = Vec::new();
+    for (row, region, status, amount) in [
+        (1, "West", "Paid", "10"),
+        (2, "East", "Paid", "17"),
+        (3, "West", "Pending", "42"),
+        (4, "East", "Pending", "99"),
+    ] {
+        writes.extend([
+            enter(key(row, 1), region),
+            enter(key(row, 2), status),
+            enter(key(row, 3), amount),
+        ]);
+    }
+    let at = key(1, 5);
+    writes.push(enter(at, r#"=SUMIFS(C1:C5,A1:A5,"West",B1:B5,"Paid")"#));
+    let committed = port.commit(batch(1, writes)).unwrap();
+    while host.advance() {}
+    let query = ContributionsAt { at };
+    assert!(matches!(
+        port.ask(query.request(), Budget { cells: 14, ..BUDGET }),
+        Err(Refusal::OverBudget { counts, .. }) if counts.cells == 15
+    ));
+    let answer = ContributionsAt::decode(port.ask(query.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body, .. } = answer.body else {
+        panic!("derived contributions");
+    };
+    assert_eq!(body.inspected, 5);
+    assert_eq!(body.source, Area(key(1, 3), key(5, 3)));
+    assert_eq!(
+        body.result,
+        RawValue::Number {
+            bits: 10.0f64.to_bits()
+        }
+    );
+    assert_eq!(body.matching_count, 1);
+    assert_eq!(body.matching, vec![Area(key(1, 3), key(1, 3))]);
+    assert_eq!(body.criteria[0].matching, 2);
+    assert_eq!(
+        body.criteria[0].failing_only_this,
+        vec![Area(key(2, 3), key(2, 3))]
+    );
+    assert_eq!(
+        body.criteria[1].failing_only_this,
+        vec![Area(key(3, 3), key(3, 3))]
+    );
+    assert_eq!(body.undetermined, 0);
+    assert_eq!(answer.stamp.model, committed.model);
+    assert_eq!(answer.stamp.calc, committed.calc);
+}

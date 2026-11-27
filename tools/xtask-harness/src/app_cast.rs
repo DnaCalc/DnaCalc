@@ -492,7 +492,7 @@ fn inherited() -> BuildResult {
 mod tests {
     use super::sales;
     use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy};
-    use calc_skin::grid::{Key, Sheet};
+    use calc_skin::grid::{Area, Key, Sheet};
     use calc_skin::{
         Batch, Budget, Change, Coverage, ModelChange, Origin, PartialWhy, RawValue, RowFilter,
         RowPage, RowSort, RowWindow, SourceRef, TablePart, Update, ViewId, WorkbookPort,
@@ -501,8 +501,7 @@ mod tests {
     use calc_skin_host::SkinHost;
     use std::sync::Arc;
 
-    #[test]
-    fn sales_rows_watch_a_table_and_live_spill_over_the_full_source() {
+    fn sales_host() -> (SkinHost, Sheet, Sheet) {
         let (bytes, _) = sales().unwrap();
         let session = HostSession::open(
             Arc::new(MemorySource::new(bytes)),
@@ -515,6 +514,12 @@ mod tests {
         let report = Sheet::of(sheets[1].id());
         let host = SkinHost::new(session);
         while host.advance() {}
+        (host, orders, report)
+    }
+
+    #[test]
+    fn sales_rows_watch_a_table_and_live_spill_over_the_full_source() {
+        let (host, orders, report) = sales_host();
         let port = host.connect(
             Origin::User {
                 view: ViewId("notebook".into()),
@@ -604,5 +609,82 @@ mod tests {
                     if *id == watch
             )));
         }
+    }
+
+    #[test]
+    fn sales_contributions_find_the_pending_west_order_before_and_after_repair() {
+        use calc_skin::query::{ContributionsAt, Query};
+        use calc_skin::{Evidence, PreviewDepth};
+
+        let (host, orders, report) = sales_host();
+        let port = host.connect(
+            Origin::User {
+                view: ViewId("inspector".into()),
+            },
+            WritePolicy::Commit,
+        );
+        let formula = Key(report.0, report.1, 5, 2);
+        let pending = Key(orders.0, orders.1, 10_483, 7);
+        let query = ContributionsAt { at: formula };
+        let budget = Budget {
+            cells: 75_000,
+            nodes: 32,
+            edges: 0,
+            bytes: 1024 * 1024,
+            millis: 5000,
+        };
+        let read = || {
+            let started = std::time::Instant::now();
+            let answer =
+                ContributionsAt::decode(port.ask(query.request(), budget).unwrap()).unwrap();
+            eprintln!("Sales contribution query took {:?}", started.elapsed());
+            let Evidence::Derived { body, .. } = answer.body else {
+                panic!("expected derived contributions");
+            };
+            assert_eq!(body.inspected, 25_000);
+            body
+        };
+
+        let before = read();
+        assert_eq!(before.matching_count, 126);
+        assert!(before.matching.contains(&Area(pending, pending)));
+        assert_eq!(
+            before.result,
+            RawValue::Number {
+                bits: 128_450.0f64.to_bits()
+            }
+        );
+        let edit = Batch {
+            id: "1".into(),
+            workbook: None,
+            base: None,
+            expects: vec![],
+            selection_seq: None,
+            label: None,
+            changes: vec![Change::Model(ModelChange::RewriteFormula {
+                at: formula,
+                expected_old: r#"=SUMIFS(Orders[Amount],Orders[Region],"West")"#.into(),
+                new_text: r#"=SUMIFS(Orders[Amount],Orders[Region],"West",Orders[Status],"Paid")"#
+                    .into(),
+            })],
+        };
+        let preview = port.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+        assert_eq!(preview.writes.len(), 1);
+        assert_eq!(preview.writes[0].at, formula);
+        port.commit(edit).unwrap();
+        while host.advance() {}
+
+        let after = read();
+        assert_eq!(after.matching_count, 125);
+        assert_eq!(
+            after.criteria[1].failing_only_this,
+            vec![Area(pending, pending)]
+        );
+        assert_eq!(
+            after.result,
+            RawValue::Number {
+                bits: 124_250.0f64.to_bits()
+            }
+        );
     }
 }

@@ -72,6 +72,10 @@ impl RtdLedger {
     pub fn entry(&self, topic: &TopicKey) -> Option<&RtdEntry> {
         self.entries.get(topic)
     }
+    /// The topics and values in the current admitted cut.
+    pub fn entries(&self) -> impl Iterator<Item = (&TopicKey, &RtdEntry)> {
+        self.entries.iter()
+    }
     /// Whether this incarnation of `topic` has been retired.
     pub fn is_retired(&self, topic: &TopicKey, lease: RtdLease) -> bool {
         self.retired.contains(&(topic.clone(), lease))

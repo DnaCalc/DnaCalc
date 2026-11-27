@@ -52,6 +52,18 @@ impl AxisInterval {
         self.axis
     }
 
+    /// The worksheet rectangle spanning these complete rows or columns.
+    pub fn area(self) -> GridArea {
+        let full = GridArea::full_sheet(self.sheet);
+        let (top, left, bottom, right) = match self.axis {
+            Axis::Rows => (self.first, 1, self.last, full.last().column()),
+            Axis::Columns => (1, self.first, full.last().row(), self.last),
+        };
+        let first = CellKey::new(self.sheet, top, left).expect("checked axis interval");
+        let last = CellKey::new(self.sheet, bottom, right).expect("checked axis interval");
+        GridArea::new(first, last).expect("one worksheet")
+    }
+
     /// The first position, 1-based.
     pub const fn first(self) -> u32 {
         self.first
@@ -576,37 +588,36 @@ impl ReverseIndex {
         area: GridArea,
         out: &mut impl Extend<NodeId>,
     ) {
+        out.extend(self.readers_of_area(inputs, area));
+    }
+
+    /// Iterates the same reverse-index matches without materializing the whole fan-out.
+    pub(crate) fn readers_of_area<'a>(
+        &'a self,
+        inputs: &'a ModelRoot,
+        area: GridArea,
+    ) -> impl Iterator<Item = NodeId> + 'a {
         let sheet = area.sheet();
         let rect = Rect::of(area);
-        out.extend(
-            self.cells
-                .range(area.first()..=area.last())
-                .filter(|(at, _)| area.contains(**at))
-                .flat_map(|(_, nodes)| nodes.iter().copied()),
-        );
-        let edges = self.rects_by_sheet.get(&sheet).into_iter().flatten();
-        out.extend(
-            edges
-                .filter(|edge| edge.rect.intersects(rect))
-                .map(|edge| edge.node),
-        );
-        for (map, low, high) in [
+        let cells = self.cells
+            .range(area.first()..=area.last())
+            .filter(move |(at, _)| area.contains(**at))
+            .flat_map(|(_, nodes)| nodes.iter().copied());
+        let rectangles = self.rects_by_sheet.get(&sheet).into_iter().flatten()
+            .filter(move |edge| edge.rect.intersects(rect))
+            .map(|edge| edge.node);
+        let axes = [
             (&self.row_values, rect.top, rect.bottom),
             (&self.column_values, rect.left, rect.right),
-        ] {
-            let edges = map.get(&sheet).into_iter().flatten();
-            out.extend(
-                edges
-                    .filter(|edge| low <= edge.last && edge.first <= high)
-                    .map(|edge| edge.node),
-            );
-        }
-        out.extend(
-            self.spans
-                .iter()
-                .filter(|edge| edge.rect.intersects(rect) && covers(inputs, edge, sheet))
-                .map(|edge| edge.node),
-        );
+        ].into_iter().flat_map(move |(map, low, high)| {
+            map.get(&sheet).into_iter().flatten()
+                .filter(move |edge| low <= edge.last && edge.first <= high)
+                .map(|edge| edge.node)
+        });
+        let spans = self.spans.iter()
+            .filter(move |edge| edge.rect.intersects(rect) && covers(inputs, edge, sheet))
+            .map(|edge| edge.node);
+        cells.chain(rectangles).chain(axes).chain(spans)
     }
 
     /// Adds to `out` every node with a value edge that covers at least one of `cells`, which all

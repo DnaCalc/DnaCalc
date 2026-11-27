@@ -1,4 +1,7 @@
-use crate::{AnswerResult, State, batch, cell, grid_area, invalid, unavailable};
+use crate::{
+    AnswerResult, State, batch, cell, contributions, dependencies, grid_area, invalid, inventory,
+    issues, structure, survey, unavailable,
+};
 use calc_doc_model::{SheetKind, SheetVisibility};
 use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea};
 use calc_host::{HostState, ProjectedCell, ProjectedValue, ProjectionRequest, search::entry_text};
@@ -90,6 +93,9 @@ pub(crate) fn source_areas(state: &State, source: &SourceRef) -> Result<Vec<Grid
             ])
         }
         SourceRef::Sheet(sheet) => Ok(vec![GridArea::full_sheet(checked_sheet(host, *sheet)?)]),
+        SourceRef::Table { .. } => Ok(crate::rows::table_area(state, source)?
+            .into_iter()
+            .collect()),
         SourceRef::Workbook => Ok(host
             .sheets()
             .iter()
@@ -140,6 +146,7 @@ pub(crate) fn invalidated(
     footprint: Option<GridArea>,
     prior: Option<Stamp>,
     selection_changed: bool,
+    rtd_changed: bool,
 ) -> bool {
     let Some(prior) = prior else { return true };
     let now = state.stamp();
@@ -173,6 +180,13 @@ pub(crate) fn invalidated(
             })
         })
     };
+    let scope_touched = || footprint.is_none_or(|area| intersects(&[area], false));
+    let pending = || {
+        state
+            .touches
+            .iter()
+            .any(|touch| touch.revision > prior.model && !touch.pending.is_empty())
+    };
     match query {
         WorkbookQuery::Rows { .. } | WorkbookQuery::Placement { .. } => {
             footprint.map_or(recalculated || authored, |area| {
@@ -202,7 +216,18 @@ pub(crate) fn invalidated(
         WorkbookQuery::ViewPart => presentation || recalculated,
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
         WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
-        WorkbookQuery::Census { .. } => authored || recalculated,
+        WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
+            recalculated || rtd_changed || (authored && (scope_touched() || pending()))
+        }
+        WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
+        WorkbookQuery::Structure { scope } => {
+            (authored && scope_touched())
+                || (recalculated && matches!(scope, SourceRef::Spill { .. }))
+        }
+        WorkbookQuery::Sources | WorkbookQuery::Contributions { .. } => {
+            authored || recalculated || rtd_changed
+        }
+        WorkbookQuery::Deps { .. } => authored || recalculated,
         WorkbookQuery::CalcState => true,
         WorkbookQuery::Rules { .. } => authored || recalculated,
     }
@@ -235,6 +260,15 @@ pub(crate) fn footprint(state: &State, query: &WorkbookQuery) -> Option<GridArea
         WorkbookQuery::Placement { sheet, kind, .. } => {
             Some(crate::placement::footprint(*sheet, *kind))
         }
+        WorkbookQuery::Census { scope }
+        | WorkbookQuery::Issues { scope }
+        | WorkbookQuery::Structure { scope } => {
+            let areas = source_areas(state, scope).ok()?;
+            match areas.as_slice() {
+                [area] => Some(*area),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -256,10 +290,19 @@ pub(crate) struct QueryWork {
 
 impl QueryWork {
     pub(crate) fn new(limit: Budget, alternative: &'static str) -> Self {
-        Self {
-            limit: Budget {
+        Self::scan(
+            Budget {
                 cells: limit.cells.min(MAX_QUERY_CELLS),
                 nodes: limit.nodes.min(MAX_QUERY_CELLS),
+                ..limit
+            },
+            alternative,
+        )
+    }
+
+    fn scan(limit: Budget, alternative: &'static str) -> Self {
+        Self {
+            limit: Budget {
                 bytes: limit
                     .bytes
                     .min(calc_skin::tiles::MAX_PUBLICATION_BYTES as u64),
@@ -291,6 +334,7 @@ impl QueryWork {
         }
         if self.counts.cells > self.limit.cells
             || self.counts.nodes > self.limit.nodes
+            || self.counts.edges > self.limit.edges
             || self.counts.bytes > self.limit.bytes
             || self.limit.millis == 0
             || self.counts.millis > self.limit.millis
@@ -307,6 +351,13 @@ impl QueryWork {
         self.counts.bytes += serde_json::to_vec(value)
             .map_err(|error| Refusal::Transport(error.to_string()))?
             .len() as u64;
+        self.check()
+    }
+
+    pub(crate) fn work(&mut self, cells: u64, nodes: u64, edges: u64) -> Result<(), Refusal> {
+        self.counts.cells = self.counts.cells.saturating_add(cells);
+        self.counts.nodes = self.counts.nodes.saturating_add(nodes);
+        self.counts.edges = self.counts.edges.saturating_add(edges);
         self.check()
     }
 }
@@ -514,6 +565,23 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
     let host = state.session.host();
     let stamp = state.stamp();
     let mut coverage = Coverage::Complete;
+    let alternative = match query {
+        WorkbookQuery::Census { .. }
+        | WorkbookQuery::Issues { .. }
+        | WorkbookQuery::Structure { .. } => Some("Choose a smaller worksheet area"),
+        WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
+        WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
+        WorkbookQuery::Sources => Some("Increase the source inventory budget"),
+        WorkbookQuery::Contributions { .. } => Some("Increase the contribution scan budget"),
+        _ => None,
+    };
+    let mut meter = QueryWork::scan(
+        budget,
+        alternative.unwrap_or("Choose a smaller worksheet area"),
+    );
+    if alternative.is_some() {
+        meter.check()?;
+    }
     let body = match query {
         WorkbookQuery::Summary => encode(WorkbookSummary {
             name: host
@@ -539,30 +607,49 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             capabilities: capabilities(state),
         })?,
         WorkbookQuery::Census { scope } => {
-            let areas = source_areas(state, scope)?;
-            let mut cells = 0u64;
-            let mut formulas = 0u64;
-            let mut seen = BTreeSet::new();
-            'areas: for area in areas {
-                for (at, input) in host.model().cells(area).into_iter().flatten() {
-                    if !seen.insert(at) {
-                        continue;
-                    }
-                    if cells >= budget.cells.min(MAX_QUERY_CELLS) {
-                        coverage = Coverage::Partial {
-                            done: cells,
-                            total: None,
-                            why: PartialWhy::Budget,
-                        };
-                        break 'areas;
-                    }
-                    cells += 1;
-                    formulas += u64::from(matches!(input, calc_doc_model::CellInput::Formula(_)));
-                }
+            query::CensusOf::encode(&survey::census(state, scope, &mut meter)?)?
+        }
+        WorkbookQuery::Inventory { kinds } => {
+            query::Inventory::encode(&inventory::inventory(host, kinds, &mut meter)?)?
+        }
+        WorkbookQuery::Structure { scope } => query::StructureOf::encode(&Evidence::Derived {
+            from: Derivation::Structure,
+            at: stamp,
+            body: structure::structure(state, scope, &mut meter)?,
+        })?,
+        WorkbookQuery::Sources => {
+            query::SourceInventory::encode(&inventory::sources(host, &mut meter)?)?
+        }
+        WorkbookQuery::Deps {
+            of,
+            dir,
+            depth,
+            group,
+        } => {
+            let body = dependencies::deps(state, of, *dir, *depth, *group, &mut meter)?;
+            if !body.unbound.is_empty() {
+                coverage = Coverage::Partial {
+                    done: body.edges.len() as u64,
+                    total: None,
+                    why: PartialWhy::Pending,
+                };
             }
-            query::CensusOf::encode(&query::Census {
-                formulas,
-                literals: cells - formulas,
+            query::Deps::encode(&Evidence::Derived {
+                from: Derivation::Dependencies,
+                at: stamp,
+                body,
+            })?
+        }
+        WorkbookQuery::Issues { scope } => query::IssuesIn::encode(&Evidence::Derived {
+            from: Derivation::Dependencies,
+            at: stamp,
+            body: issues::issues(state, scope, &mut meter)?,
+        })?,
+        WorkbookQuery::Contributions { at } => {
+            query::ContributionsAt::encode(&Evidence::Derived {
+                from: Derivation::Contributions,
+                at: stamp,
+                body: contributions::contributions(state, *at, &mut meter)?,
             })?
         }
         WorkbookQuery::Cells { interest } => encode(project_window(state, interest, budget)?)?,
@@ -687,7 +774,10 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
     let bytes = serde_json::to_vec(&body)
         .map_err(|error| Refusal::Transport(error.to_string()))?
         .len() as u64;
-    if bytes > budget.bytes {
+    if alternative.is_some() {
+        meter.counts.bytes = bytes;
+        meter.check()?;
+    } else if bytes > budget.bytes {
         return Err(over_budget(0, bytes));
     }
     Ok(Answer {

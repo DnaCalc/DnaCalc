@@ -367,6 +367,7 @@ pub struct EvalServices<'s> {
     host: Option<&'s mut dyn HostFacts>,
     callables: Option<&'s mut dyn CallableInvoker>,
     week: Option<&'s mut dyn WeekState>,
+    conditional: Option<&'s mut dyn crate::ConditionalObserver>,
 }
 
 impl<'s> EvalServices<'s> {
@@ -383,6 +384,7 @@ impl<'s> EvalServices<'s> {
             host: None,
             callables: None,
             week: None,
+            conditional: None,
         }
     }
 
@@ -398,6 +400,7 @@ impl<'s> EvalServices<'s> {
             host: None,
             callables: None,
             week: None,
+            conditional: None,
         }
     }
 
@@ -420,6 +423,16 @@ impl<'s> EvalServices<'s> {
     pub fn with_week_state(mut self, week: &'s mut dyn WeekState) -> Self {
         self.week = Some(week);
         self
+    }
+
+    /// Supplies a bounded diagnostic observer for conditional aggregates.
+    pub fn with_conditional_observer(mut self, observer: &'s mut dyn crate::ConditionalObserver) -> Self {
+        self.conditional = Some(observer);
+        self
+    }
+
+    pub(crate) fn conditional_observer(&mut self) -> Option<&mut (dyn crate::ConditionalObserver + 's)> {
+        self.conditional.as_deref_mut()
     }
 
     /// These services in `environment`: the date system, locale profile and clock that the

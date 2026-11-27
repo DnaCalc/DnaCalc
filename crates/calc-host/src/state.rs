@@ -241,11 +241,38 @@ impl HostState {
     /// Already-bound volatile formula anchors. This passive query neither binds
     /// nor calculates a formula; callers can follow `dependents` for its readers.
     pub fn volatile_formula_cells(&self) -> Vec<CellKey> {
+        self.volatile_formula_anchors().collect()
+    }
+
+    /// Iterates over bound volatile formula anchors without binding or calculating them.
+    pub fn volatile_formula_anchors(&self) -> impl Iterator<Item = CellKey> + '_ {
         self.engine
             .nodes()
             .filter(|node| self.engine.is_volatile(node.id()))
             .map(|node| node.anchor())
-            .collect()
+    }
+
+    /// The admitted RTD input cut can advance independently of published calculation.
+    pub fn rtd_revision(&self) -> u64 {
+        calc_fml::RtdCut::version(self.rtd_inputs.as_ref())
+    }
+
+    /// Iterates over the latest admitted values without connecting to any provider.
+    pub fn rtd_topics(&self) -> impl Iterator<Item = (&calc_fml::TopicKey, &calc_fml::RtdEntry)> {
+        self.rtd_inputs.entries()
+    }
+
+    /// The authored formula at a cell in the workbook context's R1C1 notation.
+    pub fn formula_r1c1(&self, at: CellKey) -> Option<String> {
+        use calc_fml::reference::ReferenceNotation::{A1, R1C1};
+
+        let calc_doc_model::CellInput::Formula(formula) = self.model.cell(at)? else {
+            return None;
+        };
+        let source = formula.rendered();
+        let text = String::from_utf16(source.utf16_code_units()).ok()?;
+        calc_engine::convert_formula_notation(&self.model, &text, at, A1, R1C1)
+            .map(|body| format!("={body}"))
     }
 
     /// A read-only source cut for another workbook's engine context. Imported and
@@ -817,33 +844,7 @@ impl HostState {
                 calc_engine::Prerequisite::Name(_) => continue,
                 calc_engine::Prerequisite::Cell(cell) => GridArea::cell(cell),
                 calc_engine::Prerequisite::Area(area) => area,
-                calc_engine::Prerequisite::AxisValue(interval) => {
-                    let (first, last) = match interval.axis() {
-                        calc_doc_model::Axis::Rows => (
-                            CellKey::new(interval.sheet(), interval.first(), 1),
-                            CellKey::new(
-                                interval.sheet(),
-                                interval.last(),
-                                calc_doc_model::value::MAX_COLUMNS,
-                            ),
-                        ),
-                        calc_doc_model::Axis::Columns => (
-                            CellKey::new(interval.sheet(), 1, interval.first()),
-                            CellKey::new(
-                                interval.sheet(),
-                                calc_doc_model::value::MAX_ROWS,
-                                interval.last(),
-                            ),
-                        ),
-                    };
-                    match (first, last) {
-                        (Ok(first), Ok(last)) => match GridArea::new(first, last) {
-                            Ok(area) => area,
-                            Err(_) => continue,
-                        },
-                        _ => continue,
-                    }
-                }
+                calc_engine::Prerequisite::AxisValue(interval) => interval.area(),
                 calc_engine::Prerequisite::SheetSpan(span) => span.target(),
             };
             if !areas.contains(&area) {
@@ -857,6 +858,39 @@ impl HostState {
     /// cell order. A formula not bound yet is not among them.
     pub fn dependents(&self, at: CellKey) -> Vec<CellKey> {
         self.engine.dependents_at(&self.model, at)
+    }
+
+    /// The existing graph's placed and dynamic input edges, kept apart for inspection.
+    /// An unbound formula has no graph evidence yet.
+    pub fn dependency_inputs(
+        &self,
+        at: CellKey,
+    ) -> Option<(&[calc_engine::Prerequisite], &[calc_engine::Prerequisite])> {
+        let node = self.engine.node(self.engine.node_at(at)?)?;
+        Some((node.prerequisites()?, node.dynamic_prerequisites()))
+    }
+
+    /// Formula anchors in a reference, without expanding its blank coordinates.
+    pub fn dependency_anchors(&self, area: GridArea) -> impl Iterator<Item = CellKey> + '_ {
+        self.engine.anchors_in(area)
+    }
+
+    /// Formula anchors with reverse edges touching an area. Multiple edges can name one reader.
+    pub fn dependency_readers(&self, area: GridArea) -> impl Iterator<Item = CellKey> + '_ {
+        self.engine.readers_of_area(&self.model, area)
+    }
+
+    /// Defined-name dependencies retained by callers that have bound this name's body.
+    pub fn dependency_name_children(&self, name: calc_value::NameId) -> Vec<calc_value::NameId> {
+        self.engine.name_prerequisites(name)
+    }
+
+    /// Bound formula anchors that read the named participant.
+    pub fn dependency_name_readers(&self, name: calc_value::NameId) -> impl Iterator<Item = CellKey> + '_ {
+        self.engine
+            .name_dependents(name)
+            .into_iter()
+            .filter_map(|id| self.engine.node(id).map(calc_engine::FormulaNode::anchor))
     }
 
     /// The cells of `sheet` that hold an input, in cell order, read from the document without

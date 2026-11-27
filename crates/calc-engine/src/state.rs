@@ -1648,7 +1648,7 @@ impl EngineState {
     }
 
     /// The anchors of the nodes inside `area`.
-    pub(crate) fn anchors_in(&self, area: GridArea) -> impl Iterator<Item = CellKey> + '_ {
+    pub fn anchors_in(&self, area: GridArea) -> impl Iterator<Item = CellKey> + '_ {
         self.by_anchor
             .range(area.first()..=area.last())
             .map(|(at, _)| *at)
@@ -1669,6 +1669,18 @@ impl EngineState {
         cells.sort();
         cells.dedup();
         cells
+    }
+
+    /// Lazily yields anchors reading any part of the area. An anchor can occur for more than
+    /// one edge. Bounded inspectors can stop at their budget without building a full list.
+    pub fn readers_of_area<'a>(
+        &'a self,
+        inputs: &'a ModelRoot,
+        area: GridArea,
+    ) -> impl Iterator<Item = CellKey> + 'a {
+        self.index
+            .readers_of_area(inputs, area)
+            .filter_map(|id| self.node(id).map(FormulaNode::anchor))
     }
 
     /// The nodes with a value edge covering `at`, without those in `leaving`, in ID order.

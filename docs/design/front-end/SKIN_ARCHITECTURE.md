@@ -428,18 +428,18 @@ Every query implements `Query` (`FormulaQuery` at level 0, `WorkbookQuery` at le
 | Level-1 Query | Answer summary | Primary consumers |
 |---|---|---|
 | `Summary` | Workbook name, dirty/state word (`New`, `Unchanged`, `Saved`, `Edited`, `Saved · layout edited`, `Read-only`), sheet descriptors (`SheetKey`, `SheetId`, name, visibility, preferred badge), date system, macro status, `Capabilities` | Shell, all views |
-| `Census { scope }` | Zero-calculation counts: formulas, literals, errors by kind, used extents, objects | `View::fit` before mounting |
-| `Inventory { kinds }` | Full or paged sheets, names, tables, charts, shapes, pivots, scenarios, external links, VBA modules/procedures, active UDFs | Shell, Inspector, Map |
+| `Census { scope }` | Sparse formula and literal counts, per-sheet bounds of those cells, and current errors by kind. Legacy array and what-if table members count as formulas. The query requests no calculation. | `View::fit` before mounting |
+| `Inventory { kinds }` | Budgeted authored records for sheets (including VeryHidden), names, tables, charts, shapes, pivots and external links. Reports the presence of a VBA project. | Shell, Inspector, Map |
 | `Cells { interest }` | Tile-streamed cells (`input`, `Shown<CellValue>`, formatted text, style, spill/array membership). `Interest` = `Area`, `Areas`, `Sheet`, `Selection`, or **`Anchors(Vec<AnchorId>)`** (resolving spills to their live extent) | Classic, Notebook, App, Watch |
 | `Geometry { sheet }` | Row/column spans, hidden axes, outlines, merges, frozen/split panes, sheet zoom | Classic, `dna-grid` |
 | `Formula { at }` | Parsed syntax spans, resolved `SourceRef`s, R1C1 form, run membership | Formula bar, Lens, Notebook, Map |
-| `Deps { of, dir, depth, group, budget }` | `Evidence::Derived`: edges grouped by cell, run, block, name or sheet; marks dynamic (`INDIRECT`/`OFFSET`), table and unresolved refs; exact member counts | Inspector, Map, Notebook |
-| `Structure { scope, level, budget }` | `Evidence::Derived` + file facts: `Sheet`, `Table`, `Name`, formula `Run` (with R1C1 template and exception cells), inferred `Block` (`Inputs`, `Calculation`, `Outputs`, `Text`) and `Reading` (`FromWorkbook`, `Suggested`, `Confirmed`, `NeedsReview`) | Notebook draft, Map, Forms maker |
-| `Issues { scope, budget }` | `Evidence::Derived`: formula errors grouped by root-cause cell with downstream dependent counts; structural warnings | Inspector, sheet tab badges |
-| `Sources` | External workbook links, live RTD topics (last value, source/receipt timestamps, coalesced count), volatile functions, add-in providers | Inspector Live, Strip |
+| `Deps { of, dir, depth, group }` | `Evidence::Derived`: bound area, defined-name and 3-D edges from the workbook graph, with upstream placed and dynamic edges distinguished. Sheet grouping carries its exact graph members. | Inspector, Map, Notebook |
+| `Structure { scope }` | Tables and derived vertical formula runs with an R1C1 template, exact membership and occupied exceptions. M7 adds block levels and readings. | Notebook draft, Map, Forms maker |
+| `Issues { scope }` | Current worksheet errors and possible origins inferred from same-error reads in retained calculation certificates. The affected count is scoped to the requested cells. | Inspector, sheet tab badges |
+| `Sources` | External workbook link cache facts, admitted RTD topics (lease, sequence and latest value), and bound volatile cells. RTD admission can update a source watch independently of calculation. | Inspector Live, Strip |
 | `CalcState` & `CalcEvents` | Mode, iteration settings, progress, cycle members and stop reason (`CalcState`); `Evidence::Observed` list of host `CalculationEvent`s, or `Unavailable` if unrecorded (`CalcEvents`) | Strip, Inspector Calculation, Map |
 | `Changes { calc }` | Cells whose value changed in generation `calc` (old vs new `Shown<CellValue>`) | Inspector Changes, Map ripple |
-| `Explain { at, span }` & `Contributions { at, budget }` | Workbook-contextual sub-expression evaluation (`F9` on a selection, error origin) and passing/near-miss row breakdown for `SUMIFS`/`FILTER`/`XLOOKUP` | Formula bar, Inspector Trace |
+| `Explain { at, span }` & `Contributions { at }` | Workbook-contextual sub-expression evaluation (`F9` on a selection, error origin). The contribution query exposes the actual criteria verdicts of a single `SUMIFS`, `COUNTIFS` or `AVERAGEIFS` evaluation over current values, including every position in the range. | Formula bar, Inspector Trace |
 | `Rows { source, filter, sort, window }` | Windowed rows over a table, spill or contiguous range. Exact-value filters and stable sort read the full source before returning a window of up to 200 rows. Table headers and totals stay outside the data window. | `DataFrame` component |
 | `Objects { sheet }` | Charts (**host-rendered SVG** + structured `ChartData` series), shapes, pictures, sparklines, form controls with linked cells | Classic, Notebook, App |
 | `Rules { at }` | Data validation, conditional format rules, lock/protection status, editability refusal reason | Classic, App, Forms maker |

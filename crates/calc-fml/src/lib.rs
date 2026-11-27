@@ -53,7 +53,7 @@ pub mod reference;
 pub mod syntax;
 pub use calc_catalogue::EXCEL_FUNCTION_IDS;
 
-pub use calc_func::{EntryRule, OperandForm};
+pub use calc_func::{ConditionalObserver, EntryRule, OperandForm};
 pub use eval::{
     CompileError, CompiledPlan, ContinuationProgress, EntryRejection, EvalContinuation, EvalFault,
     EvalFrame, EvalScratch, EvalStep, EvaluationObserver, EvaluationReport, ExecutedCall,

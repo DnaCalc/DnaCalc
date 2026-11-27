@@ -30,6 +30,7 @@ mod bonds;
 mod comparison;
 pub(crate) use comparison::text_order;
 mod conditional;
+pub use conditional::{ConditionalObserver, CriterionVerdict};
 mod cube_functions;
 mod database;
 mod dates;

@@ -354,7 +354,7 @@ impl DetachedFormula {
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
     ) -> Result<CalcValue, NotModeled> {
-        self.evaluate_recording(context, at, None, None)
+        self.evaluate_recording(context, at, None, None, None)
     }
 
     /// Execute through the same diagnostic reader and evaluator while retaining bounded
@@ -391,6 +391,7 @@ impl DetachedFormula {
                 random
                     .as_mut()
                     .map(|r| r as &mut dyn calc_fml::RandomSource),
+                None,
             );
             if let Some(random) = random {
                 random_draws = random.into_evidence();
@@ -407,6 +408,35 @@ impl DetachedFormula {
             invocations: effects.name_invocations().to_vec(),
             omitted: effects.omitted_name_invocations(),
         }
+    }
+
+    /// Reads a bound cell formula over current values with conditional-aggregate observation.
+    /// Its source plan, numeric mode and normal calculation kernel are reused. No publication
+    /// or provider invocation is available to this detached diagnostic evaluation.
+    pub fn observe_conditional(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        at: CellKey,
+        numeric: &NumericMode,
+        observer: &mut dyn calc_fml::ConditionalObserver,
+    ) -> Result<CalcValue, NotModeled> {
+        let instance = state.node_at(at).and_then(|id| state.instance(id)).ok_or_else(|| {
+            NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "conditional inspection of an unbound formula",
+                owner: "dc-b67gh",
+            })
+        })?;
+        let formula = Self {
+            plan: instance.plan().clone(),
+            reference_result: false,
+            compiled_inputs: inputs.pin(),
+            caller_sheet: at.sheet(),
+            selected_name: None,
+        };
+        let context = DetachedEvaluationContext::new_with_numeric_mode(
+            state, inputs, DetachedReadPolicy::CurrentValues, numeric,
+        )?;
+        formula.evaluate_recording(&context, at, None, None, Some(observer))
     }
 
     fn validate_context(
@@ -458,6 +488,7 @@ impl DetachedFormula {
         at: CellKey,
         effects: Option<&mut calc_fml::UserFunctionEffects>,
         random: Option<&mut dyn calc_fml::RandomSource>,
+        conditional: Option<&mut dyn calc_fml::ConditionalObserver>,
     ) -> Result<CalcValue, NotModeled> {
         self.validate_context(context, at)?;
         let (state, inputs) = (context.state, context.inputs);
@@ -482,6 +513,9 @@ impl DetachedFormula {
             }
             if let Some(random) = random {
                 services = services.with_random(random);
+            }
+            if let Some(observer) = conditional {
+                services = services.with_conditional_observer(observer);
             }
             if self.reference_result {
                 services = services.with_reference_result();

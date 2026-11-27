@@ -1,10 +1,16 @@
 //! Level-one serving of the authoritative CalcHost workbook through the skin contract.
 
 mod batch;
+mod contributions;
+mod dependencies;
+mod inventory;
+mod issues;
 mod placement;
 mod publication;
 mod query;
 mod rows;
+mod structure;
+mod survey;
 
 use calc_host::value::{CellKey, GridArea, Selection as HostSelection};
 use calc_host::{CommandJournal, CommandStamp, HostProgress, HostSession, SkinIntent, ValueChange};
@@ -280,6 +286,7 @@ impl SkinHost {
                 watches: BTreeMap::new(),
                 last_stamp: None,
                 last_selection: 0,
+                last_rtd: 0,
                 next_watch: 1,
                 next_publication: 1,
                 awaiting_tiles: None,
@@ -331,6 +338,7 @@ struct Local {
     watches: BTreeMap<WatchId, Watch>,
     last_stamp: Option<Stamp>,
     last_selection: u64,
+    last_rtd: u64,
     next_watch: u64,
     next_publication: u64,
     awaiting_tiles: Option<u64>,
@@ -640,6 +648,8 @@ impl WorkbookPort for Connection {
         let mut events = Vec::new();
         let prior = local.last_stamp;
         let selection_changed = local.last_selection != state.selection_seq;
+        let rtd = state.session.host().rtd_revision();
+        let rtd_changed = local.last_rtd != rtd;
         for (&watch, slot) in &mut local.watches {
             if slot.answer.is_some()
                 && !query::invalidated(
@@ -648,6 +658,7 @@ impl WorkbookPort for Connection {
                     slot.footprint,
                     prior,
                     selection_changed,
+                    rtd_changed,
                 )
             {
                 continue;
@@ -693,6 +704,7 @@ impl WorkbookPort for Connection {
         }
         local.last_stamp = Some(stamp);
         local.last_selection = state.selection_seq;
+        local.last_rtd = rtd;
         if updates.is_empty() && events.is_empty() && prior == Some(stamp) {
             return Ok(None);
         }

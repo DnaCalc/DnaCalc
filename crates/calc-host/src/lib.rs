@@ -232,7 +232,7 @@ pub use calc_doc_model::{
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, LinkedWorkbookSnapshot, NotModeled, PrepareError,
-    ReadObserver, RecalcFailure, ResultStorageStats, StartError, Unobserved, ValueChange,
+    Prerequisite, ReadObserver, RecalcFailure, ResultStorageStats, SheetSpan, StartError, Unobserved, ValueChange,
     ValueDelta, WorkBudget, resolve_reference_text,
 };
 pub use calc_fml::reference::CellRun;

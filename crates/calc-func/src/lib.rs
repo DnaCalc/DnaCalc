@@ -88,7 +88,7 @@ pub use catalogue::{
     EntryKind, EntryRule, EntryTraits, FunctionCallTarget, FunctionId, HeldReferences,
     HelpParameter, HostRouteKind, Implementation, LegacyPlace, Notation, OperandForm, PairedResult,
     ParameterClass, RegistrationError, ResultForm, SignatureHelp, ThreeDPlace, WholeResultPolicy,
-    catalogue,
+    ConditionalObserver, CriterionVerdict, catalogue,
 };
 pub use cube::{
     CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable,

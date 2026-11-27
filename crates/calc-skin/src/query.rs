@@ -7,9 +7,11 @@
 
 use crate::grid::{Area, Key, Sheet};
 use crate::{
-    Answer, CellWindow, HistoryEntry, Interest, Placement as PlacementAnswer, PlacementKind,
-    PlacementShape, Refusal, RowFilter, RowPage, RowSort, RowWindow, SourceRef, WorkbookQuery,
-    WorkbookSummary, WorksheetGeometry,
+    Answer, CellWindow, Contributions, Dependencies, DependencyDirection, DependencyGrouping,
+    Evidence, HistoryEntry, Interest, InventoryItem, InventoryKind, Issues,
+    Placement as PlacementAnswer, PlacementKind, PlacementShape, Refusal, RowFilter, RowPage,
+    RowSort, RowWindow, SourceRef, Sources, Structure, WorkbookQuery, WorkbookSummary,
+    WorksheetGeometry,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -67,6 +69,27 @@ query!(
     /// Counts taken without calculating; what `View::fit` decides from.
     CensusOf { scope: SourceRef } => Census, |q: &CensusOf| WorkbookQuery::Census { scope: q.scope.clone() });
 query!(
+    /// Authored workbook records. An empty kind list includes every supported kind.
+    Inventory { kinds: Vec<InventoryKind> } => Vec<InventoryItem>, |q: &Inventory| WorkbookQuery::Inventory { kinds: q.kinds.clone() });
+query!(
+    /// Tables and inferred formula runs in the current model.
+    StructureOf { scope: SourceRef } => Evidence<Structure>, |q: &StructureOf| WorkbookQuery::Structure { scope: q.scope.clone() });
+query!(
+    /// Workbook link caches, admitted RTD topics and bound volatile cells.
+    SourceInventory => Sources, |_: &SourceInventory| WorkbookQuery::Sources);
+query!(
+/// Edges of the bound workbook graph in the requested direction.
+Deps { of: SourceRef, dir: DependencyDirection, depth: u16, group: DependencyGrouping }
+    => Evidence<Dependencies>, |q: &Deps| WorkbookQuery::Deps {
+        of: q.of.clone(), dir: q.dir, depth: q.depth, group: q.group,
+    });
+query!(
+    /// Current worksheet errors and possible roots in the requested scope.
+    IssuesIn { scope: SourceRef } => Evidence<Issues>, |q: &IssuesIn| WorkbookQuery::Issues { scope: q.scope.clone() });
+query!(
+    /// Conditional-aggregate criteria over the whole source, from the current calculation kernel.
+    ContributionsAt { at: Key } => Evidence<Contributions>, |q: &ContributionsAt| WorkbookQuery::Contributions { at: q.at });
+query!(
     /// The cells of an interest. Watched, it arrives as tiles.
     Cells { interest: Interest } => CellWindow, |q: &Cells| WorkbookQuery::Cells { interest: q.interest.clone() });
 query!(
@@ -101,10 +124,22 @@ query!(
 query!(
     Resolve { address: String } => SourceRef, |q: &Resolve| WorkbookQuery::Resolve { address: q.address.clone() });
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Census {
     pub formulas: u64,
     pub literals: u64,
+    pub sheets: Vec<SheetCensus>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SheetCensus {
+    pub sheet: Sheet,
+    pub formulas: u64,
+    pub literals: u64,
+    /// Bounds of the counted cells inside the requested scope.
+    pub used: Option<Area>,
+    /// Current errors by Excel spelling. Saved, stale and refused results are excluded.
+    pub errors: std::collections::BTreeMap<String, u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

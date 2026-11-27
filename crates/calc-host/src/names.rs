@@ -344,6 +344,17 @@ impl HostState {
             })
     }
 
+    /// Inspect the condition matches from the cell's existing plan and current values.
+    pub fn observe_conditional(
+        &self,
+        at: CellKey,
+        observer: &mut dyn calc_func::ConditionalObserver,
+    ) -> Result<calc_value::CalcValue, calc_engine::NotModeled> {
+        calc_engine::DetachedFormula::observe_conditional(
+            &self.engine, &self.model, at, &self.options.numeric, observer,
+        )
+    }
+
     /// Evaluate a defined name at a caller cell and return diagnostic evidence.
     ///
     /// The result preserves the detached evaluation outcome, including faults.
