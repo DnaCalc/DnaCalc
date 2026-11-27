@@ -77,8 +77,13 @@ pub(crate) fn rules(session: &HostSession, at: CellKey) -> Result<(), Refusal> {
 }
 
 pub(crate) struct Prepared {
-    pub edits: Vec<CellEdit>,
+    pub change: PreparedChange,
     pub preview: Preview,
+}
+
+pub(crate) enum PreparedChange {
+    Edits(Vec<CellEdit>),
+    Paste(calc_host::PastePlan),
 }
 
 fn paste_properties(
@@ -299,6 +304,59 @@ fn rewrite_run(
     Ok((targets, edits))
 }
 
+fn plan_spill_move(
+    state: &State,
+    anchor: Key,
+    from: Key,
+    to: Key,
+) -> Result<(GridArea, calc_host::PastePlan), Refusal> {
+    let anchor = cell(anchor)?;
+    let source = cell(from)?;
+    let destination = cell(to)?;
+    rules(&state.session, source)?;
+    rules(&state.session, destination)?;
+    let host = state.session.host();
+    if host.model().cell(source).is_none() {
+        return Err(invalid("Choose an occupied cell to move"));
+    }
+    let actual = host.spill_area(anchor).filter(|_| host.spill_owner(anchor) == Some(anchor));
+    let blocked = host.blocked_spill_area(anchor);
+    let (moving, desired) = if source == anchor {
+        let intended = actual.or(blocked).ok_or_else(|| invalid("Choose a current dynamic spill"))?;
+        (actual.unwrap_or_else(|| GridArea::cell(source)), intended)
+    } else {
+        let spill = blocked.filter(|area| area.contains(source))
+            .ok_or_else(|| invalid("That cell is outside the current blocked spill"))?;
+        if spill.contains(destination) {
+            return Err(invalid("Move the obstruction outside the intended spill"));
+        }
+        let area = GridArea::cell(source);
+        (area, area)
+    };
+    let corner = CellKey::new(
+        destination.sheet(),
+        destination.row() + desired.row_count() - 1,
+        destination.column() + desired.column_count() - 1,
+    ).map_err(|_| invalid("The destination reaches outside the worksheet"))?;
+    let footprint = GridArea::new(destination, corner).expect("same sheet");
+    if host.model().cells(footprint).into_iter().flatten().next().is_some()
+        || host.model().definitions().unloaded_in(footprint).next().is_some()
+    {
+        return Err(invalid("The destination is occupied"));
+    }
+    let excel = |reason| Refusal::Excel { reason };
+    calc_host::check_destination(host, footprint, PasteMode::All)
+        .map_err(|error| excel(error.to_string()))?;
+    let snapshot = calc_host::CopySnapshot::capture(host, moving)
+        .map_err(|error| excel(error.to_string()))?;
+    let paste = calc_host::prepare_paste(
+        host, PasteSource::Snapshot { snapshot: &snapshot, cut: true },
+        GridArea::cell(destination), PasteMode::All,
+    ).map_err(excel)?;
+    let paste = if source == anchor { paste.with_target_selection() } else { paste };
+    Ok((moving, paste))
+}
+
 pub(crate) fn prepare(
     state: &mut State,
     request: &Batch,
@@ -320,6 +378,7 @@ pub(crate) fn prepare(
     let mut inserted = None;
     let mut presentation = Vec::new();
     let mut warnings = Vec::new();
+    let mut cut = None;
     let mut names = Vec::new();
     let mut scenario_changes = Vec::new();
     let removes_anchor = request.changes.iter().any(|change| {
@@ -328,6 +387,31 @@ pub(crate) fn prepare(
     for change in &request.changes {
         match change {
             Change::Model(change) => match change {
+                ModelChange::MoveSpillCell { anchor, from, to, expected } => {
+                    if *expected != base {
+                        return Err(invalid("The spill changed. Review the move again."));
+                    }
+                    require_current_model(request, base.model)?;
+                    if request.changes.len() != 1 {
+                        return Err(invalid("Submit the cell move as a single workbook change"));
+                    }
+                    let (moving, paste) = plan_spill_move(state, *anchor, *from, *to)?;
+                    let host = state.session.host();
+                    let target = paste.target();
+                    let prepared = paste
+                        .clone()
+                        .into_edits(host)
+                        .map_err(|reason| Refusal::Excel { reason })?;
+                    areas.extend([moving, target]);
+                    areas.extend(prepared.iter().filter_map(|edit| match edit {
+                        CellEdit::Set { at, .. } => Some(GridArea::cell(*at)),
+                        CellEdit::SetArray { array, .. } => Some(array.area()),
+                        _ => None,
+                    }));
+                    paste_areas.extend([moving, target]);
+                    edits.extend(prepared);
+                    cut = Some((paste, *from, *to));
+                }
                 ModelChange::Name { scope, change } => {
                     require_current_model(request, base.model)?;
                     let (plan, prepared, used) = crate::names::prepare(state, scope.clone(), change)?;
@@ -632,12 +716,30 @@ pub(crate) fn prepare(
     let mut writes = Vec::new();
     let mut properties = scenario_changes;
     if !edits.is_empty() {
-        let after = state.session.preview_edits(&edits).map_err(refusal)?;
+        let after = match &cut {
+            Some((paste, _, _)) => state.session.preview_skin_paste(paste),
+            None => state.session.preview_edits(&edits),
+        }.map_err(refusal)?;
         if !paste_areas.is_empty() {
             properties.extend(paste_properties(&before, &after, &paste_areas, &edits));
         }
         properties.extend(names.into_iter().filter_map(|name| name.diff(&after)));
         properties.extend(column_properties(&before, &after, &edits));
+        if let Some((_, from, to)) = &cut {
+            properties.push(ModelPropertyDiff::CellMoved { from: *from, to: *to });
+            properties.extend(crate::names::moved(&before, &after, &edits));
+            for anchor in after.view_part().anchors() {
+                if before.view_part().anchor(anchor.id) == Some(anchor) { continue; }
+                if let Some(area) = anchor.area() {
+                    let source = if anchor.spill {
+                        SourceRef::Spill { anchor: Key::of(area.first()) }
+                    } else {
+                        source_area(area)
+                    };
+                    presentation.push(PresentationChange::Bind { anchor: anchor.id, source });
+                }
+            }
+        }
         let mut changed = BTreeSet::new();
         for area in areas {
             for root in [&before, &after] {
@@ -669,7 +771,11 @@ pub(crate) fn prepare(
         warnings,
         refusal: None,
     };
-    Ok(Prepared { edits, preview })
+    let change = match cut {
+        Some((paste, _, _)) => PreparedChange::Paste(paste),
+        None => PreparedChange::Edits(edits),
+    };
+    Ok(Prepared { change, preview })
 }
 
 fn prepare_entry(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<CellEdit>, Refusal> {

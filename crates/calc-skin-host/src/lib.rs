@@ -24,6 +24,7 @@ use calc_skin::*;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
+use std::sync::Arc;
 
 const TOUCH_HISTORY: usize = 100;
 const CALC_HISTORY: usize = 32;
@@ -613,6 +614,15 @@ impl WorkbookPort for Connection {
                 let mut scope_changed = false;
                 for property in &prepared.preview.properties {
                     let source = match property {
+                        ModelPropertyDiff::CellMoved { from, to } => {
+                            for at in [*from, *to] {
+                                let target = Target::Source(batch::source_area(GridArea::cell(cell(at)?)));
+                                if !targets.contains(&target) {
+                                    targets.push(target);
+                                }
+                            }
+                            continue;
+                        }
                         ModelPropertyDiff::DefinedName { scope, before, after } => {
                             scope_changed = true;
                             for name in before.iter().chain(after) {
@@ -687,7 +697,10 @@ impl WorkbookPort for Connection {
                     group: None,
                     unreviewed: self.policy == WritePolicy::ApplyThenReview,
                 };
-                let receipt = state.session.dispatch_skin_edit(prepared.edits, entry);
+                let receipt = match prepared.change {
+                    batch::PreparedChange::Paste(paste) => state.session.dispatch_skin_paste(paste, entry),
+                    batch::PreparedChange::Edits(edits) => state.session.dispatch_skin_edit(edits, entry),
+                };
                 if let Some(error) = receipt.error {
                     return Err(batch::refusal(error));
                 }
@@ -778,6 +791,7 @@ impl WorkbookPort for Connection {
                 return Ok(before);
             }
         };
+        let definitions = state.session.host().model().definitions().clone();
         let receipt = state.session.dispatch(intent);
         if let Some(error) = receipt.error {
             return Err(batch::refusal(error));
@@ -790,10 +804,13 @@ impl WorkbookPort for Connection {
             .as_ref()
             .map_or_else(Vec::new, |commit| commit.pending().to_vec());
         state.record_calculation(before, receipt.recalc.as_ref());
+        // Undo can restore names and cells together, so a cell-only footprint would hide the name change.
+        let same_definitions = Arc::ptr_eq(&definitions, state.session.host().model().definitions());
         state.record_touch(
             before,
             receipt.committed.and_then(|change| {
-                (!change.input_writes().is_empty()).then(|| change.input_writes().to_vec())
+                (same_definitions && !change.input_writes().is_empty())
+                    .then(|| change.input_writes().to_vec())
             }),
             pending,
         );

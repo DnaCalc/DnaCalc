@@ -45,8 +45,17 @@ fn a1(at: Key) -> String {
     format!("{}{}", address::column_letters(at.3), at.2)
 }
 
-fn model_property_text(diff: ModelPropertyDiff) -> String {
+fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
     match diff {
+        ModelPropertyDiff::CellMoved { from, to } => {
+            let summary = session.summary();
+            let label = |at: Key| {
+                summary.as_ref().and_then(|book| book.sheets.iter().find(|sheet| {
+                    sheet.sheet == Sheet(at.0, at.1)
+                })).map_or_else(|| a1(at), |sheet| format!("{}!{}", address::quoted_sheet(&sheet.name), a1(at)))
+            };
+            format!("Move {} to {}", label(from), label(to))
+        }
         ModelPropertyDiff::DefinedName { before, after, .. } => {
             let label = |name: Option<calc_skin::DefinedNameText>| {
                 name.map_or_else(|| "—".into(), |entry| format!("{} {}", entry.name, entry.formula))
@@ -655,7 +664,7 @@ pub fn workbook(
                                 </span>
                             }).collect_view()}
                             {preview.properties.into_iter().map(|property| view! {
-                                <span class="dna-book-review-write">{model_property_text(property)}</span>
+                                <span class="dna-book-review-write">{model_property_text(session, property)}</span>
                             }).collect_view()}
                             {preview.warnings.join(" · ")}
                             {command_button(session, "edit.apply-review", "Apply")}

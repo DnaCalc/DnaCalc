@@ -207,12 +207,17 @@ fn formula(
                 };
                 let prior = held().is_some();
                 let at = cell.at;
+                let blocked = matches!(cell.spill, Some(SpillExtent::Blocked(_)));
                 let output = match cell.spill {
                     Some(SpillExtent::Filled(area)) if area.0 != area.1 =>
                         rows(state, id, SourceRef::Spill { anchor: at }).into_any(),
                     _ => value(cell).into_any(),
                 };
-                view! { {prior.then(|| view! { <p>"Previous result"</p> })}{output} }.into_any()
+                view! {
+                    {prior.then(|| view! { <p>"Previous result"</p> })}
+                    {output}
+                    {blocked.then(|| super::spill::controls(state, at))}
+                }.into_any()
             }}
         </div>
         <Show when=move || cell.get().is_some_and(|cell| cell.input.starts_with('='))>
