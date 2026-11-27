@@ -96,6 +96,11 @@
     white-space: nowrap;
 }
 .dna-sheet td { max-width: 12rem; }
+.dna-sheet td[data-filter-header="true"]::after {
+    content: "▾";
+    float: inline-end;
+    color: var(--dna-ink-2);
+}
 .dna-sheet .dna-sheet-gridlines-hidden td {
     border-inline-end-color: transparent;
     border-block-end-color: transparent;

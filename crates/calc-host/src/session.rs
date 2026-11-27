@@ -1393,6 +1393,8 @@ impl HostSession {
                     | CellEdit::SetFormat { .. }
                     | CellEdit::TextSources(_)
                     | CellEdit::Merges { .. }
+                    | CellEdit::AutoFilter { .. }
+                    | CellEdit::Tables(_)
                     | CellEdit::ConditionalRules { .. }
                     | CellEdit::Validations { .. }
                     | CellEdit::Scenarios { .. }

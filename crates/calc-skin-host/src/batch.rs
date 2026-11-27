@@ -3,7 +3,7 @@ use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetS
 use calc_host::value::{CellKey, GridArea};
 use calc_host::{
     Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource,
-    prepare_column_visibility, prepare_paste_oriented,
+    prepare_column_visibility, prepare_filter_toggle, prepare_paste_oriented,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
@@ -317,6 +317,7 @@ pub(crate) fn prepare(
     let mut edits = Vec::new();
     let mut areas = Vec::new();
     let mut paste_areas = Vec::new();
+    let mut filter_sheets = BTreeSet::new();
     let mut inserted = None;
     let mut presentation = Vec::new();
     let mut warnings = Vec::new();
@@ -488,6 +489,13 @@ pub(crate) fn prepare(
                             .map_err(|reason| Refusal::Excel { reason })?,
                     );
                 }
+                ModelChange::ToggleAutoFilter { selected } => {
+                    require_current_model(request, base.model)?;
+                    let selected = grid_area(*selected)?;
+                    edits.extend(prepare_filter_toggle(state.session.host(), selected)
+                        .map_err(|reason| Refusal::Excel { reason })?);
+                    filter_sheets.insert(selected.sheet());
+                }
             },
             Change::Presentation(change) => {
                 if part.is_opaque() {
@@ -622,6 +630,19 @@ pub(crate) fn prepare(
             properties.extend(paste_properties(&before, &after, &paste_areas, &edits));
         }
         properties.extend(column_properties(&before, &after, &edits));
+        for sheet in filter_sheets {
+            let old = before.definitions();
+            let new = after.definitions();
+            if old.auto_filter(sheet) != new.auto_filter(sheet)
+                || !old.tables().iter().filter(|table| table.sheet == sheet)
+                    .eq(new.tables().iter().filter(|table| table.sheet == sheet))
+            {
+                properties.push(ModelPropertyDiff::Scope {
+                    source: SourceRef::Sheet(Sheet::of(sheet)),
+                    property: ModelProperty::AutoFilter,
+                });
+            }
+        }
         let mut changed = BTreeSet::new();
         for area in areas {
             for root in [&before, &after] {

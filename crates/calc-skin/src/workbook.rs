@@ -337,6 +337,8 @@ pub struct WorksheetGeometry {
     pub frozen_columns: u32,
     pub zoom: u16,
     pub show_grid_lines: Option<bool>,
+    #[serde(default)]
+    pub auto_filter_areas: Vec<Area>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -481,6 +483,9 @@ pub enum ModelChange {
         bands: Vec<(u32, u32)>,
         hidden: bool,
     },
+    ToggleAutoFilter {
+        selected: Area,
+    },
     RewriteFormula {
         at: Key,
         expected_old: String,
@@ -573,6 +578,7 @@ pub enum ModelProperty {
     Hyperlinks,
     RichText,
     ColumnVisibility,
+    AutoFilter,
     Charts,
     Shapes,
 }

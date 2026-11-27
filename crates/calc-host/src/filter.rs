@@ -1,9 +1,79 @@
 //! AutoFilter commands use detached CalcFml criteria evaluation over published values.
-use crate::value::{CellKey, CoreRef, GridArea, SheetId};
+use crate::value::{CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 use crate::{CellEdit, HostState, ProjectedValue, ProjectionRequest};
 pub use calc_doc_model::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
 use calc_engine::{DetachedEvaluationContext, DetachedReadPolicy};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// The block of non-empty cells around `at`, grown through every neighbouring non-empty cell (Excel's CurrentRegion).
+pub(crate) fn current_region(model: &calc_doc_model::ModelRoot, at: CellKey) -> GridArea {
+    let sheet = at.sheet();
+    let occupied = |row: u32, column: u32| {
+        CellKey::new(sheet, row, column).is_ok_and(|key| model.cell(key).is_some())
+    };
+    let (mut top, mut left, mut bottom, mut right) = (at.row(), at.column(), at.row(), at.column());
+    loop {
+        let (t, l, b, r) = (top.saturating_sub(1).max(1), left.saturating_sub(1).max(1), (bottom + 1).min(MAX_ROWS), (right + 1).min(MAX_COLUMNS));
+        let ring_has = |row: u32, column: u32| occupied(row, column);
+        let mut grown = (top, left, bottom, right);
+        if t < top && (l..=r).any(|c| ring_has(t, c)) {
+            grown.0 = t;
+        }
+        if b > bottom && (l..=r).any(|c| ring_has(b, c)) {
+            grown.2 = b;
+        }
+        if l < left && (t..=b).any(|row| ring_has(row, l)) {
+            grown.1 = l;
+        }
+        if r > right && (t..=b).any(|row| ring_has(row, r)) {
+            grown.3 = r;
+        }
+        if grown == (top, left, bottom, right) {
+            break;
+        }
+        (top, left, bottom, right) = grown;
+    }
+    let corner = |row, column| CellKey::new(sheet, row, column).expect("inside the grid");
+    GridArea::new(corner(top, left), corner(bottom, right)).expect("an ordered area")
+}
+
+/// Prepares the worksheet or table AutoFilter toggle for a selection.
+pub fn prepare_filter_toggle(host: &HostState, selected: GridArea) -> Result<Vec<CellEdit>, String> {
+    let sheet = selected.sheet();
+    if host.model().sheet_by_id(sheet).is_none() {
+        return Err("The worksheet is unavailable".into());
+    }
+    let definitions = host.model().definitions();
+    let revision = host.revision().get();
+    if let Some(table) = definitions.tables().iter()
+        .find(|table| table.area.intersection(selected) == Some(selected))
+    {
+        let change = if table.filter.is_some() {
+            FilterChange::Remove
+        } else {
+            let end = table.area.last();
+            let last_data_row = end.row().checked_sub(table.totals_rows)
+                .filter(|&row| row > table.area.first().row() && table.header_rows > 0)
+                .ok_or("The table must have a header and data rows")?;
+            let last = CellKey::new(sheet, last_data_row, end.column()).expect("inside the table");
+            let area = GridArea::new(table.area.first(), last).expect("an ordered table range");
+            FilterChange::Enable { area }
+        };
+        return prepare_for(host, sheet, revision, Some(&table.part), change);
+    }
+    let change = if definitions.auto_filter(sheet).is_some() {
+        FilterChange::Remove
+    } else {
+        let area = if selected.cell_count() == 1 {
+            current_region(host.model(), selected.first())
+        } else {
+            selected
+        };
+        FilterChange::Enable { area }
+    };
+    prepare(host, sheet, revision, change)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Change the range, criteria, or visibility of an AutoFilter.
 pub enum FilterChange {
