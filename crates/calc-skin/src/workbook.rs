@@ -229,6 +229,9 @@ pub enum WorkbookQuery {
     InputCandidates {
         scope: SourceRef,
     },
+    OutputCandidates {
+        scope: SourceRef,
+    },
     Sources,
     Deps {
         of: SourceRef,

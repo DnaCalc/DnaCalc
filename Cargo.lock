@@ -1577,6 +1577,7 @@ name = "dna-view-app"
 version = "0.1.0"
 dependencies = [
  "calc-skin",
+ "dna-grid",
  "dna-kit",
  "leptos",
  "serde_json",

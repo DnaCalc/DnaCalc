@@ -241,6 +241,15 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
 }
 
 pub fn mount(session: Session) -> impl IntoView {
+    worksheet(session, true)
+}
+
+/// The same worksheet surface for selecting sources without entering cells.
+pub fn picker(session: Session) -> impl IntoView {
+    worksheet(session, false)
+}
+
+fn worksheet(session: Session, editable: bool) -> impl IntoView {
     let focus = NodeRef::<leptos::html::Div>::new();
     let active = Memo::new(move |_| session.active());
     let page = Memo::new(move |_| active.get().map(page_of));
@@ -336,7 +345,11 @@ pub fn mount(session: Session) -> impl IntoView {
                                         session.select_cell(key);
                                     }
                                 }
-                                on:dblclick=move |_| session.begin_edit(key, None)
+                                on:dblclick=move |_| {
+                                    if editable {
+                                        session.begin_edit(key, None);
+                                    }
+                                }
                             >{text}</td>
                         }
                     }).collect_view();
