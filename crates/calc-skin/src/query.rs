@@ -156,6 +156,17 @@ pub struct ViewPartFacts {
     /// The part was written by a later version: it is kept byte for byte and not read.
     pub opaque: bool,
     pub anchors: Vec<AnchorFacts>,
+    #[serde(default)]
+    pub documents: Vec<ViewDocumentFacts>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ViewDocumentFacts {
+    pub id: crate::DocId,
+    pub view: crate::ViewId,
+    pub sheet: Option<Sheet>,
+    pub schema: u32,
+    pub body: Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

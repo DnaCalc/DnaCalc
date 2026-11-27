@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace Touchstone.Excel;
 
@@ -8,61 +9,42 @@ static class Json
 {
     public static object Parse(string text)
     {
-        int i = 0;
-        return Value(text, ref i);
+        using var document = JsonDocument.Parse(text);
+        return Value(document.RootElement);
     }
 
-    static void Ws(string s, ref int i) { while (i < s.Length && (s[i] == ' ' || s[i] == '\n' || s[i] == '\r' || s[i] == '\t')) i++; }
-
-    static object Value(string s, ref int i)
+    static object Value(JsonElement value)
     {
-        Ws(s, ref i);
-        char c = s[i];
-        if (c == '{')
+        switch (value.ValueKind)
         {
-            i++;
-            var d = new Dictionary<string, object>();
-            Ws(s, ref i);
-            if (s[i] == '}') { i++; return d; }
-            while (true)
-            {
-                Ws(s, ref i);
-                var key = Str(s, ref i);
-                Ws(s, ref i);
-                i++; // :
-                if (d.ContainsKey(key)) throw new FormatException("duplicate JSON key: " + key);
-                d[key] = Value(s, ref i);
-                Ws(s, ref i);
-                if (s[i] == ',') { i++; continue; }
-                i++; // }
-                return d;
-            }
+            case JsonValueKind.Object:
+                var fields = new Dictionary<string, object>();
+                foreach (var field in value.EnumerateObject())
+                {
+                    string name;
+                    try { name = field.Name; }
+                    catch (InvalidOperationException error) { throw new FormatException("invalid UTF-16 JSON property name", error); }
+                    if (!fields.TryAdd(name, Value(field.Value)))
+                        throw new FormatException("duplicate JSON key");
+                }
+                return fields;
+            case JsonValueKind.Array:
+                return value.EnumerateArray().Select(Value).ToList();
+            case JsonValueKind.String:
+                // The wire transports UTF-16 units, including isolated escaped surrogates.
+                int start = 0;
+                return Str(value.GetRawText(), ref start);
+            case JsonValueKind.Number:
+                if (value.TryGetInt64(out long integer)) return integer;
+                if (value.GetRawText().AsSpan().IndexOfAny('.', 'e', 'E') < 0)
+                    throw new FormatException("JSON integer is outside the signed 64-bit range");
+                if (value.TryGetDouble(out double real) && double.IsFinite(real)) return real;
+                throw new FormatException("JSON number is not finite");
+            case JsonValueKind.True: return true;
+            case JsonValueKind.False: return false;
+            case JsonValueKind.Null: return null;
+            default: throw new FormatException("invalid JSON value");
         }
-        if (c == '[')
-        {
-            i++;
-            var l = new List<object>();
-            Ws(s, ref i);
-            if (s[i] == ']') { i++; return l; }
-            while (true)
-            {
-                l.Add(Value(s, ref i));
-                Ws(s, ref i);
-                if (s[i] == ',') { i++; continue; }
-                i++; // ]
-                return l;
-            }
-        }
-        if (c == '"') return Str(s, ref i);
-        if (c == 't') { i += 4; return true; }
-        if (c == 'f') { i += 5; return false; }
-        if (c == 'n') { i += 4; return null; }
-        int start = i;
-        bool real = false;
-        while (i < s.Length && "+-0123456789.eE".IndexOf(s[i]) >= 0) { if (s[i] == '.' || s[i] == 'e' || s[i] == 'E') real = true; i++; }
-        var num = s.AsSpan(start, i - start);
-        if (!real && long.TryParse(num, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var n)) return n;
-        return double.Parse(num, CultureInfo.InvariantCulture);
     }
 
     static string Str(string s, ref int i)

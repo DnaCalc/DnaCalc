@@ -61,6 +61,15 @@ def dumps(obj):
     return json.dumps(obj, ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode("ascii")
 
 
+def unique_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
 def pack(kind, obj, compress=False):
     body = dumps(obj)
     if compress and len(body) > 200:
@@ -75,7 +84,7 @@ def unpack_body(data):
     if kind & 0x80:
         body = zlib.decompress(body)
         kind &= 0x7f
-    return bytes([kind]), json.loads(body)
+    return bytes([kind]), json.loads(body, object_pairs_hook=unique_pairs)
 
 
 class FrameReader:
@@ -181,18 +190,16 @@ def vba_case(case):
     """One authored VBA case: sheets, calls, and a reviewed probe template with typed parameters
     ("template", "params"; see vba-probes/catalogue.json). VBA source never travels with a case (dc-45ndr);
     the worker builds the package from the pinned template."""
-    required = {"sheets", "calls", "template", "params"}
-    defaults = {"readback": [], "event_log": []}
-    if not isinstance(case, dict) or not required <= case.keys() <= required.union(defaults):
-        raise ValueError("VBA case needs sheets, calls and a template with params, "
-                         "with optional readback and event_log")
-    return {"type": "vba_case", "value": {
-        **defaults, **case,
-    }}
+    if not isinstance(case, dict):
+        raise ValueError("VBA case must be an object")
+    return {"type": "vba_case", "value": {"readback": [], "event_log": [], **case}}
 
 
 def is_vba_group(group):
-    return group["f"] == VBA_FUNCTION or "V" in group["k"].split(",")
+    if not isinstance(group, dict):
+        return False
+    tokens = group.get("k")
+    return group.get("f") == VBA_FUNCTION or (isinstance(tokens, str) and "V" in tokens.split(","))
 
 
 def token_width(token):
@@ -292,6 +299,7 @@ def answer_to_typed(letter, value):
         calls = [{"err": call["err"]} if "err" in call else {"return": typed(call["return"])}
                  for call in value["calls"]]
         return {"type": "vba_case", "calls": calls,
+                **{key: value[key] for key in ("case_sha256",) if key in value},
                 **{field: [{"at": cell["at"], "value": typed(cell)} for cell in value[field]]
                    for field in ("sheet_state", "event_log")}}
     if letter == "c":

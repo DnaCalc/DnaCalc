@@ -33,6 +33,19 @@ DEFAULT_SOCKET = Path.home() / ".excel-service" / "excel.sock"
 DEFAULT_ENDPOINT = Path(r"C:\Work\DnaCalc\codex-runs\excel-service-v2") / "endpoint.json"
 
 
+def local_vba_decoder():
+    if __package__:
+        from . import vba_policy
+    else:
+        try:
+            import vba_policy
+        except ModuleNotFoundError as error:
+            if error.name != "vba_policy":
+                raise
+            return None
+    return vba_policy
+
+
 def is_crashed(value):
     """True for a typed row (or raw answer letter "x") that says Excel crashed on that call."""
     return value == "x" or (isinstance(value, dict) and value.get("type") == "crashed")
@@ -325,10 +338,18 @@ class Connection:
     def vba_case(self, case, *, timeout=60, rid=None):
         """Ask one authored VBA case; the Windows worker builds the .xlsm from the pinned template it checked. Return a one-row reply.
 
-        The Windows worker requires approval of the exact prepared case. Numbers in
+        The Windows worker requires approval of the pinned template. Numbers in
         arguments and in the reply use the usual Touchstone binary64 hex encoding.
         """
         row = [protocol.vba_case(case)]
+        decoder = local_vba_decoder()
+        worker = decoder.worker_path() if decoder else None
+        if worker is not None:
+            group, = protocol.rows_to_groups(protocol.VBA_FUNCTION, [row])
+            try:
+                decoder.check(group, worker)
+            except ValueError as error:
+                raise ServiceError({"id": rid, "ok": False, "code": "refused", "error": f"refused: {error}"}) from error
         pending = self.submit_rows(protocol.VBA_FUNCTION, [row], priority="interactive", rid=rid)
         reply = pending.result(timeout)
         answer, = reply["rows"]
@@ -339,6 +360,9 @@ class Connection:
                 "id": pending.rid, "ok": False, "code": code, "error": f"{code}: {detail}",
                 "row": answer,
             })
+        case_digest = answer.pop("case_sha256", None)
+        if case_digest is not None:
+            reply["case_sha256"] = case_digest
         sent = row[0]["value"]
         if (len(answer["calls"]) != len(sent["calls"])
                 or [item["at"] for item in answer["sheet_state"]] != sent["readback"]
@@ -402,8 +426,10 @@ def _main():
 
     parser = argparse.ArgumentParser(prog="cargo xtask vba-case")
     modes = parser.add_subparsers(dest="mode", required=True)
-    prepare = modes.add_parser("prepare", help="write the exact group for offline case approval")
+    prepare = modes.add_parser("prepare", help="check and print the group without opening Excel")
     prepare.add_argument("case", type=Path)
+    admit = modes.add_parser("admit", help="check the pinned VBA catalogue and its placeholder positions")
+    admit.add_argument("catalogue", type=Path, nargs="?")
     capture = modes.add_parser("capture", help="ask Excel and retain the reply with provenance")
     capture.add_argument("case", type=Path)
     capture.add_argument("--out", required=True, type=Path)
@@ -412,11 +438,23 @@ def _main():
     if args.mode == "capture" and (not math.isfinite(args.timeout) or args.timeout <= 0):
         parser.error("--timeout must be a positive finite number of seconds")
     try:
+        decoder = local_vba_decoder()
+        if args.mode == "admit":
+            worker = decoder.worker_path() if decoder else None
+            if worker is None:
+                raise ValueError("the Excel worker is unavailable; build it before admitting templates")
+            command = [str(worker), "--admit-vba-templates"]
+            if args.catalogue is not None:
+                command.append(str(args.catalogue))
+            raise SystemExit(subprocess.run(command, timeout=30).returncode)
         case = json.loads(args.case.read_text(encoding="utf-8"), object_pairs_hook=v1.unique_pairs)
         if args.mode == "prepare":
             row = [protocol.vba_case(case)]
             group, = protocol.rows_to_groups(protocol.VBA_FUNCTION, [row])
             protocol.submit_frames("0" * 32, [group])  # check the same frame size the live client uses
+            if decoder is None:
+                raise ValueError("the Excel worker's VBA decoder is unavailable")
+            decoder.check(group)
             print(protocol.dumps(group).decode("ascii"))
         else:
             conn = Connection.open(name="vba-case")
@@ -425,7 +463,7 @@ def _main():
             finally:
                 conn.close()
             print(_write_vba_capture(args.out, case, reply))
-    except (OSError, ServiceError, ValueError) as error:
+    except (OSError, ServiceError, ValueError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"vba-case: {error}\n")
 
 

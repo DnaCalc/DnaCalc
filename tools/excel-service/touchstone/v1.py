@@ -18,13 +18,7 @@ FRAME_BUDGET = 40 * 1024
 MAX_BYTES = 16 * 1024 * 1024
 
 
-def unique_pairs(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate JSON key")
-        result[key] = value
-    return result
+unique_pairs = protocol.unique_pairs
 
 
 def parse_request(raw, rid, now=None):

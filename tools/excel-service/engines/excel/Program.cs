@@ -39,10 +39,23 @@ static class Program
 
     static int Main(string[] args)
     {
-        if (args.Length is 1 or 2 && args[0] is "--check-vba-policy" or "--build-vba-package" or "--check-vba-expanded" or "--build-vba-expanded")
+        if (args.Length is 1 or 2 && args[0] is "--admit-vba-templates" or "--vba-template-pin"
+            or "--check-vba-policy" or "--build-vba-package" or "--check-vba-expanded" or "--build-vba-expanded")
         {
             try
             {
+                if (args[0] == "--admit-vba-templates")
+                {
+                    int count = VbaTemplateAdmission.Verify(args.Length == 2 ? args[1] : null);
+                    Console.WriteLine($"Admitted {count} VBA template(s).");
+                    return 0;
+                }
+                if (args[0] == "--vba-template-pin")
+                {
+                    if (args.Length != 2) throw new RefusedVbaException("--vba-template-pin needs a template name");
+                    Console.WriteLine(VbaTemplates.Review(args[1]).Pin);
+                    return 0;
+                }
                 var buffer = new char[65537];
                 int size = Console.In.ReadBlock(buffer, 0, buffer.Length);
                 if (size == buffer.Length) throw new RefusedVbaException("VBA policy input exceeds 64 KiB");
@@ -58,7 +71,8 @@ static class Program
                 Console.WriteLine(VbaPolicy.CaseDigest(probe));
                 return 0;
             }
-            catch (RefusedVbaException e)
+            catch (Exception e) when (e is RefusedVbaException or System.Text.Json.JsonException or FormatException
+                or IOException or KeyNotFoundException or InvalidCastException)
             {
                 Console.Error.WriteLine(e.Message);
                 return 1;
@@ -361,7 +375,7 @@ static class Program
         var timing = new Dictionary<string, object>();
         double gcBefore = GC.GetTotalPauseDuration().TotalMilliseconds;
         var result = new Dictionary<string, object> { ["id"] = id, ["env_id"] = X.EnvId, ["worker"] = Name, ["batch"] = ++Batches };
-        Dictionary<string, object> vbaCase = null;
+        VbaCase vbaCase = null;
         byte[] vbaWorkbook = null;       // built here from the checked modules; no caller's package is read
         try
         {
@@ -373,9 +387,8 @@ static class Program
                 if (serial || echo || groupList.Count != 1)
                     throw new RefusedVbaException("VBA requires one case without echo or serial mode");
                 vbaCase = VbaPolicy.CheckGroup(groupList[0]);
-                VbaPolicy.CheckApproval(vbaCase, Path.Combine(Root, "vba-approved"));
+                VbaPolicy.CheckApproval(vbaCase, Path.Combine(Root, "vba-approved"), X.Env["file_version"] as string ?? "");
                 vbaWorkbook = VbaPackage.Build(vbaCase);
-                ValidateLayoutFormulaLengths(vbaCase);
             }
             // Drift before: recycle and report; the broker re-queues nothing it has not been told about.
             // The previous batch ended with a verified fingerprint; only after an idle spell is it read again.
@@ -390,8 +403,8 @@ static class Program
             }
             WatchdogFired = false;
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
-            var cases = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "L"));
-            var special = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r") || t.StartsWith("m")));
+            var cases = vbaCase == null && groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "L"));
+            var special = vbaCase == null && groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r") || t.StartsWith("m")));
             if ((special || cases) && serial) throw new InvalidOperationException("range/file arguments and sheet cases are not supported in serial mode");
             var groups = vbaCase != null ? EvaluateVbaCase(vbaCase, vbaWorkbook, timing)
                 : cases ? EvaluateCases(groupList, timing)
@@ -803,7 +816,7 @@ static class Program
             ValidateFormulaLength((string)probe["at"], (string)probe["formula"]);
     }
 
-    static List<object> EvaluateVbaCase(Dictionary<string, object> probe, byte[] workbook, Dictionary<string, object> timing)
+    static List<object> EvaluateVbaCase(VbaCase probe, byte[] workbook, Dictionary<string, object> timing)
     {
         var elapsed = Stopwatch.StartNew();
         dynamic app = X.App, book = null;
@@ -819,7 +832,7 @@ static class Program
             book = app.Workbooks.Open(path, UpdateLinks: 0, ReadOnly: true, IgnoreReadOnlyRecommended: true, AddToMru: false);
 
             Stage = "VBA sheet layout";
-            var layout = BuildLayout(probe, null, (object)book);
+            var layout = BuildLayout(probe.Layout(), null, (object)book);
             timing["calls"] = 1;
             if (layout.Changed.Count != 0)
             {
@@ -834,10 +847,10 @@ static class Program
             app.EnableEvents = true;
             var calls = new List<object>();
             string bookName = (string)book.Name;
-            foreach (Dictionary<string, object> call in (List<object>)probe["calls"])
+            foreach (var call in probe.Calls)
             {
-                var parameters = new List<object> { "'" + bookName.Replace("'", "''") + "'!" + (string)call["procedure"] };
-                parameters.AddRange(((List<object>)call["args"]).Cast<Dictionary<string, object>>().Select(VbaArgument));
+                var parameters = new List<object> { "'" + bookName.Replace("'", "''") + "'!" + call.Procedure };
+                parameters.AddRange(call.Arguments.Select(VbaArgument));
                 object application = app;
                 object returned = application.GetType().InvokeMember("Run", BindingFlags.InvokeMethod | BindingFlags.OptionalParamBinding,
                     null, application, parameters.ToArray(), CultureInfo.InvariantCulture);
@@ -849,9 +862,10 @@ static class Program
             elapsed.Restart();
             var answer = new Dictionary<string, object>
             {
+                ["case_sha256"] = VbaPolicy.CaseDigest(probe),
                 ["calls"] = calls,
-                ["sheet_state"] = ReadVbaCells((object)book, (List<object>)probe["readback"]),
-                ["event_log"] = ReadVbaCells((object)book, (List<object>)probe["event_log"]),
+                ["sheet_state"] = ReadVbaCells((object)book, probe.Readback),
+                ["event_log"] = ReadVbaCells((object)book, probe.EventLog),
             };
             timing["read_ms"] = elapsed.Elapsed.TotalMilliseconds;
             Stage = "VBA workbook close";
@@ -886,13 +900,13 @@ static class Program
         return new() { new Dictionary<string, object> { ["ty"] = type, ["v"] = new List<object> { value } } };
     }
 
-    static object VbaArgument(Dictionary<string, object> arg) => (string)arg["type"] switch
+    static object VbaArgument(VbaCell arg) => arg switch
     {
-        "number" => Bits(arg["bits"]),
-        "text" => (string)arg["value"],
-        "boolean" => (bool)arg["value"],
-        "blank" => null,
-        "error" => new ErrorWrapper(Codes[(string)arg["code"]]),
+        VbaCell.Number n => Bits(n.Bits),
+        VbaCell.Text text => text.Value,
+        VbaCell.Boolean boolean => boolean.Value,
+        VbaCell.Blank => null,
+        VbaCell.Error error => new ErrorWrapper(Codes[error.Code]),
         _ => throw new RefusedVbaException("unsupported VBA argument type"),
     };
 
@@ -943,19 +957,18 @@ static class Program
         _ => ('u', new Dictionary<string, object> { ["reason"] = "unsupported VBA return type", ["read_back"] = value.GetType().Name }),
     };
 
-    static List<object> ReadVbaCells(object opened, List<object> addresses)
+    static List<object> ReadVbaCells(object opened, IReadOnlyList<VbaPlace> addresses)
     {
         dynamic book = opened;
         var output = new List<object>();
-        foreach (string at in addresses)
+        foreach (var place in addresses)
         {
-            int bang = at.LastIndexOf('!');
-            var (row, col) = A1(at[(bang + 1)..]);
-            object observed = book.Worksheets.Item(at[..bang]).Cells.Item(row, col).Value2;
+            var (row, col) = A1(place.Cell);
+            object observed = book.Worksheets.Item(place.Sheet).Cells.Item(row, col).Value2;
             var (ty, value) = Convert1(observed);
             if (ty == 'u')
                 value = new Dictionary<string, object> { ["reason"] = "unsupported VBA readback type", ["read_back"] = value };
-            output.Add(new Dictionary<string, object> { ["at"] = at, ["ty"] = ty.ToString(), ["v"] = value });
+            output.Add(new Dictionary<string, object> { ["at"] = place.Label, ["ty"] = ty.ToString(), ["v"] = value });
         }
         return output;
     }

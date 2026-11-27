@@ -175,7 +175,52 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
                         })
                     }
                     PresentationChange::RemoveNote { id } => part.clone().without_note(*id),
-                    _ => return Err(unavailable("dc-aje2v", "Editing view documents")),
+                    PresentationChange::CreateDoc {
+                        doc,
+                        view,
+                        sheet,
+                        schema,
+                        body,
+                    } => {
+                        if part.document(*doc).is_some() {
+                            return Err(invalid("This view document already exists"));
+                        }
+                        let sheet = sheet
+                            .map(|sheet| {
+                                before
+                                    .sheet_by_id(sheet.id())
+                                    .map(|sheet| sheet.key())
+                                    .ok_or_else(|| {
+                                        invalid("The view document's worksheet is unavailable")
+                                    })
+                            })
+                            .transpose()?;
+                        part.clone().with_document(calc_doc_model::ViewDocument {
+                            id: *doc,
+                            view: view.0.clone(),
+                            sheet,
+                            schema: *schema,
+                            body: encode_document(body)?,
+                        })
+                    }
+                    PresentationChange::PatchDoc {
+                        doc,
+                        expect_view_rev,
+                        body,
+                    } => {
+                        if *expect_view_rev != base.view {
+                            return Err(invalid(
+                                "The view document has changed. Reopen or retry the edit.",
+                            ));
+                        }
+                        let mut document = part
+                            .document(*doc)
+                            .cloned()
+                            .ok_or_else(|| invalid("This view document no longer exists"))?;
+                        document.body = encode_document(body)?;
+                        part.clone().with_document(document)
+                    }
+                    PresentationChange::RemoveDoc { doc } => part.clone().without_document(*doc),
                 };
                 if next != part {
                     part = next;
@@ -220,4 +265,8 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
         refusal: None,
     };
     Ok(Prepared { edits, preview })
+}
+
+fn encode_document(body: &serde_json::Value) -> Result<String, Refusal> {
+    serde_json::to_string(body).map_err(|error| invalid(error.to_string()))
 }

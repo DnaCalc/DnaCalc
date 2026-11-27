@@ -1138,3 +1138,83 @@ fn the_view_part_answer_decodes_to_its_query_type() {
         }]
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_view_document_round_trips_without_editing_the_workbook_model() {
+    use calc_skin::query::ViewPartOf;
+
+    let (host, _) = workbook();
+    let connection = port(&host);
+    let doc = DocId(NonZeroU128::new(121).unwrap());
+    let body = serde_json::json!({"prose": "# West & East\n\n<Notes> ]]> _x0020_\r\n"});
+    let edit = batch(
+        1,
+        vec![Change::Presentation(PresentationChange::CreateDoc {
+            doc,
+            view: ViewId("notebook".into()),
+            sheet: None,
+            schema: 1,
+            body: body.clone(),
+        })],
+    );
+    let preview = connection.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+    assert_eq!(
+        preview.kind(),
+        Some(ChangeKind::Presentation),
+        "{preview:?}"
+    );
+    let committed = connection.commit(edit).unwrap();
+    assert_eq!(committed.model, preview.base.model);
+    assert!(committed.view > preview.base.view);
+
+    let read = |connection: &dyn WorkbookPort| {
+        ViewPartOf::decode(connection.ask(ViewPartOf.request(), BUDGET).unwrap())
+            .unwrap()
+            .body
+    };
+    assert_eq!(read(&connection).documents[0].body, body);
+    let patch = |id, expect_view_rev| {
+        batch(
+            id,
+            vec![Change::Presentation(PresentationChange::PatchDoc {
+                doc,
+                expect_view_rev,
+                body: serde_json::json!({"prose": "Updated"}),
+            })],
+        )
+    };
+    assert!(connection.commit(patch(2, preview.base.view)).is_err());
+    let patched = connection.commit(patch(3, committed.view)).unwrap();
+    assert_eq!(patched.model, committed.model);
+    assert!(patched.view > committed.view);
+
+    let before = read(&connection);
+    assert_eq!(
+        before.documents[0].body,
+        serde_json::json!({"prose": "Updated"})
+    );
+    connection.run(Operation::Undo).unwrap();
+    assert_eq!(read(&connection).documents[0].body, body);
+    connection.run(Operation::Undo).unwrap();
+    assert!(read(&connection).documents.is_empty());
+    connection.run(Operation::Redo).unwrap();
+
+    let saved = host.with_session(SelectionCause::Open, |session| {
+        let mut bytes = Vec::new();
+        session
+            .save(&calc_host::SavePolicy::default(), &mut bytes)
+            .unwrap();
+        bytes
+    });
+    let reopened = SkinHost::new(
+        HostSession::open(
+            Arc::new(MemorySource::new(saved)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let reopened_port = port(&reopened);
+    assert_eq!(read(&reopened_port).documents[0].body, body);
+}

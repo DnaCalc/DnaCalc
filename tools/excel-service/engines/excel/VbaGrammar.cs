@@ -4,8 +4,7 @@ using System.Text.RegularExpressions;
 namespace Touchstone.Excel;
 
 /// <summary>
-/// The positive grammar for Touchstone VBA probe source (dc-gqzuw). Same algorithm as
-/// tools/excel-service/vba_grammar.py, over the same rule table (vba-probe-policy.json); keep the two in step.
+/// The grammar used when admitting a Touchstone VBA probe template.
 /// Only the listed statement forms, expressions and member chains are accepted. A cell value written through
 /// .Value or .Value2 must provably be data (a number, a boolean, a string that does not start with = + - or @).
 /// </summary>
@@ -96,7 +95,7 @@ static class VbaGrammar
 
     static readonly Last CallLast = new() { Type = "call" };
 
-    static List<(string text, List<Token> tokens)> LogicalLines(string source)
+    static List<(string text, List<Token> tokens)> LogicalLines(string source, IReadOnlyDictionary<string, string> parameters)
     {
         if (source.Replace("\r\n", "").Contains('\r'))
             throw new RefusedVbaException("VBA construct refused: a bare carriage return");
@@ -111,10 +110,27 @@ static class VbaGrammar
             pending = false;
             while (at < physical.Length)
             {
+                if (parameters != null && physical.AsSpan(at).StartsWith("{{", StringComparison.Ordinal))
+                {
+                    var placeholder = VbaTemplates.Placeholder.Match(physical, at);
+                    if (!placeholder.Success || placeholder.Index != at
+                        || !parameters.TryGetValue(placeholder.Groups[1].Value, out var type))
+                        throw Refuse("an undeclared or malformed placeholder", physical);
+                    int end = at + placeholder.Length;
+                    if ((at > 0 && TouchesLiteral(physical[at - 1])) || (end < physical.Length && TouchesLiteral(physical[end])))
+                        throw Refuse("a placeholder joined to another token", physical);
+                    tokens.Add(new Token(type == "long" ? "parameter-number" : "parameter-string", "placeholder " + placeholder.Value));
+                    at = end;
+                    afterSpace = false;
+                    continue;
+                }
                 var match = Lex.Match(physical, at);
                 if (!match.Success) throw Refuse(physical[at].ToString(), physical);
                 at = match.Index + match.Length;
                 string kind = LexGroups.First(g => match.Groups[g].Success);
+                if (parameters != null && (match.Value.Contains("{{", StringComparison.Ordinal)
+                    || kind == "cont" && physical[at..].Contains("{{", StringComparison.Ordinal)))
+                    throw Refuse("a placeholder inside a quoted string, comment or continuation", physical);
                 if (kind == "cont")
                 {
                     if (!afterSpace) throw Refuse("_", physical);
@@ -135,6 +151,8 @@ static class VbaGrammar
         if (pending) throw Refuse("_", text);
         return lines;
     }
+
+    static bool TouchesLiteral(char ch) => char.IsAsciiLetterOrDigit(ch) || "_.\"!#%$@&".Contains(ch);
 
     sealed class Var
     {
@@ -164,11 +182,12 @@ static class VbaGrammar
         public readonly HashSet<string> Numeric = new();
         public readonly HashSet<string> Params = new();
         public readonly HashSet<string> Strings = new();     // declared As String: a number assigned becomes number text
-        public HashSet<string> AllProcedures = new();
+        readonly IReadOnlyDictionary<string, string> parameters;
 
-        public Case(List<(string, string, string)> modules)
+        public Case(List<(string, string, string)> modules, IReadOnlyDictionary<string, string> parameters)
         {
             Modules = modules;
+            this.parameters = parameters;
             Names = modules.Select(m => m.Item1.ToLowerInvariant()).ToHashSet();
         }
 
@@ -205,7 +224,6 @@ static class VbaGrammar
             }
             foreach (var (node, line) in Writes)
                 if (Classify(node, classes) > Number) throw Refuse("a cell value that is not plainly data", line);
-            AllProcedures = Procs.Values.Where(p => Kinds[p.Module] == "standard").Select(p => p.Key).ToHashSet();
             return Procs.Values.Where(p => p.Public && Kinds[p.Module] == "standard").Select(p => p.Key).ToHashSet();
         }
 
@@ -243,7 +261,7 @@ static class VbaGrammar
             ModuleVars[module] = new();
             Proc current = null;
             bool explicitSeen = false;
-            foreach (var (text, tokens) in LogicalLines(source))
+            foreach (var (text, tokens) in LogicalLines(source, parameters))
             {
                 var words = tokens.Select(t => t.Low).ToList();
                 if (current != null)
@@ -378,7 +396,9 @@ static class VbaGrammar
 
         public void Constant(List<Token> tokens, string text, Dictionary<string, Var> scope, string prefix)
         {
-            if (tokens.Count != 3 || tokens[1].Text != "=" || tokens[2].Kind is not ("num" or "str" or "hex")) throw Refuse(text, text);
+            if (tokens.Count != 3 || tokens[1].Text != "="
+                || tokens[2].Kind is not ("num" or "str" or "hex" or "parameter-number" or "parameter-string"))
+                throw Refuse(text, text);
             var name = Declared(tokens[0], text);
             if (scope.ContainsKey(name)) throw Refuse(tokens[0].Text, text);
             scope[name] = new Var(prefix + name, isConst: true);
@@ -387,6 +407,7 @@ static class VbaGrammar
 
         public static Node Literal(Token token)
         {
+            if (token.Kind == "parameter-string") return Maybe;
             if (token.Kind == "str")
             {
                 var body = token.Text[1..^1].Replace("\"\"", "\"");
@@ -783,9 +804,9 @@ static class VbaGrammar
         {
             var token = Take();
             var word = token.Low;
-            if (token.Kind == "num") return ("val", Num, null);
+            if (token.Kind is "num" or "parameter-number") return ("val", Num, null);
             if (token.Kind == "hex") return ("val", Num, null);        // &H8000 is -32768
-            if (token.Kind == "str") return ("val", Case.Literal(token), null);
+            if (token.Kind is "str" or "parameter-string") return ("val", Case.Literal(token), null);
             if (token.Text == "(")
             {
                 var inner = Expression();
@@ -920,7 +941,9 @@ static class VbaGrammar
     }
 
     /// <summary>Checks every module of a case; returns the lowercase entry points ("module.procedure") a call may name.</summary>
-    public static (HashSet<string> entryPoints, HashSet<string> procedures) CheckModules(List<(string name, string kind, string source)> modules, int sheetCount)
+    public static HashSet<string> CheckModules(
+        List<(string name, string kind, string source)> modules, int sheetCount,
+        IReadOnlyDictionary<string, string> parameters = null, IReadOnlyDictionary<string, string[]> signatures = null)
     {
         var seen = new HashSet<string>();
         foreach (var (name, kind, _) in modules)
@@ -932,9 +955,15 @@ static class VbaGrammar
             if (!valid || !seen.Add(low) || kind is not ("standard" or "document"))
                 throw new RefusedVbaException("invalid or duplicate VBA module name or kind: " + Escape(name));
         }
-        var checkedCase = new Case(modules.Select(m => (m.name, m.kind, m.source)).ToList());
+        var checkedCase = new Case(modules, parameters);
         var entryPoints = checkedCase.Run();
-        // Every procedure of a standard module, Private ones too: a worksheet formula calls a Private Function (rw17).
-        return (entryPoints, checkedCase.AllProcedures);
+        if (signatures != null)
+            foreach (var (entry, arguments) in signatures)
+            {
+                var key = entry.ToLowerInvariant();
+                if (!entryPoints.Contains(key) || checkedCase.Procs[key].Params.Count != arguments.Length)
+                    throw new RefusedVbaException("VBA template entry point does not match its declared signature: " + entry);
+            }
+        return entryPoints;
     }
 }

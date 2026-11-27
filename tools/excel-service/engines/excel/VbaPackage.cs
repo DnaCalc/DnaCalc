@@ -19,15 +19,11 @@ static class VbaPackage
 
     sealed record Module(string Name, string Kind, string Source);   // Kind: Standard | Workbook | Worksheet
 
-    public static byte[] Build(Dictionary<string, object> probe)
+    public static byte[] Build(VbaCase probe)
     {
-        var sheets = ((List<object>)probe["sheets"]).Select(s => (string)((Dictionary<string, object>)s)["name"]).ToList();
-        var modules = ((List<object>)probe["modules"]).Cast<Dictionary<string, object>>().Select(m =>
-        {
-            var name = (string)m["name"];
-            var kind = (string)m["kind"] == "standard" ? "Standard" : name == "ThisWorkbook" ? "Workbook" : "Worksheet";
-            return new Module(name, kind, (string)m["source"]);
-        }).ToList();
+        var sheets = probe.Sheets.Select(s => s.Name).ToList();
+        var modules = probe.Modules.Select(m => new Module(m.Name,
+            m.Kind == "standard" ? "Standard" : m.Name == "ThisWorkbook" ? "Workbook" : "Worksheet", m.Source)).ToList();
         var documents = new List<(string kind, string name)> { ("Workbook", "ThisWorkbook") };
         for (int i = 1; i <= sheets.Count; i++) documents.Add(("Worksheet", $"Sheet{i}"));
         foreach (var m in modules.Where(m => m.Kind != "Standard"))

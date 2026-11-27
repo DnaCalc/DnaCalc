@@ -11,7 +11,7 @@ use std::process::{Command, ExitCode};
 use xtask::cargo::Workspace;
 
 pub const USAGE: &str = concat!(
-    "usage: cargo xtask vba-case build [<case.json>] | prepare <case.json> | ",
+    "usage: cargo xtask vba-case admit [<catalogue-dir>] | build [<case.json>] | prepare <case.json> | ",
     "capture <case.json> --out <dir> [--timeout <seconds>] | ",
     "witness <capture.json> <prediction.json> --out <bank-dir>",
 );
@@ -268,7 +268,7 @@ pub fn run(args: &[String]) -> ExitCode {
         [command, path] if command == "build" => File::open(path)
             .map_err(|error| format!("opening {path}: {error}"))
             .and_then(write_workbook),
-        [command, ..] if matches!(command.as_str(), "prepare" | "capture") => run_client(args),
+        [command, ..] if matches!(command.as_str(), "admit" | "prepare" | "capture") => run_client(args),
         [command, capture, prediction, out_flag, out]
             if command == "witness" && out_flag == "--out" =>
         {

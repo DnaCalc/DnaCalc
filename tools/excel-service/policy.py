@@ -8,8 +8,7 @@ import re
 import time
 
 from client import from_bits
-from vba_templates import expand as expand_vba_template
-from vba_grammar import check_modules, RULES as VBA_RULES, escape as vba_escape
+from touchstone import protocol, vba_policy
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_CALLS = 20000
@@ -232,41 +231,10 @@ MAX_CASE_PROBES = 256
 CASE_CELL_TYPES = {"number", "text", "boolean", "error", "formula"}
 BAD_TEXT = re.compile(r'\x00')
 
-VBA_FRAME_BUDGET = 40 * 1024     # touchstone.protocol.FRAME_BUDGET: one VBA case is one group of one call
-VBA_SHEET_NAME = re.compile(VBA_RULES["sheet_name"])
-VBA_FORMULA_START = VBA_RULES["formula_chars"]
-
-
-def vba_wire_length(value):
-    """The compact JSON length of a case as the worker measures it (Json.Write): every control or non-ASCII
-    character is a six-character \\u escape, so the two validators agree on the 40 KiB budget (rw16)."""
-    if isinstance(value, str):
-        # a character above U+FFFF is a surrogate pair: two six-character escapes (rw17 parity with Json.Quote)
-        return 2 + sum(2 if ch in '"\\' else 12 if ch > "\uffff" else 6 if ch < " " or ch > "~" else 1 for ch in value)
-    if isinstance(value, dict):
-        return 2 + max(len(value) - 1, 0) + sum(vba_wire_length(k) + 1 + vba_wire_length(v) for k, v in value.items())
-    if isinstance(value, list):
-        return 2 + max(len(value) - 1, 0) + sum(vba_wire_length(v) for v in value)
-    return len(json.dumps(value))
-
-
-VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
-
-
-def _vba_address(address):
-    if not isinstance(address, str) or not VBA_ADDRESS.fullmatch(address):
-        return False
-    address = address.replace("$", "")
-    column = 0
-    i = 0
-    while address[i].isalpha():
-        column = column * 26 + ord(address[i].upper()) - ord("A") + 1
-        i += 1
-    return column <= 16384 and int(address[i:]) <= 1048576
-
-
 class Admission:
     """The same fail-closed rules as validate(), for columnar groups."""
+
+    vba_worker = None
 
     def __init__(self, root):
         self.names = catalogue_names(root)
@@ -333,9 +301,9 @@ class Admission:
             raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
 
     def check(self, group):
+        if protocol.is_vba_group(group):
+            return vba_policy.check(group, self.vba_worker)
         name = group["f"]
-        if name == "_VBA" or "V" in group["k"].split(","):
-            return self._check_vba_case(group)
         if name == "_CASE":
             return self._check_cases(group)
         spill = bool(group.get("spill"))
@@ -405,110 +373,8 @@ class Admission:
             at += w
         check_group_formula_limits(name, tokens, widths, values, n, index)
 
-    def _check_vba_case(self, group):
-        values = group.get("v")
-        if (group["f"] != "_VBA" or group["k"] != "V" or type(group.get("n")) is not int
-                or group["n"] != 1 or not isinstance(values, list) or len(values) != 1
-                or set(group) - {"f", "k", "n", "v", "o", "i"}):
-            raise ValueError("a VBA group contains one VBA case")
-        case = values[0]
-        # Only a reviewed catalogue template with typed parameters reaches Excel; free module source is refused.
-        if not isinstance(case, dict) or not isinstance(case.get("template"), str) or "params" not in case:
-            raise ValueError("a VBA case names a reviewed template with typed params; VBA source is not accepted")
-        if vba_wire_length(group) > VBA_FRAME_BUDGET:
-            raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
-        self.check_expanded_vba_case(group, expand_vba_template(case))
-
-    def check_expanded_vba_case(self, group, case):
-        """The checks every expanded case passes (modules, layout, calls, readback). Internal: the wire reaches it only
-        through a template expansion; grammar tests call it directly with the modules they mutate."""
-        # No workbook travels with the case: the worker builds the package from the modules it checked.
-        if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "calls", "readback", "event_log"}:
-            raise ValueError("invalid VBA case fields")
-        if vba_wire_length(group) > VBA_FRAME_BUDGET:
-            raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
-        modules = case["modules"]
-        if not isinstance(modules, list) or not 1 <= len(modules) <= VBA_RULES["max_modules"]:
-            raise ValueError("invalid VBA module count")
-        sheets = case["sheets"]
-        if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
-            raise ValueError("invalid VBA sheet count")
-        triples, source_chars = [], 0
-        for module in modules:
-            if not isinstance(module, dict) or set(module) != {"name", "kind", "source"}:
-                raise ValueError("invalid VBA module fields")
-            name, kind, source = module["name"], module["kind"], module["source"]
-            if not isinstance(name, str) or kind not in ("standard", "document"):
-                raise ValueError("invalid or duplicate VBA module name or kind")
-            if not isinstance(source, str) or not 1 <= formula_chars(source) <= VBA_RULES["max_module_chars"]:
-                raise ValueError("invalid or oversized VBA module source")
-            for ch in source:
-                if ch < " " and ch not in "\t\r\n" or ord(ch) > 0x7e:
-                    raise ValueError(f"VBA construct refused: {vba_escape(ch)} (a control or non-ASCII character)")
-            source_chars += formula_chars(source)
-            triples.append((name, kind, source))
-        if source_chars > VBA_RULES["max_source_chars"]:
-            raise ValueError("oversized VBA module source")
-        entry_points, _ = check_modules(triples, len(sheets))
-        calls = case["calls"]
-        if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
-            raise ValueError("invalid VBA call count")
-        for call in calls:
-            if not isinstance(call, dict) or set(call) != {"procedure", "args"}:
-                raise ValueError("invalid VBA call fields")
-            procedure, args = call["procedure"], call["args"]
-            if not isinstance(procedure, str) or procedure.lower() not in entry_points:
-                raise ValueError("VBA call must name a public standard-module procedure in the case")
-            if not isinstance(args, list) or len(args) > VBA_RULES["max_args"]:
-                raise ValueError("invalid VBA argument count")
-            for arg in args:
-                self._range_cell(arg)
-                # the worker counts UTF-16 units (rw17 parity)
-                if arg.get("type") == "text" and len(arg.get("value", "").encode("utf-16-le", errors="surrogatepass")) // 2 > 1024:
-                    raise ValueError("invalid range text")
-                # Case text reaches cells through the probe's own writes: it must be data, never a formula.
-                if arg.get("type") == "text" and arg.get("value", "")[:1] in tuple(VBA_FORMULA_START):
-                    raise ValueError("VBA text arguments must not start with = + - or @")
-        sheet_names = set()
-        for sheet in sheets:
-            if (not isinstance(sheet, dict) or not isinstance(sheet.get("name"), str)
-                    or not VBA_SHEET_NAME.fullmatch(sheet["name"]) or sheet["name"].lower() in sheet_names
-                    or not isinstance(sheet.get("cells", {}), dict)
-                    or set(sheet) - {"name", "cells", "hidden_rows", "hidden_columns"}
-                    or not all(_vba_address(at) for at in sheet.get("cells", {}))):
-                raise ValueError("invalid or duplicate VBA layout sheet")
-            sheet_names.add(sheet["name"].lower())
-        if case["names"] != {}:
-            raise ValueError("VBA request layout cannot carry names")
-        cells = 0
-        for sheet in sheets:
-            for field, limit in (("hidden_rows", 1048576), ("hidden_columns", 16384)):
-                hidden = sheet.get(field, [])
-                if (not isinstance(hidden, list) or len(hidden) > 1000
-                        or any(type(n) is not int or not 1 <= n <= limit for n in hidden)):
-                    raise ValueError(f"{field} are at most 1000 positions inside the worksheet")
-            for cell in sheet.get("cells", {}).values():
-                try:
-                    self._range_cell(cell, text_limit=32767)
-                    if cell["type"] == "text" and formula_chars(cell["value"]) > 32767:
-                        raise ValueError("invalid layout text length")
-                except (TypeError, ValueError) as error:
-                    kind = cell.get("type") if isinstance(cell, dict) else None
-                    raise ValueError(f"invalid VBA layout {kind} (layout cell must be a value)") from error
-                cells += 1
-        if cells > MAX_CASE_CELLS:
-            raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
-        for field in ("readback", "event_log"):
-            addresses = case[field]
-            if not isinstance(addresses, list) or len(addresses) > VBA_RULES["max_reads"]:
-                raise ValueError(f"invalid VBA {field} count")
-            for place in addresses:
-                sheet, bang, cell = place.rpartition("!") if isinstance(place, str) else ("", "", "")
-                if not bang or not sheet.isascii() or sheet.lower() not in sheet_names or not _vba_address(cell):
-                    raise ValueError(f"VBA {field} must name a case sheet and one A1 cell")
-
     @classmethod
-    def _range_cell(cls, cell, text_limit=1024):
+    def _range_cell(cls, cell):
         if not isinstance(cell, dict):
             raise ValueError("range cells must be typed")
         kind = cell.get("type")
@@ -516,7 +382,7 @@ class Admission:
             cls._numbers([cell["bits"]])
         elif kind == "text" and set(cell) <= {"type", "value", "mode"} and cell.get("mode", "cell") == "cell":
             v = cell.get("value")
-            if not isinstance(v, str) or len(v) > text_limit or BAD_TEXT.search(v):
+            if not isinstance(v, str) or len(v) > 1024 or BAD_TEXT.search(v):
                 raise ValueError("invalid range text")
         elif kind == "boolean" and set(cell) <= {"type", "value", "mode"} and cell.get("mode", "cell") == "cell":
             if type(cell.get("value")) is not bool:
