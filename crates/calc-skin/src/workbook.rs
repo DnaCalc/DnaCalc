@@ -495,6 +495,10 @@ pub enum ModelChange {
         to: Area,
         contents: PasteContents,
     },
+    FillRange {
+        selected: Area,
+        direction: FillDirection,
+    },
     SetColumnsHidden {
         sheet: Sheet,
         /// Inclusive first and last column in each band.
@@ -531,6 +535,12 @@ pub enum PasteContents {
     Values,
     Formulas,
     AllTransposed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FillDirection {
+    Down,
+    Right,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

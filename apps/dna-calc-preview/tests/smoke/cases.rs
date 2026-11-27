@@ -791,6 +791,38 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Value("name-box", "B2"),
         ],
     },
+    Case {
+        name: "Classic Fill Down and Fill Right translate formulas and undo separately",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "10"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "10")),
+            Action::Click("[data-cell=A2]"),
+            Action::Into("formula-bar", "30"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A2]", "30")),
+            Action::Click("[data-cell=B1]"),
+            Action::Into("formula-bar", "=A1+1"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "11")),
+            Action::Click("[data-cell=B1]"),
+            Action::Keys("grid", "\u{e008}\u{e015}\u{e000}"),
+            Action::Keys("grid", "\u{e009}d\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "31")),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "")),
+            Action::Click("[data-cell=B1]"),
+            Action::Keys("grid", "\u{e008}\u{e014}\u{e000}"),
+            Action::Keys("grid", "\u{e009}r\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=C1]", "12")),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=B1]", "11"),
+            Check::Text("[data-cell=C1]", ""),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -923,6 +955,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-filter",
         start: 39,
+        end: 40,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-fill",
+        start: 40,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],

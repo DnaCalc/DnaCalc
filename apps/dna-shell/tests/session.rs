@@ -313,6 +313,37 @@ fn classic_filter_key_tip_uses_the_current_region_and_undoes_the_toggle() {
     assert_eq!(filter_range(), Some(range));
 }
 
+/// Native-only: drives CalcHost's fill planner through Classic keyboard commands.
+#[test]
+fn classic_fill_down_and_right_translate_formulas_as_separate_undo_steps() {
+    let page = Page::open();
+    let session = page.session;
+    for (row, column, text) in [(1, 1, "10"), (2, 1, "30"), (1, 2, "=A1+1"), (4, 1, "4"), (4, 2, "=A4")] {
+        session.begin_edit(page.at(row, column), Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    assert!(page.press("Ctrl+d", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "31");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    assert_eq!(page.shown(page.at(1, 2)), "11");
+
+    session.select_cell(page.at(4, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert!(page.press("Ctrl+r", Focus::Stage));
+    assert_eq!(page.shown(page.at(4, 3)), "4");
+    session.select_cell(page.at(4, 3));
+    page.settle();
+    assert_eq!(session.entry(), "=B4");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(4, 3)), "");
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
