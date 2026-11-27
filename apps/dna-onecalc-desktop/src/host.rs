@@ -21,6 +21,10 @@ use calc_fml::{CallableHandle as RtdProvider, CallableTable, RtdLease, TopicKey}
 use calc_value::{CalcValue, CellKey};
 use dna_onecalc::bridge::{Answer, Call};
 use dna_onecalc::port::{LoadedAddin, LocalPort, Reply, Request, SessionPort};
+use dna_onecalc::skin::{
+    FormulaAnswer, FormulaOperation, FormulaQuery, NativeProvider, ProviderLibrary,
+    ProviderOperation, Refusal,
+};
 use dna_onecalc::{AddinRef, Session};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -218,6 +222,7 @@ pub struct Host<F, L> {
     libs: L,
     /// What each loaded VBA add-in's load reported, by path.
     xlam_notes: Vec<(PathBuf, Vec<String>)>,
+    pending_addin: Option<NativeProvider>,
     /// The grid's entries as the last evaluation had them, to tell the add-ins which cells changed.
     last_grid: Vec<String>,
     /// The file the session was opened from or last saved to.
@@ -241,6 +246,7 @@ impl<F: Files, L: Libraries> Host<F, L> {
             files,
             libs,
             xlam_notes: Vec::new(),
+            pending_addin: None,
             last_grid: Vec::new(),
             path: None,
             state_name: String::new(),
@@ -315,6 +321,77 @@ impl<F: Files, L: Libraries> Host<F, L> {
             .collect()
     }
 
+    fn provider_catalog(&self) -> FormulaAnswer {
+        let mut catalogue = dna_onecalc::workbench_provider::providers(self.port.session());
+        catalogue.native = true;
+        catalogue.libraries = self
+            .loaded_view()
+            .into_iter()
+            .map(|library| {
+                let sha256 = self
+                    .port
+                    .session()
+                    .addins()
+                    .iter()
+                    .find(|loaded| loaded.path == library.path)
+                    .map_or(library.hash, |loaded| loaded.hash.clone());
+                ProviderLibrary {
+                    path: library.path,
+                    sha256,
+                    functions: library.functions,
+                }
+            })
+            .collect();
+        FormulaAnswer::Providers(catalogue)
+    }
+
+    fn provider_operation(
+        &mut self,
+        operation: ProviderOperation,
+    ) -> Result<FormulaAnswer, Refusal> {
+        let invalid = |reason: String| Refusal::Invalid { reason };
+        let reply = match operation {
+            ProviderOperation::ChooseNative => {
+                self.pending_addin = None;
+                if let Some(path) = self.files.choose_addin().map_err(invalid)? {
+                    let sha256 = file_hash(&path).map_err(invalid)?;
+                    self.pending_addin = Some(NativeProvider {
+                        path: path.display().to_string(),
+                        sha256,
+                    });
+                }
+                return Ok(FormulaAnswer::ProviderCandidate(self.pending_addin.clone()));
+            }
+            ProviderOperation::CancelNative => {
+                self.pending_addin = None;
+                return Ok(FormulaAnswer::ProviderCandidate(None));
+            }
+            ProviderOperation::LoadNative => {
+                let candidate = self
+                    .pending_addin
+                    .take()
+                    .ok_or_else(|| invalid("Choose an add-in before loading it".into()))?;
+                self.load_addin_with_lifecycle(
+                    Path::new(&candidate.path),
+                    Some(&candidate.sha256),
+                    true,
+                )
+            }
+            ProviderOperation::UnloadNative { path } => self.unload_addin(&path),
+            ProviderOperation::LoadVba { name, source } => {
+                self.handle(Request::LoadVba { name, source })
+            }
+            ProviderOperation::UnloadVba => self.handle(Request::UnloadVba),
+        };
+        match reply {
+            Reply::Refused { message } => Err(invalid(message)),
+            Reply::Addins(_) | Reply::Functions { .. } | Reply::Accepted => {
+                Ok(self.provider_catalog())
+            }
+            _ => Err(Refusal::Transport("Unexpected provider reply".into())),
+        }
+    }
+
     /// The loaded add-ins join the list the session keeps: a loaded add-in already listed (by
     /// path) takes its current hash.
     fn list_loaded(&mut self) {
@@ -354,6 +431,16 @@ impl<F: Files, L: Libraries> Host<F, L> {
     }
 
     fn load_addin(&mut self, path: &Path, expected_hash: Option<&str>) -> Reply {
+        // A legacy session reopening its recorded add-ins has already installed them.
+        self.load_addin_with_lifecycle(path, expected_hash, expected_hash.is_none())
+    }
+
+    fn load_addin_with_lifecycle(
+        &mut self,
+        path: &Path,
+        expected_hash: Option<&str>,
+        install: bool,
+    ) -> Reply {
         let refused = |message: String| Reply::Refused { message };
         let extension = path
             .extension()
@@ -382,9 +469,6 @@ impl<F: Files, L: Libraries> Host<F, L> {
             ));
         }
         if is_xlam {
-            // The person loading an add-in installs it, as Excel's Add-ins dialog does; a session
-            // that lists it (a reopen) only opens it.
-            let install = expected_hash.is_none();
             let loaded = std::fs::read(&path)
                 .map_err(|e| format!("{}: {e}", path.display()))
                 .and_then(|bytes| dna_onecalc::file::read_vba_addin(&bytes))
@@ -640,6 +724,12 @@ impl<F: Files, L: Libraries> Host<F, L> {
             let _ = self.publish();
         }
         match request {
+            Request::SkinFormula(FormulaQuery::Providers) => {
+                Reply::SkinFormula(Ok(self.provider_catalog()))
+            }
+            Request::SkinOperation(FormulaOperation::Provider(operation)) => {
+                Reply::SkinFormula(self.provider_operation(operation))
+            }
             Request::OpenNative => match self.files.choose_open() {
                 Err(message) => Reply::Refused { message },
                 Ok(None) => Reply::Cancelled,
@@ -1463,6 +1553,44 @@ mod tests {
         assert_eq!(answer.id, 41);
         assert!(matches!(answer.reply, Reply::Shown(_)));
         assert!(host.answer("not json").is_none());
+    }
+
+    /// Native-only: the Windows file picker and add-in loader are exercised through their scripted seams.
+    #[test]
+    fn skin_provider_requires_confirmation_and_loads_the_chosen_xlam_as_an_install() {
+        let path = file_named(
+            "TrustCard.xlam",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlam"),
+        );
+        let mut host = host();
+        let provider = |operation| Request::SkinOperation(FormulaOperation::Provider(operation));
+        assert!(matches!(
+            host.handle(provider(ProviderOperation::LoadNative)),
+            Reply::SkinFormula(Err(Refusal::Invalid { .. }))
+        ));
+        host.files.addin = Some(path.clone());
+        let Reply::SkinFormula(Ok(FormulaAnswer::ProviderCandidate(Some(chosen)))) =
+            host.handle(provider(ProviderOperation::ChooseNative))
+        else {
+            panic!("expected candidate")
+        };
+        assert_eq!(chosen.sha256, file_hash(&path).unwrap());
+        assert!(host.libs.xlams.is_empty());
+        host.handle(provider(ProviderOperation::CancelNative));
+        assert!(matches!(
+            host.handle(provider(ProviderOperation::LoadNative)),
+            Reply::SkinFormula(Err(Refusal::Invalid { .. }))
+        ));
+        host.files.addin = Some(path.clone());
+        host.handle(provider(ProviderOperation::ChooseNative));
+        let Reply::SkinFormula(Ok(FormulaAnswer::Providers(loaded))) =
+            host.handle(provider(ProviderOperation::LoadNative))
+        else {
+            panic!("expected provider")
+        };
+        assert_eq!(loaded.libraries[0].sha256, chosen.sha256);
+        assert_eq!(host.libs.xlams, [(path.clone(), 5, true)]);
+        std::fs::remove_file(path).unwrap();
     }
 
     /// Native-only: an add-in loads from the dialog or by path, its functions and what it

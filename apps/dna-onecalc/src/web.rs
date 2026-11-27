@@ -20,10 +20,18 @@ pub const ONECALC: Page = Page {
 /// Starts DNA OneCalc: its surface lives as long as the page.
 pub fn start() {
     start_page(&ONECALC, |host| {
-        if let Some(formula) = skin0::fragment(&host) {
-            skin0::mount(host, formula);
-        } else {
+        let legacy = web_sys::window()
+            .and_then(|window| window.location().search().ok())
+            .is_some_and(|search| {
+                search
+                    .trim_start_matches('?')
+                    .split('&')
+                    .any(|part| part == "skin=legacy")
+            });
+        if legacy {
             std::mem::forget(surface::mount(host));
+        } else {
+            skin0::mount(host);
         }
     });
 }

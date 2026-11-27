@@ -2038,7 +2038,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::FormulaLink(fragment) => {
             let fragment = serde_json::to_string(fragment).expect("a serializable fragment");
             let url = session.script(&format!(
-                "const url = new URL(location.href); url.searchParams.set('skin', '0'); url.hash = {fragment}; return url.href;"
+                "const url = new URL(location.href); url.searchParams.delete('skin'); url.hash = {fragment}; return url.href;"
             ))?;
             start_group(app, session, url.as_str().ok_or("No formula preview URL")?)
         }
@@ -3702,6 +3702,10 @@ fn start_group(app: &App, session: &Session, page: &str) -> Result<(), String> {
             fs::remove_file(entry.path()).map_err(|e| e.to_string())?;
         }
     }
+    if page.contains('#') {
+        // A fragment-only navigation can keep the previous document and its running app.
+        session.post("/url", json!({ "url": "about:blank" }))?;
+    }
     session.post("/url", json!({ "url": page }))?;
     let started = Instant::now();
     loop {
@@ -3802,7 +3806,14 @@ fn run_browser(
                 }
             }
             let started = Instant::now();
-            start_group(app, &session, page)?;
+            if app.key == "onecalc" && !group.name.starts_with("skin-0") {
+                let (url, fragment) = page.find('#').map_or((page, ""), |hash| page.split_at(hash));
+                let join = if url.contains('?') { '&' } else { '?' };
+                let legacy = format!("{url}{join}skin=legacy{fragment}");
+                start_group(app, &session, &legacy)?;
+            } else {
+                start_group(app, &session, page)?;
+            }
             for action in group.setup {
                 act(ws, app, &session, action)?;
             }

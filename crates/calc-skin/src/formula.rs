@@ -1,7 +1,8 @@
 //! Requests available to a formula view without a workbook port.
 
 use crate::{
-    CalcGeneration, Refusal, Shown, Stamp,
+    CalcGeneration, ConditionalRule, FormulaOperation, NativeProvider, ProviderCatalog, Refusal,
+    Shown, Stamp, TestOutcome, TestSuite,
     grid::{Key, Sheet},
     parts::Trace,
 };
@@ -17,6 +18,19 @@ pub struct Trial {
     pub inputs: Vec<TestInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caller: Option<CallerSnapshot>,
+}
+
+impl Default for Trial {
+    fn default() -> Self {
+        Self {
+            formula: String::new(),
+            culture: "en-US".into(),
+            number_format: "General".into(),
+            now: None,
+            inputs: Vec::new(),
+            caller: None,
+        }
+    }
 }
 
 /// A detached excerpt of a workbook at one calculation generation.
@@ -61,6 +75,15 @@ pub enum FormulaQuery {
     Evaluate(Trial),
     /// Evaluates a linked example with the built-in catalogue only.
     Preview(Trial),
+    Providers,
+    ExportWorkbook(Trial),
+    OpenWorkbook(Vec<u8>),
+    RunSuite(TestSuite),
+    ConditionalFormat {
+        calc: CalcGeneration,
+        position: ArrayPosition,
+        rule: ConditionalRule,
+    },
     ArrayWindow {
         calc: CalcGeneration,
         position: ArrayPosition,
@@ -78,6 +101,15 @@ pub enum FormulaAnswer {
     Evaluated(Shown<TrialValue>),
     Steps(Trace),
     Part(crate::parts::PartValue),
+    Providers(ProviderCatalog),
+    ProviderCandidate(Option<NativeProvider>),
+    File(Vec<u8>),
+    Opened(Trial),
+    TestResults(Vec<TestOutcome>),
+    Conditional {
+        result: Shown<TrialValue>,
+        notes: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -95,6 +127,8 @@ pub enum TrialValue {
 pub struct TrialCell {
     pub raw: RawValue,
     pub formatted: String,
+    #[serde(default)]
+    pub conditional_match: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -121,8 +155,12 @@ impl RawValue {
 }
 
 /// A local host can answer immediately. A bridged host can answer after the request returns.
+pub type FormulaReply = Box<dyn FnOnce(Result<FormulaAnswer, Refusal>)>;
+
 pub trait FormulaPort {
-    fn ask(&self, query: FormulaQuery, complete: Box<dyn FnOnce(Result<FormulaAnswer, Refusal>)>);
+    fn ask(&self, query: FormulaQuery, complete: FormulaReply);
+
+    fn operate(&self, operation: FormulaOperation, complete: FormulaReply);
 }
 
 /// A formula-only handoff. Caller data and previous results are absent from the URL.

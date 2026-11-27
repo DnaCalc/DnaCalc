@@ -1,16 +1,16 @@
 //! Level-zero requests over the existing session evaluator.
 
 use crate::{Calculation, Diagnostic, InputValue, Session, display, environment, fixture::Fixture};
-use calc_fml::reference::{ReferenceNotation, is_cell_callee};
+use calc_fml::reference::{BindError, ReferenceNotation, is_cell_callee};
 use calc_fml::syntax::{SyntaxKind, SyntaxNode, TokenKind, lex};
-use calc_fml::{DateSystem, EvalFault, FormatProfile, parse_formula};
+use calc_fml::{EvalFault, FormatProfile, parse_formula};
 use calc_formula_kernel::{parts, result};
 use calc_func::value::fold_defined_name;
-use calc_func::value::{CalcValue, CellKey, CoreValue};
+use calc_func::value::{CalcArray, CalcValue, CellKey, CoreValue};
 use calc_skin::{
     ARRAY_PAGE_COLUMNS, ARRAY_PAGE_ROWS, ArrayPosition, CalcGeneration, CallerSnapshot,
-    FormulaAnswer, FormulaLink, FormulaQuery, Provenance, RawValue, Refusal, Shown, TestInput,
-    TrialCell, TrialValue,
+    ConditionalRule, FormulaAnswer, FormulaLink, FormulaOperation, FormulaQuery, Provenance,
+    RawValue, Refusal, Shown, TestInput, TrialCell, TrialValue,
 };
 use std::collections::BTreeMap;
 
@@ -33,6 +33,10 @@ impl FormulaHost {
     pub fn handle(&mut self, query: FormulaQuery) -> Result<FormulaAnswer, Refusal> {
         self.queries.handle(&mut self.session, query)
     }
+
+    pub fn operate(&mut self, operation: FormulaOperation) -> Result<FormulaAnswer, Refusal> {
+        crate::workbench_provider::operate(&mut self.session, operation)
+    }
 }
 
 /// Keeps the result behind a formula port available for paged reads.
@@ -43,10 +47,10 @@ pub struct FormulaRequests {
 }
 
 #[derive(Debug)]
-struct PinnedResult {
-    value: CalcValue,
+pub(crate) struct PinnedResult {
+    pub(crate) value: CalcValue,
+    environment: calc_fml::CalcEnvironment,
     profile: FormatProfile,
-    date_system: DateSystem,
     format: String,
 }
 
@@ -56,71 +60,112 @@ impl FormulaRequests {
         session: &mut Session,
         query: FormulaQuery,
     ) -> Result<FormulaAnswer, Refusal> {
-        let trial = match &query {
-            FormulaQuery::ArrayWindow { calc, position } => {
-                let pinned = self
-                    .result
-                    .as_ref()
-                    .filter(|_| calc.0 == self.generation)
-                    .ok_or_else(|| invalid("Evaluate to refresh this result"))?;
-                return pinned.answer(*calc, *position);
+        match query {
+            FormulaQuery::Providers => Ok(FormulaAnswer::Providers(
+                crate::workbench_provider::providers(session),
+            )),
+            FormulaQuery::ExportWorkbook(trial) => {
+                crate::workbench_file::export(session, trial).map(FormulaAnswer::File)
             }
-            FormulaQuery::Evaluate(trial)
-            | FormulaQuery::Preview(trial)
-            | FormulaQuery::Trace(trial)
-            | FormulaQuery::EvaluatePart { trial, .. } => trial,
-        };
-        let preview = matches!(query, FormulaQuery::Preview(_));
-        if matches!(query, FormulaQuery::Evaluate(_) | FormulaQuery::Preview(_)) {
-            self.result = None;
-        }
-        if trial.formula.trim().is_empty() {
-            return Err(invalid("Enter a formula"));
-        }
-        let date_1904 = trial.caller.as_ref().is_some_and(|caller| caller.date_1904);
-        let environment = environment(&trial.culture, trial.now, date_1904);
-        let profile = environment
-            .profile
-            .ok_or_else(|| invalid("This locale is unavailable"))?;
-        let (mut fixture, at) = trial_context(trial.caller.as_ref())?;
-        fixture.local_names = local_names(&trial.inputs)?;
-        session.with_trial(fixture, at, environment, |session| match query {
-            FormulaQuery::Evaluate(trial) | FormulaQuery::Preview(trial) => {
-                let calculated = if preview {
-                    session.preview_trial(&trial.formula)
-                } else {
-                    session.calculate_trial(&trial.formula)
-                };
-                let value = value(session, calculated, &trial.formula)?;
-                let pinned = PinnedResult {
-                    value,
-                    profile,
-                    format: trial.number_format,
-                    date_system: environment.date_system,
-                };
-                self.generation += 1;
-                let answer =
-                    pinned.answer(CalcGeneration(self.generation), ArrayPosition::default())?;
-                self.result = Some(pinned);
-                Ok(answer)
+            FormulaQuery::OpenWorkbook(bytes) => {
+                crate::workbench_file::import(bytes).map(FormulaAnswer::Opened)
             }
-            FormulaQuery::Trace(trial) => {
+            FormulaQuery::RunSuite(suite) => {
+                crate::workbench_suite::run(session, suite).map(FormulaAnswer::TestResults)
+            }
+            FormulaQuery::ArrayWindow { calc, position } => self
+                .pinned(calc)?
+                .answer(calc, position)
+                .map(FormulaAnswer::Evaluated),
+            FormulaQuery::ConditionalFormat {
+                calc,
+                position,
+                rule,
+            } => self.pinned(calc)?.conditional(calc, position, rule),
+            FormulaQuery::Evaluate(trial) => self.evaluate(session, trial, false),
+            FormulaQuery::Preview(trial) => self.evaluate(session, trial, true),
+            FormulaQuery::Trace(trial) => in_context(session, &trial, |session, _, _| {
                 let calculated = session.calculate_trial(&trial.formula);
                 value(session, calculated, &trial.formula)?;
                 let trace = parts::trace(&mut TrialParts(session, &trial.formula), &trial.formula);
                 Ok(FormulaAnswer::Steps(trace))
+            }),
+            FormulaQuery::EvaluatePart { trial, start, len } => {
+                in_context(session, &trial, |session, _, _| {
+                    parts::evaluate_part(
+                        &mut TrialParts(session, &trial.formula),
+                        &trial.formula,
+                        start,
+                        len,
+                    )
+                    .map(FormulaAnswer::Part)
+                    .map_err(invalid)
+                })
             }
-            FormulaQuery::EvaluatePart { trial, start, len } => parts::evaluate_part(
-                &mut TrialParts(session, &trial.formula),
-                &trial.formula,
-                start,
-                len,
-            )
-            .map(FormulaAnswer::Part)
-            .map_err(invalid),
-            FormulaQuery::ArrayWindow { .. } => unreachable!("window handled before trial"),
-        })
+        }
     }
+
+    fn evaluate(
+        &mut self,
+        session: &mut Session,
+        trial: calc_skin::Trial,
+        preview: bool,
+    ) -> Result<FormulaAnswer, Refusal> {
+        self.result = None;
+        let pinned = evaluate_value(session, &trial, preview)?;
+        self.generation += 1;
+        let answer = pinned.answer(CalcGeneration(self.generation), ArrayPosition::default())?;
+        self.result = Some(pinned);
+        Ok(FormulaAnswer::Evaluated(answer))
+    }
+
+    fn pinned(&self, calc: CalcGeneration) -> Result<&PinnedResult, Refusal> {
+        self.result
+            .as_ref()
+            .filter(|_| calc.0 == self.generation)
+            .ok_or_else(|| invalid("Evaluate to refresh this result"))
+    }
+}
+
+pub(crate) fn evaluate_value(
+    session: &mut Session,
+    trial: &calc_skin::Trial,
+    preview: bool,
+) -> Result<PinnedResult, Refusal> {
+    in_context(session, trial, |session, profile, environment| {
+        let calculated = if preview {
+            session.preview_trial(&trial.formula)
+        } else {
+            session.calculate_trial(&trial.formula)
+        };
+        let value = value(session, calculated, &trial.formula)?;
+        Ok(PinnedResult {
+            value,
+            profile,
+            format: trial.number_format.clone(),
+            environment,
+        })
+    })
+}
+
+fn in_context<T>(
+    session: &mut Session,
+    trial: &calc_skin::Trial,
+    run: impl FnOnce(&mut Session, FormatProfile, calc_fml::CalcEnvironment) -> Result<T, Refusal>,
+) -> Result<T, Refusal> {
+    if trial.formula.trim().is_empty() {
+        return Err(invalid("Enter a formula"));
+    }
+    let date_1904 = trial.caller.as_ref().is_some_and(|caller| caller.date_1904);
+    let environment = environment(&trial.culture, trial.now, date_1904);
+    let profile = environment
+        .profile
+        .ok_or_else(|| invalid("This locale is unavailable"))?;
+    let (mut fixture, at) = trial_context(trial.caller.as_ref())?;
+    fixture.local_names = local_names(&trial.inputs)?;
+    session.with_trial(fixture, at, environment, |session| {
+        run(session, profile, environment)
+    })
 }
 
 impl PinnedResult {
@@ -128,17 +173,127 @@ impl PinnedResult {
         &self,
         calc: CalcGeneration,
         position: ArrayPosition,
-    ) -> Result<FormulaAnswer, Refusal> {
-        Ok(FormulaAnswer::Evaluated(Shown {
-            value: project(
-                &self.value,
-                &self.profile,
-                &self.format,
-                self.date_system,
-                position,
-            )?,
+    ) -> Result<Shown<TrialValue>, Refusal> {
+        let value = match self.value.as_array() {
+            Some(array) => {
+                let shape = array.shape();
+                if position.row >= shape.rows || position.column >= shape.cols {
+                    return Err(invalid("That page is outside the result array"));
+                }
+                let rows = (shape.rows - position.row).min(ARRAY_PAGE_ROWS);
+                let columns = (shape.cols - position.column).min(ARRAY_PAGE_COLUMNS);
+                let cells = (position.row..position.row + rows)
+                    .map(|row| {
+                        (position.column..position.column + columns)
+                            .map(|col| {
+                                self.cell(array.get(row, col).expect("cell in the result window"))
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                TrialValue::Array {
+                    rows: shape.rows,
+                    columns: shape.cols,
+                    position,
+                    cells,
+                }
+            }
+            None if position == ArrayPosition::default() => {
+                TrialValue::Scalar(self.cell(&self.value)?)
+            }
+            None => return Err(invalid("This result has only one cell")),
+        };
+        Ok(Shown {
+            value,
             provenance: Provenance::Calculated { calc },
-        }))
+        })
+    }
+
+    fn conditional(
+        &self,
+        calc: CalcGeneration,
+        position: ArrayPosition,
+        rule: ConditionalRule,
+    ) -> Result<FormulaAnswer, Refusal> {
+        let mut result = self.answer(calc, position)?;
+        let (rows, columns) = match &result.value {
+            TrialValue::Scalar(_) => (1, 1),
+            TrialValue::Array { cells, .. } => (cells.len(), cells.first().map_or(0, Vec::len)),
+        };
+        let (kind, operator, operand) = match rule {
+            ConditionalRule::GreaterThan(value) => ("cellIs", "greaterThan", value),
+            ConditionalRule::LessThan(value) => ("cellIs", "lessThan", value),
+            ConditionalRule::EqualTo(value) => ("cellIs", "equal", value),
+            ConditionalRule::Expression(formula) => ("expression", "", formula),
+        };
+        let mut spec = crate::cf::CfRuleSpec::new(kind);
+        spec.operator = operator.into();
+        spec.operand1 = operand;
+        spec.bold = true;
+        spec.rule(1).map_err(invalid)?;
+        let scalar;
+        let array = match self.value.as_array() {
+            Some(array) => array,
+            None => {
+                scalar = CalcArray::from_scalar(self.value.clone());
+                &scalar
+            }
+        };
+        let outcome = crate::cf::evaluate_window(
+            &[spec],
+            array,
+            position,
+            rows,
+            columns,
+            Some(self.environment),
+        );
+        match &mut result.value {
+            TrialValue::Scalar(cell) => cell.conditional_match = !outcome.looks[0][0].is_empty(),
+            TrialValue::Array { cells, .. } => {
+                for (row, looks) in cells.iter_mut().zip(outcome.looks) {
+                    for (cell, look) in row.iter_mut().zip(looks) {
+                        cell.conditional_match = !look.is_empty();
+                    }
+                }
+            }
+        }
+        Ok(FormulaAnswer::Conditional {
+            result,
+            notes: outcome.notes,
+        })
+    }
+
+    pub(crate) fn cell(&self, value: &CalcValue) -> Result<TrialCell, Refusal> {
+        let raw = match value.core() {
+            CoreValue::Number(number) => RawValue::Number {
+                bits: number.to_bits(),
+            },
+            CoreValue::Text(text) => RawValue::Text(text.utf16_code_units().to_vec()),
+            CoreValue::Logical(value) => RawValue::Logical(*value),
+            CoreValue::Error(code) => RawValue::Error(display::error_spelling(*code).into()),
+            CoreValue::Empty => RawValue::Blank,
+            _ => RawValue::Other {
+                kind: result::kind(value).into(),
+                display: result::plain(value),
+            },
+        };
+        let formatted =
+            if self.format.trim().is_empty() || self.format.eq_ignore_ascii_case("General") {
+                result::shown(value, Some(&self.profile))
+            } else {
+                result::formatted_text(
+                    value,
+                    &self.profile,
+                    &self.format,
+                    self.environment.date_system,
+                )
+                .map_err(invalid)?
+            };
+        Ok(TrialCell {
+            raw,
+            formatted,
+            conditional_match: false,
+        })
     }
 }
 
@@ -209,7 +364,7 @@ fn snapshot_input(raw: &RawValue) -> Result<InputValue, Refusal> {
     }
 }
 
-fn local_names(inputs: &[TestInput]) -> Result<BTreeMap<String, String>, Refusal> {
+pub(crate) fn local_names(inputs: &[TestInput]) -> Result<BTreeMap<String, String>, Refusal> {
     let mut names = BTreeMap::new();
     for input in inputs {
         let name = input.name.trim();
@@ -241,7 +396,7 @@ fn local_names(inputs: &[TestInput]) -> Result<BTreeMap<String, String>, Refusal
     Ok(names)
 }
 
-fn constant(node: &SyntaxNode) -> bool {
+pub(crate) fn constant(node: &SyntaxNode) -> bool {
     match node.kind() {
         SyntaxKind::NumberLiteralExpr
         | SyntaxKind::StringLiteralExpr
@@ -281,7 +436,7 @@ impl parts::PartEvaluator for TrialParts<'_> {
     }
 }
 
-fn invalid(reason: impl Into<String>) -> Refusal {
+pub(crate) fn invalid(reason: impl Into<String>) -> Refusal {
     Refusal::Invalid {
         reason: reason.into(),
     }
@@ -300,7 +455,15 @@ fn value(session: &Session, calculation: Calculation, formula: &str) -> Result<C
         Diagnostic::Eval(EvalFault::NotModelled {
             owner: "dc-iopjy", ..
         })
-        | Diagnostic::Eval(EvalFault::MissingInput { .. }) => Err(Refusal::RequiresWorkbook {
+        | Diagnostic::Eval(EvalFault::MissingInput { .. })
+        | Diagnostic::Compile(calc_fml::CompileError::Reference {
+            error:
+                BindError::UnknownSheet { .. }
+                | BindError::ExternalWorkbook
+                | BindError::SheetSpan
+                | BindError::TablesNotModelled,
+            ..
+        }) => Err(Refusal::RequiresWorkbook {
             route: FormulaLink(formula.to_owned()),
             reason: "This formula needs a workbook cell or a workbook value.".into(),
         }),
@@ -323,58 +486,6 @@ fn value(session: &Session, calculation: Calculation, formula: &str) -> Result<C
         }),
         _ => Err(invalid(reason)),
     }
-}
-
-fn project(
-    value: &CalcValue,
-    profile: &FormatProfile,
-    format: &str,
-    date_system: DateSystem,
-    position: ArrayPosition,
-) -> Result<TrialValue, Refusal> {
-    let to_cell = |value: &CalcValue| -> Result<TrialCell, Refusal> {
-        let raw = match value.core() {
-            CoreValue::Number(number) => RawValue::Number {
-                bits: number.to_bits(),
-            },
-            CoreValue::Text(text) => RawValue::Text(text.utf16_code_units().to_vec()),
-            CoreValue::Logical(value) => RawValue::Logical(*value),
-            CoreValue::Error(code) => RawValue::Error(display::error_spelling(*code).into()),
-            CoreValue::Empty => RawValue::Blank,
-            _ => RawValue::Other {
-                kind: result::kind(value).into(),
-                display: result::plain(value),
-            },
-        };
-        let formatted = if format.trim().is_empty() || format.eq_ignore_ascii_case("General") {
-            result::shown(value, Some(profile))
-        } else {
-            result::formatted_text(value, profile, format, date_system).map_err(invalid)?
-        };
-        Ok(TrialCell { raw, formatted })
-    };
-    let Some(array) = value.as_array() else {
-        return to_cell(value).map(TrialValue::Scalar);
-    };
-    let shape = array.shape();
-    if position.row >= shape.rows || position.column >= shape.cols {
-        return Err(invalid("That page is outside the result array"));
-    }
-    let rows = (shape.rows - position.row).min(ARRAY_PAGE_ROWS);
-    let columns = (shape.cols - position.column).min(ARRAY_PAGE_COLUMNS);
-    let cells = (position.row..position.row + rows)
-        .map(|row| {
-            (position.column..position.column + columns)
-                .map(|col| to_cell(array.get(row, col).expect("cell in the result window")))
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(TrialValue::Array {
-        rows: shape.rows,
-        columns: shape.cols,
-        position,
-        cells,
-    })
 }
 
 #[cfg(test)]
@@ -402,6 +513,7 @@ mod tests {
             "=CELL(\"address\")",
             "=SHEETS()",
             "=SHEET(\"Trial\")",
+            "='Other sheet'!A1",
             "=A1",
             "=SUM(A1:A2)",
             "=ROW(A1)",
@@ -419,6 +531,7 @@ mod tests {
                 TrialValue::Scalar(TrialCell {
                     raw: RawValue::Number { bits },
                     formatted,
+                    ..
                 }),
             provenance: Provenance::Calculated { calc },
         }) = answer
@@ -603,3 +716,6 @@ mod tool_tests {
         assert!(matches!(host.handle(query), Err(Refusal::Invalid { .. })));
     }
 }
+
+#[cfg(test)]
+mod tools_tests;

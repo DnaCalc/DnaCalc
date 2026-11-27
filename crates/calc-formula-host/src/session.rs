@@ -1058,7 +1058,13 @@ impl Session {
     }
 
     pub(crate) fn calculate_trial(&mut self, formula: &str) -> Calculation {
-        self.calculate_text_with_mode(formula, self.formula_cell, !self.fixture.detached, true)
+        self.calculate_text_with_mode(
+            formula,
+            self.formula_cell,
+            self.formula_cell,
+            !self.fixture.detached,
+            true,
+        )
     }
 
     pub(crate) fn preview_trial(&mut self, formula: &str) -> Calculation {
@@ -1088,13 +1094,24 @@ impl Session {
         origin: CellKey,
         workbookless: bool,
     ) -> Calculation {
-        self.calculate_text_with_mode(formula, origin, workbookless, false)
+        self.calculate_text_with_mode(formula, origin, self.formula_cell, workbookless, false)
+    }
+
+    /// A conditional rule reads the underlying value at its own target cell.
+    pub(crate) fn calculate_rule(
+        &mut self,
+        formula: &str,
+        origin: CellKey,
+        target: CellKey,
+    ) -> Calculation {
+        self.calculate_text_with_mode(formula, origin, target, false, true)
     }
 
     fn calculate_text_with_mode(
         &mut self,
         formula: &str,
         origin: CellKey,
+        placement: CellKey,
         workbookless: bool,
         trial: bool,
     ) -> Calculation {
@@ -1131,9 +1148,9 @@ impl Session {
                 };
             }
         };
-        let instance = instantiate(&plan, FormulaAnchor::new(self.formula_cell));
-        let mut reader = TracingReader::new(&self.fixture, self.formula_cell);
-        let mut facts = SessionFacts::new(&self.fixture, self.formula_cell);
+        let instance = instantiate(&plan, FormulaAnchor::new(placement));
+        let mut reader = TracingReader::new(&self.fixture, placement);
+        let mut facts = SessionFacts::new(&self.fixture, placement);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let mut function_diagnostics = Vec::new();
         let references = self.references.pin();

@@ -1574,6 +1574,8 @@ dependencies = [
  "dna-kit",
  "dna-skin-runtime",
  "leptos",
+ "serde_json",
+ "web-sys",
 ]
 
 [[package]]

@@ -1372,10 +1372,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     Case {
         name: "skin 0 opens and calculates an exact formula link without a grid",
         actions: &[],
-        checks: &[
-            Check::Text("[data-skin0=raw]", "3"),
-            Check::Absent("grid"),
-        ],
+        checks: &[Check::Text("[data-skin0=raw]", "3"), Check::Absent("grid")],
     },
     Case {
         name: "skin 0 preserves raw numbers when applying a format",
@@ -1391,7 +1388,10 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     },
     Case {
         name: "skin 0 refuses a workbook-dependent formula without publishing a cell value",
-        actions: &[Action::Formula("=ROW()"), Action::Click("[data-skin0=evaluate]")],
+        actions: &[
+            Action::Formula("=ROW()"),
+            Action::Click("[data-skin0=evaluate]"),
+        ],
         checks: &[
             Check::Absent("[data-skin0=raw]"),
             Check::Js(
@@ -1412,6 +1412,128 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             "the named array retains its shape and the last cell is formatted",
             "document.querySelector('[data-skin0=array] tbody tr:last-child td:last-child span')?.textContent === '8.00'",
         )],
+    },
+    Case {
+        name: "skin 0 is the default workbench on the bare route",
+        actions: &[],
+        checks: &[
+            Check::Count("[data-skin0=frame]", 1),
+            Check::Js(
+                "no skin query parameter is needed",
+                "!new URLSearchParams(location.search).has('skin')",
+            ),
+            Check::Absent("grid"),
+        ],
+    },
+    Case {
+        name: "skin 0 pages both dimensions of a large array",
+        actions: &[
+            Action::Formula("=SEQUENCE(35,18)"),
+            Action::Click("[data-skin0=evaluate]"),
+            Action::Click("[data-skin0=next-rows]"),
+            Action::Click("[data-skin0=next-columns]"),
+        ],
+        checks: &[
+            Check::Text(
+                "[data-skin0=array] caption",
+                "Rows 33–35 of 35 · Columns 17–18 of 18",
+            ),
+            Check::Text(
+                "[data-skin0=array] tbody tr:last-child td:last-child span",
+                "630",
+            ),
+            Check::Count("[data-skin0=array] tbody td", 6),
+        ],
+    },
+    Case {
+        name: "skin 0 evaluates a relative conditional formula on the visible array page",
+        actions: &[
+            Action::Choose("[data-skin0=rule]", "formula"),
+            Action::Into("[data-skin0=rule-operand]", "=A1>600"),
+            Action::Click("[data-skin0=apply-rule]"),
+        ],
+        checks: &[Check::Count("[data-skin0=rule-match]", 4)],
+    },
+    Case {
+        name: "skin 0 removes conditional marks without recalculation",
+        actions: &[Action::Click("[data-skin0=undo-rule]")],
+        checks: &[
+            Check::Count("[data-skin0=rule-match]", 0),
+            Check::Text(
+                "[data-skin0=array] tbody tr:last-child td:last-child span",
+                "630",
+            ),
+        ],
+    },
+    Case {
+        name: "skin 0 loads a VBA provider and evaluates it on explicit request",
+        actions: &[
+            Action::OpenDetails("[data-skin0=vba]"),
+            Action::Into(
+                "[data-skin0=vba-source]",
+                "Public Function Twice(ByVal x As Double) As Double\nTwice = x * 2\nEnd Function",
+            ),
+            Action::Click("[data-skin0=load-vba]"),
+            Action::Wait(Check::Js(
+                "provider loaded",
+                "!document.querySelector('[data-skin0=unload-vba]')?.disabled",
+            )),
+            Action::Formula("=Twice(3)"),
+            Action::Click("[data-skin0=evaluate]"),
+        ],
+        checks: &[Check::Text("[data-skin0=raw]", "6")],
+    },
+    Case {
+        name: "skin 0 removes a VBA provider from the callable table",
+        actions: &[
+            Action::Click("[data-skin0=unload-vba]"),
+            Action::Wait(Check::Js(
+                "provider unloaded",
+                "document.querySelector('[data-skin0=unload-vba]')?.disabled === true",
+            )),
+            Action::Click("[data-skin0=evaluate]"),
+        ],
+        checks: &[Check::Text("[data-skin0=raw]", "#NAME?")],
+    },
+    Case {
+        name: "skin 0 restores the scratchpad without evaluating its draft",
+        actions: &[Action::Formula("=7+9"), Action::Reload],
+        checks: &[
+            Check::Value("formula", "=7+9"),
+            Check::Absent("[data-skin0=raw]"),
+        ],
+    },
+    Case {
+        name: "skin 0 exports named inputs as workbook cells and opens the downloaded workbook",
+        actions: &[
+            Action::ClearDownloads,
+            Action::Click("[data-skin0=new-draft]"),
+            Action::Into("[placeholder=TaxRate]", "Figures"),
+            Action::Into("[placeholder='0.065']", "{1,2;3,4}"),
+            Action::Formula("=SUM(Figures)"),
+            Action::Click("[data-skin0=export-workbook]"),
+            Action::Click("[data-skin0=new-draft]"),
+            Action::UploadDownloadTo("formula-explorer.xlsx", "[data-skin0=open-workbook]"),
+            Action::Wait(Check::Value("formula", "=SUM(Figures)")),
+            Action::Click("[data-skin0=evaluate]"),
+        ],
+        checks: &[Check::Text("[data-skin0=raw]", "10")],
+    },
+    Case {
+        name: "skin 0 matches a worksheet error and round-trips the test suite file",
+        actions: &[
+            Action::Formula("=1/0"),
+            Action::Click("[data-skin0=add-case]"),
+            Action::Into("[data-skin0=expected]", "#DIV/0!"),
+            Action::Click("[data-skin0=run-suite]"),
+            Action::Wait(Check::Text("[data-skin0=suite-status]", "1 of 1 matched")),
+            Action::Click("[data-skin0=save-suite]"),
+            Action::Reload,
+            Action::UploadDownloadTo("formula-explorer.dnafe.json", "[data-skin0=open-suite]"),
+            Action::Wait(Check::Value("[data-skin0=expected]", "#DIV/0!")),
+            Action::Click("[data-skin0=run-suite]"),
+        ],
+        checks: &[Check::Text("[data-skin0=suite-status]", "1 of 1 matched")],
     },
 ];
 
@@ -1541,8 +1663,22 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "skin-0",
         start: 121,
-        end: ONECALC_CASES.len(),
+        end: 125,
         core: 4,
         setup: &[Action::FormulaLink("#f=%3D1%2B2")],
+    },
+    CaseGroup {
+        name: "skin-0-default",
+        start: 125,
+        end: 132,
+        core: 7,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "skin-0-files-browser",
+        start: 132,
+        end: ONECALC_CASES.len(),
+        core: 2,
+        setup: &[],
     },
 ];

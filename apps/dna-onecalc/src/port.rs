@@ -20,7 +20,7 @@ use crate::grid;
 use crate::shown::{Authored, Shown};
 use crate::{AddinRef, InputValue, ProjectReport, Session};
 pub(crate) use calc_formula_host::environment;
-use calc_skin::{FormulaAnswer, FormulaQuery, Refusal};
+use calc_skin::{FormulaAnswer, FormulaOperation, FormulaQuery, Refusal};
 use serde::{Deserialize, Serialize};
 
 /// Bytes as base64 text in a message, so a file crosses the bridge as one JSON string.
@@ -76,6 +76,7 @@ pub mod bytes_as_base64 {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
     SkinFormula(FormulaQuery),
+    SkinOperation(FormulaOperation),
     /// The formula text, with or without its leading `=`.
     SetFormula {
         text: String,
@@ -558,6 +559,9 @@ impl SessionPort for LocalPort {
         let session = &mut self.session;
         match request {
             Request::SkinFormula(query) => Reply::SkinFormula(self.formula.handle(session, query)),
+            Request::SkinOperation(operation) => {
+                Reply::SkinFormula(crate::workbench_provider::operate(session, operation))
+            }
             Request::SetFormula { text } => {
                 session.set_formula(&text);
                 Reply::Accepted

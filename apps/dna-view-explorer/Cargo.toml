@@ -16,3 +16,5 @@ dna-kit = { path = "../dna-kit" }
 dna-formula-ui = { path = "../dna-formula-ui" }
 dna-skin-runtime = { path = "../dna-skin-runtime" }
 calc-formula-kernel = { path = "../../crates/calc-formula-kernel" }
+serde_json = "=1.0.154"
+web-sys = { version = "=0.3.94", features = ["HtmlInputElement"] }

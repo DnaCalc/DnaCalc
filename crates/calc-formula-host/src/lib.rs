@@ -13,6 +13,9 @@ mod session;
 pub mod shown;
 pub mod trace;
 mod trial;
+mod workbench_file;
+pub mod workbench_provider;
+mod workbench_suite;
 
 pub use trial::{FormulaHost, FormulaRequests};
 

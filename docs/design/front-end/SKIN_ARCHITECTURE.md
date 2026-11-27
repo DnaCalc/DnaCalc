@@ -500,9 +500,12 @@ Both proposals chose option (b) of [FRONT_END_IMPLEMENTATION_BRIEF.md](../../pla
 2. **`crates/calc-formula-host` (stateful level-0 session, no `calc-engine`):**
    - The existing session, conditional formats, RTD, trace, fixture, file codec, typed grid inputs and session projections live here. Pure display, result formatting and expression-part analysis live in the kernel. RTD topic admission is shared with the workbook host.
    - Owns `CallableTable` (built-ins + XLL/COM/JS add-ins + loaded VBA module UDFs), `ProviderRegistry` (recording preview-safety flags so side-effecting UDFs never fire on keystrokes, Pro R-42), `RtdTopics` ledger, `CalcEnvironment` (date system, locale) and `MacroPolicy`.
-   - The first browser preview (`?skin=0` and formula fragments) uses a formula-only port over the existing evaluator. Named test inputs bind through CalcFml's name catalogue. The evaluator's internal placement anchor is unavailable to cell references, caller facts and workbook facts in this mode.
+   - The standalone browser and WebView2 pages use skin 0 by default. Named test inputs bind through CalcFml's name catalogue. The evaluator's internal placement anchor is unavailable to cell references, caller facts and workbook facts in workbookless mode.
    - A caller snapshot carries the original cell identity, ordered sheets, date system and provenance-stamped scalar precedents. The trial binds against that detached excerpt and reports a missing read if the excerpt cannot supply it. Browser and native requests share the session evaluator, and automatic formula-link previews bind only built-ins.
    - The result port pins one calculation generation and serves array windows of at most 32 rows by 16 columns. Moving between pages reads the pinned value without evaluating the formula again. The array table reports the coordinates and full shape.
+   - The conditional-format instrument applies a value comparison or an Excel expression to that pinned result. Relative references, `ROW()` and `COLUMN()` use the visible result cells' actual positions in the array, including later pages. Rule evaluation shares the formula-session formatting path.
+   - Provider operations publish to the callable table used by explicit trial evaluation. The Windows host holds the chosen add-in path and hash until the user confirms or cancels. Browser builds support explicitly authored VBA modules and report a typed native add-in capability refusal.
+   - The workbench restores the last standalone draft from browser storage. It exports the formula to `Trial` and local literals to workbook-scoped ranges on `Inputs` through CalcDoc. Import reads those authored cells and ranges. The test-suite file stores exact expected literals, optional formatted text and optional provider hashes under `dna.formula-tests/1`.
    - Answers `Evaluate` (single `Trial` with optional `CallerSnapshot` — refusing caller-dependent functions like `ROW()`/`CELL("address")` when `caller: None` with a route to a workbook cell, Pro R-39), `EvaluatePart`, `Trace` (live evaluation tree), formula-bearing `ConditionalFormat`, `Catalogue` (including witness-bank Excel match status), `Providers`, and Explorer `.xlsx` session load/save.
 
 ### 5.2 Level 1: `calc-host` and `calc-skin-host`
@@ -861,7 +864,7 @@ Excel save-route retention (`.xlsx`, `.xlsm` in desktop Excel; explicit loss war
 
 ---
 
-The preview keeps the 121 existing Explorer smoke cases against the established route and adds a dedicated skin-0 group to exercise the new page. At the standalone switch, the replacement suite must cover the same calculations and file behaviour through named inputs and snapshots. Legacy checks that depend on the scratch worksheet's layout or inferred caller require explicit workbook fixtures.
+The bare standalone URL and fragment links mount the new workbench. The compatibility route (`?skin=legacy`) continues to exercise the 121 original cases, including the old implicit caller, scratch grid and native session-file workflow. The skin-0 smoke groups exercise the default page, formula links, named inputs, array browsing, conditional rules, explicit VBA evaluation, draft restoration, workbook interchange and test-suite files. Remaining Explorer coverage and publication are recorded in `dc-iopjy`.
 
 ---
 

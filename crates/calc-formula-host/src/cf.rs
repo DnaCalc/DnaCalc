@@ -1104,6 +1104,24 @@ pub fn evaluate(
     cols: usize,
     environment: Option<calc_fml::CalcEnvironment>,
 ) -> Outcome {
+    evaluate_window(
+        specs,
+        array,
+        calc_skin::ArrayPosition::default(),
+        rows,
+        cols,
+        environment,
+    )
+}
+
+pub(crate) fn evaluate_window(
+    specs: &[CfRuleSpec],
+    array: &CalcArray,
+    position: calc_skin::ArrayPosition,
+    rows: usize,
+    cols: usize,
+    environment: Option<calc_fml::CalcEnvironment>,
+) -> Outcome {
     let shape = array.shape();
     let mut outcome = Outcome {
         looks: vec![vec![CellLook::default(); cols]; rows],
@@ -1156,8 +1174,8 @@ pub fn evaluate(
     if formula_rules && placed {
         let mut session = Session::new("Sheet1").expect("Sheet1 is a sheet name");
         session.set_environment(environment);
-        // The formula cell is outside the placed cells: the evaluator never reads its own cell.
-        let _ = session.set_formula_cell(&look::a1(shape.rows as u32 + 2, shape.cols as u32 + 2));
+        // Keep the session's authored formula cell outside the literal input array.
+        let _ = session.set_formula_cell(&look::a1(shape.rows as u32 + 1, 1));
         let first_sheet = session.sheets().next().map(|(_, sheet)| sheet);
         if let Some(sheet) = first_sheet {
             for r in 0..shape.rows {
@@ -1187,7 +1205,6 @@ pub fn evaluate(
             "aboveAverage" => {
                 p.average = Some(match scratch.as_mut() {
                     Some(session) => {
-                        session.set_formula_cell("A1").ok();
                         let result = session.calculate_text(&format!(
                             "={}",
                             look::average_formula(&p.rule, &range)
@@ -1209,7 +1226,9 @@ pub fn evaluate(
     let mut skipped = false;
     for r in 0..rows {
         for c in 0..cols {
-            let Some(value) = array.get(r, c) else {
+            let row = position.row + r;
+            let column = position.column + c;
+            let Some(value) = array.get(row, column) else {
                 continue;
             };
             let mut cell_look = CellLook::default();
@@ -1237,26 +1256,14 @@ pub fn evaluate(
                 } else {
                     match (&p.condition, scratch.as_mut()) {
                         (Some(text), Some(session)) if tested < MAX_TESTED_CELLS => {
-                            // The formula is written for A1 and tested for the cell (r, c), whose
-                            // value the session holds: it is entered in a cell beside the result,
-                            // shifted by a whole number of columns (ROW() is then the cell's own) or
-                            // of rows when the formula asks for COLUMN() only, and compiled for A1
-                            // shifted the same way, so that its relative references land on (r, c).
-                            let upper = text.to_ascii_uppercase();
-                            let by_rows = upper.contains("COLUMN(") && !upper.contains("ROW(");
-                            let (shift_rows, shift_cols) = if by_rows {
-                                (shape.rows as u32 + 1, 0)
-                            } else {
-                                (0, shape.cols as u32 + 1)
-                            };
-                            let at = look::a1(r as u32 + 1 + shift_rows, c as u32 + 1 + shift_cols);
-                            let origin = look::a1(1 + shift_rows, 1 + shift_cols);
-                            if session.set_formula_cell(&at).is_err() {
-                                false
-                            } else {
+                            let sheet = session.formula_cell().sheet();
+                            let origin = CellKey::new(sheet, 1, 1).expect("worksheet origin");
+                            if let Ok(target) =
+                                CellKey::new(sheet, row as u32 + 1, column as u32 + 1)
+                            {
                                 tested += 1;
                                 let result =
-                                    session.calculate_relative(&format!("={text}"), &origin);
+                                    session.calculate_rule(&format!("={text}"), origin, target);
                                 match result.result {
                                     Some(value) if look::truth(&value) => {
                                         look::dress(&mut cell_look, &p.appearance)
@@ -1276,6 +1283,9 @@ pub fn evaluate(
                                         false
                                     }
                                 }
+                            } else {
+                                outcome.refused += 1;
+                                false
                             }
                         }
                         (Some(_), Some(_)) => {

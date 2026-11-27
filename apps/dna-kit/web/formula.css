@@ -183,3 +183,23 @@
 }
 
 .dna-fe-steps button { text-align: start; }
+
+.dna-fe-rule, .dna-fe-trust {
+    border: 1px solid var(--dna-line);
+    margin-block: var(--dna-gap-3);
+    min-inline-size: 0;
+    padding: var(--dna-gap-3);
+    overflow-wrap: anywhere;
+}
+
+.dna-fe-rule-match {
+    display: block;
+    border-inline-start: 2px solid currentColor;
+    padding-inline-start: var(--dna-gap-2);
+    color: var(--dna-accent-ink);
+    font-size: 0.8125rem;
+}
+
+.dna-fe-test-case { padding-block: var(--dna-gap-3); }
+.dna-fe-workbench :is(input, textarea) { max-inline-size: 100%; }
+.dna-fe-workbench button:disabled { opacity: 0.65; cursor: default; }

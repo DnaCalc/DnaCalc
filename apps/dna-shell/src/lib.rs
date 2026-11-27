@@ -2,7 +2,7 @@
 
 pub mod workbook;
 
-use calc_skin::FormulaPort;
+use calc_skin::{FormulaPort, Trial};
 use dna_kit::{FormulaContext, Registry};
 use leptos::prelude::*;
 use std::rc::Rc;
@@ -10,14 +10,17 @@ use std::rc::Rc;
 pub fn formula(
     registry: &Registry,
     port: Rc<dyn FormulaPort>,
-    initial_formula: String,
+    draft: Trial,
+    auto_preview: bool,
+    persist: Option<fn(Trial)>,
     clock: fn() -> Option<f64>,
 ) -> impl IntoView + use<> {
     let status = RwSignal::new("Ready");
     let stage = registry.mount_formula(FormulaContext {
         port,
-        initial_formula,
-        caller: None,
+        draft,
+        auto_preview,
+        persist,
         clock,
         status,
     });

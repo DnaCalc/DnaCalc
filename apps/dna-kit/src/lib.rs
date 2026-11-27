@@ -4,16 +4,17 @@ mod workbook;
 pub use workbook::{WorkbookContext, WorkbookView};
 
 use calc_skin::{
-    ARRAY_PAGE_COLUMNS, ARRAY_PAGE_ROWS, ArrayPosition, CallerSnapshot, FormulaPort, Provenance,
-    RawValue, Shown, TrialCell, TrialValue,
+    ARRAY_PAGE_COLUMNS, ARRAY_PAGE_ROWS, ArrayPosition, FormulaPort, Provenance, RawValue, Shown,
+    Trial, TrialCell, TrialValue,
 };
 use leptos::prelude::*;
 use std::rc::Rc;
 
 pub struct FormulaContext {
     pub port: Rc<dyn FormulaPort>,
-    pub initial_formula: String,
-    pub caller: Option<CallerSnapshot>,
+    pub draft: Trial,
+    pub auto_preview: bool,
+    pub persist: Option<fn(Trial)>,
     pub clock: fn() -> Option<f64>,
     pub status: RwSignal<&'static str>,
 }
@@ -58,10 +59,12 @@ pub fn ValueView(shown: Shown<TrialValue>, page: Callback<ArrayPosition>) -> imp
         TrialValue::Scalar(cell) => {
             let raw = cell.raw.display();
             let is_error = matches!(cell.raw, RawValue::Error(_));
+            let matched = cell.conditional_match;
             view! {
                 <dl class="dna-fe-value" class:dna-fe-error=is_error>
                     <div><dt>"Raw value"</dt><dd data-skin0="raw">{raw}</dd></div>
                     <div><dt>"Formatted"</dt><dd data-skin0="formatted">{cell.formatted}</dd></div>
+                    {matched.then(|| view! { <div class="dna-fe-rule-match" data-skin0="rule-match">"Rule matched"</div> })}
                 </dl>
             }
             .into_any()
@@ -113,6 +116,7 @@ pub fn DataFrame(
                 <td aria-colindex=position.column + column + 2 class:dna-fe-error=is_error>
                     <span>{cell.formatted}</span>
                     {differs.then(|| view! { <small class="dna-fe-raw">"Raw " {raw}</small> })}
+                    {cell.conditional_match.then(|| view! { <small class="dna-fe-rule-match" data-skin0="rule-match">"Rule matched"</small> })}
                 </td>
             }
         }).collect_view();
@@ -123,13 +127,13 @@ pub fn DataFrame(
     view! {
         <div class="dna-fe-array" data-skin0="array">
             <div class="dna-fe-actions" role="group" aria-label="Array pages">
-                <button type="button" disabled=position.row == 0
+                <button type="button" data-skin0="prev-rows" disabled=position.row == 0
                     on:click=move |_| page.run(ArrayPosition { row: position.row.saturating_sub(ARRAY_PAGE_ROWS), ..position })>"Previous rows"</button>
-                <button type="button" disabled=position.row + visible_rows >= rows
+                <button type="button" data-skin0="next-rows" disabled={position.row + visible_rows >= rows}
                     on:click=move |_| page.run(ArrayPosition { row: position.row + visible_rows, ..position })>"Next rows"</button>
-                <button type="button" disabled=position.column == 0
+                <button type="button" data-skin0="prev-columns" disabled=position.column == 0
                     on:click=move |_| page.run(ArrayPosition { column: position.column.saturating_sub(ARRAY_PAGE_COLUMNS), ..position })>"Previous columns"</button>
-                <button type="button" disabled=position.column + visible_columns >= columns
+                <button type="button" data-skin0="next-columns" disabled={position.column + visible_columns >= columns}
                     on:click=move |_| page.run(ArrayPosition { column: position.column + visible_columns, ..position })>"Next columns"</button>
             </div>
             <table aria-rowcount=rows.saturating_add(1).to_string()
