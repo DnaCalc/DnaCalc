@@ -631,6 +631,24 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Text("[data-cell=E3]", ""),
         ],
     },
+    Case {
+        name: "Classic Home Format hides the selected column",
+        actions: &[
+            Action::Wait(Check::Rendered("[data-cell=B1]", true)),
+            Action::Click("[data-cell=B1]"),
+            Action::Keys("grid", "\u{e03a}houc"),
+        ],
+        checks: &[
+            Check::Absent("[data-cell=B1]"),
+            Check::Rendered("[data-cell=A1]", true),
+            Check::Rendered("[data-cell=C1]", true),
+        ],
+    },
+    Case {
+        name: "Classic Undo restores the hidden column",
+        actions: &[Action::Keys("grid", "\u{e009}z\u{e000}")],
+        checks: &[Check::Rendered("[data-cell=B1]", true)],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -721,8 +739,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-transpose",
         start: 31,
-        end: PREVIEW_CASES.len(),
+        end: 32,
         core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-hide-columns",
+        start: 32,
+        end: PREVIEW_CASES.len(),
+        core: 2,
         setup: &[],
     },
 ];

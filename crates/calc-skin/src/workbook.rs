@@ -446,6 +446,12 @@ pub enum ModelChange {
         to: Area,
         contents: PasteContents,
     },
+    SetColumnsHidden {
+        sheet: Sheet,
+        /// Inclusive first and last column in each band.
+        bands: Vec<(u32, u32)>,
+        hidden: bool,
+    },
     RewriteFormula {
         at: Key,
         expected_old: String,
@@ -537,6 +543,9 @@ pub enum ModelProperty {
     Notes,
     Hyperlinks,
     RichText,
+    ColumnVisibility,
+    Charts,
+    Shapes,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -425,6 +425,50 @@ fn classic_paste_refuses_if_the_host_changes_after_preview() {
     assert_eq!(page.shown(page.at(2, 2)), "99");
 }
 
+/// Native-only: uses the Classic key map, workbook batches and the real geometry query.
+#[test]
+fn classic_home_hide_columns_updates_worksheet_geometry_and_undo() {
+    use calc_skin::{Selection, SourceRef, grid::Area};
+
+    let page = Page::open();
+    let session = page.session;
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    let hidden = |column| {
+        let Live::Ready(answer) = session.read(geometry) else {
+            panic!("worksheet geometry did not arrive");
+        };
+        answer.body.columns.iter().any(|&(first, last, _, hidden)| {
+            (first..=last).contains(&column) && hidden
+        })
+    };
+    assert!(!hidden(2));
+    for key in ["F10", "h", "o", "u", "c"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(hidden(2));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(!hidden(2));
+
+    let (second, fourth) = (page.at(1, 2), page.at(1, 4));
+    session.select(Selection {
+        seq: 0,
+        target: SourceRef::Cells {
+            sheet: page.sheet,
+            areas: vec![Area(second, second), Area(fourth, fourth)],
+        },
+        active: Some(second),
+        grouped: Vec::new(),
+        item: None,
+    });
+    page.settle();
+    assert!(page.press("Ctrl+0", Focus::Stage));
+    assert!(hidden(2) && !hidden(3) && hidden(4));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(!hidden(2) && !hidden(4));
+}
+
 /// Native-only: drives the real workbook host through packets.
 #[test]
 fn classic_shift_selects_a_rectangle_and_delete_clears_it_in_one_step() {

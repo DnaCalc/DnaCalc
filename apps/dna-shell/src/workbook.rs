@@ -54,6 +54,9 @@ fn model_property_text(diff: ModelPropertyDiff) -> String {
                 ModelProperty::Notes => "Notes",
                 ModelProperty::Hyperlinks => "Hyperlinks",
                 ModelProperty::RichText => "Rich text",
+                ModelProperty::ColumnVisibility => "Column visibility",
+                ModelProperty::Charts => "Charts",
+                ModelProperty::Shapes => "Shapes",
             };
             format!("{label} changed")
         }

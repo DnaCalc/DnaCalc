@@ -225,6 +225,31 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.hide-columns", "Hide Columns", &["Ctrl+0"], move |_| {
+            let Some(SourceRef::Cells { sheet, areas }) =
+                session.selection().map(|selection| selection.target)
+            else {
+                return Err("Select worksheet columns to hide.".into());
+            };
+            let stamp = session.stamp().filter(|_| !areas.is_empty())
+                .ok_or("Select worksheet columns to hide.")?;
+            let bands = areas.into_iter().map(|Area(first, last)| (first.3, last.3)).collect();
+            session.submit(Batch {
+                id: String::new(),
+                workbook: Some(stamp.workbook),
+                base: Some(stamp.model),
+                expects: Vec::new(),
+                selection_seq: None,
+                label: Some("Hide Columns".into()),
+                changes: vec![Change::Model(ModelChange::SetColumnsHidden {
+                    sheet,
+                    bands,
+                    hidden: true,
+                })],
+            });
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.edit-cell", "Edit the cell", &["F2"], move |_| {
             let at = session.active().ok_or("No cell is selected.")?;
             session.begin_edit(at, None);
