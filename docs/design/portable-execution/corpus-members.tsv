@@ -1,0 +1,415 @@
+face	area_or_need	member	class	windows	macos	linux	server	web-hosted	web-wasm	wasi	clean_projects	suspect_projects	uses	note
+vba	_HiddenModule	Array	pure	native	native	native	native	native	native	native	87	189	34355	same (to measure)
+vba	_HiddenModule	Input/$	shim	model	model	model	model	model	model	model	5	46	259	as Asc (to measure)
+vba	_HiddenModule	InputB/$	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	_HiddenModule	ObjPtr	pure	native	native	native	native	native	native	native	0	32	178	same
+vba	_HiddenModule	StrPtr	pure	native	native	native	native	native	native	native	0	55	568	same
+vba	_HiddenModule	VarPtr	pure	native	native	native	native	native	native	native	1	54	1529	same
+vba	_HiddenModule	Width	pure	native	native	native	native	native	native	native	16	48	581	same (to measure)
+vba	Collection	_NewEnum	pure	native	native	native	native	native	native	native	0	0	0	same
+vba	Collection	Add	pure	native	native	native	native	native	native	native	9	38	130	same
+vba	Collection	Count	pure	native	native	native	native	native	native	native	37	156	1767	same
+vba	Collection	Item	pure	native	native	native	native	native	native	native	20	148	2162	same
+vba	Collection	Remove	pure	native	native	native	native	native	native	native	5	22	69	same
+vba	Conversion	CBool	pure	native	native	native	native	native	native	native	4	47	649	same (to measure)
+vba	Conversion	CByte	pure	native	native	native	native	native	native	native	3	28	139	same (to measure)
+vba	Conversion	CCur	locale	model	model	model	model	model	model	model	1	9	82	as CDbl
+vba	Conversion	CDate	locale	model	model	model	model	model	model	model	12	64	357	Mac regional settings
+vba	Conversion	CDbl	locale	model	model	model	model	model	model	model	26	161	1357	Mac decimal separator
+vba	Conversion	CDec	locale	model	model	model	model	model	model	model	2	14	140	as CDbl
+vba	Conversion	CInt	pure	native	native	native	native	native	native	native	35	82	616	same (to measure)
+vba	Conversion	CLng	pure	native	native	native	native	native	native	native	32	138	2314	same (to measure)
+vba	Conversion	CLngLng	pure	native	native	native	native	native	native	native	0	5	35	same (to measure)
+vba	Conversion	CLngPtr	pure	native	native	native	native	native	native	native	0	15	70	same (to measure)
+vba	Conversion	CSng	locale	model	model	model	model	model	model	model	1	17	74	as CDbl
+vba	Conversion	CStr	locale	model	model	model	model	model	model	model	86	281	6485	Mac regional settings for dates
+vba	Conversion	CVar	pure	native	native	native	native	native	native	native	0	6	16	same (to measure)
+vba	Conversion	CVDate	locale	model	model	model	model	model	model	model	0	1	1	as CDate
+vba	Conversion	CVErr	pure	native	native	native	native	native	native	native	11	24	436	same (to measure)
+vba	Conversion	Error/$	pure	native	native	native	native	native	native	native	178	422	12983	same (to measure)
+vba	Conversion	Fix	pure	native	native	native	native	native	native	native	5	29	149	same (to measure)
+vba	Conversion	Hex/$	pure	native	native	native	native	native	native	native	7	67	742	same (to measure)
+vba	Conversion	Int	pure	native	native	native	native	native	native	native	55	143	905	same (to measure)
+vba	Conversion	MacID	pure	native	native	native	native	native	native	native	0	0	0	Mac file-type IDs (works on Mac)
+vba	Conversion	Oct/$	pure	native	native	native	native	native	native	native	1	2	22	same (to measure)
+vba	Conversion	Str/$	pure	native	native	native	native	native	native	native	33	126	1626	same (to measure)
+vba	Conversion	Val	pure	native	native	native	native	native	native	native	45	96	3470	same (to measure)
+vba	DateTime	Calendar	locale	model	model	model	model	model	model	model	0	6	39	to measure
+vba	DateTime	Date/$	host	host	host	host	host	host	host	host	18	65	352	same
+vba	DateTime	DateAdd	pure	native	native	native	native	native	native	native	9	38	193	same (to measure)
+vba	DateTime	DateDiff	pure	native	native	native	native	native	native	native	10	37	157	same (to measure)
+vba	DateTime	DatePart	pure	native	native	native	native	native	native	native	2	6	61	same (to measure)
+vba	DateTime	DateSerial	pure	native	native	native	native	native	native	native	9	79	416	same (to measure)
+vba	DateTime	DateValue	locale	model	model	model	model	model	model	model	4	17	115	as CDate
+vba	DateTime	Day	pure	native	native	native	native	native	native	native	11	40	246	same (to measure)
+vba	DateTime	Hour	pure	native	native	native	native	native	native	native	3	14	46	same (to measure)
+vba	DateTime	Minute	pure	native	native	native	native	native	native	native	2	14	52	same (to measure)
+vba	DateTime	Month	pure	native	native	native	native	native	native	native	9	46	336	same (to measure)
+vba	DateTime	Now	host	host	host	host	host	host	host	host	49	170	1703	same
+vba	DateTime	Second	pure	native	native	native	native	native	native	native	1	16	93	same (to measure)
+vba	DateTime	Time/$	host	host	host	host	host	host	host	host	12	34	405	same
+vba	DateTime	Timer	host	host	host	host	host	host	host	host	19	77	875	resolution differs (to measure)
+vba	DateTime	TimeSerial	pure	native	native	native	native	native	native	native	2	57	222	same (to measure)
+vba	DateTime	TimeValue	locale	model	model	model	model	model	model	model	9	57	373	as CDate
+vba	DateTime	Weekday	pure	native	native	native	native	native	native	native	4	26	173	same (to measure)
+vba	DateTime	Year	pure	native	native	native	native	native	native	native	19	48	516	same (to measure)
+vba	ErrObject	Clear	pure	native	native	native	native	native	native	native	16	26	147	same
+vba	ErrObject	Description	pure	native	native	native	native	native	native	native	11	121	849	same
+vba	ErrObject	HelpContext	pure	native	native	native	native	native	native	native	1	0	1	same
+vba	ErrObject	HelpFile	pure	native	native	native	native	native	native	native	2	9	75	same
+vba	ErrObject	LastDllError	pure	native	native	native	native	native	native	native	0	0	0	same
+vba	ErrObject	Number	pure	native	native	native	native	native	native	native	12	98	908	same
+vba	ErrObject	Raise	pure	native	native	native	native	native	native	native	0	3	9	same
+vba	ErrObject	Source	pure	native	native	native	native	native	native	native	26	147	1501	same
+vba	FileSystem	ChDir	shim	native	shim	shim	shim	shim	shim	shim	7	12	46	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	ChDrive	shim	native	shim	shim	shim	shim	shim	shim	1	7	18	no drives: error or no-op (to measure)
+vba	FileSystem	CurDir/$	shim	native	shim	shim	shim	shim	shim	shim	9	8	20	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	Dir	shim	native	shim	shim	shim	shim	shim	shim	22	104	630	POSIX paths; MacID file-type filters; case-insensitive on default APFS (to measure)
+vba	FileSystem	EOF	pure	native	native	native	native	native	native	native	5	35	97	same (to measure)
+vba	FileSystem	FileAttr	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	FileSystem	FileCopy	shim	native	shim	shim	shim	shim	shim	shim	3	23	40	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	FileDateTime	shim	native	shim	shim	shim	shim	shim	shim	2	5	12	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	FileLen	shim	native	shim	shim	shim	shim	shim	shim	3	26	65	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	FreeFile	pure	native	native	native	native	native	native	native	8	141	291	same (to measure)
+vba	FileSystem	GetAttr	shim	native	shim	shim	shim	shim	shim	shim	0	12	20	attribute bits on Mac (to measure)
+vba	FileSystem	Kill	shim	native	shim	shim	shim	shim	shim	shim	13	67	218	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	Loc	pure	native	native	native	native	native	native	native	2	11	97	same (to measure)
+vba	FileSystem	LOF	pure	native	native	native	native	native	native	native	1	31	76	same (to measure)
+vba	FileSystem	MkDir	shim	native	shim	shim	shim	shim	shim	shim	4	55	208	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	Reset	pure	native	native	native	native	native	native	native	11	19	106	same (to measure)
+vba	FileSystem	RmDir	shim	native	shim	shim	shim	shim	shim	shim	0	8	13	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	FileSystem	Seek	pure	native	native	native	native	native	native	native	1	6	17	same (to measure)
+vba	FileSystem	SetAttr	shim	native	shim	shim	shim	shim	shim	shim	0	6	15	to measure
+vba	Financial	DDB	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Financial	FV	pure	native	native	native	native	native	native	native	0	1	4	same (to measure)
+vba	Financial	IPmt	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Financial	IRR	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Financial	MIRR	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Financial	NPer	pure	native	native	native	native	native	native	native	1	0	1	same (to measure)
+vba	Financial	NPV	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Financial	Pmt	pure	native	native	native	native	native	native	native	1	0	7	same (to measure)
+vba	Financial	PPmt	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Financial	PV	pure	native	native	native	native	native	native	native	1	13	144	same (to measure)
+vba	Financial	Rate	pure	native	native	native	native	native	native	native	6	2	112	same (to measure)
+vba	Financial	SLN	pure	native	native	native	native	native	native	native	1	0	7	same (to measure)
+vba	Financial	SYD	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Information	Erl	pure	native	native	native	native	native	native	native	7	33	337	same (to measure)
+vba	Information	Err	pure	native	native	native	native	native	native	native	90	329	13765	same (to measure)
+vba	Information	IMEStatus	host	host	host	host	host	host	host	host	0	0	0	to measure
+vba	Information	IsArray	pure	native	native	native	native	native	native	native	14	151	549	same (to measure)
+vba	Information	IsDate	locale	model	model	model	model	model	model	model	14	50	153	as CDate
+vba	Information	IsEmpty	pure	native	native	native	native	native	native	native	73	138	1516	same (to measure)
+vba	Information	IsError	pure	native	native	native	native	native	native	native	19	60	338	same (to measure)
+vba	Information	IsMissing	pure	native	native	native	native	native	native	native	26	84	896	same (to measure)
+vba	Information	IsNull	pure	native	native	native	native	native	native	native	29	80	445	same (to measure)
+vba	Information	IsNumeric	locale	model	model	model	model	model	model	model	59	135	1122	Mac decimal separator
+vba	Information	IsObject	pure	native	native	native	native	native	native	native	10	125	540	same (to measure)
+vba	Information	QBColor	pure	native	native	native	native	native	native	native	0	2	8	same (to measure)
+vba	Information	RGB	pure	native	native	native	native	native	native	native	52	120	11824	same (to measure)
+vba	Information	TypeName	pure	native	native	native	native	native	native	native	26	171	1543	same (to measure)
+vba	Information	VarType	pure	native	native	native	native	native	native	native	12	146	533	same (to measure)
+vba	Interaction	AppActivate	windows	native	reject	reject	reject	reject	reject	reject	0	10	21	activates by application name (to measure)
+vba	Interaction	Beep	host	host	host	host	host	host	host	host	4	5	33	same
+vba	Interaction	CallByName	pure	native	native	native	native	native	native	native	10	39	207	same (to measure)
+vba	Interaction	Choose	pure	native	native	native	native	native	native	native	1	12	32	same (to measure)
+vba	Interaction	Command/$	host	host	host	host	host	host	host	host	2	25	154	to measure
+vba	Interaction	CreateObject	windows	native	replace	replace	replace	replace	replace	replace	29	262	1701	no COM on Mac: Scripting.Dictionary and other ProgIDs fail (to measure the error)
+vba	Interaction	DeleteSetting	shim	native	shim	shim	shim	shim	shim	shim	0	3	3	as SaveSetting
+vba	Interaction	DoEvents	pure	native	native	native	native	native	native	native	17	151	854	same
+vba	Interaction	Environ/$	shim	native	shim	shim	shim	shim	shim	shim	3	75	380	Unix variables (HOME, USER, TMPDIR); no TEMP or USERPROFILE
+vba	Interaction	GetAllSettings	shim	native	shim	shim	shim	shim	shim	shim	0	2	3	as SaveSetting
+vba	Interaction	GetObject	windows	native	replace	replace	replace	replace	replace	replace	4	31	106	no COM on Mac (to measure)
+vba	Interaction	GetSetting	shim	native	shim	shim	shim	shim	shim	shim	0	15	71	as SaveSetting
+vba	Interaction	IIf	pure	native	native	native	native	native	native	native	23	152	1214	same (to measure)
+vba	Interaction	InputBox	host	host	host	host	host	host	host	host	37	72	382	as MsgBox
+vba	Interaction	MacScript	windows	native	reject	reject	reject	reject	reject	reject	0	3	13	AppleScript; deprecated in sandboxed Excel 2016+ for AppleScriptTask (to measure)
+vba	Interaction	MsgBox	host	host	host	host	host	host	host	host	252	339	7741	Mac dialog; some button styles differ (to measure)
+vba	Interaction	Partition	pure	native	native	native	native	native	native	native	0	0	0	same (to measure)
+vba	Interaction	SaveSetting	shim	native	shim	shim	shim	shim	shim	shim	0	15	62	stored in a preferences plist, not a registry (to measure)
+vba	Interaction	SendKeys	windows	native	reject	reject	reject	reject	reject	reject	0	14	72	not supported on Mac (to measure)
+vba	Interaction	Shell	windows	native	shim	shim	shim	shim	reject	reject	0	50	146	runs a POSIX command (to measure)
+vba	Interaction	Switch	pure	native	native	native	native	native	native	native	0	1	3	same (to measure)
+vba	Match	FirstIndex	pure	native	native	native	native	native	native	native	1	0	2	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	Match	Length	pure	native	native	native	native	native	native	native	18	67	689	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	Match	SubMatches	pure	native	native	native	native	native	native	native	0	0	0	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	Match	Value	pure	native	native	native	native	native	native	native	42	176	7034	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	MatchCollection	_NewEnum	pure	native	native	native	native	native	native	native	0	0	0	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	MatchCollection	Count	pure	native	native	native	native	native	native	native	37	156	1767	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	MatchCollection	Item	pure	native	native	native	native	native	native	native	20	148	2162	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	Math	Abs	pure	native	native	native	native	native	native	native	44	83	1178	same (to measure)
+vba	Math	Atn	pure	model	model	model	model	model	model	model	4	11	59	as Sin
+vba	Math	Cos	pure	model	model	model	model	model	model	model	7	19	119	as Sin
+vba	Math	Exp	pure	model	model	model	model	model	model	model	20	23	459	as Sin
+vba	Math	Log	pure	model	model	model	model	model	model	model	25	65	725	as Sin
+vba	Math	Randomize	pure	native	native	native	native	native	native	native	23	39	199	same (to measure)
+vba	Math	Rnd	pure	native	native	native	native	native	native	native	37	68	544	same (to measure)
+vba	Math	Round	pure	native	native	native	native	native	native	native	28	66	524	same (to measure)
+vba	Math	Sgn	pure	native	native	native	native	native	native	native	2	24	188	same (to measure)
+vba	Math	Sin	pure	model	model	model	model	model	model	model	7	21	183	Mac Excel's maths library may differ from Windows Excel in the last bit (to measure)
+vba	Math	Sqr	pure	native	native	native	native	native	native	native	25	29	718	same (to measure)
+vba	Math	Tan	pure	model	model	model	model	model	model	model	1	6	18	as Sin
+vba	RegExp	Execute	pure	native	native	native	native	native	native	native	1	15	57	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	RegExp	Global	pure	native	native	native	native	native	native	native	7	13	376	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	RegExp	IgnoreCase	pure	native	native	native	native	native	native	native	1	3	17	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	RegExp	Multiline	pure	native	native	native	native	native	native	native	0	0	0	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	RegExp	Pattern	pure	native	native	native	native	native	native	native	1	23	180	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	RegExp	Replace	pure	native	native	native	native	native	native	native	47	281	3976	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	RegExp	Test	pure	native	native	native	native	native	native	native	49	39	1281	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	Strings	Asc	shim	model	model	model	model	model	model	model	14	55	239	code page for 128-255 may be Mac Roman (to measure)
+vba	Strings	AscB	pure	native	native	native	native	native	native	native	2	0	4	same (to measure)
+vba	Strings	AscW	pure	native	native	native	native	native	native	native	5	87	221	same (to measure)
+vba	Strings	Chr/$	shim	model	model	model	model	model	model	model	78	158	3892	as Asc (to measure)
+vba	Strings	ChrB/$	pure	native	native	native	native	native	native	native	0	2	5	same (to measure)
+vba	Strings	ChrW/$	pure	native	native	native	native	native	native	native	6	50	2585	same (to measure)
+vba	Strings	Filter	locale	model	model	model	model	model	model	model	3	24	215	as StrComp
+vba	Strings	Format/$	locale	model	model	model	model	model	model	model	71	249	2938	Mac regional settings (to measure)
+vba	Strings	FormatCurrency	locale	model	model	model	model	model	model	model	1	1	10	Mac regional settings
+vba	Strings	FormatDateTime	locale	model	model	model	model	model	model	model	1	1	5	Mac regional settings
+vba	Strings	FormatNumber	locale	model	model	model	model	model	model	model	1	1	3	Mac regional settings
+vba	Strings	FormatPercent	locale	model	model	model	model	model	model	model	2	0	21	Mac regional settings
+vba	Strings	InStr	locale	model	model	model	model	model	model	model	55	199	5444	as StrComp
+vba	Strings	InStrB	locale	model	model	model	model	model	model	model	0	3	21	as StrComp
+vba	Strings	InStrRev	locale	model	model	model	model	model	model	model	12	130	290	as StrComp
+vba	Strings	Join	pure	native	native	native	native	native	native	native	4	66	229	same (to measure)
+vba	Strings	LCase/$	locale	model	model	model	model	model	model	model	22	142	1177	to measure
+vba	Strings	Left/$	pure	native	native	native	native	native	native	native	76	308	3978	same (to measure)
+vba	Strings	LeftB/$	pure	native	native	native	native	native	native	native	0	2	7	same (to measure)
+vba	Strings	Len	pure	native	native	native	native	native	native	native	115	358	7361	same (to measure)
+vba	Strings	LenB	pure	native	native	native	native	native	native	native	3	57	462	same (to measure)
+vba	Strings	LTrim/$	pure	native	native	native	native	native	native	native	1	13	83	same (to measure)
+vba	Strings	Mid/$	pure	native	native	native	native	native	native	native	92	273	3585	same (to measure)
+vba	Strings	MidB/$	pure	native	native	native	native	native	native	native	0	8	62	same (to measure)
+vba	Strings	MonthName	locale	model	model	model	model	model	model	model	0	6	11	Mac language
+vba	Strings	Replace	locale	model	model	model	model	model	model	model	47	281	3976	as StrComp
+vba	Strings	Right/$	pure	native	native	native	native	native	native	native	46	180	1302	same (to measure)
+vba	Strings	RightB/$	pure	native	native	native	native	native	native	native	0	1	3	same (to measure)
+vba	Strings	RTrim/$	pure	native	native	native	native	native	native	native	2	12	94	same (to measure)
+vba	Strings	Space/$	pure	native	native	native	native	native	native	native	10	74	381	same (to measure)
+vba	Strings	Split	locale	model	model	model	model	model	model	model	20	175	1550	as StrComp
+vba	Strings	StrComp	locale	model	model	model	model	model	model	model	10	42	212	text compare rules of the Mac locale (to measure)
+vba	Strings	StrConv	shim	model	model	model	model	model	model	model	3	47	146	vbUnicode/vbFromUnicode code page; vbWide/Kana (to measure)
+vba	Strings	String/$	shim	model	model	model	model	model	model	model	14	84	410	as Asc (to measure)
+vba	Strings	StrReverse	pure	native	native	native	native	native	native	native	0	11	28	same (to measure)
+vba	Strings	Trim/$	pure	native	native	native	native	native	native	native	43	257	3750	same (to measure)
+vba	Strings	UCase/$	locale	model	model	model	model	model	model	model	41	124	1121	to measure
+vba	Strings	WeekdayName	locale	model	model	model	model	model	model	model	0	2	2	Mac language
+vba	SubMatches	_NewEnum	pure	native	native	native	native	native	native	native	0	0	0	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	SubMatches	Count	pure	native	native	native	native	native	native	native	37	156	1767	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	SubMatches	Item	pure	native	native	native	native	native	native	native	20	148	2162	same; RegExp in VBA 7.1 for Mac (to measure)
+vba	VBEGlobal	Load	host	host	host	host	reject	host	host	reject	7	21	159	UserForms on Mac (to measure)
+vba	VBEGlobal	Unload	host	host	host	host	reject	host	host	reject	68	107	1044	as Load
+vba	VBEGlobal	UserForms	host	host	host	host	reject	host	host	reject	1	1	4	as Load
+vba	Language	Declare into Win32 DLLs (kernel32, user32, ...)	windows	native	replace	replace	replace	replace	replace	replace	0	0	0	absent on Mac: Mac Declares name dylibs
+vba	Language	Declare into Mac dylibs (libc.dylib, ...)	pure	reject	native	replace	replace	replace	reject	reject	0	0	0	native on Mac
+vba	Language	Declare into the C runtime (msvcrt, ucrtbase)	windows	native	replace	replace	replace	replace	replace	replace	0	0	0	absent
+vba	Language	AddressOf (callbacks)	windows	native	reject	reject	reject	reject	reject	reject	0	0	0	absent for Win32 APIs (to measure for dylibs)
+vba	Language	#If Win64 / Win32 / Mac / VBA7	pure	native	native	native	native	native	native	native	0	0	0	Mac = True, Win32 = Win64 = False, VBA7 = True
+vba	Language	LongPtr / pointer width	pure	native	native	native	native	native	native	native	0	0	0	64-bit
+vba	Language	Early-bound references (Scripting, ADODB, MSXML, ...)	windows	native	replace	replace	replace	replace	replace	replace	0	0	0	absent on Mac
+vba	Statements	Open / Close / Get / Put	shim	native	shim	shim	shim	shim	shim	shim	0	0	0	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	Statements	Print # / Write # / Line Input #	shim	model	model	model	model	model	model	model	0	0	0	line end and code page on Mac (to measure)
+vba	Statements	Name ... As	shim	native	shim	shim	shim	shim	shim	shim	0	0	0	POSIX paths with / (Excel 2016+); sandboxed file access (to measure)
+vba	Statements	Option Compare Text, Like	locale	model	model	model	model	model	model	model	0	0	0	Mac locale rules (to measure)
+vba	Runtime	^ operator	pure	model	model	model	model	model	model	model	0	0	0	as Sin
+vba	Runtime	Execution engine (JIT)	pure	native	shim	native	native	native	shim	shim	0	0	0	-
+vba	Runtime	Blocking calls (MsgBox, InputBox, DoEvents, Wait-style loops)	host	host	host	host	host	host	host	host	0	0	0	same as Windows
+excel-om	-	value	document	native	native	native	native	native	native	native	366	352	75353	-
+excel-om	-	range	document	native	native	native	native	native	native	native	310	308	77534	-
+excel-om	-	select	document	native	native	native	native	native	native	native	418	170	19186	-
+excel-om	-	count	document	native	native	native	native	native	native	native	200	379	8516	-
+excel-om	-	name	document	native	native	native	native	native	native	native	202	328	10127	-
+excel-om	-	cells	document	native	native	native	native	native	native	native	217	294	29433	-
+excel-om	-	add	document	native	native	native	native	native	native	native	170	340	9156	-
+excel-om	-	activate	document	native	native	native	native	native	native	native	182	159	5098	-
+excel-om	-	row	document	native	native	native	native	native	native	native	138	189	3993	-
+excel-om	-	clear	document	native	native	native	native	native	native	native	107	211	2499	-
+excel-om	-	delete	document	native	native	native	native	native	native	native	135	181	1947	-
+excel-om	ui.forms	show	host-reach	native	replace	replace	reject	replace	replace	reject	123	191	1664	-
+excel-om	-	rows	document	native	native	native	native	native	native	native	127	185	3443	-
+excel-om	-	text	document	native	native	native	native	native	native	native	103	206	8643	-
+excel-om	clipboard.internal	copy	host-reach	model	model	model	model	model	model	model	198	105	2952	-
+excel-om	-	screenupdating	document	native	native	native	native	native	native	native	127	168	3975	-
+excel-om	-	font	document	native	native	native	native	native	native	native	122	166	7799	-
+excel-om	-	visible	document	native	native	native	native	native	native	native	122	157	4784	-
+excel-om	-	worksheets	document	native	native	native	native	native	native	native	117	147	3506	-
+excel-om	-	clearcontents	document	native	native	native	native	native	native	native	146	115	1723	-
+excel-om	-	close	document	native	native	native	native	native	native	native	63	178	864	-
+excel-om	-	interior	document	native	native	native	native	native	native	native	107	132	7433	-
+excel-om	-	sheets	document	native	native	native	native	native	native	native	92	143	4274	-
+excel-om	-	offset	document	native	native	native	native	native	native	native	117	115	14543	-
+excel-om	-	columns	document	native	native	native	native	native	native	native	71	159	2184	-
+excel-om	-	address	document	native	native	native	native	native	native	native	99	124	2709	-
+excel-om	-	color	document	native	native	native	native	native	native	native	72	150	11082	-
+excel-om	-	caption	document	native	native	native	native	native	native	native	88	132	4272	-
+excel-om	path.windows	path	host-reach	native	shim	shim	shim	shim	shim	shim	29	187	844	-
+excel-om	-	left	document	native	native	native	native	native	native	native	47	163	4447	-
+excel-om	-	end	document	native	native	native	native	native	native	native	87	118	1177	-
+excel-om	-	column	document	native	native	native	native	native	native	native	76	125	1943	-
+excel-om	fs path.windows	open	host-reach	native	shim	shim	shim	shim	mediated	shim	44	156	644	reach fs.read network
+excel-om	-	size	document	native	native	native	native	native	native	native	72	121	2202	-
+excel-om	-	top	document	native	native	native	native	native	native	native	51	140	3958	-
+excel-om	-	item	document	native	native	native	native	native	native	native	33	156	3736	-
+excel-om	-	displayalerts	document	native	native	native	native	native	native	native	62	124	991	-
+excel-om	-	colorindex	document	native	native	native	native	native	native	native	106	79	2751	-
+excel-om	-	bold	document	native	native	native	native	native	native	native	66	118	1258	-
+excel-om	clipboard.internal	cutcopymode	host-reach	model	model	model	model	model	model	model	123	57	1335	-
+excel-om	-	width	document	native	native	native	native	native	native	native	45	132	2475	-
+excel-om	-	borders	document	native	native	native	native	native	native	native	68	104	4642	-
+excel-om	-	height	document	native	native	native	native	native	native	native	46	122	1963	-
+excel-om	-	unprotect	document	native	native	native	native	native	native	native	123	43	834	-
+excel-om	-	shapes	document	native	native	native	native	native	native	native	69	97	34790	-
+excel-om	fs path.windows	saveas	host-reach	native	shim	shim	shim	shim	mediated	shim	45	115	269	reach fs.write network
+excel-om	-	protect	document	native	native	native	native	native	native	native	117	39	895	-
+excel-om	-	numberformat	document	native	native	native	native	native	native	native	56	99	1620	-
+excel-om	-	formular1c1	document	native	native	native	native	native	native	native	118	34	1738	-
+excel-om	-	entirerow	document	native	native	native	native	native	native	native	84	59	1530	-
+excel-om	-	calculation	document	native	native	native	native	native	native	native	37	105	898	-
+excel-om	clipboard.internal	pastespecial	host-reach	model	model	model	model	model	model	model	103	37	890	-
+excel-om	clipboard.internal	paste	host-reach	model	model	model	model	model	model	model	100	38	1715	-
+excel-om	-	type	document	native	native	native	native	native	native	native	9	128	720	-
+excel-om	-	formula	document	native	native	native	native	native	native	native	54	81	8039	-
+excel-om	-	columnwidth	document	native	native	native	native	native	native	native	44	91	1073	-
+excel-om	-	linestyle	document	native	native	native	native	native	native	native	65	69	1890	-
+excel-om	-	insert	document	native	native	native	native	native	native	native	86	47	575	-
+excel-om	-	orientation	document	native	native	native	native	native	native	native	77	55	694	-
+excel-om	-	pattern	document	native	native	native	native	native	native	native	46	79	651	-
+excel-om	-	horizontalalignment	document	native	native	native	native	native	native	native	55	68	977	-
+excel-om	-	weight	document	native	native	native	native	native	native	native	53	69	1327	-
+excel-om	-	enabled	document	native	native	native	native	native	native	native	49	72	2187	-
+excel-om	-	autofit	document	native	native	native	native	native	native	native	42	78	535	-
+excel-om	-	enableevents	document	native	native	native	native	native	native	native	34	83	2029	-
+excel-om	-	worksheetfunction	document	native	native	native	native	native	native	native	37	79	661	-
+excel-om	-	forecolor	document	native	native	native	native	native	native	native	28	88	2542	-
+excel-om	-	usedrange	document	native	native	native	native	native	native	native	32	84	944	-
+excel-om		run	host-reach	model	model	model	model	model	model	model	25	90	882	-
+excel-om	ui.status	statusbar	host-reach	host	host	host	host	host	host	host	21	92	1081	-
+excel-om	-	resize	document	native	native	native	native	native	native	native	29	84	892	-
+excel-om	-	parent	document	native	native	native	native	native	native	native	23	90	1012	-
+excel-om	-	hide	document	native	native	native	native	native	native	native	32	79	810	-
+excel-om	-	selectedsheets	document	native	native	native	native	native	native	native	95	16	624	-
+excel-om	-	sort	document	native	native	native	native	native	native	native	66	40	477	-
+excel-om	print	printout	host-reach	host	host	host	replace	host	host	reject	86	20	559	-
+excel-om	-	entirecolumn	document	native	native	native	native	native	native	native	50	56	841	-
+excel-om	fs	save	host-reach	native	native	native	native	native	mediated	native	47	58	220	reach fs.write
+excel-om	-	hidden	document	native	native	native	native	native	native	native	67	37	1387	-
+excel-om	-	verticalalignment	document	native	native	native	native	native	native	native	42	57	504	-
+excel-om	-	rowheight	document	native	native	native	native	native	native	native	49	49	528	-
+excel-om	-	find	document	native	native	native	native	native	native	native	28	69	655	-
+excel-om	-	pagesetup	document	native	native	native	native	native	native	native	64	33	797	-
+excel-om	-	replace	document	native	native	native	native	native	native	native	22	75	766	-
+excel-om	-	listobjects	document	native	native	native	native	native	native	native	14	79	1562	-
+excel-om	-	value2	document	native	native	native	native	native	native	native	15	78	2409	-
+excel-om	-	wraptext	document	native	native	native	native	native	native	native	44	44	659	-
+excel-om	-	zoom	document	native	native	native	native	native	native	native	40	46	381	-
+excel-om	-	characters	document	native	native	native	native	native	native	native	28	58	1517	-
+excel-om	-	onaction	document	native	native	native	native	native	native	native	30	56	784	-
+excel-om	-	names	document	native	native	native	native	native	native	native	27	58	1972	-
+excel-om	-	format	document	native	native	native	native	native	native	native	11	73	933	-
+excel-om	-	activesheet	document	native	native	native	native	native	native	native	28	55	1164	-
+excel-om	-	max	document	native	native	native	native	native	native	native	32	50	379	-
+excel-om	-	index	document	native	native	native	native	native	native	native	29	51	835	-
+excel-om	-	calculate	document	native	native	native	native	native	native	native	26	53	266	-
+excel-om	-	backcolor	document	native	native	native	native	native	native	native	20	57	1959	-
+excel-om	path.windows	fullname	host-reach	native	shim	shim	shim	shim	shim	shim	22	54	283	-
+excel-om	-	mergecells	document	native	native	native	native	native	native	native	53	22	427	-
+excel-om	-	version	document	native	native	native	native	native	native	native	19	54	185	-
+excel-om	-	locked	document	native	native	native	native	native	native	native	34	38	736	-
+excel-om	-	specialcells	document	native	native	native	native	native	native	native	25	45	175	-
+excel-om	-	title	document	native	native	native	native	native	native	native	4	66	143	-
+excel-om	-	goto	document	native	native	native	native	native	native	native	47	23	806	-
+excel-om	-	chartobjects	document	native	native	native	native	native	native	native	26	43	866	-
+excel-om		vbproject	host-reach	model	model	model	model	model	model	model	3	66	505	reach project.write
+excel-om	ui.filedialog	filedialog	host-reach	host	host	host	reject	host	mediated	reject	5	64	132	-
+excel-om	-	printarea	document	native	native	native	native	native	native	native	49	17	333	-
+excel-om	-	fill	document	native	native	native	native	native	native	native	17	49	1252	-
+excel-om	-	databodyrange	document	native	native	native	native	native	native	native	7	59	3763	-
+excel-om	-	formatconditions	document	native	native	native	native	native	native	native	4	61	621	-
+excel-om	-	tintandshade	document	native	native	native	native	native	native	native	28	37	515	-
+excel-om	-	underline	document	native	native	native	native	native	native	native	39	25	607	-
+excel-om	-	position	document	native	native	native	native	native	native	native	8	56	270	-
+excel-om	-	line	document	native	native	native	native	native	native	native	12	51	1563	-
+excel-om	-	smallscroll	document	native	native	native	native	native	native	native	57	5	470	-
+excel-om	ui.commandbars	commandbars	host-reach	model	model	model	model	model	model	model	30	32	267	-
+excel-om	-	min	document	native	native	native	native	native	native	native	27	31	302	-
+excel-om	ui.filedialog	getopenfilename	host-reach	host	host	host	reject	host	mediated	reject	25	32	76	-
+excel-om	-	strikethrough	document	native	native	native	native	native	native	native	42	14	286	-
+excel-om	-	chart	document	native	native	native	native	native	native	native	16	40	842	-
+excel-om	-	italic	document	native	native	native	native	native	native	native	15	39	222	-
+excel-om	-	listcolumns	document	native	native	native	native	native	native	native	6	48	3198	-
+excel-om	-	split	document	native	native	native	native	native	native	native	1	53	522	-
+excel-om	-	scrollrow	document	native	native	native	native	native	native	native	36	17	2351	-
+excel-om	-	workbooks	document	native	native	native	native	native	native	native	16	37	120	-
+excel-om	-	worksheet	document	native	native	native	native	native	native	native	9	44	303	-
+excel-om	-	merge	document	native	native	native	native	native	native	native	19	32	290	-
+excel-om	-	shadow	document	native	native	native	native	native	native	native	38	12	241	-
+excel-om	-	refresh	document	native	native	native	native	native	native	native	17	33	125	-
+excel-om	-	seriescollection	document	native	native	native	native	native	native	native	16	34	782	-
+excel-om	-	listrows	document	native	native	native	native	native	native	native	10	40	490	-
+excel-om	-	style	document	native	native	native	native	native	native	native	11	39	215	-
+excel-om	-	freezepanes	document	native	native	native	native	native	native	native	17	32	290	-
+excel-om	-	shrinktofit	document	native	native	native	native	native	native	native	35	14	229	-
+excel-om	-	autofilter	document	native	native	native	native	native	native	native	22	27	267	-
+excel-om	-	axes	document	native	native	native	native	native	native	native	23	26	791	-
+excel-om	-	currentregion	document	native	native	native	native	native	native	native	16	31	123	-
+excel-om	block	wait	host-reach	native	native	native	native	native	shim	native	2	45	195	-
+excel-om	-	referstorange	document	native	native	native	native	native	native	native	13	33	2069	-
+excel-om	-	fittopagestall	document	native	native	native	native	native	native	native	28	18	155	-
+excel-om	-	textframe	document	native	native	native	native	native	native	native	8	38	1213	-
+excel-om	-	quit	document	native	native	native	native	native	native	native	11	34	91	-
+excel-om	-	leftmargin	document	native	native	native	native	native	native	native	27	18	143	-
+excel-om	-	rightmargin	document	native	native	native	native	native	native	native	27	18	143	-
+excel-om	-	topmargin	document	native	native	native	native	native	native	native	27	18	146	-
+excel-om	-	bottommargin	document	native	native	native	native	native	native	native	27	18	146	-
+excel-om	fs path.windows	export	host-reach	native	shim	shim	shim	shim	mediated	shim	3	42	85	reach fs.write
+excel-om	-	hyperlinks	document	native	native	native	native	native	native	native	13	31	176	-
+excel-om	-	addshape	document	native	native	native	native	native	native	native	6	38	184	-
+excel-om	-	activeworkbook	document	native	native	native	native	native	native	native	18	26	79	-
+excel-om	-	fittopageswide	document	native	native	native	native	native	native	native	26	18	147	-
+excel-om	-	asc	document	native	native	native	native	native	native	native	2	42	69	-
+excel-om	-	application	document	native	native	native	native	native	native	native	10	33	171	-
+excel-om	-	centerfooter	document	native	native	native	native	native	native	native	37	6	184	-
+excel-om	-	pivottables	document	native	native	native	native	native	native	native	12	31	358	-
+excel-om	-	move	document	native	native	native	native	native	native	native	24	18	167	-
+excel-om	clipboard.internal	cut	host-reach	model	model	model	model	model	model	model	28	14	183	-
+excel-om	-	superscript	document	native	native	native	native	native	native	native	33	9	192	-
+excel-om	-	match	document	native	native	native	native	native	native	native	11	31	220	-
+excel-om	-	textframe2	document	native	native	native	native	native	native	native	7	35	1159	-
+excel-om	-	transpose	document	native	native	native	native	native	native	native	10	32	176	-
+excel-om	timer event-loop	ontime	host-reach	host	host	host	host	host	host	reject	10	31	322	-
+excel-om	-	charttitle	document	native	native	native	native	native	native	native	15	26	169	-
+excel-om	-	counta	document	native	native	native	native	native	native	native	9	32	130	-
+excel-om	-	id	document	native	native	native	native	native	native	native	3	38	342	-
+excel-om	-	subscript	document	native	native	native	native	native	native	native	34	6	193	-
+excel-om	-	fontstyle	document	native	native	native	native	native	native	native	29	11	184	-
+excel-om	-	autofill	document	native	native	native	native	native	native	native	27	13	244	-
+excel-om	-	rightfooter	document	native	native	native	native	native	native	native	31	8	166	-
+excel-om	ui.filedialog	dialogs	host-reach	host	host	host	reject	host	mediated	reject	21	18	62	-
+excel-om	-	addindent	document	native	native	native	native	native	native	native	33	6	213	-
+excel-om	-	indentlevel	document	native	native	native	native	native	native	native	27	12	225	-
+excel-om	-	values	document	native	native	native	native	native	native	native	10	29	325	-
+excel-om	-	saved	document	native	native	native	native	native	native	native	11	28	95	-
+excel-om	-	enablecancelkey	document	native	native	native	native	native	native	native	19	19	117	-
+excel-om	-	validation	document	native	native	native	native	native	native	native	12	26	191	-
+excel-om	ui.filedialog	getsaveasfilename	host-reach	host	host	host	reject	host	mediated	reject	14	24	55	-
+excel-om	-	leftfooter	document	native	native	native	native	native	native	native	29	8	137	-
+excel-om	-	inchestopoints	document	native	native	native	native	native	native	native	26	11	734	-
+excel-om	-	shaperange	document	native	native	native	native	native	native	native	13	24	400	-
+excel-om	-	scrollcolumn	document	native	native	native	native	native	native	native	26	11	525	-
+excel-om	-	apply	document	native	native	native	native	native	native	native	11	26	129	-
+excel-om	path.windows	pathseparator	host-reach	native	shim	shim	shim	shim	shim	shim	6	30	317	-
+excel-om	ui.dialog	inputbox	host-reach	host	host	host	host	host	host	host	14	22	277	-
+excel-om	-	papersize	document	native	native	native	native	native	native	native	24	12	135	-
+excel-om	-	headermargin	document	native	native	native	native	native	native	native	23	13	123	-
+excel-om	-	footermargin	document	native	native	native	native	native	native	native	23	13	123	-
+excel-om	-	protectcontents	document	native	native	native	native	native	native	native	14	21	95	-
+excel-om	-	comment	document	native	native	native	native	native	native	native	11	24	256	-
+excel-om	-	patterncolorindex	document	native	native	native	native	native	native	native	22	13	217	-
+excel-om	-	hasformula	document	native	native	native	native	native	native	native	12	23	204	-
+excel-om	-	windows	document	native	native	native	native	native	native	native	8	26	127	-
+excel-om	-	xvalues	document	native	native	native	native	native	native	native	10	24	214	-
+excel-om	-	listobject	document	native	native	native	native	native	native	native	7	27	93	-
+excel-om	-	areas	document	native	native	native	native	native	native	native	9	24	143	-
+excel-om	-	centerhorizontally	document	native	native	native	native	native	native	native	23	10	113	-
+excel-om	-	charttype	document	native	native	native	native	native	native	native	10	23	141	-
+excel-om	-	refersto	document	native	native	native	native	native	native	native	10	22	182	-
+excel-om	-	displaygridlines	document	native	native	native	native	native	native	native	13	19	91	-

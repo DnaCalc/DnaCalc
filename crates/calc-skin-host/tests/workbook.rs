@@ -1730,3 +1730,76 @@ fn binding_snapshot_reads_calculated_outputs_at_one_workbook_generation() {
     assert_eq!(values(&current), [value(5.0), value(15.0)]);
     assert_eq!(values(&opening), [value(2.0), value(6.0)]);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_agent_look_reaches_the_operator_without_editing_the_workbook() {
+    let (host, _) = workbook();
+    let operator = port(&host);
+    let before = operator.next_frame().unwrap().unwrap().stamp;
+    let agent = host.connect(
+        Origin::Agent {
+            agent: "audit assistant".into(),
+            proposal: "calm-classic".into(),
+        },
+        WritePolicy::Propose,
+    );
+    let skin = serde_json::from_value(serde_json::json!({
+        "schema": "dna.skin/1",
+        "id": "calm-classic",
+        "name": "Calm Classic",
+        "theme": {
+            "base": "cockpit-dark",
+            "density": "working",
+            "overrides": { "formula.font.size": "15.5px" }
+        }
+    })).unwrap();
+    let look = TryOnPayload::Skin(Box::new(skin));
+    let request = Operation::TryOn {
+        expected: before,
+        look: look.clone(),
+    };
+    let reply = agent.handle(Packet {
+        envelope: Envelope::new(1, Message::WorkbookRequest(WorkbookRequest::Run(request.clone()))),
+        bytes: None,
+    });
+    assert_eq!(reply.envelope.message, Message::WorkbookReply(WorkbookReply::Stamp(before)));
+    assert_eq!(operator.run(request), Err(Refusal::PolicyRefused));
+    let frame = operator.next_frame().unwrap().expect("operator receives the look");
+    assert_eq!(frame.stamp, before);
+    assert!(frame.events.contains(&Event::TryOn(LookOffer {
+        at: before,
+        agent: "audit assistant".into(),
+        proposal: "calm-classic".into(),
+        look: look.clone(),
+    })));
+    assert!(operator.next_frame().unwrap().is_none());
+
+    let history = query::History::decode(operator.ask(query::History.request(), BUDGET).unwrap())
+        .unwrap().body;
+    assert!(history.undo.is_empty());
+
+    let joined = port(&host);
+    assert!(joined.next_frame().unwrap().unwrap().events.iter()
+        .all(|event| !matches!(event, Event::TryOn(_))));
+    let TryOnPayload::Skin(mut malformed) = look;
+    malformed.pages.insert("unbound".into(), Page {
+        schema: PageSchema::V1,
+        title: "Unbound page".into(),
+        input: InputPolicy::Live,
+        root: PageNode::Part {
+            id: "unbound".into(),
+            component: "value".into(),
+            bind: [("value".into(), Bound {
+                anchor: AnchorId(NonZeroU128::new(991).unwrap()),
+                address: "Sheet1!A1".into(),
+            })].into(),
+            props: Default::default(),
+        },
+    });
+    assert!(agent.run(Operation::TryOn {
+        expected: before,
+        look: TryOnPayload::Skin(malformed),
+    }).is_err());
+    assert!(operator.next_frame().unwrap().is_none());
+}

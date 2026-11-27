@@ -17,6 +17,9 @@ calc-skin = { path = "../../crates/calc-skin" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 dna-kit = { path = "../dna-kit" }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "=0.3.94", features = ["Storage", "Window"] }
+
 # The session test drives the page core against the real workbook service.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 calc-doc = { path = "../../crates/calc-doc" }

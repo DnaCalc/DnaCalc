@@ -1,0 +1,644 @@
+{
+ "declare": {
+  "distinct_entry_points": 736,
+  "entry_points_by_group": {
+   "clipboard": 8,
+   "code": 23,
+   "dialog": 4,
+   "download": 1,
+   "gdi": 81,
+   "guid": 4,
+   "handle": 6,
+   "identity": 11,
+   "keys": 3,
+   "mac-dylib": 5,
+   "memory": 11,
+   "net": 53,
+   "open": 1,
+   "other": 84,
+   "own-dll": 274,
+   "path": 20,
+   "registry": 4,
+   "string": 15,
+   "time": 15,
+   "window": 113
+  },
+  "listed": 261,
+  "project_uses_by_group": {
+   "clipboard": 54,
+   "code": 124,
+   "dialog": 10,
+   "download": 3,
+   "gdi": 169,
+   "guid": 15,
+   "handle": 41,
+   "identity": 27,
+   "keys": 19,
+   "mac-dylib": 5,
+   "memory": 124,
+   "net": 116,
+   "open": 8,
+   "other": 88,
+   "own-dll": 284,
+   "path": 45,
+   "registry": 9,
+   "string": 69,
+   "time": 212,
+   "window": 333
+  },
+  "projects_blocked_by_group": {
+   "code": 43,
+   "gdi": 24,
+   "handle": 20,
+   "mac-dylib": 1,
+   "net": 14,
+   "other": 24,
+   "own-dll": 27,
+   "registry": 3,
+   "window": 54
+  },
+  "projects_fully_covered_cumulative": {
+   "plus memory": 51,
+   "plus tier 2: clipboard keys open download": 66,
+   "plus tier 3: dialog": 68,
+   "tier 1: time string identity guid path": 40
+  },
+  "projects_with_declare": 175
+ },
+ "hosts": [
+  "windows",
+  "macos",
+  "linux",
+  "server",
+  "web-hosted",
+  "web-wasm",
+  "wasi"
+ ],
+ "linux_run": {
+  "distinct_project_entries": {
+   "host / VBA run-time error": 52,
+   "host / failed": 4,
+   "host / host facility absent": 52,
+   "host / not modelled": 203,
+   "host / not run: project not admitted": 1448,
+   "host / success": 133,
+   "model / VBA run-time error": 86,
+   "model / not modelled": 59,
+   "model / not run: project not admitted": 111,
+   "model / success": 22,
+   "native / VBA run-time error": 371,
+   "native / needs arguments": 24,
+   "native / not callable": 8,
+   "native / not modelled": 398,
+   "native / not run: project not admitted": 5182,
+   "native / policy denial": 1,
+   "native / success": 932,
+   "reject / not modelled": 2,
+   "reject / not run: project not admitted": 32,
+   "reject / policy denial": 9,
+   "replace / VBA run-time error": 24,
+   "replace / needs arguments": 1,
+   "replace / not modelled": 6,
+   "replace / not run: project not admitted": 405,
+   "replace / success": 17,
+   "shim / VBA run-time error": 4,
+   "shim / host facility absent": 1,
+   "shim / not modelled": 36,
+   "shim / not run: project not admitted": 146,
+   "shim / policy denial": 4
+  },
+  "entries_unmatched_to_source": 28,
+  "every_workbook_entries": {
+   "host / VBA run-time error": 141,
+   "host / failed": 4,
+   "host / host facility absent": 65,
+   "host / not modelled": 217,
+   "host / success": 216,
+   "model / VBA run-time error": 93,
+   "model / not modelled": 66,
+   "model / success": 25,
+   "native / VBA run-time error": 424,
+   "native / needs arguments": 24,
+   "native / not callable": 8,
+   "native / not modelled": 606,
+   "native / policy denial": 1,
+   "native / success": 2759,
+   "reject / not modelled": 3,
+   "reject / policy denial": 10,
+   "replace / VBA run-time error": 51,
+   "replace / needs arguments": 1,
+   "replace / not modelled": 212,
+   "replace / success": 17,
+   "shim / VBA run-time error": 7,
+   "shim / host facility absent": 2,
+   "shim / not modelled": 79,
+   "shim / policy denial": 5
+  },
+  "examples": {
+   "host / VBA run-time error": [
+    "06141beb1fed Module1.PrintForm [om.printout]",
+    "075ea1ced099 W010MemberOracleRuntime.CloseMemberOracle [wait.doevents]",
+    "0a8b623ff746 Module1.test [om.printout]"
+   ],
+   "host / failed": [
+    "176938672301 PsychroLib.RunAllTests [ui.msgbox]",
+    "176938672301 PsychroLib.test_GetTDewPointFromVapPres_convergence [ui.msgbox]",
+    "99af022502de NonLinMC.RunMC [clock.now-timer om.statusbar ui.msgbox wait.doevents]"
+   ],
+   "host / host facility absent": [
+    "06c648de5529 testVBA.test [ui.msgbox]",
+    "0de8957b297f Module3.PrintSelectedForms [om.printout ui.msgbox]",
+    "0de8957b297f Module6.EnableMacrosTest [ui.msgbox]"
+   ],
+   "host / not modelled": [
+    "026901d59629 Module1.StepClock [wait.doevents]",
+    "026901d59629 Module1.LoadProgram [wait.doevents]",
+    "026901d59629 Module1.Run [wait.doevents]"
+   ],
+   "host / success": [
+    "080c9ccdaa65 W010MemberOracleRuntime.CloseMemberOracle [wait.doevents]",
+    "176938672301 PsychroLib.test_GetSatVapPres [ui.msgbox]",
+    "176938672301 PsychroLib.test_GetSatHumRatio [ui.msgbox]"
+   ],
+   "model / VBA run-time error": [
+    "0ee0bca8cdd5 Module1.Macro1 [om.clipboard]",
+    "17a24ffbd0ee Module1.Generate_TestPack [om.application-run]",
+    "1cfd1c5387b3 Module5.Macro1 [om.clipboard]"
+   ],
+   "model / not modelled": [
+    "08d1a62ee574 Module3.SortData [om.clipboard]",
+    "0ab3d8c1e5d4 Module5.net [om.clipboard]",
+    "0ab3d8c1e5d4 Module5.ir [om.clipboard]"
+   ],
+   "model / success": [
+    "24124ef4100d Module8.Clear_All [om.application-run]",
+    "5466cfdc0f61 Module13.\u05de\u05d7\u05d9\u05e7\u05d4 [om.clipboard]",
+    "5466cfdc0f61 Module15.\u05e9\u05d5\u05e8\u05d4 [om.clipboard]"
+   ],
+   "native / VBA run-time error": [
+    "050d2d0428e6 Module1.Macro2 []",
+    "0542070c4937 Module2.Surface []",
+    "0542070c4937 Module2.Testlocal []"
+   ],
+   "native / needs arguments": [
+    "0af583d8c5ca Module1.GetFormula []",
+    "20085c939f45 SampleModule.IncrementCounter []",
+    "20085c939f45 SampleModule.OnRibbonLoad []"
+   ],
+   "native / not callable": [
+    "127b42fdbfed Module1.RandomNumbers []",
+    "1d4384c237c5 TestMacros.TestLog_ASSERT []",
+    "471229bad336 testMacros.TestLog_ASSERT []"
+   ],
+   "native / not modelled": [
+    "026901d59629 Module1.ResetCPU []",
+    "041df73335c4 OxFormsW006CtrlVOracle.W006CtrlVLog []",
+    "041df73335c4 OxFormsW006CtrlVOracle.ClearW006CtrlVLog []"
+   ],
+   "native / policy denial": [],
+   "native / success": [
+    "026901d59629 Module1.ZeroROM []",
+    "03b6c03b04dd W010MemberOracleRuntime.CloseMemberOracle []",
+    "03b6c03b04dd W010MemberOracleRuntime.GetMemberOracleHarnessError []"
+   ],
+   "reject / not modelled": [
+    "8236ffde1a3f Module4.GENERATEINVOICE [om.sendmail]",
+    "ce0b96803346 M\u00f3dulo1.ImportWordTable [com.getobject om.file-dialog ui.inputbox ui.msgbox]"
+   ],
+   "reject / policy denial": [
+    "8236ffde1a3f Module10.ROUTEINVOICE [file.chdir om.clipboard om.save om.saveas om.sendmail path.drive-letter]",
+    "af1735dfa406 mNWAddIn.NWSrvConnsInUse [ffi.declare-call ffi.pointer]",
+    "af1735dfa406 mNWAddIn.NWSrvNCPStations [ffi.declare-call ffi.pointer]"
+   ],
+   "replace / VBA run-time error": [
+    "041df73335c4 OxFormsW006CtrlVOracle.ShowW006CtrlVModeless [ui.form-show]",
+    "0f954d763056 modRealProperty.Complete [om.executeexcel4macro om.querytables path.backslash-literal]",
+    "0fbaee2a8b84 OxFormsRectangleOracle.ShowRectangleLabelOracle [ui.form-show]"
+   ],
+   "replace / needs arguments": [
+    "87dfcd3de209 RibbonX.OnAction [om.commandbars ui.form-show]"
+   ],
+   "replace / not modelled": [
+    "03b6c03b04dd W010MemberOracleRuntime.RunMemberOracle [ui.form-show wait.doevents]",
+    "05c9af79ce69 W010MemberOracleRuntime.RunMemberOracle [ui.form-show wait.doevents]",
+    "075ea1ced099 W010MemberOracleRuntime.RunMemberOracle [ui.form-show wait.doevents]"
+   ],
+   "replace / success": [
+    "0fd3eb2ad279 kccWsFuncRegExp.Test_ALLTEST [com.createobject com.early-bound]",
+    "0fd3eb2ad279 kccWsFuncRegExp.RegexIsMatch [com.createobject com.early-bound]",
+    "0fd3eb2ad279 kccWsFuncRegExp.Test_RegexIsMatch [com.createobject com.early-bound]"
+   ],
+   "shim / VBA run-time error": [
+    "0c2a055b0bbd QModule.QRetrieve [om.clipboard om.printout om.saveas om.workbooks-open ui.msgbox]",
+    "5b413f80e210 Module1.londond [file.chdir om.clipboard om.commandbars om.printout om.saveas path.drive-letter]",
+    "8236ffde1a3f Module8.COPYTOLOG [om.clipboard om.save om.workbooks-open path.drive-letter]"
+   ],
+   "shim / host facility absent": [
+    "37115e9ece0d Module1.Save [om.file-dialog om.saveas ui.inputbox ui.msgbox]"
+   ],
+   "shim / not modelled": [
+    "00f3ceac5719 Module1.CopyTable [om.path om.workbooks-open path.backslash-literal]",
+    "107926b1eafc Link.updateLinks [file.curdir path.backslash-literal]",
+    "113dcb53004c Link.updateLinks [file.curdir om.file-dialog path.backslash-literal]"
+   ],
+   "shim / policy denial": [
+    "094189733a28 ImportarHoja.importarHoja [file.dir om.workbooks-open path.drive-letter ui.msgbox]",
+    "4d608771dfc5 Module9.legmaxwebupdate [file.chdir om.clipboard om.printout om.save om.workbooks-open path.drive-letter]",
+    "cb6083328bae Module1.FileToDatabase [file.dir om.workbooks-open path.drive-letter]"
+   ]
+  },
+  "guarded": {
+   "needs a grant / VBA run-time error": 11,
+   "needs a grant / host facility absent": 2,
+   "needs a grant / not modelled": 39,
+   "needs a grant / policy denial": 13,
+   "no grant / VBA run-time error": 526,
+   "no grant / failed": 4,
+   "no grant / host facility absent": 51,
+   "no grant / needs arguments": 25,
+   "no grant / not callable": 8,
+   "no grant / not modelled": 665,
+   "no grant / policy denial": 1,
+   "no grant / success": 1104
+  },
+  "linux_blockers": {
+   "com.getobject": 1,
+   "declare:calwin32!NWGetCPUInfo": 1,
+   "declare:calwin32!NWGetDirSpaceInfo": 3,
+   "declare:calwin32!NWGetFileServerInfo": 2,
+   "declare:calwin32!NWGetFileServerVersionInfo": 1,
+   "declare:calwin32!NWGetOSVersionInfo": 1,
+   "declare:calwin32!NWGetVolumeNumber": 3,
+   "declare:clxwin32!NWCCCloseConn": 8,
+   "declare:clxwin32!NWCCOpenConnByName": 8,
+   "om.sendmail": 2
+  },
+  "mechanism_alone_unblocks": {
+   "MSForms runtime": 25,
+   "class Scripting.Dictionary": 5,
+   "class VBScript.RegExp": 14,
+   "path map": 29,
+   "path map (reverse)": 5,
+   "persona": 1,
+   "text and web queries only": 4
+  },
+  "mechanism_needed_by_entries": {
+   "MSForms runtime": 25,
+   "class Scripting.Dictionary": 5,
+   "class VBScript.RegExp": 14,
+   "path map": 40,
+   "path map (reverse)": 14,
+   "persona": 2,
+   "text and web queries only": 4
+  },
+  "outcome_detail": {
+   "VBA run-time error": {
+    "-2147024809": 17,
+    "1004": 208,
+    "13": 96,
+    "361": 3,
+    "424": 7,
+    "438": 3,
+    "5": 1,
+    "9": 162,
+    "91": 40
+   },
+   "host facility absent": {
+    "UiInteraction (input_box)": 12,
+    "UiInteraction (msg_box)": 41
+   },
+   "not modelled": {
+    "Application.Range address form": 20,
+    "Automation session is busy": 25,
+    "Names.Add RefersToR1C1": 29,
+    "PageSetup.PrintArea": 26,
+    "Range.AddIndent": 19,
+    "Range.Clear": 32,
+    "Range.GoalSeek": 17,
+    "Range.Hidden": 18,
+    "Range.Sort Type, OrderCustom and SubField1": 36,
+    "Window.ScrollWorkbookTabs": 59,
+    "Window.SelectedSheets": 87,
+    "Window.SmallScroll": 60
+   },
+   "policy denial": {
+    "Ffi": 9,
+    "FsRead": 3,
+    "FsWrite": 2
+   }
+  },
+  "projects": {
+   "projects: admitted": 976,
+   "projects: no result": 26,
+   "projects: not admitted": 322,
+   "workbooks: admitted": 2595,
+   "workbooks: no result": 38,
+   "workbooks: not admitted": 612
+  }
+ },
+ "members": {
+  "om_spellings_listed": 200,
+  "om_spellings_seen": 833,
+  "vba_rows": 214
+ },
+ "sets": {
+  "clean": {
+   "distinct_projects": 1324,
+   "procedures": 16615,
+   "projects_with_declare": 7,
+   "static_class_by_host": {
+    "call_edges": 24629,
+    "guarded": {
+     "com.activate": 21,
+     "env": 12,
+     "ffi": 60,
+     "fs.read": 244,
+     "fs.write": 280,
+     "needs a grant": 495,
+     "network": 232,
+     "no grant": 16120,
+     "process": 8,
+     "project.write": 5,
+     "ui.keys": 4
+    },
+    "procedure_total": 16615,
+    "procedures": {
+     "linux": {
+      "host": 3035,
+      "model": 405,
+      "native": 11883,
+      "reject": 98,
+      "replace": 940,
+      "shim": 254
+     },
+     "macos": {
+      "host": 3035,
+      "model": 405,
+      "native": 11883,
+      "reject": 98,
+      "replace": 940,
+      "shim": 254
+     },
+     "server": {
+      "host": 2621,
+      "model": 405,
+      "native": 11876,
+      "reject": 798,
+      "replace": 718,
+      "shim": 197
+     },
+     "wasi": {
+      "host": 2355,
+      "model": 405,
+      "native": 11876,
+      "reject": 1408,
+      "replace": 381,
+      "shim": 190
+     },
+     "web-hosted": {
+      "host": 3034,
+      "mediated": 11,
+      "model": 405,
+      "native": 11876,
+      "reject": 98,
+      "replace": 937,
+      "shim": 254
+     },
+     "web-wasm": {
+      "host": 2917,
+      "mediated": 343,
+      "model": 399,
+      "native": 11848,
+      "reject": 98,
+      "replace": 902,
+      "shim": 108
+     },
+     "windows": {
+      "host": 3502,
+      "model": 457,
+      "native": 12656
+     }
+    },
+    "procedures_with_direct_host_reach": 2875,
+    "procedures_with_dynamic_target": 19,
+    "procedures_with_host_reach_after_closure": 4771,
+    "project_total": 1324,
+    "projects_worst_procedure": {
+     "linux": {
+      "host": 199,
+      "model": 79,
+      "native": 821,
+      "reject": 24,
+      "replace": 134,
+      "shim": 67
+     },
+     "macos": {
+      "host": 199,
+      "model": 79,
+      "native": 821,
+      "reject": 24,
+      "replace": 134,
+      "shim": 67
+     },
+     "server": {
+      "host": 136,
+      "model": 79,
+      "native": 820,
+      "reject": 156,
+      "replace": 95,
+      "shim": 38
+     },
+     "wasi": {
+      "host": 135,
+      "model": 79,
+      "native": 820,
+      "reject": 239,
+      "replace": 17,
+      "shim": 34
+     },
+     "web-hosted": {
+      "host": 199,
+      "mediated": 3,
+      "model": 79,
+      "native": 820,
+      "reject": 24,
+      "replace": 132,
+      "shim": 67
+     },
+     "web-wasm": {
+      "host": 185,
+      "mediated": 119,
+      "model": 76,
+      "native": 817,
+      "reject": 24,
+      "replace": 95,
+      "shim": 8
+     },
+     "windows": {
+      "host": 361,
+      "model": 91,
+      "native": 872
+     }
+    }
+   },
+   "workbooks": 3245
+  },
+  "suspect": {
+   "distinct_projects": 532,
+   "procedures": 47868,
+   "projects_with_declare": 168,
+   "static_class_by_host": {
+    "call_edges": 202140,
+    "guarded": {
+     "com.activate": 1188,
+     "env": 3409,
+     "ffi": 9098,
+     "fs.read": 5885,
+     "fs.write": 5794,
+     "needs a grant": 14370,
+     "network": 3048,
+     "no grant": 33498,
+     "process": 2087,
+     "project.write": 828,
+     "settings": 894,
+     "ui.keys": 341
+    },
+    "procedure_total": 47868,
+    "procedures": {
+     "linux": {
+      "host": 3552,
+      "mediated": 11,
+      "model": 594,
+      "native": 27172,
+      "reject": 7892,
+      "replace": 6854,
+      "shim": 1793
+     },
+     "macos": {
+      "host": 3552,
+      "mediated": 26,
+      "model": 594,
+      "native": 27175,
+      "reject": 7874,
+      "replace": 6854,
+      "shim": 1793
+     },
+     "server": {
+      "host": 3337,
+      "model": 594,
+      "native": 27118,
+      "reject": 9484,
+      "replace": 5678,
+      "shim": 1657
+     },
+     "wasi": {
+      "host": 3167,
+      "model": 594,
+      "native": 27118,
+      "reject": 9828,
+      "replace": 5510,
+      "shim": 1651
+     },
+     "web-hosted": {
+      "host": 3529,
+      "mediated": 189,
+      "model": 594,
+      "native": 27118,
+      "reject": 7892,
+      "replace": 6770,
+      "shim": 1776
+     },
+     "web-wasm": {
+      "host": 3364,
+      "mediated": 1709,
+      "model": 592,
+      "native": 27090,
+      "reject": 7892,
+      "replace": 5872,
+      "shim": 1349
+     },
+     "windows": {
+      "host": 11471,
+      "model": 1308,
+      "native": 35059,
+      "reject": 30
+     }
+    },
+    "procedures_with_direct_host_reach": 10365,
+    "procedures_with_dynamic_target": 2059,
+    "procedures_with_host_reach_after_closure": 20803,
+    "project_total": 532,
+    "projects_worst_procedure": {
+     "linux": {
+      "host": 25,
+      "mediated": 2,
+      "model": 3,
+      "native": 18,
+      "reject": 204,
+      "replace": 193,
+      "shim": 87
+     },
+     "macos": {
+      "host": 25,
+      "mediated": 3,
+      "model": 3,
+      "native": 19,
+      "reject": 202,
+      "replace": 193,
+      "shim": 87
+     },
+     "server": {
+      "host": 22,
+      "model": 3,
+      "native": 17,
+      "reject": 322,
+      "replace": 92,
+      "shim": 76
+     },
+     "wasi": {
+      "host": 22,
+      "model": 3,
+      "native": 17,
+      "reject": 329,
+      "replace": 85,
+      "shim": 76
+     },
+     "web-hosted": {
+      "host": 24,
+      "mediated": 15,
+      "model": 3,
+      "native": 17,
+      "reject": 204,
+      "replace": 182,
+      "shim": 87
+     },
+     "web-wasm": {
+      "host": 23,
+      "mediated": 183,
+      "model": 3,
+      "native": 17,
+      "reject": 204,
+      "replace": 94,
+      "shim": 8
+     },
+     "windows": {
+      "host": 388,
+      "model": 77,
+      "native": 61,
+      "reject": 6
+     }
+    }
+   },
+   "workbooks": 549
+  }
+ },
+ "verdict_order": [
+  "native",
+  "model",
+  "host",
+  "shim",
+  "replace",
+  "mediated",
+  "reject"
+ ]
+}

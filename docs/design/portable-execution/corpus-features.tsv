@@ -1,0 +1,74 @@
+feature	reach	needs	windows	macos	linux	server	web-hosted	web-wasm	wasi	clean_projects	suspect_projects	clean_procedures	suspect_procedures	mechanism	owner
+ui.msgbox	-	ui.dialog	host	host	host	host	host	host	host	252	339	1373	2706	UI host	-
+path.backslash-literal	-	path.windows	native	shim	shim	shim	shim	shim	shim	74	304	114	1277	path map	dc-8svfs.3
+com.createobject	-	-	native	native	native	native	native	native	native	29	264	47	1295	see the class	-
+ui.form-show	-	ui.forms	native	replace	replace	reject	replace	replace	reject	104	156	444	800	MSForms runtime	dc-1jia7 dc-oxh8w.73
+clock.now-timer	-	clock	host	host	host	host	host	host	host	63	194	273	1030	-	-
+om.path	-	path.windows	native	shim	shim	shim	shim	shim	shim	46	204	62	706	path map (reverse)	dc-8svfs.3
+om.clipboard	-	clipboard.internal	model	model	model	model	model	model	model	127	75	316	219	internal clipboard; the system clipboard is the clipboard facet	-
+path.drive-letter	-	path.windows	native	shim	shim	shim	shim	shim	shim	43	157	53	285	path map	dc-8svfs.3
+ffi.declare-call	-	-	native	native	native	native	native	native	native	7	164	33	1537	see the entry point	-
+wait.doevents	-	event-loop	host	host	host	host	host	host	host	18	151	33	624	UI host	-
+om.saveas	fs.write network	fs path.windows	native	shim	shim	shim	shim	mediated	shim	46	122	55	193	path map	dc-8svfs.3
+om.file-dialog	-	ui.filedialog	host	host	host	reject	host	mediated	reject	55	96	79	214	UI host	-
+file.print#	fs.write	codepage	model	model	model	model	model	model	model	8	134	11	209	code page model	dc-8svfs.5
+file.open-write	fs.write	fs path.windows codepage	native	shim	shim	shim	shim	shim	shim	7	129	9	191	path map	dc-8svfs.3 dc-8svfs.5
+ui.inputbox	-	ui.dialog	host	host	host	host	host	host	host	49	81	249	263	UI host	-
+file.dir	fs.read	fs path.windows fs.case-insensitive	native	shim	shim	shim	shim	shim	shim	20	102	32	330	path map	dc-8svfs.3
+om.application-run	-	-	model	model	model	model	model	model	model	30	92	78	273	-	-
+om.printout	-	print	host	host	host	replace	host	host	reject	93	26	307	50	print facet	dc-971p.57
+om.statusbar	-	ui.status	host	host	host	host	host	host	host	21	94	42	419	-	-
+com.early-bound	-	-	native	native	native	native	native	native	native	14	100	43	1493	see the class	-
+path.url	network	network	native	native	native	native	native	mediated	native	6	104	8	595	network facet	-
+om.save	fs.write	fs	native	native	native	native	native	mediated	native	47	58	64	115	-	-
+om.workbooks-open	fs.read network	fs path.windows	native	shim	shim	shim	shim	mediated	shim	41	55	61	135	path map	dc-8svfs.3
+file.kill	fs.write	fs path.windows	native	shim	shim	shim	shim	shim	shim	13	65	15	125	path map	dc-8svfs.3
+env.environ	env	env.windows	native	shim	shim	shim	shim	shim	shim	3	75	11	257	Environ shim	dc-8svfs.6
+om.chart	-	-	native	native	native	native	native	native	native	31	46	348	318	-	-
+om.vbproject	project.write	-	model	model	model	model	model	model	model	3	72	3	453	-	-
+ffi.pointer	-	-	native	native	native	native	native	native	native	1	73	1	1100	-	-
+om.commandbars	-	ui.commandbars	model	model	model	model	model	model	model	31	36	68	126	-	-
+file.mkdir	fs.write	fs path.windows	native	shim	shim	shim	shim	shim	shim	4	53	8	135	path map	dc-8svfs.3
+file.open-read	fs.read	fs path.windows	native	shim	shim	shim	shim	shim	shim	5	44	6	77	path map	dc-8svfs.3
+process.shell	process	process.windows	native	reject	reject	reject	reject	reject	reject	0	49	0	92	per-project command map	-
+wait.application-wait	-	block	native	native	native	native	native	shim	native	2	43	2	81	worker wait	dc-8svfs.14
+om.chart-export	fs.write	fs path.windows	native	shim	shim	shim	shim	mediated	shim	3	42	9	53	path map	dc-8svfs.3
+file.open-binary	fs.read fs.write	fs path.windows	native	shim	shim	shim	shim	shim	shim	4	40	5	92	path map	dc-8svfs.3
+wait.ontime	-	timer event-loop	host	host	host	host	host	host	reject	10	31	11	212	UI host	-
+om.querytables	network fs.read	data.connection	native	replace	replace	replace	replace	replace	reject	16	21	22	27	text and web queries only	-
+file.input#	fs.read	codepage	model	model	model	model	model	model	model	4	32	4	63	code page model	dc-8svfs.5
+om.pathseparator	-	path.windows	native	shim	shim	shim	shim	shim	shim	6	30	8	150	persona	-
+om.username	-	identity	host	host	host	host	host	host	host	3	33	4	72	persona	-
+com.getobject	com.activate	com.rot	native	reject	reject	reject	reject	reject	reject	4	30	4	77	-	-
+file.get-put#	fs.read fs.write	fs	native	native	native	native	native	native	native	3	30	6	59	-	-
+om.followhyperlink	network process	open.external	native	native	native	reject	mediated	mediated	reject	3	29	6	90	open facet	-
+om.export-pdf	fs.write	fs path.windows	native	shim	shim	shim	shim	mediated	shim	3	27	3	32	path map	dc-8svfs.3
+om.picture-file	fs.read	fs path.windows	native	shim	shim	shim	shim	mediated	shim	2	28	3	63	path map	dc-8svfs.3
+ui.sendkeys	ui.keys	ui.windows	native	reject	reject	reject	reject	reject	reject	4	25	4	41	-	-
+file.filelen	fs.read	fs path.windows	native	shim	shim	shim	shim	shim	shim	3	25	3	43	path map	dc-8svfs.3
+ui.onkey	-	ui.keys.own	host	host	host	reject	host	host	reject	5	22	11	51	UI host	-
+ffi.addressof	ffi	native.code	native	reject	reject	reject	reject	reject	reject	0	26	0	67	-	-
+file.filecopy	fs.read fs.write	fs path.windows	native	shim	shim	shim	shim	shim	shim	3	21	3	28	path map	dc-8svfs.3
+om.operatingsystem	-	identity	native	model	model	model	model	model	model	2	21	2	40	persona	-
+om.executeexcel4macro	-	-	model	model	model	model	model	model	model	13	9	16	20	-	-
+file.chdir	-	fs path.windows	native	shim	shim	shim	shim	shim	shim	7	11	9	17	path map	dc-8svfs.3
+file.curdir	-	path.windows	native	shim	shim	shim	shim	shim	shim	9	8	9	10	path map	dc-8svfs.3
+om.addins	-	-	model	model	model	model	model	model	model	3	14	3	22	-	-
+settings.vb	settings	settings	native	shim	shim	shim	shim	shim	shim	0	16	0	44	settings store	dc-8svfs.4
+path.wmi-moniker	com.activate	com.os	native	reject	reject	reject	reject	reject	reject	0	15	0	29	-	-
+file.getattr	fs.read	fs fs.attributes	native	shim	shim	shim	shim	shim	shim	0	12	0	19	attribute store	dc-8svfs.3
+om.defaultfilepath	-	path.windows	native	shim	shim	shim	shim	shim	shim	2	9	2	13	persona	-
+process.appactivate	process	ui.windows	native	reject	reject	reject	reject	reject	reject	0	10	0	18	-	-
+path.registry	settings	registry	native	reject	reject	reject	reject	reject	reject	0	9	0	9	-	-
+file.rmdir	fs.write	fs path.windows	native	shim	shim	shim	shim	shim	shim	0	8	0	9	path map	dc-8svfs.3
+file.name-as	fs.write	fs path.windows	native	shim	shim	shim	shim	shim	shim	0	8	0	16	path map	dc-8svfs.3
+file.chdrive	-	path.windows	native	shim	shim	shim	shim	shim	shim	1	6	1	9	path map	dc-8svfs.3
+file.filedatetime	fs.read	fs path.windows	native	shim	shim	shim	shim	shim	shim	2	5	3	5	path map	dc-8svfs.3
+file.setattr	fs.write	fs fs.attributes	native	shim	shim	shim	shim	shim	shim	0	6	0	14	attribute store	dc-8svfs.3
+path.unc	-	path.windows path.unc	native	shim	shim	shim	shim	shim	shim	2	4	2	11	path map (a mounted share only)	dc-8svfs.3
+mac.macscript	process	applescript	reject	mediated	reject	reject	reject	reject	reject	0	5	0	9	Mac dialect	dc-8svfs.12
+om.sendmail	network	mail.mapi	native	reject	reject	reject	reject	reject	reject	1	3	4	4	-	-
+om.speech	-	speech	native	reject	reject	reject	reject	reject	reject	0	4	0	9	-	-
+path.mac	-	path.mac	shim	native	shim	shim	shim	shim	shim	0	1	0	1	path map (Mac dialect)	dc-8svfs.12
+path.posix	-	path.posix	reject	native	native	native	native	shim	shim	0	1	0	1	native mode only	-
+om.registerxll	fs.read ffi	native.code.xll	native	reject	reject	reject	reject	reject	reject	0	0	0	0	-	-

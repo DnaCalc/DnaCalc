@@ -14,7 +14,7 @@ use calc_skin::grid::Key;
 use calc_skin::query::{self, Query};
 use calc_skin::{
     Answer, Batch, Budget, Coverage, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply,
-    Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookId, WorkbookSummary,
+    LookOffer, Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
@@ -80,6 +80,7 @@ pub struct Session {
     edit: RwSignal<u64>,
     seam: RwSignal<u64>,
     notice: RwSignal<u64>,
+    look: RwSignal<u64>,
     view: RwSignal<ViewId>,
     tip_path: RwSignal<Option<&'static str>>,
 }
@@ -131,6 +132,7 @@ impl Session {
             edit: RwSignal::new(0),
             seam: RwSignal::new(0),
             notice: RwSignal::new(0),
+            look: RwSignal::new(0),
             view: RwSignal::new(view),
             tip_path: RwSignal::new(None),
         };
@@ -181,6 +183,7 @@ impl Session {
             (changes.edit, self.edit),
             (changes.seam, self.seam),
             (changes.notice, self.notice),
+            (changes.look, self.look),
         ] {
             if moved {
                 tick(signal);
@@ -353,6 +356,20 @@ impl Session {
     pub fn last_refusal(self) -> Option<Refusal> {
         self.notice.track();
         self.peek(|client| client.last_refusal().cloned())
+    }
+
+    pub fn look_offer(self) -> Option<LookOffer> {
+        self.look.track();
+        self.peek(|client| client.look_offer().cloned())
+    }
+
+    pub fn take_look_offer(self) -> Option<LookOffer> {
+        let mut offer = None;
+        self.update(|client| {
+            offer = client.take_look_offer();
+            Changes { look: offer.is_some(), ..Changes::default() }
+        });
+        offer
     }
 
     pub fn summary(self) -> Option<WorkbookSummary> {

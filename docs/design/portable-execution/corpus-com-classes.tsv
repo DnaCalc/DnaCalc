@@ -1,0 +1,35 @@
+class	reach	windows	macos	linux	server	web-hosted	web-wasm	wasi	clean_projects	suspect_projects	off_windows_today	note
+Scripting.Dictionary	-	native	replace	replace	replace	replace	replace	replace	10	128	exists	engine class today
+Scripting.FileSystemObject	fs.read fs.write	native	replace	replace	replace	replace	replace	replace	10	126	missing	over the file facet and path map; dc-8svfs.8
+WScript.Shell	process settings env	native	replace	replace	replace	replace	replace	replace	0	71	missing	partial: SpecialFolders, ExpandEnvironmentStrings, CurrentDirectory, Popup; Run, Exec, RegRead, RegWrite reject
+ADODB.Stream	fs.read fs.write	native	replace	replace	replace	replace	replace	replace	0	62	missing	bytes, charsets, LoadFromFile/SaveToFile over the file facet; dc-8svfs.8
+VBScript.RegExp	-	native	replace	replace	replace	replace	replace	replace	9	52	exists	engine class today
+MSXML2.XMLHTTP	network	native	replace	replace	replace	replace	mediated	replace	0	31	missing	over the network facet; fetch under CORS in the browser
+MSXML2.DOMDocument	fs.read network	native	replace	replace	replace	replace	replace	replace	2	27	missing	DOM and XPath; load and save over the facets; dc-8svfs.8
+Outlook.Application	com.activate network	native	reject	reject	reject	reject	reject	reject	4	25	refused	another Office program
+WinHttp.WinHttpRequest	network	native	replace	replace	replace	replace	mediated	replace	0	25	missing	over the network facet
+Shell.Application	process fs.read fs.write	native	reject	reject	reject	reject	reject	reject	0	25	refused	two idioms could be replaced later: BrowseForFolder, zip through Namespace.CopyHere
+<dynamic ProgID>	-	native	native	native	native	native	native	native	1	24	run time	resolved when the call runs; the static report says unknown
+MSHTML htmlfile	network	native	reject	reject	reject	reject	reject	reject	0	18	refused	HTML parsing idiom; could be replaced by a parser without script later
+Word.Application	com.activate	native	reject	reject	reject	reject	reject	reject	5	12	refused	another Office program
+ADODB.Connection	network fs.read fs.write	native	reject	reject	reject	reject	reject	reject	3	13	refused	needs OLE DB providers
+other registered class	com.activate	native	reject	reject	reject	reject	reject	reject	0	16	refused	third-party or unlisted
+MSForms.DataObject	-	native	replace	replace	reject	mediated	mediated	reject	1	14	missing	the clipboard idiom, over the clipboard facet
+ADODB.Recordset	network fs.read	native	reject	reject	reject	reject	reject	reject	5	9	refused	a disconnected in-memory Recordset could be replaced later
+MSXML2.ServerXMLHTTP	network	native	replace	replace	replace	replace	mediated	replace	0	13	missing	as XMLHTTP
+WMI moniker	com.activate process	native	reject	reject	reject	reject	reject	reject	0	13	refused	-
+mscorlib hash classes	-	native	replace	replace	replace	replace	replace	replace	0	8	missing	pure
+InternetExplorer.Application	network process	native	reject	reject	reject	reject	reject	reject	0	8	refused	-
+Scriptlet.TypeLib	-	native	replace	replace	replace	replace	replace	replace	0	5	missing	the GUID idiom
+ADODB.Command	network	native	reject	reject	reject	reject	reject	reject	1	4	refused	-
+CDO mail	network	native	reject	reject	reject	reject	reject	reject	0	5	refused	-
+WScript.Network	env	native	replace	replace	replace	replace	replace	replace	0	3	missing	UserName, ComputerName, UserDomain from the persona; drive and printer mapping reject
+mscorlib ArrayList	-	native	replace	replace	replace	replace	replace	replace	1	2	missing	pure; on Windows needs .NET Framework 3.5
+mscorlib text classes	-	native	replace	replace	replace	replace	replace	replace	0	3	missing	pure
+PowerPoint.Application	com.activate	native	reject	reject	reject	reject	reject	reject	0	3	refused	another Office program
+Access.Application	com.activate	native	reject	reject	reject	reject	reject	reject	0	2	refused	another Office program
+Excel.Application	com.activate	native	reject	reject	reject	reject	reject	reject	0	2	refused	CODE_EXECUTION_POLICY open question 7: map to the host Application?
+WMI	com.activate process	native	reject	reject	reject	reject	reject	reject	0	2	refused	-
+Windows Image Acquisition	fs.read fs.write	native	reject	reject	reject	reject	reject	reject	0	2	refused	-
+MSXML2 SAX	-	native	reject	reject	reject	reject	reject	reject	0	1	missing	-
+ScriptControl	process	native	reject	reject	reject	reject	reject	reject	0	0	refused	runs script text

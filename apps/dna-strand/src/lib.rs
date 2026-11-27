@@ -27,5 +27,5 @@ pub use geometry::{
     RADIUS_PANEL, REDUCED_MOTION_FLAG,
 };
 pub use palette::Rgb;
-pub use resolve::{ResolvedTheme, ThemeError, resolve};
+pub use resolve::{ContrastReading, ResolvedTheme, ThemeError, resolve, resolve_draft};
 pub use theme::{COCKPIT_DARK, COCKPIT_LIGHT, Density, HIGH_CONTRAST, Theme, ThemeTokens};

@@ -1,0 +1,9 @@
+linux_static_class	not run: project not admitted	success	not modelled	VBA run-time error	host facility absent	needs arguments	policy denial	not callable	failed	total
+native	5182	932	398	371	0	24	1	8	0	6916
+model	111	22	59	86	0	0	0	0	0	278
+host	1448	133	203	52	52	0	0	0	4	1892
+shim	146	0	36	4	1	0	4	0	0	191
+replace	405	17	6	24	0	1	0	0	0	453
+mediated	0	0	0	0	0	0	0	0	0	0
+reject	32	0	2	0	0	0	9	0	0	43
+total	7324	1104	704	537	53	25	14	8	4	9773

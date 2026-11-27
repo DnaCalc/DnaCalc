@@ -17,7 +17,7 @@ use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::{self, Query};
 use calc_skin::{
     Answer, Batch, Budget, Change, Envelope, FormulaAnswer, FormulaOperation, FormulaQuery,
-    FormulaReply, Frame, Message, ModelChange, Operation, Packet, Preview, PreviewDepth, Refusal,
+    Event, FormulaReply, Frame, LookOffer, Message, ModelChange, Operation, Packet, Preview, PreviewDepth, Refusal,
     Revision, Selection, SourceRef, Stamp, Target, WatchId, WorkbookId, WorkbookReply, WorkbookRequest,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -91,6 +91,7 @@ pub struct Changes {
     pub committed: bool,
     pub seam: bool,
     pub notice: bool,
+    pub look: bool,
 }
 
 impl Changes {
@@ -106,6 +107,7 @@ impl Changes {
         self.committed |= other.committed;
         self.seam |= other.seam;
         self.notice |= other.notice;
+        self.look |= other.look;
     }
 }
 
@@ -150,6 +152,7 @@ pub struct Client {
     seam: Option<(Seam, Batch, Submission)>,
     notice: String,
     last_refusal: Option<Refusal>,
+    look_offer: Option<LookOffer>,
     formula_replies: Vec<(FormulaReply, Result<FormulaAnswer, Refusal>)>,
 }
 
@@ -215,6 +218,14 @@ impl Client {
     /// The Strip's message: the last refusal or the last undo notice. Empty when there is none.
     pub fn notice(&self) -> &str {
         &self.notice
+    }
+
+    pub fn look_offer(&self) -> Option<&LookOffer> {
+        self.look_offer.as_ref()
+    }
+
+    pub fn take_look_offer(&mut self) -> Option<LookOffer> {
+        self.look_offer.take()
     }
 
     pub fn last_refusal(&self) -> Option<&Refusal> {
@@ -621,6 +632,11 @@ impl Client {
                 | calc_skin::Update::Refused { watch, .. } => *watch,
             })
             .collect();
+        let offered_at = frame.stamp;
+        let look = frame.events.iter().rev().find_map(|event| match event {
+            Event::TryOn(offer) => Some(offer.clone()),
+            _ => None,
+        });
         if !self.store.apply(frame) {
             return Changes::default();
         }
@@ -629,6 +645,17 @@ impl Client {
             selection: before.1.as_ref() != self.selection(),
             ..Changes::default()
         };
+        let current = |offer: &LookOffer| {
+            offer.at.workbook == offered_at.workbook
+                && offer.at.model == offered_at.model
+                && offer.at.view == offered_at.view
+        };
+        if let Some(offer) = look.filter(current) {
+            changes.look = self.look_offer.as_ref() != Some(&offer);
+            self.look_offer = Some(offer);
+        } else if self.look_offer.as_ref().is_some_and(|offer| !current(offer)) {
+            changes.look = self.look_offer.take().is_some();
+        }
         let another_workbook = before
             .0
             .zip(self.stamp())
