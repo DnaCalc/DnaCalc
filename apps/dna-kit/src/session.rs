@@ -33,7 +33,8 @@ use std::rc::Rc;
 pub enum Focus {
     /// The stage: a view's body. A printable key starts a draft at the active cell.
     Stage,
-    /// The session's editor (the formula bar, an in-cell editor). Text goes to the editor.
+    /// The session's editor (the formula bar, an in-cell editor). Text and native clipboard
+    /// shortcuts stay with the editor, including when it has focus before opening a draft.
     Editor,
     /// Another text field (the Name Box, the search field). Only chords with Alt reach the
     /// keymap, so typing and the field's own Enter, arrows and Ctrl+Z stay the field's.
@@ -772,6 +773,13 @@ impl Session {
         match focus {
             Focus::Field if !input.alt || input.alt_graph => return false,
             Focus::ActionField if (!input.alt || input.alt_graph) && input.key != "Escape" => return false,
+            Focus::Editor
+                if (input.ctrl || input.meta)
+                    && !input.alt
+                    && matches!(input.key.as_str(), "c" | "C" | "v" | "V" | "x" | "X") =>
+            {
+                return false;
+            }
             _ => {}
         }
         if focus == Focus::Stage && self.tip_path.get_untracked().is_some()

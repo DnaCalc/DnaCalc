@@ -208,6 +208,19 @@ fn keys_in_another_field_stay_that_fields() {
     assert!(page.press("Alt+q", Focus::Field));
 }
 
+/// Native-only: tests selection and editor focus through the real workbook page commands.
+#[test]
+fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
+    let page = Page::open();
+    let session = page.session;
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert!(!page.press("Ctrl+c", Focus::Editor));
+    assert!(!page.press("Ctrl+Shift+v", Focus::Editor));
+    assert!(session.notice().is_empty());
+    assert!(page.press("Ctrl+c", Focus::Stage));
+    assert!(session.notice().contains("Copied worksheet cells"));
+}
+
 /// Native-only: drives the real workbook host through packets.
 #[test]
 fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {

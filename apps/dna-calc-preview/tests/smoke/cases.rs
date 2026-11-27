@@ -593,6 +593,20 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Value("formula-bar", "=21*2"),
         ],
     },
+    Case {
+        name: "Classic leaves formula-bar Copy with the focused editor",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("formula-bar"),
+        ],
+        checks: &[
+            Check::Text("mode", "Ready"),
+            Check::Js(
+                "the focused formula bar receives the native Copy shortcut",
+                "document.activeElement.matches('[data-dnacalc=formula-bar]') && document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key: 'c', ctrlKey: true, bubbles: true, cancelable: true}))",
+            ),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -669,8 +683,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-paste",
         start: 27,
-        end: PREVIEW_CASES.len(),
+        end: 30,
         core: 3,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-clipboard-focus",
+        start: 30,
+        end: PREVIEW_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];
