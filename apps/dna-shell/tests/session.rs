@@ -254,10 +254,14 @@ fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
 fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     let page = Page::open();
     let session = page.session;
+    let model = session.stamp().unwrap().model;
     assert!(page.press("F10", Focus::Stage));
     assert_eq!(session.mode(), InputMode::KeyTips);
-    assert!(!page.press("Tab", Focus::Stage));
+    assert!(page.press("Tab", Focus::Stage));
+    assert!(page.press("ArrowRight", Focus::Stage));
+    assert_eq!(session.key_tip_path(), Some(""));
     assert_eq!(session.active(), Some(page.at(1, 1)));
+    assert_eq!(session.stamp().unwrap().model, model);
     for key in ["h", "o", "Escape", "o", "i"] {
         assert!(page.press(key, Focus::Stage), "{key}");
     }

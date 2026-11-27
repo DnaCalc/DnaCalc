@@ -705,6 +705,43 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Attr("[data-command='shell.toggle-deck']", "aria-expanded", "false"),
         ],
     },
+    Case {
+        name: "Classic Tab and arrows traverse keyboard tips without moving the selection",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e03a}\u{e004}"),
+            Action::Wait(Check::Js(
+                "Tab focuses the first key tip",
+                "document.activeElement.matches('[data-key-tip=F]')",
+            )),
+            Action::Keys("[data-key-tip=F]", "\u{e014}"),
+            Action::Wait(Check::Js(
+                "Right focuses the Home key tip",
+                "document.activeElement.matches('[data-key-tip=H]')",
+            )),
+            Action::Keys("[data-key-tip=H]", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-dnacalc=key-tips]", "data-key-tip-path", "H")),
+            Action::Wait(Check::Js(
+                "opening Home focuses its first key tip",
+                "document.activeElement.matches('[data-key-tip=V]')",
+            )),
+            Action::Keys("[data-key-tip=V]", "\u{e00c}"),
+            Action::Wait(Check::Js(
+                "Escape restores focus in the parent group",
+                "document.activeElement.matches('[data-key-tip=H]')",
+            )),
+            Action::Keys("[data-key-tip=H]", "\u{e00c}"),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=key-tips]"),
+            Check::Value("name-box", "B2"),
+            Check::Js(
+                "leaving the key tips restored stage focus and kept the workbook revision",
+                "document.activeElement.matches('main.dna-book-stage') && __dnaProbe().stamp.model === 0",
+            ),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -816,8 +853,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-help",
         start: 35,
-        end: PREVIEW_CASES.len(),
+        end: 37,
         core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-key-tip-focus",
+        start: 37,
+        end: PREVIEW_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];

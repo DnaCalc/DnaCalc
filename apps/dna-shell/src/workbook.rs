@@ -38,6 +38,7 @@ pub struct Chrome {
     search: RwSignal<bool>,
     side_pane: RwSignal<Option<SidePane>>,
     deck_folded: RwSignal<bool>,
+    tips: NodeRef<leptos::html::Div>,
 }
 
 fn a1(at: Key) -> String {
@@ -90,6 +91,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         search: RwSignal::new(false),
         side_pane: RwSignal::new(None),
         deck_folded: RwSignal::new(false),
+        tips: NodeRef::new(),
     };
     register(session, chrome, &views);
     registry.install_commands(session);
@@ -192,6 +194,32 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
     }
     session.bind(Layer::Shell, When::ALWAYS, "F9", CommandId::new("calc.calculate"));
     session.bind(Layer::Shell, When::ALWAYS, "F1", CommandId::new("shell.help"));
+    for (id, label, forward, chords) in [
+        ("deck.next-tip", "Next key tip", true, ["Tab", "ArrowRight", "ArrowDown"]),
+        ("deck.previous-tip", "Previous key tip", false, ["Shift+Tab", "ArrowLeft", "ArrowUp"]),
+    ] {
+        let when = "mode:key-tips";
+        session.register(spec(id, label, when), move |_| {
+            let Some(path) = session.key_tip_path() else {
+                return Ok(());
+            };
+            if !move_key_tip_focus(chrome.tips, path, forward) {
+                // F10 and Tab can arrive before the newly opened group's buttons are mounted.
+                #[cfg(target_arch = "wasm32")]
+                {
+                    request_animation_frame(move || {
+                        if session.key_tip_path() == Some(path) {
+                            move_key_tip_focus(chrome.tips, path, forward);
+                        }
+                    });
+                }
+            }
+            Ok(())
+        });
+        for chord in chords {
+            session.bind(Layer::Component, When::parse(when).unwrap(), chord, CommandId::new(id));
+        }
+    }
     for view in views {
         let spec = view.spec();
         let ViewId(name) = spec.id;
@@ -225,17 +253,82 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
     }
 }
 
-fn key_tip_deck(session: Session) -> impl IntoView {
+fn focus_tip(button: Option<leptos::web_sys::Element>) {
+    if let Some(button) = button.and_then(|button| button.dyn_into::<leptos::web_sys::HtmlElement>().ok()) {
+        let _ = button.focus();
+    }
+}
+
+fn move_key_tip_focus(tips: NodeRef<leptos::html::Div>, path: &str, forward: bool) -> bool {
+    let Some(tips) = tips.get_untracked() else {
+        return false;
+    };
+    if !tips.is_connected() || tips.get_attribute("data-key-tip-path").as_deref() != Some(path) {
+        return false;
+    }
+    let active = leptos::web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.active_element())
+        .filter(|button| button.has_attribute("data-key-tip"));
+    let next = if forward {
+        active.and_then(|button| button.next_element_sibling()).or_else(|| tips.first_element_child())
+    } else {
+        active.and_then(|button| button.previous_element_sibling()).or_else(|| tips.last_element_child())
+    };
+    let mounted = next.is_some();
+    focus_tip(next);
+    mounted
+}
+
+fn tip_path_changed(
+    session: Session,
+    tips: NodeRef<leptos::html::Div>,
+    stage: NodeRef<leptos::html::Main>,
+    previous: &'static str,
+) {
+    let current = session.key_tip_path();
+    if current == Some(previous) {
+        return;
+    }
+    // The previously focused button may already have disappeared. Keep the next key in the
+    // workbook immediately, even when someone types the rest of a path before the next frame.
+    let stage = stage.get_untracked();
+    if let Some(stage) = &stage {
+        let _ = stage.focus();
+    }
+    let Some(path) = current else {
+        return;
+    };
+    request_animation_frame(move || {
+        if session.key_tip_path() != Some(path)
+            || !stage.as_ref().is_some_and(|stage| stage.matches(":focus").unwrap_or(false))
+        {
+            return;
+        }
+        if let Some(tips) = tips.get_untracked() {
+            let previous_button = previous.strip_prefix(path)
+                .map(str::trim)
+                .filter(|key| !key.is_empty())
+                .and_then(|key| tips.query_selector(&format!("[data-key-tip='{key}']")).ok().flatten());
+            focus_tip(previous_button.or_else(|| tips.first_element_child()));
+        }
+    });
+}
+
+fn key_tip_deck(session: Session, chrome: Chrome, stage: NodeRef<leptos::html::Main>) -> impl IntoView {
     move || {
         session.key_tip_path().map(|path| {
             view! {
                 <div class="dna-book-key-tips" role="group" aria-label="Excel key tips"
-                    data-dnacalc="key-tips" data-key-tip-path=path>
+                    data-dnacalc="key-tips" data-key-tip-path=path node_ref=chrome.tips>
                     {session.key_tip_choices().into_iter().map(|tip| {
                         let key = tip.key();
                         view! {
                             <button type="button" data-key-tip=key
-                                on:click=move |_| session.choose_key_tip(key)>
+                                on:click=move |_| {
+                                    session.choose_key_tip(key);
+                                    tip_path_changed(session, chrome.tips, stage, path);
+                                }>
                                 <kbd>{key}</kbd>{tip.label}
                             </button>
                         }
@@ -293,6 +386,9 @@ fn focus_of(event: &leptos::ev::KeyboardEvent) -> Focus {
     }
     if element.has_attribute("data-dna-action-field") {
         return Focus::ActionField;
+    }
+    if element.has_attribute("data-key-tip") {
+        return Focus::KeyTip;
     }
     match element.tag_name().as_str() {
         "INPUT" | "TEXTAREA" | "SELECT" => Focus::Field,
@@ -475,10 +571,21 @@ pub fn workbook(
 
     view! {
         <div class="dna-workbook" data-dnacalc="frame" on:keydown=move |event: leptos::ev::KeyboardEvent| {
-            if session.key(&key_input(&event), focus_of(&event)) {
+            let focus = focus_of(&event);
+            let path = (focus == Focus::KeyTip).then(|| session.key_tip_path()).flatten();
+            if session.key(&key_input(&event), focus) {
                 event.prevent_default();
+                if let Some(path) = path {
+                    tip_path_changed(session, chrome.tips, stage_node, path);
+                }
             }
-        } on:keyup=move |event: leptos::ev::KeyboardEvent| session.key_released(&key_input(&event))>
+        } on:keyup=move |event: leptos::ev::KeyboardEvent| {
+            let path = (focus_of(&event) == Focus::KeyTip).then(|| session.key_tip_path()).flatten();
+            session.key_released(&key_input(&event));
+            if let Some(path) = path {
+                tip_path_changed(session, chrome.tips, stage_node, path);
+            }
+        }>
             <header class="dna-book-mast">
                 <span class="dna-fe-mark" aria-hidden="true"><i></i><i></i></span>
                 <strong>"DNA Calc"</strong>
@@ -503,7 +610,7 @@ pub fn workbook(
                     on:click=move |_| { let _ = session.command("shell.toggle-deck"); }>
                     {move || if chrome.deck_folded.get() { "Expand Deck" } else { "Collapse Deck" }}
                 </button>
-                {key_tip_deck(session)}
+                {key_tip_deck(session, chrome, stage_node)}
             </nav>
             <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {
                 let id = session.view();
