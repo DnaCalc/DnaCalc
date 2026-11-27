@@ -1135,6 +1135,102 @@ fn notebook_creates_analysis_only_when_the_first_formula_commits() {
     assert!(matches!(session.read(part), Live::Ready(answer) if answer.body.anchors.len() == 1));
 }
 
+/// Native-only: names and callable LAMBDAs are read and invoked through the workbook service.
+#[test]
+fn notebook_names_a_spill_renames_its_callers_and_defines_a_lambda() {
+    use calc_skin::{InventoryItem, InventoryKind, NameScope};
+    use dna_kit::commands::CommandId;
+
+    let page = Page::open();
+    let session = page.session;
+    let names = session.watch(query::Inventory {
+        kinds: vec![InventoryKind::Names],
+    });
+    let run = |command, args| {
+        session
+            .run(&dna_kit::Invocation {
+                command: CommandId::new(command),
+                args,
+            })
+            .unwrap();
+        page.settle();
+    };
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    run("notebook.author-columns", serde_json::json!(1));
+    run("notebook.author", serde_json::json!("=SEQUENCE(2)"));
+    let output = session.active().unwrap();
+    run("notebook.name-output", serde_json::json!("scopeOrders"));
+
+    let Live::Ready(created) = session.read(names) else {
+        panic!("Workbook name inventory");
+    };
+    assert!(
+        created.body.iter().any(|record| matches!(record, InventoryItem::Name { scope: NameScope::Workbook, name, formula, .. }
+            if name == "scopeOrders" && formula == "=_xlfn.ANCHORARRAY(Analysis!$A$10)")),
+        "Workbook names: {:?}; {}",
+        created.body,
+        session.notice()
+    );
+    session.command("view.classic").unwrap();
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    session.edit_text("=SUM(scopeOrders)".into());
+    session.commit_edit();
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 1)), "3");
+
+    session.command("view.notebook").unwrap();
+    page.settle();
+    run("notebook.name-output", serde_json::json!("filteredOrders"));
+    assert_eq!(page.shown(output), "1");
+    assert_eq!(page.shown(page.at(1, 1)), "3");
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    assert_eq!(session.entry(), "=SUM(filteredOrders)");
+    session.command("edit.undo").unwrap();
+    page.settle();
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    assert_eq!(session.entry(), "=SUM(scopeOrders)");
+
+    session.command("notebook.delete").unwrap();
+    page.settle();
+    let Seam::Review(preview) = session.seam() else {
+        panic!("Expected a review for removing the name read by SUM");
+    };
+    assert!(preview.properties.iter().any(|property| matches!(property,
+        calc_skin::ModelPropertyDiff::DefinedName { before: Some(name), after: None, .. }
+            if name.name == "scopeOrders")));
+    assert_eq!(page.shown(output), "1");
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(output), "");
+    assert_eq!(page.shown(page.at(1, 1)), "#NAME?");
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(output), "1");
+    assert_eq!(page.shown(page.at(1, 1)), "3");
+
+    run(
+        "notebook.author-lambda",
+        serde_json::json!(["DoubleIt", "=LAMBDA(amount,amount*2)"]),
+    );
+    let Live::Ready(callable) = session.read(names) else {
+        panic!("Workbook name inventory");
+    };
+    assert!(callable.body.iter().any(|record| matches!(record, InventoryItem::Name { scope: NameScope::Workbook, name, formula, .. }
+        if name == "DoubleIt" && formula.contains("LAMBDA"))));
+    session.command("view.classic").unwrap();
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    session.edit_text("=DoubleIt(21)".into());
+    session.commit_edit();
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 2)), "42");
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {

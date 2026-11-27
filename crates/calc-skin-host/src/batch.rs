@@ -321,6 +321,7 @@ pub(crate) fn prepare(
     let mut inserted = None;
     let mut presentation = Vec::new();
     let mut warnings = Vec::new();
+    let mut names = Vec::new();
     let mut scenario_changes = Vec::new();
     let removes_anchor = request.changes.iter().any(|change| {
         matches!(change, Change::Presentation(PresentationChange::RemoveAnchor { .. }))
@@ -328,6 +329,20 @@ pub(crate) fn prepare(
     for change in &request.changes {
         match change {
             Change::Model(change) => match change {
+                ModelChange::Name { scope, change } => {
+                    require_current_model(request, base.model)?;
+                    let (plan, prepared, used) = crate::names::prepare(state, scope.clone(), change)?;
+                    if used {
+                        warnings.push("Other formulas read the name being removed.".into());
+                    }
+                    areas.extend(prepared.iter().filter_map(|edit| match edit {
+                        CellEdit::Set { at, .. } => Some(GridArea::cell(*at)),
+                        CellEdit::SetArray { array, .. } => Some(array.area()),
+                        _ => None,
+                    }));
+                    edits.extend(prepared);
+                    names.push(plan);
+                }
                 ModelChange::InsertWorksheet { name, sheet } => {
                     if !edits.is_empty() || inserted.is_some() {
                         return Err(invalid("Insert the worksheet before entering its cells"));
@@ -629,6 +644,7 @@ pub(crate) fn prepare(
         if !paste_areas.is_empty() {
             properties.extend(paste_properties(&before, &after, &paste_areas, &edits));
         }
+        properties.extend(names.into_iter().filter_map(|name| name.diff(&after)));
         properties.extend(column_properties(&before, &after, &edits));
         for sheet in filter_sheets {
             let old = before.definitions();

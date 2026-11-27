@@ -141,7 +141,7 @@ pub use facts::alignment as style_alignment;
 pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
 pub use format::{BorderPatch, FillColor, FormatPatch, InteriorPatch, format_regions, format_samples, patched_style};
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
-pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView};
+pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView, lambda_parameters};
 pub mod chart;
 mod command;
 mod domain;

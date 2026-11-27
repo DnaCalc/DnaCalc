@@ -39,6 +39,24 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
             state.author.submit(state, argument(action)?)
         })
         .when("mode:notebook-command && writable"),
+        command("notebook.name-output", "Name formula output", &[], |state, action| {
+            names::name_output(state, argument(action)?)
+        })
+        .when("mode:notebook-command && writable"),
+        command("notebook.new-function", "New function", &[], |state, _| {
+            state.function_form.set(state.session.stamp().map(|stamp| stamp.workbook));
+            Ok(())
+        })
+        .when("mode:notebook-command && writable"),
+        command("notebook.cancel-function", "Cancel new function", &[], |state, _| {
+            state.function_form.set(None);
+            Ok(())
+        }),
+        command("notebook.author-lambda", "Define function", &[], |state, action| {
+            let (name, formula) = argument(action)?;
+            names::define_lambda(state, name, formula)
+        })
+        .when("mode:notebook-command && writable"),
         command("notebook.cancel-formula", "Cancel new formula", &[], |state, _| {
             state.author.close();
             Ok(())
@@ -614,27 +632,32 @@ impl State {
             .map(|_| Change::Presentation(PresentationChange::RemoveAnchor { anchor: item.id }))
             .into_iter()
             .collect();
-        if clear_owned && item.owns_cell() {
-            let at = snapshot
-                .source(item.id)
-                .and_then(first_cell)
-                .ok_or("Resolve this cell's worksheet source before clearing it.")?;
-            let stamp = self
-                .session
-                .stamp()
-                .filter(|stamp| {
-                    stamp.workbook == snapshot.part.stamp.workbook
-                        && stamp.view == snapshot.part.stamp.view
-                })
-                .ok_or("The Notebook has changed. Review the cell before deleting it.")?;
-            changes.push(Change::Model(ModelChange::ClearContents {
-                areas: vec![Area(at, at)],
-            }));
+        let clear_cell = clear_owned && item.owns_cell();
+        let name = clear_owned.then(|| match &item.kind {
+            Kind::Function { name, owns_name: true } => Some(name.clone()),
+            _ if clear_cell => item.output_name.clone(),
+            _ => None,
+        }).flatten();
+        if clear_cell || name.is_some() {
+            let at = if clear_cell {
+                let at = snapshot.source(item.id).and_then(first_cell)
+                    .ok_or("Resolve this cell's worksheet source before clearing it.")?;
+                changes.push(Change::Model(ModelChange::ClearContents { areas: vec![Area(at, at)] }));
+                Some(at)
+            } else {
+                None
+            };
+            if let Some(name) = name {
+                changes.push(names::change(calc_skin::NameChange::Remove { name }));
+            }
             let mut batch =
                 self.prepare_batch(&snapshot, &chain, changes, "Delete owned Notebook cell")?;
-            batch.base = Some(stamp.model);
-            batch.expects.push(SourceRef::Workbook);
-            self.session.submit_then(batch, move || self.session.revert_held(at));
+            names::pin_workbook_revision(self.session, &snapshot, &mut batch)?;
+            self.session.submit_then(batch, move || {
+                if let Some(at) = at {
+                    self.session.revert_held(at);
+                }
+            });
             Ok(())
         } else {
             self.submit(&snapshot, &chain, changes, "Remove Notebook cell")
@@ -643,7 +666,10 @@ impl State {
 
     fn copy(self) -> Result<(), String> {
         let snapshot = self.snapshot()?;
-        let item = self.current(&snapshot)?;
+        let mut item = self.current(&snapshot)?;
+        if let Kind::Function { owns_name, .. } = &mut item.kind {
+            *owns_name = false;
+        }
         self.workspace.update_value(|workspace| {
             workspace.owner = Some(snapshot.part.stamp.workbook);
             workspace.copied = Some(CopiedCell {
