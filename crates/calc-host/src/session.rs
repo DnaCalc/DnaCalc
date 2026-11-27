@@ -1107,6 +1107,15 @@ impl HostSession {
         self.dispatch_with_history(CommandIngress::UserInterface, SkinIntent::Edit { edits }, Some(history))
     }
 
+    /// Apply a revision-bound paste and its coordinate change under the skin history entry.
+    pub fn dispatch_skin_paste(&mut self, paste: crate::PastePlan, history: calc_skin::HistoryEntry) -> IntentReceipt {
+        self.dispatch_with_history(
+            CommandIngress::UserInterface,
+            SkinIntent::Command(crate::WorkbookCommand::Paste(paste)),
+            Some(history),
+        )
+    }
+
     fn dispatch_with_history(
         &mut self,
         ingress: CommandIngress,
@@ -1172,7 +1181,7 @@ impl HostSession {
                             return Ok(());
                         }
                         let edits = self.authored_edits(edits);
-                        self.edit_coordinates(edits, coordinates, after_selection, &mut receipt)
+                        self.edit_with_history(edits, coordinates, after_selection, history, &mut receipt)
                     })
             }
             SkinIntent::EnterCell { at, text } => self
@@ -1420,6 +1429,13 @@ impl HostSession {
         }
         let edits = self.authored_edits(edits.to_vec());
         crate::command::preview_slice(&mut self.host, &edits).map_err(IntentError::Command)
+    }
+
+    /// Preview a paste, including any view anchors that follow a cut.
+    pub fn preview_skin_paste(&mut self, paste: &crate::PastePlan) -> Result<Arc<calc_doc_model::ModelRoot>, IntentError> {
+        let mut edits = paste.clone().into_edits(&self.host).map_err(IntentError::Workbook)?;
+        self.map_view_part(&mut edits, paste.coordinates().as_ref());
+        self.preview_edits(&edits)
     }
 
     /// Prepare the same entry at every target, rebasing formulas from the specified origin.
@@ -1710,17 +1726,7 @@ impl HostSession {
     ) -> Result<(), IntentError> {
         let before = self.selection.clone();
         let mut edits = edits;
-        if let Some(change) = coordinates.as_ref()
-            && let Some(view_part) = self.host.model().view_part().mapped(|area, spill| {
-                if spill {
-                    change.cell(area.first()).map(GridArea::cell)
-                } else {
-                    change.area(area)
-                }
-            })
-        {
-            edits.push(CellEdit::View(Arc::new(view_part)));
-        }
+        self.map_view_part(&mut edits, coordinates.as_ref());
         let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
         self.commit_coordinates(&edits, coordinates.as_ref(), receipt)?;
         if let Some(CellEdit::Sheet(calc_doc_model::SheetEdit::Insert { key, .. })) = edits.first() {
@@ -1748,6 +1754,24 @@ impl HostSession {
         });
         self.after_commit(receipt);
         Ok(())
+    }
+
+    fn map_view_part(
+        &self,
+        edits: &mut Vec<CellEdit>,
+        coordinates: Option<&calc_fml::reference::StructuralEdit>,
+    ) {
+        if let Some(change) = coordinates
+            && let Some(view_part) = self.host.model().view_part().mapped(|area, spill| {
+                if spill {
+                    change.cell(area.first()).map(GridArea::cell)
+                } else {
+                    change.area(area)
+                }
+            })
+        {
+            edits.push(CellEdit::View(Arc::new(view_part)));
+        }
     }
 
     fn commit_coordinates(

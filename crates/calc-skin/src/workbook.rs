@@ -273,6 +273,7 @@ pub enum WorkbookQuery {
         kind: PlacementKind,
         shape: Option<PlacementShape>,
     },
+    SpillBlockers { anchor: Key },
     DefinedName { scope: crate::NameScope, name: String },
     Geometry {
         sheet: Sheet,
@@ -346,6 +347,19 @@ pub struct WorksheetGeometry {
 pub enum SpillExtent {
     Filled(Area),
     Blocked(Area),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpillBlockers {
+    pub desired: Area,
+    pub blockers: Vec<SpillBlocker>,
+    pub more: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpillBlocker {
+    pub area: Area,
+    pub cell_to_move: Option<Key>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -447,6 +461,8 @@ pub enum Change {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ModelChange {
+    /// Move a current spill anchor or an authored cell blocking its intended footprint.
+    MoveSpillCell { anchor: Key, from: Key, to: Key, expected: Stamp },
     Name { scope: crate::NameScope, change: NameChange },
     /// Create a worksheet at the identity returned by NewSheetPlacement at this model revision.
     InsertWorksheet {
@@ -595,6 +611,7 @@ pub enum ModelProperty {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPropertyDiff {
+    CellMoved { from: Key, to: Key },
     DefinedName {
         scope: crate::NameScope,
         before: Option<DefinedNameText>,

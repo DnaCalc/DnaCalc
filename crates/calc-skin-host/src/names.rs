@@ -59,6 +59,24 @@ pub(crate) fn facts(
     })
 }
 
+pub(crate) fn moved(
+    before: &ModelRoot,
+    after: &ModelRoot,
+    edits: &[CellEdit],
+) -> Vec<ModelPropertyDiff> {
+    edits.iter().filter_map(|edit| {
+        let CellEdit::SetName { name, scope, .. } = edit else { return None };
+        let prior = before.definitions().name_table().lookup(*scope, name)
+            .map(|node| name_text(node.definition()));
+        NamePlan {
+            scope: crate::inventory::name_scope(*scope),
+            model_scope: *scope,
+            before: prior,
+            name: name.clone(),
+        }.diff(after)
+    }).collect()
+}
+
 pub(crate) fn prepare(
     state: &State,
     scope: NameScope,

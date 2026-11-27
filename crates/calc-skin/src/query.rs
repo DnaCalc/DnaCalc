@@ -126,6 +126,11 @@ query!(
     /// The cells of an interest. Watched, it arrives as tiles.
     Cells { interest: Interest } => CellWindow, |q: &Cells| WorkbookQuery::Cells { interest: q.interest.clone() });
 query!(
+    /// Intended extent and known physical obstructions of a current blocked spill.
+    SpillBlockers { anchor: Key } => crate::SpillBlockers,
+    |q: &SpillBlockers| WorkbookQuery::SpillBlockers { anchor: q.anchor }
+);
+query!(
 /// A view window over a rectangular worksheet source and its exact matched row count.
 Rows { source: SourceRef, filter: Vec<RowFilter>, sort: Vec<RowSort>, window: RowWindow }
     => RowPage, |q: &Rows| WorkbookQuery::Rows {
