@@ -9,6 +9,14 @@
       "release": "20261123T180206Z-8416340e6a61",
       "tar_sha256": "2dea0bad53a628dd3ca576eb746dbe462a9c43980e929b4134690eb6f8668a99"
     },
+    "content": {
+      "build_json_sha256": "709583c749ef0b81dc81b01e6eb8a5bfd5a59aa04c0af79398719daa31f0c1d8",
+      "commit": "1d259cd4a9ec0d2e8ce48248891e093658583f45",
+      "host": "dnacalc.com",
+      "published_utc": "2026-11-27T07:04:26Z",
+      "release": "20261127T063759Z-1d259cd4a9ec",
+      "tar_sha256": "3cb75551ad19f0b955803b654a414e4aa17fccc2ce88c5b00af7f12071a77151"
+    },
     "onecalc": {
       "build_json_sha256": "0a9c8c0bddf6721401fa78a81aeb2b54116c66716cc8f881868986c2f4b27859",
       "commit": "c27d1c615516898b9ad835de933bc220c0d48d5e",
