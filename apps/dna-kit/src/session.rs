@@ -33,6 +33,8 @@ use std::rc::Rc;
 pub enum Focus {
     /// The stage: a view's body. A printable key starts a draft at the active cell.
     Stage,
+    /// A Deck key tip button. Letters still choose paths, and Enter activates the focused button.
+    KeyTip,
     /// The session's editor (the formula bar, an in-cell editor). Text and native clipboard
     /// shortcuts stay with the editor, including when it has focus before opening a draft.
     Editor,
@@ -761,7 +763,8 @@ impl Session {
     /// A key press. `true` when the session took it and the browser must not.
     pub fn key(self, input: &KeyInput, focus: Focus) -> bool {
         let context = self.context();
-        if input.key == "Alt" && focus == Focus::Stage
+        let deck_keys = matches!(focus, Focus::Stage | Focus::KeyTip);
+        if input.key == "Alt" && deck_keys
             && matches!(context.mode, InputMode::Ready | InputMode::KeyTips)
             && !input.ctrl && !input.shift && !input.meta && !input.alt_graph && !input.composing
             && !self.inner().keymap.borrow().key_tips(&context.view).is_empty()
@@ -782,9 +785,9 @@ impl Session {
             }
             _ => {}
         }
-        if focus == Focus::Stage && self.tip_path.get_untracked().is_some()
+        if deck_keys && self.tip_path.get_untracked().is_some()
             && !input.alt && !input.ctrl && !input.meta && !input.alt_graph && !input.composing
-            && (input.key.len() == 1 || input.key == "Enter")
+            && (input.key.len() == 1 || (focus == Focus::Stage && input.key == "Enter"))
         {
             self.choose_key_tip(&input.key);
             return true;
