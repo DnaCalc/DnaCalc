@@ -45,21 +45,20 @@ fn spec(id: &'static str, label: &'static str, when: &str) -> CommandSpec {
     }
 }
 
-/// Registers every command and key of the page with the session: each view's own, then the
-/// shell's. Called once per session, before [`workbook`] draws.
+/// Registers the shell's defaults and then the view commands. Called before [`workbook`] draws.
 pub fn install(registry: &Registry, session: Session) -> Chrome {
     let views: Vec<Rc<dyn View>> = registry
         .views()
         .iter()
         .filter_map(|spec| registry.find(&spec.id))
         .collect();
-    registry.install_commands(session);
     let chrome = Chrome {
         views: StoredValue::new_local(views.clone()),
         search: RwSignal::new(false),
         details: RwSignal::new(false),
     };
     register(session, chrome, &views);
+    registry.install_commands(session);
     chrome
 }
 

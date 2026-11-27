@@ -8,7 +8,7 @@
 use crate::session::Session;
 use calc_skin::query::Census;
 use calc_skin::{Selection, Target, ViewId};
-use dna_skin_runtime::commands::{CommandId, CommandSpec, Invocation, When};
+use dna_skin_runtime::commands::{CommandId, CommandSpec, Invocation, Layer, When};
 use leptos::prelude::*;
 use std::rc::Rc;
 
@@ -63,7 +63,7 @@ pub enum Located {
 /// do the same thing whether or not the view has drawn yet.
 pub struct ViewCommand {
     pub spec: CommandSpec,
-    pub chords: Vec<(When, &'static str)>,
+    pub chords: Vec<(Layer, When, &'static str)>,
     pub run: Rc<dyn Fn(&Invocation) -> Result<(), String>>,
 }
 
@@ -102,7 +102,7 @@ impl ViewCommand {
                 label: label.into(),
                 enabled: here.clone(),
             },
-            chords: chords.iter().map(|chord| (here.clone(), *chord)).collect(),
+            chords: chords.iter().map(|chord| (Layer::View, here.clone(), *chord)).collect(),
             run: Rc::new(run),
         }
     }
@@ -112,9 +112,19 @@ impl ViewCommand {
     pub fn when(mut self, when: &str) -> Self {
         let extra = When::parse(when).expect("a built-in condition parses");
         self.spec.enabled = self.spec.enabled.and(extra.clone());
-        for (condition, _) in &mut self.chords {
+        for (_, condition, _) in &mut self.chords {
             *condition = condition.clone().and(extra.clone());
         }
+        self
+    }
+
+    /// Resolve this command's chords in the editor layer while a draft is open.
+    pub fn in_editor(mut self) -> Self {
+        let editing = When::parse("editing").expect("a built-in condition parses");
+        let chords: Vec<_> = self.chords.iter().map(|(_, when, chord)| {
+            (Layer::Editor, when.clone().and(editing.clone()), *chord)
+        }).collect();
+        self.chords.extend(chords);
         self
     }
 }

@@ -421,7 +421,13 @@ impl Session {
             Some(text) => self.update(|client| client.begin_edit(at, Some(text), "")),
             None => {
                 self.inner().opening.set(Some(at));
-                self.update(|client| client.select_cell(at));
+                self.update(|client| {
+                    if client.active() == Some(at) {
+                        Changes::default()
+                    } else {
+                        client.select_cell(at)
+                    }
+                });
             }
         }
     }
@@ -636,8 +642,8 @@ impl Session {
             let id = command.spec.id.clone();
             let run = command.run;
             self.register(command.spec, move |invocation| run(invocation));
-            for (when, chord) in command.chords {
-                self.bind(Layer::View, when, chord, id.clone());
+            for (layer, when, chord) in command.chords {
+                self.bind(layer, when, chord, id.clone());
             }
         }
     }

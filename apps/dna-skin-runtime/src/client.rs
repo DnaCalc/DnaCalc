@@ -356,7 +356,11 @@ impl Client {
         if self.busy() {
             return Changes::default();
         }
-        let mut changes = self.select_cell(at);
+        let mut changes = if self.active() == Some(at) {
+            Changes::default()
+        } else {
+            self.select_cell(at)
+        };
         self.edit = Some(EditSession {
             at,
             mode: if text.is_some() {

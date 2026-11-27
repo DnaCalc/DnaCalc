@@ -21,6 +21,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Text("[data-cell=B2]", "42"),
+            Check::Value("name-box", "B3"),
             Check::Attr("[data-cell=B2]", "data-provenance", "calculated"),
             Check::Js(
                 "the host advanced the model",
@@ -213,6 +214,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Into("formula-bar", "5"),
             Action::Keys("formula-bar", "\u{e007}"),
             Action::Wait(Check::Text("[data-cell=A1]", "5")),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Click("[data-cell=A1]"),
             Action::Click("[data-command='view.inspector']"),
             Action::Click("[data-command='inspector.live']"),
             Action::Click("[data-command='inspector.record']"),
@@ -224,6 +227,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Into("formula-bar", "9"),
             Action::Keys("formula-bar", "\u{e007}"),
             Action::Wait(Check::Text("[data-cell=A1]", "9")),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Click("[data-cell=A1]"),
             Action::Click("[data-command='view.inspector']"),
         ],
         checks: &[
@@ -239,6 +244,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Into("formula-bar", "12"),
             Action::Keys("formula-bar", "\u{e007}"),
             Action::Wait(Check::Text("[data-cell=A1]", "12")),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Click("[data-cell=A1]"),
             Action::Click("[data-command='view.inspector']"),
             Action::Wait(Check::TextContains(
                 "[data-inspector='recording-last']",
@@ -264,6 +271,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Click("[data-command='view.classic']"),
             Action::Into("formula-bar", "=B1"),
             Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Click("[data-cell=A1]"),
             Action::Wait(Check::Value("formula-bar", "=B1")),
             Action::Click("[data-command='view.inspector']"),
             Action::Click("[data-command='inspector.calculation']"),
@@ -420,6 +429,22 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Tab commits across a row and Enter returns to the start column",
+        actions: &[
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::Into("formula-bar", "19"),
+            Action::Keys("formula-bar", "\u{e004}"),
+            Action::Wait(Check::Value("name-box", "B1")),
+            Action::Into("formula-bar", "23"),
+            Action::Keys("formula-bar", "\u{e007}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A2"),
+            Check::Text("[data-cell=A1]", "19"),
+            Check::Text("[data-cell=B1]", "23"),
+        ],
+    },
+    Case {
         name: "A01 Loan batches inputs and recalculates the authored payment",
         actions: &[
             Action::WriteCast("Loan"),
@@ -520,10 +545,17 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "loan",
+        name: "classic-navigation",
         start: 20,
+        end: 21,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "loan",
+        start: 21,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 20,
+        core: PREVIEW_CASES.len() - 21,
         setup: &[],
     },
 ];
