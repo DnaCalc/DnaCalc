@@ -165,6 +165,8 @@ fn a_person_moves_types_commits_and_undoes_through_commands() {
     assert_eq!(session.seam(), Seam::Idle);
     assert_eq!(session.notice(), "");
     assert_eq!(page.shown(page.at(2, 2)), "42");
+    assert_eq!(session.active(), Some(page.at(3, 2)));
+    assert!(page.press("ArrowUp", Focus::Stage));
     assert_eq!(session.entry(), "=21*2");
 
     // F2 opens the entry the host reports.
@@ -289,6 +291,48 @@ fn classic_shift_selects_a_rectangle_and_delete_clears_it_in_one_step() {
     assert_eq!(page.shown(page.at(2, 2)), "42");
 }
 
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn classic_commit_keys_walk_inside_a_selection_and_wrap() {
+    let page = Page::open();
+    let session = page.session;
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    let selection = session.selection().unwrap().target;
+    assert!(page.press("4", Focus::Stage));
+    assert_eq!(session.selection().unwrap().target, selection);
+    assert!(page.press("Tab", Focus::Editor));
+    assert_eq!(session.active(), Some(page.at(1, 2)));
+    assert_eq!(page.shown(page.at(1, 1)), "4");
+    assert!(page.press("5", Focus::Stage));
+    assert!(page.press("Enter", Focus::Editor));
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert_eq!(page.shown(page.at(1, 2)), "5");
+    assert!(page.press("Enter", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(1, 1)));
+    assert!(page.press("Shift+Enter", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert_eq!(session.selection().unwrap().target, selection);
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn classic_enter_returns_to_the_start_column_of_a_tab_run() {
+    let page = Page::open();
+    assert!(page.press("1", Focus::Stage));
+    assert!(page.press("Tab", Focus::Editor));
+    assert_eq!(page.session.active(), Some(page.at(1, 2)));
+    assert!(page.press("2", Focus::Stage));
+    assert!(page.press("Tab", Focus::Editor));
+    assert_eq!(page.session.active(), Some(page.at(1, 3)));
+    assert!(page.press("3", Focus::Stage));
+    assert!(page.press("Enter", Focus::Editor));
+    assert_eq!(page.session.active(), Some(page.at(2, 1)));
+    assert_eq!(page.shown(page.at(1, 1)), "1");
+    assert_eq!(page.shown(page.at(1, 2)), "2");
+    assert_eq!(page.shown(page.at(1, 3)), "3");
+}
+
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
 #[test]
 fn a_command_that_cannot_run_now_says_so_on_the_strip() {
@@ -324,7 +368,8 @@ fn a_reader_runs_again_only_for_what_it_read() {
     assert_eq!(active.get_untracked(), Some(page.at(1, 1)));
     // Typing, committing and the frames that follow do not move the selection.
     page.press("7", Focus::Stage);
-    page.press("Enter", Focus::Editor);
+    session.commit_edit();
+    page.settle();
     assert_eq!(page.shown(page.at(1, 1)), "7");
     assert_eq!(active.get_untracked(), Some(page.at(1, 1)));
     assert_eq!(runs.load(Ordering::Relaxed), 1);

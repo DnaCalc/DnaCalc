@@ -77,12 +77,92 @@ fn far_corner(anchor: Key, areas: &[Area]) -> Key {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Walk {
+    Down,
+    Up,
+    Right,
+    Left,
+}
+
+#[derive(Clone, Copy)]
+struct TabRun {
+    workbook: calc_skin::WorkbookId,
+    current: Key,
+    start_column: u32,
+}
+
+impl Walk {
+    fn step(self, from: Key) -> Key {
+        match self {
+            Self::Down => step(from, 1, 0),
+            Self::Up => step(from, -1, 0),
+            Self::Right => step(from, 0, 1),
+            Self::Left => step(from, 0, -1),
+        }
+    }
+
+    fn in_selection(self, selection: &mut Selection) -> bool {
+        let (Some(from), SourceRef::Cells { areas, .. }) = (selection.active, &selection.target) else {
+            return false;
+        };
+        if matches!(areas.as_slice(), [Area(first, last)] if first == last) {
+            return false;
+        }
+        let Some((index, &Area(first, last))) = areas.iter().enumerate().find(|(_, area)| {
+            area.area().zip(from.cell()).is_some_and(|(area, cell)| area.contains(cell))
+        }) else {
+            return false;
+        };
+        let Key(sheet, generation, row, column) = from;
+        selection.active = Some(match self {
+            Self::Down if row < last.2 => self.step(from),
+            Self::Down if column < last.3 => Key(sheet, generation, first.2, column + 1),
+            Self::Up if row > first.2 => self.step(from),
+            Self::Up if column > first.3 => Key(sheet, generation, last.2, column - 1),
+            Self::Right if column < last.3 => self.step(from),
+            Self::Right if row < last.2 => Key(sheet, generation, row + 1, first.3),
+            Self::Left if column > first.3 => self.step(from),
+            Self::Left if row > first.2 => Key(sheet, generation, row - 1, last.3),
+            Self::Down | Self::Right => areas[(index + 1) % areas.len()].0,
+            Self::Up | Self::Left => areas[(index + areas.len() - 1) % areas.len()].1,
+        });
+        true
+    }
+
+    fn navigate(self, session: Session, tab_run: StoredValue<Option<TabRun>>) {
+        if let Some(mut selection) = session.selection() {
+            if self.in_selection(&mut selection) {
+                tab_run.set_value(None);
+                session.select(selection);
+            } else if let (Some(at), Some(stamp)) = (selection.active, session.stamp()) {
+                let workbook = stamp.workbook;
+                let run = tab_run.get_value().filter(|run| (run.workbook, run.current) == (workbook, at));
+                let start_column = run.map_or(at.3, |run| run.start_column);
+                let mut to = self.step(at);
+                match self {
+                    Self::Right | Self::Left => {
+                        tab_run.set_value(Some(TabRun { workbook, current: to, start_column }));
+                    }
+                    Self::Down | Self::Up => {
+                        tab_run.set_value(None);
+                        to.3 = start_column;
+                    }
+                }
+                session.select_cell(to);
+            }
+        }
+    }
+}
+
 /// The grid's commands for `view`, with the keys of the Excel profile. A view that mounts the
 /// grid returns these from `View::commands`.
 pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> {
+    let tab_run = StoredValue::new(None);
     let moves = |id, label, chords: &[&'static str], rows: i64, columns: i64| {
         ViewCommand::new(view, id, label, chords, move |_| {
             let at = session.active().ok_or("No cell is selected.")?;
+            tab_run.set_value(None);
             session.select_cell(step(at, rows, columns));
             Ok(())
         })
@@ -92,16 +172,39 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         ViewCommand::new(view, id, label, &[chord], move |_| {
             let anchor = session.active().ok_or("No cell is selected.")?;
             let to = far_corner(anchor, &selected_areas(session));
+            tab_run.set_value(None);
             select_range(session, anchor, step(to, rows, columns));
             Ok(())
         })
         .when("mode:ready")
     };
+    let walk = |id, label, chord, direction: Walk| {
+        ViewCommand::new(view, id, label, &[chord], move |_| {
+            if session.mode().editing() {
+                let selection = session.selection();
+                let view = session.view();
+                session.commit_edit_then(move || {
+                    if session.selection() == selection && session.view() == view {
+                        direction.navigate(session, tab_run);
+                    }
+                });
+            } else {
+                direction.navigate(session, tab_run);
+            }
+            Ok(())
+        })
+        .when("!mode:key-tips && !mode:object")
+        .in_editor()
+    };
     vec![
-        moves("grid.move-down", "Move down", &["ArrowDown", "Enter"], 1, 0),
-        moves("grid.move-up", "Move up", &["ArrowUp", "Shift+Enter"], -1, 0),
-        moves("grid.move-left", "Move left", &["ArrowLeft", "Shift+Tab"], 0, -1),
-        moves("grid.move-right", "Move right", &["ArrowRight", "Tab"], 0, 1),
+        moves("grid.move-down", "Move down", &["ArrowDown"], 1, 0),
+        moves("grid.move-up", "Move up", &["ArrowUp"], -1, 0),
+        moves("grid.move-left", "Move left", &["ArrowLeft"], 0, -1),
+        moves("grid.move-right", "Move right", &["ArrowRight"], 0, 1),
+        walk("grid.walk-down", "Commit and move down", "Enter", Walk::Down),
+        walk("grid.walk-up", "Commit and move up", "Shift+Enter", Walk::Up),
+        walk("grid.walk-right", "Commit and move right", "Tab", Walk::Right),
+        walk("grid.walk-left", "Commit and move left", "Shift+Tab", Walk::Left),
         extend("grid.extend-down", "Extend down", "Shift+ArrowDown", 1, 0),
         extend("grid.extend-up", "Extend up", "Shift+ArrowUp", -1, 0),
         extend("grid.extend-left", "Extend left", "Shift+ArrowLeft", 0, -1),
