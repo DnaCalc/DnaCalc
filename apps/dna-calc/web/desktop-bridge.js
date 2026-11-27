@@ -4,9 +4,9 @@
 // page, the protocol and the server are unchanged. `dnacalc serve` loads this same script with a
 // data-dnacalc-socket attribute to select its loopback WebSocket carrier.
 //
-// Framing, both ways: a message with no bytes is its JSON text; a message with bytes is
-// `text U+0001 base64(bytes)`. JSON text escapes every control character, so the first U+0001 is the
-// split (and, unlike NUL, it survives the host's string passing).
+// WebView2 sends host-to-page tiles in a read-only shared buffer with the control text as metadata.
+// Text-only controls stay strings. The older runtime and loopback carriers use
+// `text U+0001 base64(bytes)`; uploads also use that string route.
 (function () {
   "use strict";
   var host = window.chrome && window.chrome.webview;
@@ -44,6 +44,29 @@
   // `@N` and U+0002 in front, both ways.
   var CHANNEL_MARK = "\u0002";
   var channels = 0;
+  var receivers = new Map();
+
+  function channelOf(text) {
+    var mark = text.charAt(0) === "@" ? text.indexOf(CHANNEL_MARK) : -1;
+    return mark < 0 ? 0 : parseInt(text.slice(1, mark), 10);
+  }
+
+  if (!socketCarrier) {
+    host.addEventListener("sharedbufferreceived", function (event) {
+      var buffer = event.getBuffer();
+      try {
+        var text = event.additionalData && event.additionalData.text;
+        if (typeof text !== "string") { return; }
+        var receive = receivers.get(channelOf(text));
+        if (receive) {
+          // Callers can retain or transfer their copy. The WebView allocation is read-only.
+          receive({ data: text }, buffer.slice(0));
+        }
+      } finally {
+        host.releaseBuffer(buffer);
+      }
+    });
+  }
 
   function encode(bytes) {
     var text = "";
@@ -68,21 +91,22 @@
     this._onmessage = null;
     this._onerror = null;
     this._listeners = [];
-    this._receive = function (event) {
+    this._receive = function (event, bytes) {
       var data = event.data;
-      if (!socketCarrier && data.startsWith("ribbon:")) { return; }
-      var mark = data.charAt(0) === "@" ? data.indexOf(CHANNEL_MARK) : -1;
-      var from = mark < 0 ? 0 : parseInt(data.slice(1, mark), 10);
-      if (from !== channel) { return; }
-      if (mark >= 0) { data = data.slice(mark + 1); }
+      if (typeof data !== "string" || (!socketCarrier && data.startsWith("ribbon:"))) { return; }
+      if (channelOf(data) !== channel) { return; }
+      if (channel !== 0) { data = data.slice(data.indexOf(CHANNEL_MARK) + 1); }
       var split = data.indexOf(SEPARATOR);
-      var message = split < 0 ? data : [data.slice(0, split), decode(data.slice(split + 1)).buffer];
+      var message = bytes ? [data, bytes] :
+        split < 0 ? data : [data.slice(0, split), decode(data.slice(split + 1)).buffer];
       var delivered = { data: message };
       // The handler slot, as a browser's event dispatch reads it: a page script that wraps the
       // `onmessage` accessor (the smoke suite's latency page does) still sees every message.
       if (self._onmessage) { self._onmessage.call(self, delivered); }
       self._listeners.forEach(function (listener) { listener(delivered); });
     };
+    this._channel = channel;
+    receivers.set(channel, this._receive);
     host.addEventListener("message", this._receive);
     if (socketCarrier) {
       this._disconnected = function () {
@@ -119,11 +143,12 @@
     if (type === "message") { this._listeners.push(listener); }
   };
   DesktopWorker.prototype.terminate = function () {
+    receivers.delete(this._channel);
+    host.removeEventListener("message", this._receive);
     if (socketCarrier) {
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         host.postMessage(this._prefix + "bye");
       }
-      host.removeEventListener("message", this._receive);
       host.removeEventListener("close", this._disconnected);
       host.removeEventListener("error", this._disconnected);
     }

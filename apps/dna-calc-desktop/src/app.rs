@@ -251,11 +251,16 @@ impl App {
     }
 
     fn post_to(&self, channel: u32, text: &str, bytes: Option<&[u8]>) {
-        let result = if channel == 0 {
-            self.web.post(text, bytes)
+        let channel_text;
+        let text = if channel == 0 {
+            text
         } else {
-            self.web
-                .post(&format!("@{channel}{CHANNEL_MARK}{text}"), bytes)
+            channel_text = format!("@{channel}{CHANNEL_MARK}{text}");
+            &channel_text
+        };
+        let result = match bytes {
+            Some(bytes) => self.web.post_shared(text, bytes),
+            None => self.web.post(text, None),
         };
         if let Err(why) = result {
             eprintln!("dna-calc-desktop: {why}");

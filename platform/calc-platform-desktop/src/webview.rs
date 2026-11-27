@@ -469,6 +469,39 @@ Cache-Control: no-store
             .map_err(|e| format!("post to page failed: {e}"))
     }
 
+    /// Posts a read-only WebView2 shared buffer with its control text as JSON metadata.
+    /// An older runtime can still carry the same packet through the string bridge.
+    pub fn post_shared(&self, text: &str, bytes: &[u8]) -> Result<(), String> {
+        let (Ok(environment), Ok(view)) = (
+            self.environment.cast::<ICoreWebView2Environment12>(),
+            self.view.cast::<ICoreWebView2_17>(),
+        ) else {
+            return self.post(text, Some(bytes));
+        };
+        if bytes.is_empty() {
+            return self.post(text, Some(bytes));
+        }
+        let metadata = serde_json::json!({ "text": text }).to_string();
+        let metadata = CoTaskMemPWSTR::from(metadata.as_str());
+        unsafe {
+            let buffer = environment.CreateSharedBuffer(bytes.len() as u64)
+                .map_err(|e| format!("create WebView2 shared buffer: {e}"))?;
+            let result = (|| {
+                let mut destination = std::ptr::null_mut();
+                buffer.Buffer(&mut destination)?;
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), destination, bytes.len());
+                view.PostSharedBufferToScript(
+                    &buffer,
+                    COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_ONLY,
+                    *metadata.as_ref().as_pcwstr(),
+                )
+            })();
+            // The page receives its own mapped view and releases it after reading.
+            let closed = buffer.Close();
+            result.and(closed).map_err(|e| format!("post shared buffer to page: {e}"))
+        }
+    }
+
     /// Saves every download the page starts into `folder`, under the name the browser proposed,
     /// without asking: the save path of a run that has no person to choose a file (the smoke
     /// suite's `--save-dir`). A file of the same name is replaced.

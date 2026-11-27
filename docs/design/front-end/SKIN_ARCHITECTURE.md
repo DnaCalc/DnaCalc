@@ -725,6 +725,10 @@ A skin is declarative JSON (`extends` chains to `dna:default` or `dna:explorer`)
 | **Wire carrier** | `Worker.postMessage` + transferable `ArrayBuffer`s | WebView2 control JSON + **WebView2 shared binary buffers** (retiring base64-after-`U+0001` in `desktop-bridge.js`) | Loopback WebSocket with capability token (binary frames for tiles) | Direct Rust channel |
 | **Add-ins & COM** | JS UDFs, `DnaCalc.Clock`; native `.xll`/COM reported `NotAvailableHere` with desktop link | `.xll`, COM, `.xlam` (`calc-addin-host` + surrogate), COM server (`calc-com-host`) on same `HostSession` | Portable VBA & `DnaCalc.Clock`; native Windows `.xll`/COM reported `NotAvailableHere` | Mock & portable providers |
 
+The desktop host posts nonempty binary payloads as read-only shared buffers and puts the
+control text in the buffer metadata. The page copies those bytes before releasing the mapping.
+Older WebView2 runtimes and workbook uploads use the existing string carrier.
+
 Views contain **zero** `#[cfg(target_arch = "wasm32")]` or `window.__dnacalcDesktop` branches: platform differences flow strictly through `Capabilities` and `Operation` refusals (`NotAvailableHere`).
 
 ---

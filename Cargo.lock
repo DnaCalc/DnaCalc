@@ -499,6 +499,7 @@ version = "0.1.0"
 dependencies = [
  "calc-macro-security",
  "calc-surrogate-wire",
+ "serde_json",
  "webview2-com",
  "windows",
  "windows-sys 0.61.2",
