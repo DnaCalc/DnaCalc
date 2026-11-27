@@ -9,6 +9,7 @@ use calc_skin::grid::{Key, Sheet};
 use calc_skin::query::{self, Census};
 use calc_skin::{ModelProperty, ModelPropertyDiff, Operation, SourceRef, ViewId, address};
 use dna_kit::commands::{CommandId, CommandSpec, Layer, When};
+use dna_kit::name_manager::NameManager;
 use dna_kit::{
     DockSide, Fit, Focus, Invocation, KeyInput, Live, Located, Registry, Seam, Session, View,
 };
@@ -38,6 +39,7 @@ pub struct Chrome {
     search: RwSignal<bool>,
     side_pane: RwSignal<Option<SidePane>>,
     deck_folded: RwSignal<bool>,
+    name_manager: NameManager,
     tips: NodeRef<leptos::html::Div>,
 }
 
@@ -115,6 +117,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         search: RwSignal::new(false),
         side_pane: RwSignal::new(None),
         deck_folded: RwSignal::new(false),
+        name_manager: NameManager::install(session),
         tips: NodeRef::new(),
     };
     register(session, chrome, &views);
@@ -169,6 +172,8 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
             chrome.search.set(false);
         } else if session.mode().editing() || !matches!(session.seam(), Seam::Idle) {
             session.cancel();
+        } else if chrome.name_manager.close() {
+            return Ok(());
         } else if chrome.side_pane.get_untracked() == Some(SidePane::Help) {
             chrome.side_pane.set(None);
         } else if !chrome.views.with_value(|views| views.iter().any(|view| view.cancel_interaction(session))) {
@@ -408,7 +413,7 @@ fn focus_of(event: &leptos::ev::KeyboardEvent) -> Focus {
     {
         return Focus::Editor;
     }
-    if element.has_attribute("data-dna-action-field") {
+    if element.closest("[data-dna-action-field]").ok().flatten().is_some() {
         return Focus::ActionField;
     }
     if element.has_attribute("data-key-tip") {
@@ -746,6 +751,7 @@ pub fn workbook(
                 }}</span>
                 <span>{move || session.notice()}</span>
             </footer>
+            {chrome.name_manager.mount(session)}
         </div>
     }
 }

@@ -61,7 +61,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     group("A W", "What-If Analysis"),
     pending("A W G", "Goal Seek"),
     pending("A W S", "Scenario Manager"),
-    pending("M N", "Name Manager"),
+    command("M N", "Name Manager", dna_kit::name_manager::OPEN),
     pending("M P", "Trace Precedents"),
     pending("M D", "Trace Dependents"),
     group("M A", "Remove Arrows"),

@@ -851,6 +851,37 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::TextContains("[data-dnacalc='app-print-schedule-page']:last-child caption", "Rows 325–360 of 360"),
         ],
     },
+    Case {
+        name: "Classic Formulas Name Manager creates and edits a name used by a worksheet formula",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e03a}mn"),
+            Action::Wait(Check::Rendered("name-manager", true)),
+            Action::Wait(Check::Js(
+                "opening Name Manager kept the workbook model revision",
+                "__dnaProbe().stamp.model === 0",
+            )),
+            Action::Into("name-manager-name", "Rate"),
+            Action::Into("name-manager-formula", "=5"),
+            Action::Click("name-manager-save"),
+            Action::Wait(Check::TextContains("name-manager-list", "Rate")),
+            Action::Click("[data-dnacalc=name-manager-list] tbody button"),
+            Action::Into("name-manager-formula", "=7"),
+            Action::Click("name-manager-save"),
+            Action::Wait(Check::TextContains("name-manager-list", "=7")),
+            Action::Click("[data-dnacalc=name-manager-list] tbody button"),
+            Action::Into("name-manager-name", "TaxRate"),
+            Action::Click("name-manager-save"),
+            Action::Wait(Check::TextContains("name-manager-list", "TaxRate")),
+            Action::Keys("name-manager-name", "\u{e00c}"),
+            Action::Wait(Check::Rendered("name-manager", false)),
+            Action::Wait(Check::Value("name-box", "B2")),
+            Action::Into("formula-bar", "=TaxRate+1"),
+            Action::Keys("formula-bar", "\u{e007}"),
+        ],
+        checks: &[Check::Text("[data-cell=B2]", "8")],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -997,6 +1028,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "loan-print",
         start: 41,
+        end: 42,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-name-manager",
+        start: 42,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],
