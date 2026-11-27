@@ -93,6 +93,12 @@
     color: var(--dna-petrol-500, var(--dna-accent-ink));
     background: currentColor;
     transform-origin: left center;
+    pointer-events: none;
+}
+.dna-sheet-trace-hit {
+    position: absolute;
+    inset-inline: 25%;
+    inset-block: -2px;
     pointer-events: auto;
 }
 .dna-sheet-trace-arrow::before, .dna-sheet-trace-arrow::after {
@@ -112,6 +118,23 @@
     right: 0;
     border-block: 4px solid transparent;
     border-left: 8px solid currentColor;
+}
+.dna-sheet-trace-arrow[data-cross-sheet="true"] {
+    color: var(--dna-ink);
+    background: repeating-linear-gradient(to right, currentColor 0 5px, transparent 5px 9px);
+}
+.dna-sheet-trace-arrow[data-error="true"] { color: var(--dna-red-ink); }
+.dna-sheet-trace-worksheet {
+    position: absolute;
+    width: 16px;
+    height: 12px;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    border: 1px solid var(--dna-ink);
+    background:
+        linear-gradient(90deg, transparent calc(50% - 0.5px), var(--dna-line) 50%, transparent calc(50% + 0.5px)),
+        repeating-linear-gradient(var(--dna-paper) 0 2px, var(--dna-line) 2px 3px);
+    pointer-events: auto;
 }
 .dna-sheet td, .dna-sheet th {
     box-sizing: border-box;

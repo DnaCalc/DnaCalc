@@ -920,6 +920,45 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Js("the traces left the workbook model at its last edit", "__dnaProbe().stamp.model === 2"),
         ],
     },
+    Case {
+        name: "Classic draws a worksheet marker for a cross-sheet precedent and follows it",
+        actions: &[
+            Action::WriteCast("Budget"),
+            Action::UploadDownloadTo("Budget.xlsx", "open-file"),
+            Action::Wait(Check::Js(
+                "the scratch Budget workbook is open",
+                "document.querySelector('.dna-book-title').textContent.includes('Budget')",
+            )),
+            Action::Click("[aria-label='Worksheets'] button:nth-child(2)"),
+            Action::Wait(Check::Attr("[aria-label='Worksheets'] button:nth-child(2)", "aria-current", "true")),
+            Action::Click("[data-cell=B2]"),
+            Action::Wait(Check::Value("formula-bar", "=Inputs!$B$2")),
+            Action::Keys("grid", "\u{e03a}mp"),
+            Action::Wait(Check::Rendered("[data-dnacalc='trace-worksheet'][data-worksheet='Inputs']", true)),
+            Action::Wait(Check::Js(
+                "the cross-sheet arrow is dashed",
+                "getComputedStyle(document.querySelector('[data-dnacalc=trace-arrow][data-cross-sheet=true]')).backgroundImage.includes('repeating-linear-gradient')",
+            )),
+            Action::DoubleClick("[data-dnacalc='trace-worksheet'][data-worksheet='Inputs']"),
+            Action::Wait(Check::Attr("[aria-label='Worksheets'] button:nth-child(1)", "aria-current", "true")),
+            Action::Wait(Check::Value("name-box", "B2")),
+            Action::Wait(Check::Absent("[data-dnacalc='trace-worksheet']")),
+            Action::Into("formula-bar", "=1/0"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "#DIV/0!")),
+            Action::Click("[aria-label='Worksheets'] button:nth-child(2)"),
+            Action::Click("[data-cell=B2]"),
+            Action::Wait(Check::Text("[data-cell=B2]", "#DIV/0!")),
+            Action::Keys("grid", "\u{e03a}mp"),
+            Action::Wait(Check::Rendered("[data-dnacalc='trace-arrow'][data-cross-sheet=true][data-error=true]", true)),
+            Action::DoubleClick("[data-dnacalc='trace-worksheet'][data-worksheet='Inputs']"),
+        ],
+        checks: &[
+            Check::Attr("[aria-label='Worksheets'] button:nth-child(1)", "aria-current", "true"),
+            Check::Value("name-box", "B2"),
+            Check::Absent("[data-dnacalc='trace-worksheet']"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1080,6 +1119,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-trace",
         start: 43,
+        end: 44,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-trace-worksheet",
+        start: 44,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],

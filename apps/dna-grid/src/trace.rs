@@ -129,6 +129,15 @@ struct Line {
     y: f64,
     length: f64,
     angle: f64,
+    error: bool,
+    worksheet: Option<(Key, Position)>,
+}
+
+#[derive(Clone, Copy)]
+struct Position {
+    x: f64,
+    y: f64,
+    error: bool,
 }
 
 fn arrows(
@@ -170,7 +179,7 @@ fn arrows(
             .filter_map(|edge| {
                 let left = graph.nodes.get(edge.from).and_then(endpoint)?;
                 let right = graph.nodes.get(edge.to).and_then(endpoint)?;
-                if left == right || sheet_of(left) != sheet || sheet_of(right) != sheet {
+                if left == right || (sheet_of(left) != sheet && sheet_of(right) != sheet) {
                     return None;
                 }
                 Some(match trace.direction {
@@ -187,6 +196,9 @@ fn arrows(
                 return;
             };
             let centre = |at| {
+                if sheet_of(at) != sheet {
+                    return None;
+                }
                 let selector = format!("[data-cell='{}']", cell_address(at));
                 let mut element = content
                     .query_selector(&selector)
@@ -194,6 +206,10 @@ fn arrows(
                     .flatten()?
                     .dyn_into::<leptos::web_sys::HtmlElement>()
                     .ok()?;
+                let error = element
+                    .class_name()
+                    .split_ascii_whitespace()
+                    .any(|class| class == "dna-error");
                 let mut x = f64::from(element.offset_width()) / 2.0;
                 let mut y = f64::from(element.offset_height()) / 2.0;
                 loop {
@@ -201,24 +217,49 @@ fn arrows(
                     y += f64::from(element.offset_top());
                     let parent = element.offset_parent()?;
                     if parent.is_same_node(Some(content.as_ref())) {
-                        return Some((x, y));
+                        return Some(Position { x, y, error });
                     }
                     element = parent.dyn_into().ok()?;
+                }
+            };
+            let worksheet_icon = |cell: Position| {
+                let dx = if cell.x + 42.0 < f64::from(content.offset_width()) {
+                    34.0
+                } else {
+                    -34.0
+                };
+                let dy = if cell.y > 26.0 { -20.0 } else { 20.0 };
+                Position {
+                    x: cell.x + dx,
+                    y: cell.y + dy,
+                    error: false,
                 }
             };
             let measured = edges
                 .into_iter()
                 .filter_map(|(from, to)| {
-                    let (x, y) = centre(from)?;
-                    let (end_x, end_y) = centre(to)?;
-                    let (dx, dy) = (end_x - x, end_y - y);
+                    let (start, end, worksheet) = match (centre(from), centre(to)) {
+                        (Some(start), Some(end)) => (start, end, None),
+                        (Some(start), None) if sheet_of(to) != sheet => {
+                            let icon = worksheet_icon(start);
+                            (start, icon, Some((to, icon)))
+                        }
+                        (None, Some(end)) if sheet_of(from) != sheet => {
+                            let icon = worksheet_icon(end);
+                            (icon, end, Some((from, icon)))
+                        }
+                        _ => return None,
+                    };
+                    let (dx, dy) = (end.x - start.x, end.y - start.y);
                     Some(Line {
                         from,
                         to,
-                        x,
-                        y,
+                        x: start.x,
+                        y: start.y,
                         length: dx.hypot(dy),
                         angle: dy.atan2(dx).to_degrees(),
+                        error: start.error || end.error,
+                        worksheet,
                     })
                 })
                 .collect();
@@ -226,26 +267,43 @@ fn arrows(
         });
     });
     move || {
+        let summary = session.summary();
         lines
             .get()
             .into_iter()
             .map(|line| {
                 let from = cell_address(line.from);
                 let to = cell_address(line.to);
-                let other = if trace.root == line.to {
-                    line.from
-                } else {
-                    line.to
-                };
+                let worksheet = line.worksheet.map(|(remote, position)| {
+                    let sheet = summary.as_ref().and_then(|book| book.sheets.iter()
+                        .find(|entry| entry.sheet == sheet_of(remote)))
+                        .map_or_else(|| "Worksheet".into(), |entry| entry.name.clone());
+                    let label = format!("{}!{}", address::quoted_sheet(&sheet), cell_address(remote));
+                    view! {
+                        <div class="dna-sheet-trace-worksheet" data-dnacalc="trace-worksheet"
+                            role="img" aria-label=label.clone() title=label data-worksheet=sheet
+                            style:left=format!("{}px", position.x) style:top=format!("{}px", position.y)
+                            on:dblclick=move |_| session.select_cell(remote)>
+                        </div>
+                    }
+                });
                 view! {
                     <div class="dna-sheet-trace-arrow" data-dnacalc="trace-arrow"
                         role="img" aria-label=format!("{from} to {to}")
-                        data-from=from data-to=to
+                        data-from=from data-to=to data-cross-sheet=line.worksheet.is_some().to_string()
+                        data-error=line.error.to_string()
                         style:left=format!("{}px", line.x) style:top=format!("{}px", line.y)
                         style:width=format!("{}px", line.length)
-                        style:transform=format!("rotate({}deg)", line.angle)
-                        on:dblclick=move |_| session.select_cell(other)>
+                        style:transform=format!("rotate({}deg)", line.angle)>
+                        <span class="dna-sheet-trace-hit"
+                            on:dblclick=move |event: leptos::ev::MouseEvent| {
+                                let other = line.worksheet.map(|(at, _)| at).unwrap_or_else(|| {
+                                    if f64::from(event.offset_x()) < line.length / 4.0 { line.to } else { line.from }
+                                });
+                                session.select_cell(other);
+                            }/>
                     </div>
+                    {worksheet}
                 }
             })
             .collect_view()
