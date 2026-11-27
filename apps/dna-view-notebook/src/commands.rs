@@ -24,6 +24,25 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
             |state, _| state.link(),
         )
         .when("writable"),
+        command("notebook.new-formula", "New formula", &[], |state, _| {
+            state.author.open(state)
+        })
+        .when("mode:notebook-command && writable"),
+        command(
+            "notebook.author-columns",
+            "Set array lane width",
+            &[],
+            |state, action| state.author.columns(state, argument(action)?),
+        )
+        .when("mode:notebook-command && writable"),
+        command("notebook.author", "Add formula", &[], |state, action| {
+            state.author.submit(state, argument(action)?)
+        })
+        .when("mode:notebook-command && writable"),
+        command("notebook.cancel-formula", "Cancel new formula", &[], |state, _| {
+            state.author.close();
+            Ok(())
+        }),
         command("notebook.blank", "Blank notebook", &[], |state, _| {
             let snapshot = state.snapshot()?;
             state.submit(&snapshot, &snapshot.chain, vec![], "Start blank notebook")
@@ -361,9 +380,21 @@ impl State {
         self,
         snapshot: &Snapshot,
         chain: &Chain,
-        mut changes: Vec<Change>,
+        changes: Vec<Change>,
         label: &str,
     ) -> Result<(), String> {
+        let batch = self.prepare_batch(snapshot, chain, changes, label)?;
+        self.session.submit(batch);
+        Ok(())
+    }
+
+    pub(super) fn prepare_batch(
+        self,
+        snapshot: &Snapshot,
+        chain: &Chain,
+        mut changes: Vec<Change>,
+        label: &str,
+    ) -> Result<Batch, String> {
         if !matches!(self.session.seam(), Seam::Idle) {
             return Err("Finish the change in progress first.".into());
         }
@@ -386,7 +417,7 @@ impl State {
         };
         changes.push(Change::Presentation(doc));
         let stamp = snapshot.part.stamp;
-        self.session.submit(Batch {
+        Ok(Batch {
             id: String::new(),
             workbook: Some(stamp.workbook),
             base: Some(stamp.model),
@@ -394,8 +425,7 @@ impl State {
             selection_seq: None,
             label: Some(label.into()),
             changes,
-        });
-        Ok(())
+        })
     }
 
     fn link(self) -> Result<(), String> {

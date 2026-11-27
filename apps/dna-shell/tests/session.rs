@@ -630,6 +630,62 @@ fn notebook_linking_and_reordering_only_edit_the_view_part() {
     assert_eq!(page.shown(a1), "42", "unlinking preserves the referenced worksheet cell");
 }
 
+/// Native-only: drives Notebook authoring, placement and undo through the workbook service.
+#[test]
+fn notebook_authors_scalar_and_array_anchors_in_one_history_step_each() {
+    use calc_skin::SourceRef;
+    use calc_skin::grid::Area;
+    use dna_kit::commands::CommandId;
+
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    page.settle();
+    let before = session.stamp().unwrap();
+    let part = session.watch(query::ViewPartOf);
+    let run = |command, args| {
+        session
+            .run(&dna_kit::Invocation {
+                command: CommandId::new(command),
+                args,
+            })
+            .unwrap();
+        page.settle();
+    };
+
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    assert_eq!(session.stamp(), Some(before), "offering a slot is read-only");
+    run("notebook.author", serde_json::json!("=21*2"));
+    assert_eq!(page.shown(page.at(2, 2)), "42");
+
+    for formula in ["=SEQUENCE(3,1)", "=SEQUENCE(2,1)"] {
+        session.command("notebook.new-formula").unwrap();
+        page.settle();
+        run("notebook.author-columns", serde_json::json!(2));
+        run("notebook.author", serde_json::json!(formula));
+    }
+    assert_eq!(page.shown(page.at(12, 1)), "3");
+    assert_eq!(page.shown(page.at(11, 4)), "2");
+    let Live::Ready(authored) = session.read(part) else {
+        panic!("Notebook view part");
+    };
+    assert_eq!(authored.body.anchors.len(), 3);
+    assert!(authored.body.anchors.iter().any(|anchor| {
+        anchor.source == Some(SourceRef::Spill { anchor: page.at(10, 1) })
+            && anchor.area == Some(Area(page.at(10, 1), page.at(12, 1)))
+    }));
+
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(page.at(10, 4)), "");
+    assert_eq!(page.shown(page.at(12, 1)), "3");
+    let Live::Ready(undone) = session.read(part) else {
+        panic!("Notebook view part after undo");
+    };
+    assert_eq!(undone.body.anchors.len(), 2);
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {

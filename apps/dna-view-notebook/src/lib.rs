@@ -1,5 +1,6 @@
 //! The ordered computation chain over the workbook session.
 
+mod author;
 mod commands;
 mod stage;
 
@@ -78,6 +79,7 @@ struct State {
     workspace: StoredValue<Workspace, LocalStorage>,
     draft: RwSignal<Option<calc_skin::WorkbookId>>,
     structure: Following<query::StructureOf>,
+    author: author::Authoring,
     prose_editor: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
     tree: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
     rows: RwSignal<BTreeMap<(calc_skin::WorkbookId, AnchorId), RowControls>>,
@@ -116,6 +118,8 @@ struct Item {
     id: AnchorId,
     #[serde(flatten)]
     kind: Kind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lane_columns: Option<u32>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     folded: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -152,6 +156,7 @@ impl Item {
         Self {
             id,
             kind,
+            lane_columns: None,
             folded: false,
             line_numbers: false,
         }
@@ -173,6 +178,7 @@ impl State {
             workspace: StoredValue::new_local(Workspace::default()),
             draft: RwSignal::new(None),
             structure: session.following(),
+            author: author::Authoring::new(session),
             prose_editor: RwSignal::new(None),
             tree: RwSignal::new(None),
             rows: RwSignal::new(BTreeMap::new()),

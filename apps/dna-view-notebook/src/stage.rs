@@ -15,12 +15,14 @@ pub(super) fn mount(state: State) -> impl IntoView {
     };
     view! {
         <section class="dna-notebook" data-dnacalc="notebook" aria-label="Notebook" tabindex="0">
+            {super::author::mount(state)}
             {move || match declaration.get() {
                 Err(message) => view! { <p role="status">{message}</p> }.into_any(),
                 Ok(None) => first_visit(state).into_any(),
                 Ok(Some(_)) => view! {
                     <nav class="dna-notebook-tools" aria-label="Notebook commands">
                         {button(state.session, "notebook.link", "Link selection")}
+                        {button(state.session, "notebook.new-formula", "New formula")}
                         {button(state.session, "notebook.prose-below", "Add Markdown")}
                         {button(state.session, "notebook.layout", "Vertical / Pipeline")}
                         <Show when=move || { state.session.held_edits() > 0 }>
@@ -34,7 +36,7 @@ pub(super) fn mount(state: State) -> impl IntoView {
                             children=move |id| item_card(state, id) />
                     </div>
                     <Show when=move || chain.get().is_some_and(|chain| chain.cells.is_empty())>
-                        <p>"Select a worksheet cell in Classic, then link it here."</p>
+                        <p>"Add a formula or link a worksheet cell."</p>
                     </Show>
                 }.into_any(),
             }}
@@ -51,6 +53,7 @@ fn first_visit(state: State) -> impl IntoView {
                 {button(state.session, "notebook.link", "Start with selected cells")}
                 {button(state.session, "notebook.draft", "Draft from workbook structure")}
                 {button(state.session, "notebook.blank", "Blank notebook")}
+                {button(state.session, "notebook.new-formula", "New formula")}
             </div>
             {move || {
                 let requested = state.draft.get().is_some_and(|book| state.session.stamp().is_some_and(|stamp| stamp.workbook == book));
@@ -408,7 +411,7 @@ fn chip(session: Session, address: String) -> impl IntoView {
     }
 }
 
-fn button(session: Session, id: &'static str, label: &'static str) -> impl IntoView {
+pub(super) fn button(session: Session, id: &'static str, label: &'static str) -> impl IntoView {
     view! {
         <button type="button" data-command=id on:click=move |_| { let _ = session.command(id); }>
             {label}
@@ -416,7 +419,7 @@ fn button(session: Session, id: &'static str, label: &'static str) -> impl IntoV
     }
 }
 
-fn address(session: Session, at: Option<Key>) -> String {
+pub(super) fn address(session: Session, at: Option<Key>) -> String {
     let Some(at) = at else {
         return String::new();
     };
