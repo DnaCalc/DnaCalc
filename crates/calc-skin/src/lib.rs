@@ -3,6 +3,7 @@
 pub mod address;
 pub mod grid;
 pub mod metrics;
+pub mod parts;
 pub mod print;
 
 mod declarations;

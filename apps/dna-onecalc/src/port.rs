@@ -17,9 +17,9 @@
 
 use crate::display;
 use crate::grid;
-use crate::session::{AddinRef, InputValue, ProjectReport, Session};
+use crate::{AddinRef, InputValue, ProjectReport, Session};
 use crate::shown::{Authored, Shown};
-use calc_fml::{CalcEnvironment, DateSystem, FormatProfile};
+pub(crate) use calc_formula_host::environment;
 use serde::{Deserialize, Serialize};
 
 /// Bytes as base64 text in a message, so a file crosses the bridge as one JSON string.
@@ -442,21 +442,6 @@ pub(crate) fn entry_value(
             .ok_or_else(|| format!("{entry:?} is not a worksheet error such as #N/A")),
         "blank" => Ok(InputValue::blank()),
         other => Err(format!("{other:?} is not a kind of input")),
-    }
-}
-
-/// The calculation environment a surface gives its session: the 1900 date system, the profile of
-/// `culture`, and the owner's clock.
-pub(crate) fn environment(culture: &str, now: Option<f64>, date_1904: bool) -> CalcEnvironment {
-    CalcEnvironment {
-        compatibility_version: 1,
-        date_system: if date_1904 {
-            DateSystem::System1904
-        } else {
-            DateSystem::System1900
-        },
-        profile: FormatProfile::for_culture(culture),
-        now,
     }
 }
 

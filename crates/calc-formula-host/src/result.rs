@@ -1,10 +1,10 @@
 //! A calculation's result as the surface shows it. The layout both apps share (a value as a cell
 //! shows it, an array window, an error's meaning) is dna-formula-ui's
-//! [`dna_formula_ui::result`], re-exported here; where a session's result came from is OneCalc's.
+//! [`calc_formula_kernel::result`], re-exported here; where a session's result came from is OneCalc's.
 
 use crate::session::{Calculation, Session};
 
-pub use dna_formula_ui::result::*;
+pub use calc_formula_kernel::result::*;
 
 /// Where a result came from: the formula's cell, the route that calculated it, and the cells it
 /// read. `None` when nothing was calculated.

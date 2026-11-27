@@ -266,12 +266,12 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
             let s = array.shape();
             let columns = s
                 .cols
-                .min(dna_formula_ui::result::MAX_SCROLL_WINDOW_COLS)
+                .min(calc_formula_kernel::result::MAX_SCROLL_WINDOW_COLS)
                 .max(1);
             let rows = s
                 .rows
-                .min(dna_formula_ui::result::MAX_SCROLL_WINDOW_ROWS)
-                .min((dna_formula_ui::result::MAX_SCROLL_WINDOW_CELLS / columns).max(1))
+                .min(calc_formula_kernel::result::MAX_SCROLL_WINDOW_ROWS)
+                .min((calc_formula_kernel::result::MAX_SCROLL_WINDOW_CELLS / columns).max(1))
                 .max(1);
             shape = (rows as u32, columns as u32);
         }

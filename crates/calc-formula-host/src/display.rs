@@ -1,12 +1,12 @@
 //! Text for people about a session: its reads, diagnostics and refused inputs, as the surface
 //! shows them. The labels both apps share (values, cells, areas, calc-fml's refusals) are
-//! dna-formula-ui's [`dna_formula_ui::display`], re-exported here, over the session's sheet names.
+//! dna-formula-ui's [`calc_formula_kernel::display`], re-exported here, over the session's sheet names.
 
 use crate::fixture::{Read, RunCells};
 use crate::session::{Diagnostic, InputError, Session, SheetError};
 use calc_func::value::{CellKey, GridArea, SheetId};
 
-pub use dna_formula_ui::display::*;
+pub use calc_formula_kernel::display::*;
 
 impl SheetNames for Session {
     fn sheet_name_of(&self, sheet: SheetId) -> Option<String> {

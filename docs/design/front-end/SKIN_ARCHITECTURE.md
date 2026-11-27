@@ -497,7 +497,7 @@ Both proposals chose option (b) of [FRONT_END_IMPLEMENTATION_BRIEF.md](../../pla
    - `interpret_entry`: Excel raw-entry parsing (moved down from `calc-host/src/entry.rs` so both levels share one parser).
 
 2. **`crates/calc-formula-host` (stateful level-0 session, no `calc-engine`):**
-   - Built directly by moving the 12 non-UI files from `apps/dna-onecalc/src/` (`session.rs`, `cf.rs`, `rtd.rs`, `trace.rs`, `fixture.rs`, `file.rs` = 4,523 lines, plus `shown.rs`, `format_oracle.rs`, `grid.rs`, `display.rs`, `lib.rs`, `result.rs` = 1,417 lines; 5,940 lines total) plus RTD topic admission from `crates/calc-host/src/recalc.rs:452-552`.
+   - The existing session, conditional formats, RTD, trace, fixture, file codec, typed grid inputs and session projections live here. Pure display, result formatting and expression-part analysis live in the kernel. RTD topic admission is shared with the workbook host.
    - Owns `CallableTable` (built-ins + XLL/COM/JS add-ins + loaded VBA module UDFs), `ProviderRegistry` (recording preview-safety flags so side-effecting UDFs never fire on keystrokes, Pro R-42), `RtdTopics` ledger, `CalcEnvironment` (date system, locale) and `MacroPolicy`.
    - Answers `Evaluate` (single `Trial` with optional `CallerSnapshot` — refusing caller-dependent functions like `ROW()`/`CELL("address")` when `caller: None` with a route to a workbook cell, Pro R-39), `EvaluatePart`, `Trace` (live evaluation tree), formula-bearing `ConditionalFormat`, `Catalogue` (including witness-bank Excel match status), `Providers`, and Explorer `.xlsx` session load/save.
 

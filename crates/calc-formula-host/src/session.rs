@@ -411,7 +411,7 @@ impl Session {
         self.published_vba_loaded || self.vba_module.is_some()
     }
 
-    pub(crate) fn has_published_vba_module(&self) -> bool {
+    pub fn has_published_vba_module(&self) -> bool {
         self.published_vba_loaded
     }
 
@@ -902,7 +902,7 @@ impl Session {
         Ok(names)
     }
 
-    pub(crate) fn unload_vba_module(&mut self) {
+    pub fn unload_vba_module(&mut self) {
         if self.vba_module.take().is_some() {
             self.republish();
         }

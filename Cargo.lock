@@ -353,6 +353,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-formula-host"
+version = "0.1.0"
+dependencies = [
+ "calc-doc",
+ "calc-fml",
+ "calc-formula-kernel",
+ "calc-func",
+ "calc-macro-security",
+ "calc-vba",
+ "serde",
+ "serde_json",
+ "wasm-bindgen-test",
+]
+
+[[package]]
+name = "calc-formula-kernel"
+version = "0.1.0"
+dependencies = [
+ "calc-fml",
+ "calc-func",
+ "calc-skin",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-func"
 version = "0.1.0"
 dependencies = [
@@ -1375,6 +1400,7 @@ name = "dna-formula-ui"
 version = "0.1.0"
 dependencies = [
  "calc-fml",
+ "calc-formula-kernel",
  "calc-func",
  "dna-calc-model",
  "dna-strand",
@@ -1393,6 +1419,7 @@ dependencies = [
  "calc-addin-host",
  "calc-doc",
  "calc-fml",
+ "calc-formula-host",
  "calc-func",
  "calc-macro-security",
  "calc-vba",

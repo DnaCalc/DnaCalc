@@ -1,7 +1,6 @@
 //! Parts of a formula evaluated on their own, as they travel between a page and the engine that
 //! calculates them: F9 on a selected part and the evaluation trace (dc-wr9 for DNA OneCalc,
-//! dc-0f1k.7 for DNA Calc). The evaluation itself is `dna_formula_ui::parts`, over whichever
-//! engine the owner has.
+//! dc-0f1k.7 for DNA Calc). Evaluation is supplied by the owning formula or workbook host.
 
 use serde::{Deserialize, Serialize};
 

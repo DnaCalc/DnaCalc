@@ -5,7 +5,7 @@ pub mod automation;
 mod editor;
 pub mod format;
 pub mod names;
-pub mod parts;
+pub use calc_skin::parts;
 pub use editor::{EditorState, PointEdit, PointSyntax, TextHistory, replace_text};
 pub mod command;
 pub mod drawn_shapes;

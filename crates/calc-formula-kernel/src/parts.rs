@@ -10,7 +10,7 @@
 //! an IF skips is still evaluated for its step.
 //!
 //! DNA OneCalc evaluates through its session, DNA Calc through its worker's host (a request over
-//! the workbook transport); the wire types are `dna_calc_model::parts`.
+//! the workbook transport); the wire types are `calc_skin::parts`.
 
 use crate::display;
 use crate::result;
@@ -20,7 +20,7 @@ use calc_fml::parse_formula;
 use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TokenKind, lex};
 use calc_func::value::CalcValue;
 
-pub use dna_calc_model::parts::{MAX_TRACE_STEPS, PartValue, Trace, TraceStep};
+pub use calc_skin::parts::{MAX_TRACE_STEPS, PartValue, Trace, TraceStep};
 
 /// What the owner calculates for a part: the value of formula text (with its leading `=`) over the
 /// owner's inputs, or why there is none, and the profile values are shown with.

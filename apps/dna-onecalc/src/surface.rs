@@ -35,7 +35,7 @@ use crate::cf::LookWire;
 use crate::grid;
 use crate::panels;
 use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, MacrosView, Opened, Reply, Request};
-use crate::session::{AddinRef, Session, SessionOptions};
+use crate::{AddinRef, Session, SessionOptions};
 use crate::shown::{Authored, Shown, ViewWire};
 use calc_fml::FormatProfile;
 use calc_fml::syntax::TextSpan;

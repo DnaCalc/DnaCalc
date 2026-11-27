@@ -16,6 +16,31 @@
       "reason": "Skin architecture section 3.2: neutral wire and view types shared by page and host"
     },
     {
+      "package": "calc-formula-kernel",
+      "scope": "closure",
+      "forbidden": [
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-vba",
+        "calc-addin-host"
+      ],
+      "forbid_apps": true,
+      "reason": "Skin architecture section 3.2: the formula kernel is shared by the host and the page"
+    },
+    {
+      "package": "calc-formula-host",
+      "scope": "closure",
+      "forbidden": [
+        "calc-engine",
+        "calc-host",
+        "calc-skin-host"
+      ],
+      "forbid_apps": true,
+      "reason": "Skin architecture section 5.1: level zero has a formula session and no workbook engine"
+    },
+    {
       "package": "calc-host",
       "scope": "closure",
       "forbidden": [],

@@ -1,6 +1,6 @@
 //! Parts of the formula evaluated on their own: F9 on a selected part, and the evaluation trace
 //! (the port of DnaOneCalc's X-Ray, dc-wr9). The evaluation is dna-formula-ui's
-//! [`dna_formula_ui::parts`], shared with DNA Calc; here it runs over the session's one evaluator,
+//! [`calc_formula_kernel::parts`], shared with DNA Calc; here it runs over the session's one evaluator,
 //! [`Session::calculate_text`], with the same inputs, form, environment and functions as the whole
 //! formula.
 
@@ -9,9 +9,9 @@ use crate::session::Session;
 use crate::shown::{Authored, prepare};
 use calc_fml::FormatProfile;
 use calc_func::value::CalcValue;
-use dna_formula_ui::parts::PartEvaluator;
+use calc_formula_kernel::parts::PartEvaluator;
 
-pub use dna_formula_ui::parts::{MAX_TRACE_STEPS, PartValue, Trace, TraceStep};
+pub use calc_formula_kernel::parts::{MAX_TRACE_STEPS, PartValue, Trace, TraceStep};
 
 /// The session as the evaluator of a part.
 struct SessionEvaluator<'a>(&'a mut Session);
@@ -43,7 +43,7 @@ pub fn evaluate_part(
     len: usize,
 ) -> Result<PartValue, String> {
     prepare(session, authored);
-    dna_formula_ui::parts::evaluate_part(
+    calc_formula_kernel::parts::evaluate_part(
         &mut SessionEvaluator(session),
         &authored.formula,
         start,
@@ -54,7 +54,7 @@ pub fn evaluate_part(
 /// The evaluation trace of `authored`'s formula: every part with its value, innermost first.
 pub fn trace(session: &mut Session, authored: &Authored) -> Trace {
     prepare(session, authored);
-    dna_formula_ui::parts::trace(&mut SessionEvaluator(session), &authored.formula)
+    calc_formula_kernel::parts::trace(&mut SessionEvaluator(session), &authored.formula)
 }
 
 #[cfg(test)]

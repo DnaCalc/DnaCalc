@@ -96,7 +96,7 @@ pub fn error_spelling(code: WorksheetErrorCode) -> &'static str {
     code.excel_spelling()
 }
 
-pub use dna_calc_model::address::{SheetNames, address, area, cell, column_letters, parse_address};
+pub use calc_skin::address::{SheetNames, address, area, cell, column_letters, parse_address};
 
 /// A span of the formula text (UTF-16 code units): `3..7`.
 pub fn span(span: TextSpan) -> String {

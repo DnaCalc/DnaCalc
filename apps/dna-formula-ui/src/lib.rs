@@ -17,11 +17,10 @@
 //! Its stylesheet is `web/css/formula-field.css`, which both bundles load (`cargo xtask app
 //! bundle`).
 
-pub mod display;
 pub mod editor;
 pub mod formula_field;
-pub mod parts;
-pub mod result;
 pub mod theme;
 pub mod trace_panel;
 pub mod web;
+
+pub use calc_formula_kernel::{display, parts, result};

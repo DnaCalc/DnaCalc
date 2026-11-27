@@ -1,6 +1,6 @@
 //! The number-format oracle: the text Excel displays for a value under a number format, by locale
 //! and date system, replayed through the formatter the result panel uses
-//! ([`dna_formula_ui::result::formatted_view`]'s [`calc_func::cell_text_localized`]).
+//! ([`calc_formula_kernel::result::formatted_view`]'s [`calc_func::cell_text_localized`]).
 //!
 //! `tests/fixtures/formats/cases.tsv` holds the questions (`make-cases.py` writes it) and
 //! `excel-formats.tsv` Excel's answers, captured by `tools/excel-session/formats-job.ps1` in an
@@ -21,8 +21,8 @@ use calc_func::CellFormatError;
 use calc_func::locale::DateSystem;
 use calc_func::value::{CalcValue, ExcelText};
 
-const CASES: &str = include_str!("../tests/fixtures/formats/cases.tsv");
-const ANSWERS: &str = include_str!("../tests/fixtures/formats/excel-formats.tsv");
+const CASES: &str = include_str!("../../../apps/dna-onecalc/tests/fixtures/formats/cases.tsv");
+const ANSWERS: &str = include_str!("../../../apps/dna-onecalc/tests/fixtures/formats/excel-formats.tsv");
 
 /// `U+NNNN` in a separator column or a code is that character.
 fn separator(text: &str) -> String {

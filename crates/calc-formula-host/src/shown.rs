@@ -1,4 +1,4 @@
-//! What a surface shows for one authored state, as plain data that crosses a [`crate::port`]: the
+//! What a surface shows for one authored state, as plain data that crosses the Explorer port: the
 //! session answers [`evaluate`] with a [`Shown`], and the surface only draws it.
 //!
 //! The authored state is [`Authored`]: what the person typed (the formula as shown, the cell it
@@ -192,7 +192,7 @@ pub struct Shown {
     #[serde(default)]
     pub style_css: String,
     /// Which table of registered functions (add-ins and a VBA module) the session calls with. The
-    /// functions themselves come once per version, by [`crate::port::Request::FunctionDocs`]: a
+    /// functions themselves come once per version, by the Explorer function-documentation request: a
     /// table of thousands of functions is not sent with every answer.
     #[serde(default)]
     pub functions_version: u64,
@@ -245,7 +245,7 @@ pub(crate) fn prepare(session: &mut Session, authored: &Authored) -> (String, Ve
     if *legacy && *plain {
         session.set_plain_legacy();
     }
-    session.set_environment(Some(crate::port::environment(locale, *now, *date_1904)));
+    session.set_environment(Some(crate::environment(locale, *now, *date_1904)));
     session.set_options(SessionOptions {
         locale: locale.clone(),
         number_format: number_format.clone(),

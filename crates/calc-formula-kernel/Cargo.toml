@@ -1,0 +1,18 @@
+[package]
+name = "calc-formula-kernel"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Pure formula analysis, formatting and inspection shared by calculation hosts and views."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-fml = { path = "../calc-fml" }
+calc-func = { path = "../calc-func" }
+calc-skin = { path = "../calc-skin" }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"
