@@ -47,6 +47,7 @@ fn a1(at: Key) -> String {
 
 fn model_property_text(diff: ModelPropertyDiff) -> String {
     match diff {
+        ModelPropertyDiff::WorksheetInserted { name, .. } => format!("Add worksheet {name}"),
         ModelPropertyDiff::CellFormat { at, before, after } => {
             let style =
                 |id: Option<u32>| id.map_or_else(|| "File format".into(), |id| format!("Format {id}"));

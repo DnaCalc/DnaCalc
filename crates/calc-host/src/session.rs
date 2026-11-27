@@ -1337,7 +1337,43 @@ impl HostSession {
         self.prepare_entries(at, text, &[GridArea::cell(at)])
     }
 
-    /// Stage cell contents, worksheet properties and view-part edits as for commit.
+    /// Plan a worksheet insertion without assigning its identity or changing the workbook.
+    pub fn prepare_worksheet_insert(
+        &self,
+        name: String,
+    ) -> Result<(calc_value::SheetId, CellEdit), IntentError> {
+        if self.host.loaded().structure_protected() {
+            return Err(IntentError::Workbook(
+                "Workbook structure is protected".into(),
+            ));
+        }
+        if self.host.model().sheets().iter().any(|sheet| {
+            calc_value::workbook_names_equal(&sheet.name().text().to_string_lossy(), &name)
+        }) {
+            return Err(IntentError::Workbook(
+                "A worksheet with that name already exists".into(),
+            ));
+        }
+        let sheet = self
+            .host
+            .sheet_ids
+            .next_id()
+            .map_err(|error| IntentError::Workbook(error.to_string()))?;
+        let mut keys = self.sheet_keys.clone();
+        keys.extend(self.host.sheet_identities.keys().copied());
+        let mut edits = crate::actions::prepare(
+            &self.host,
+            &mut keys,
+            crate::WorkbookCommand::Sheet {
+                sheet: None,
+                change: crate::SheetChange::Add { name },
+            },
+        )
+        .map_err(IntentError::Workbook)?;
+        Ok((sheet, edits.pop().expect("adding a worksheet prepares one edit")))
+    }
+
+    /// Stage worksheet insertion, cell contents, worksheet properties and view-part edits as for commit.
     /// The returned root is for inspection only; the live model, history and calculation stay put.
     pub fn preview_edits(&mut self, edits: &[CellEdit]) -> Result<Arc<calc_doc_model::ModelRoot>, IntentError> {
         if edits.iter().any(|edit| {
@@ -1358,10 +1394,11 @@ impl HostSession {
                     | CellEdit::Charts { .. }
                     | CellEdit::Shapes { .. }
                     | CellEdit::View(_)
+                    | CellEdit::Sheet(calc_doc_model::SheetEdit::Insert { .. })
             )
         }) {
             return Err(IntentError::Workbook(
-                "Preview supports cell contents, worksheet properties and view-part edits".into(),
+                "Preview supports worksheet insertion, cell contents, worksheet properties and view-part edits".into(),
             ));
         }
         let edits = self.authored_edits(edits.to_vec());
@@ -1669,6 +1706,9 @@ impl HostSession {
         }
         let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
         self.commit_coordinates(&edits, coordinates.as_ref(), receipt)?;
+        if let Some(CellEdit::Sheet(calc_doc_model::SheetEdit::Insert { key, .. })) = edits.first() {
+            self.sheet_keys.insert(*key);
+        }
         if let Some(selection) = after_selection {
             self.select_quietly(selection, receipt);
         }

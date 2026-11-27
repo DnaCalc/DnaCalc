@@ -126,6 +126,14 @@ Placement { sheet: Sheet, kind: PlacementKind, shape: Option<PlacementShape>, re
         reserved: q.reserved.clone(),
     });
 query!(
+    /// A proposed backing cell on a worksheet to be inserted in the authoring batch.
+    NewSheetPlacement { name: String, kind: PlacementKind, shape: Option<PlacementShape> }
+    => PlacementAnswer, |q: &NewSheetPlacement| WorkbookQuery::NewSheetPlacement {
+        name: q.name.clone(),
+        kind: q.kind,
+        shape: q.shape,
+    });
+query!(
     Geometry { sheet: Sheet } => WorksheetGeometry, |q: &Geometry| WorkbookQuery::Geometry { sheet: q.sheet });
 query!(
     Formula { at: Key } => FormulaFacts, |q: &Formula| WorkbookQuery::Formula { at: q.at });

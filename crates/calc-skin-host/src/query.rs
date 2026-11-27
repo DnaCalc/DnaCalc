@@ -245,6 +245,7 @@ pub(crate) fn invalidated(
                     || (recalculated && calculation_intersects(state, prior.calc, area))
             })
         }
+        WorkbookQuery::NewSheetPlacement { .. } => authored,
         WorkbookQuery::Cells { interest } => {
             recalculated
                 || (selection_changed && matches!(interest, Interest::Selection))
@@ -824,7 +825,10 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             shape,
             reserved,
         } => query::Placement::encode(&crate::placement::find(
-            state, *sheet, *kind, *shape, reserved, budget,
+            state, crate::placement::BackingSheet::Existing(*sheet), *kind, *shape, reserved, budget,
+        )?)?,
+        WorkbookQuery::NewSheetPlacement { name, kind, shape } => query::NewSheetPlacement::encode(&crate::placement::find(
+            state, crate::placement::BackingSheet::New(name), *kind, *shape, &[], budget,
         )?)?,
         WorkbookQuery::Geometry { sheet } => {
             let id = checked_sheet(host, *sheet)?;

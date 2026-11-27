@@ -265,6 +265,11 @@ pub enum WorkbookQuery {
         #[serde(default)]
         reserved: Vec<Area>,
     },
+    NewSheetPlacement {
+        name: String,
+        kind: PlacementKind,
+        shape: Option<PlacementShape>,
+    },
     Geometry {
         sheet: Sheet,
     },
@@ -435,6 +440,11 @@ pub enum Change {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ModelChange {
+    /// Create a worksheet at the identity returned by NewSheetPlacement at this model revision.
+    InsertWorksheet {
+        name: String,
+        sheet: Sheet,
+    },
     Enter {
         at: Key,
         text: String,
@@ -556,6 +566,7 @@ pub enum ModelProperty {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPropertyDiff {
+    WorksheetInserted { sheet: Sheet, name: String },
     CellFormat {
         at: Key,
         before: Option<u32>,
