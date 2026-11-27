@@ -1,5 +1,6 @@
 use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, blank_package};
 use calc_skin::grid::{Area, Key, Sheet};
+use calc_skin::query::Query;
 use calc_skin::*;
 use calc_skin_host::SkinHost;
 use std::num::NonZeroU128;
@@ -57,6 +58,220 @@ fn target(at: Key) -> SourceRef {
         sheet: Sheet(at.0, at.1),
         areas: vec![Area(at, at)],
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn row_watches_refresh_for_a_spill_change_in_their_read_footprint() {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    port.commit(batch(
+        1,
+        vec![enter(at(1, 11), "3"), enter(at(1, 1), "=SEQUENCE(K1,2)")],
+    ))
+    .unwrap();
+    while host.advance() {}
+    let watch = port
+        .watch(
+            query::Rows {
+                // This range reads a spill follower and excludes its formula anchor.
+                source: target(at(3, 2)),
+                filter: vec![],
+                sort: vec![],
+                window: RowWindow {
+                    offset: 0,
+                    limit: 1,
+                },
+            }
+            .request(),
+            BUDGET,
+        )
+        .unwrap();
+    let first = port.next_frame().unwrap().unwrap();
+    let value = |frame: Frame| {
+        frame.updates.into_iter().find_map(|update| match update {
+            Update::Ready {
+                watch: id,
+                body,
+                coverage,
+            } if id == watch => {
+                let answer = query::Rows::decode(Answer {
+                    stamp: frame.stamp,
+                    coverage,
+                    body,
+                })
+                .unwrap();
+                Some(answer.body.rows[0].cells[0].text.clone())
+            }
+            _ => None,
+        })
+    };
+    assert_eq!(value(first).as_deref(), Some("6"));
+
+    port.commit(batch(2, vec![enter(at(1, 4), "=5+5")]))
+        .unwrap();
+    while host.advance() {}
+    let unrelated = port.next_frame().unwrap().unwrap();
+    assert_eq!(value(unrelated), None);
+
+    port.commit(batch(3, vec![enter(at(1, 11), "2")])).unwrap();
+    while host.advance() {}
+    let shortened = port.next_frame().unwrap().unwrap();
+    assert_eq!(value(shortened).as_deref(), Some(""));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rows_filter_and_sort_the_whole_source_before_windowing() {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let at = |r, c| Key(sheet.0, sheet.1, r, c);
+    let stamp = port
+        .commit(batch(
+            1,
+            vec![
+                enter(at(1, 1), "West"),
+                enter(at(1, 2), "10"),
+                enter(at(2, 1), "East"),
+                enter(at(2, 2), "100"),
+                enter(at(4, 1), "West"),
+                enter(at(4, 2), "30"),
+                enter(at(5, 1), "West"),
+                enter(at(5, 2), "30"),
+            ],
+        ))
+        .unwrap();
+    let query = query::Rows {
+        source: SourceRef::Cells {
+            sheet,
+            areas: vec![Area(at(1, 1), at(5, 2))],
+        },
+        filter: vec![RowFilter {
+            column: 0,
+            equals: RawValue::Text("West".encode_utf16().collect()),
+        }],
+        sort: vec![RowSort {
+            column: 1,
+            descending: true,
+        }],
+        window: RowWindow {
+            offset: 1,
+            limit: 1,
+        },
+    };
+    let answer = query::Rows::decode(port.ask(query.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.stamp, stamp);
+    assert_eq!(
+        answer.coverage,
+        Coverage::Partial {
+            done: 1,
+            total: Some(3),
+            why: PartialWhy::Window
+        }
+    );
+    assert_eq!(answer.body.source_rows, 5);
+    assert_eq!(answer.body.matched_rows, 3);
+    assert_eq!(answer.body.rows[0].row, 5);
+    assert_eq!(answer.body.rows[0].cells[1].text, "30");
+    assert!(matches!(
+        port.ask(query.request(), Budget { cells: 9, ..BUDGET }),
+        Err(Refusal::OverBudget { counts, .. }) if counts.cells >= 10
+    ));
+    for budget in [
+        Budget { nodes: 4, ..BUDGET },
+        Budget { bytes: 1, ..BUDGET },
+        Budget {
+            millis: 0,
+            ..BUDGET
+        },
+    ] {
+        assert!(matches!(
+            port.ask(query.request(), budget),
+            Err(Refusal::OverBudget { .. })
+        ));
+    }
+    let raw = port
+        .ask(
+            WorkbookQuery::Cells {
+                interest: Interest::Area(Area(at(1, 1), at(5, 2))),
+            },
+            BUDGET,
+        )
+        .unwrap();
+    assert_eq!(raw.stamp, stamp);
+    let cells: CellWindow = serde_json::from_value(raw.body).unwrap();
+    assert_eq!(cells.cells[1].text, "10");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn placement_leaves_a_spacer_and_accounts_for_cells_far_below_the_spill() {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let at = |r, c| Key(sheet.0, sheet.1, r, c);
+    let ask = |kind, shape, budget| {
+        let query = query::Placement {
+            sheet,
+            kind,
+            shape,
+            reserved: vec![],
+        };
+        port.ask(query.request(), budget)
+            .and_then(query::Placement::decode)
+    };
+    let initial = ask(PlacementKind::Scalar, None, BUDGET).unwrap();
+    assert_eq!(initial.body.at, at(2, 2));
+    assert_eq!(initial.body.label, Some(at(2, 1)));
+    port.commit(batch(
+        1,
+        vec![
+            enter(at(10, 1), "=SEQUENCE(3,2)"),
+            enter(at(30_000, 5), "review"),
+            enter(at(2, 1), "Label"),
+        ],
+    ))
+    .unwrap();
+    while host.advance() {}
+    let shape = Some(PlacementShape {
+        rows: 4,
+        columns: 2,
+    });
+    let array = ask(PlacementKind::Array, shape, BUDGET).unwrap();
+    assert_eq!(array.body.at, at(10, 7));
+    assert_eq!(array.body.footprint, Area(at(10, 6), at(1_048_576, 9)));
+    let scalar = ask(PlacementKind::Scalar, None, BUDGET).unwrap();
+    assert_eq!(scalar.body.at, at(3, 2));
+    assert_eq!(scalar.stamp, array.stamp);
+    assert!(matches!(
+        ask(PlacementKind::Array, shape, Budget { cells: 1, ..BUDGET }),
+        Err(Refusal::OverBudget { .. })
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn placement_preserves_a_declared_lane_while_its_formula_is_narrower() {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    port.commit(batch(1, vec![enter(at(10, 1), "=SEQUENCE(3)")]))
+        .unwrap();
+    while host.advance() {}
+    let placement = ask(
+        &port,
+        query::Placement {
+            sheet,
+            kind: PlacementKind::Array,
+            shape: Some(PlacementShape {
+                rows: 3,
+                columns: 2,
+            }),
+            reserved: vec![Area(at(10, 1), at(1_048_576, 3))],
+        },
+    );
+    assert_eq!(placement.at, at(10, 5));
+    assert_eq!(placement.lane, Some(Area(at(10, 5), at(1_048_576, 6))));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -305,7 +520,10 @@ fn every_answer_decodes_as_its_query_type() {
     let calc = ask(&port, query::CalcState);
     assert_eq!(calc.mode, CalcMode::Automatic);
     assert_eq!(calc.circular, None);
-    assert!(matches!(calc.activity, CalcActivity::Done | CalcActivity::Pending));
+    assert!(matches!(
+        calc.activity,
+        CalcActivity::Done | CalcActivity::Pending
+    ));
 
     let census = ask(
         &port,

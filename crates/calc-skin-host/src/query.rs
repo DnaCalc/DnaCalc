@@ -19,7 +19,10 @@ pub(crate) fn capabilities(state: &State) -> Capabilities {
     }
 }
 
-fn checked_sheet(host: &HostState, sheet: Sheet) -> Result<calc_host::value::SheetId, Refusal> {
+pub(crate) fn checked_sheet(
+    host: &HostState,
+    sheet: Sheet,
+) -> Result<calc_host::value::SheetId, Refusal> {
     let id = sheet.id();
     host.model()
         .sheet_by_id(id)
@@ -134,6 +137,7 @@ pub(crate) fn interest_areas(state: &State, interest: &Interest) -> Result<Vec<G
 pub(crate) fn invalidated(
     state: &State,
     query: &WorkbookQuery,
+    footprint: Option<GridArea>,
     prior: Option<Stamp>,
     selection_changed: bool,
 ) -> bool {
@@ -163,14 +167,19 @@ pub(crate) fn invalidated(
                     .iter()
                     .any(|write| areas.iter().any(|area| area.intersection(*write).is_some()))
                     || (pending
-                        && touch
-                            .pending
-                            .iter()
-                            .any(|at| areas.iter().any(|area| area.contains(*at))))
+                        && touch.pending.iter().any(|dirty| {
+                            areas.iter().any(|area| area.intersection(*dirty).is_some())
+                        }))
             })
         })
     };
     match query {
+        WorkbookQuery::Rows { .. } | WorkbookQuery::Placement { .. } => {
+            footprint.map_or(recalculated || authored, |area| {
+                (authored && intersects(&[area], true))
+                    || (recalculated && calculation_intersects(state, prior.calc, area))
+            })
+        }
         WorkbookQuery::Cells { interest } => {
             recalculated
                 || (selection_changed && matches!(interest, Interest::Selection))
@@ -199,8 +208,107 @@ pub(crate) fn invalidated(
     }
 }
 
+fn calculation_intersects(state: &State, prior: CalcGeneration, area: GridArea) -> bool {
+    let mut next = prior.0 + 1;
+    for touch in state
+        .calc_touches
+        .iter()
+        .filter(|touch| touch.generation > prior)
+    {
+        if touch.generation.0 != next
+            || touch.areas.as_ref().is_none_or(|areas| {
+                areas
+                    .iter()
+                    .any(|&changed| area.intersection(changed).is_some())
+            })
+        {
+            return true;
+        }
+        next += 1;
+    }
+    next != state.stamp().calc.0 + 1
+}
+
+pub(crate) fn footprint(state: &State, query: &WorkbookQuery) -> Option<GridArea> {
+    match query {
+        WorkbookQuery::Rows { source, .. } => crate::rows::footprint(state, source).ok(),
+        WorkbookQuery::Placement { sheet, kind, .. } => {
+            Some(crate::placement::footprint(*sheet, *kind))
+        }
+        _ => None,
+    }
+}
+
 fn encode(value: impl Serialize) -> Result<Value, Refusal> {
     serde_json::to_value(value).map_err(|error| Refusal::Transport(error.to_string()))
+}
+
+/// Admission and checkpoints for queries that scan beyond the returned window.
+pub(crate) struct QueryWork {
+    limit: Budget,
+    pub(crate) counts: Budget,
+    #[cfg(not(target_arch = "wasm32"))]
+    started: std::time::Instant,
+    #[cfg(target_arch = "wasm32")]
+    started: f64,
+    alternative: &'static str,
+}
+
+impl QueryWork {
+    pub(crate) fn new(limit: Budget, alternative: &'static str) -> Self {
+        Self {
+            limit: Budget {
+                cells: limit.cells.min(MAX_QUERY_CELLS),
+                nodes: limit.nodes.min(MAX_QUERY_CELLS),
+                bytes: limit
+                    .bytes
+                    .min(calc_skin::tiles::MAX_PUBLICATION_BYTES as u64),
+                ..limit
+            },
+            counts: Budget {
+                cells: 0,
+                nodes: 0,
+                edges: 0,
+                bytes: 0,
+                millis: 0,
+            },
+            #[cfg(not(target_arch = "wasm32"))]
+            started: std::time::Instant::now(),
+            #[cfg(target_arch = "wasm32")]
+            started: js_sys::Date::now(),
+            alternative,
+        }
+    }
+
+    pub(crate) fn check(&mut self) -> Result<(), Refusal> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.counts.millis = self.started.elapsed().as_millis() as u64;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.counts.millis = (js_sys::Date::now() - self.started) as u64;
+        }
+        if self.counts.cells > self.limit.cells
+            || self.counts.nodes > self.limit.nodes
+            || self.counts.bytes > self.limit.bytes
+            || self.limit.millis == 0
+            || self.counts.millis > self.limit.millis
+        {
+            return Err(Refusal::OverBudget {
+                counts: self.counts,
+                alternatives: vec![self.alternative.into()],
+            });
+        }
+        Ok(())
+    }
+
+    pub(crate) fn charge_bytes(&mut self, value: &impl Serialize) -> Result<(), Refusal> {
+        self.counts.bytes += serde_json::to_vec(value)
+            .map_err(|error| Refusal::Transport(error.to_string()))?
+            .len() as u64;
+        self.check()
+    }
 }
 
 pub(crate) fn over_budget(cells: u64, bytes: u64) -> Refusal {
@@ -266,11 +374,13 @@ fn project_window(
     })
 }
 
-fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCell {
+pub(crate) fn shown_value(
+    state: &State,
+    value: &ProjectedValue,
+) -> (Option<CalcValue>, Provenance) {
     let host = state.session.host();
-    let at = projected.at();
     let stamp = state.stamp();
-    let (value, provenance) = match projected.value() {
+    match value {
         ProjectedValue::Empty => (None, Provenance::Empty),
         ProjectedValue::Literal(value) => (Some(value.clone()), Provenance::Literal),
         ProjectedValue::FileCached(cache) => (Some(cache.value().to_value()), Provenance::AsSaved),
@@ -316,7 +426,13 @@ fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCell {
                 },
             )
         }
-    };
+    }
+}
+
+pub(crate) fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCell {
+    let host = state.session.host();
+    let at = projected.at();
+    let (value, provenance) = shown_value(state, projected.value());
     let input = entry_text(projected.input());
     let input = if matches!(
         projected.input(),
@@ -450,6 +566,25 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             })?
         }
         WorkbookQuery::Cells { interest } => encode(project_window(state, interest, budget)?)?,
+        WorkbookQuery::Rows {
+            source,
+            filter,
+            sort,
+            window,
+        } => {
+            let (page, completeness) =
+                crate::rows::read(state, source, filter, sort, *window, budget)?;
+            coverage = completeness;
+            query::Rows::encode(&page)?
+        }
+        WorkbookQuery::Placement {
+            sheet,
+            kind,
+            shape,
+            reserved,
+        } => query::Placement::encode(&crate::placement::find(
+            state, *sheet, *kind, *shape, reserved, budget,
+        )?)?,
         WorkbookQuery::Geometry { sheet } => {
             let id = checked_sheet(host, *sheet)?;
             geometry(host, id)?

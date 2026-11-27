@@ -1,11 +1,13 @@
 //! Level-one serving of the authoritative CalcHost workbook through the skin contract.
 
 mod batch;
+mod placement;
 mod publication;
 mod query;
+mod rows;
 
 use calc_host::value::{CellKey, GridArea, Selection as HostSelection};
-use calc_host::{CommandJournal, CommandStamp, HostSession, SkinIntent};
+use calc_host::{CommandJournal, CommandStamp, HostProgress, HostSession, SkinIntent, ValueChange};
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::*;
 use std::cell::{Cell, RefCell};
@@ -13,6 +15,8 @@ use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 
 const TOUCH_HISTORY: usize = 100;
+const CALC_HISTORY: usize = 32;
+const MAX_CALC_FOOTPRINT: usize = 4096;
 const MAX_WATCHES: usize = 32;
 
 fn invalid(reason: impl Into<String>) -> Refusal {
@@ -41,7 +45,13 @@ struct Touch {
     revision: Revision,
     // A step with no known write footprint invalidates every stale read set.
     areas: Option<Vec<GridArea>>,
-    pending: Vec<CellKey>,
+    pending: Vec<GridArea>,
+}
+
+struct CalcTouch {
+    generation: CalcGeneration,
+    // A publication can exceed the retained footprint or come from an opaque host operation.
+    areas: Option<Vec<GridArea>>,
 }
 
 struct State {
@@ -51,6 +61,7 @@ struct State {
     selection_cause: SelectionCause,
     selection_sender: Option<u64>,
     touches: VecDeque<Touch>,
+    calc_touches: VecDeque<CalcTouch>,
     read_only: bool,
     opened_at: Stamp,
 }
@@ -91,11 +102,57 @@ impl State {
                 } else {
                     None
                 },
-                pending,
+                pending: pending.into_iter().map(|at| self.result_area(at)).collect(),
             });
             if self.touches.len() > TOUCH_HISTORY {
                 self.touches.pop_front();
             }
+        }
+    }
+
+    fn result_area(&self, at: CellKey) -> GridArea {
+        self.session
+            .host()
+            .spill_area(at)
+            .unwrap_or_else(|| GridArea::cell(at))
+    }
+
+    fn record_calculation(&mut self, before: Stamp, progress: Option<&HostProgress>) {
+        let generation = self.stamp().calc;
+        if generation == before.calc {
+            return;
+        }
+        let areas = match progress {
+            Some(HostProgress::Published(delta))
+                if generation.0 == before.calc.0 + 1
+                    && delta.changes().len() + 2 * delta.spill_changes().len()
+                        <= MAX_CALC_FOOTPRINT
+                    && self
+                        .session
+                        .host()
+                        .model()
+                        .definitions()
+                        .pivots()
+                        .tables()
+                        .next()
+                        .is_none() =>
+            {
+                let changed = delta.changes().iter().map(|change| match *change {
+                    ValueChange::Published { at, .. } | ValueChange::Removed { at, .. } => {
+                        self.result_area(at)
+                    }
+                });
+                let shapes = delta
+                    .spill_changes()
+                    .iter()
+                    .flat_map(|change| [change.before, change.after].into_iter().flatten());
+                Some(changed.chain(shapes).collect())
+            }
+            _ => None,
+        };
+        self.calc_touches.push_back(CalcTouch { generation, areas });
+        if self.calc_touches.len() > CALC_HISTORY {
+            self.calc_touches.pop_front();
         }
     }
 
@@ -191,6 +248,7 @@ impl SkinHost {
                 selection_cause: SelectionCause::Open,
                 selection_sender: None,
                 touches: VecDeque::new(),
+                calc_touches: VecDeque::new(),
                 read_only,
                 opened_at,
             })),
@@ -234,7 +292,9 @@ impl SkinHost {
     pub fn advance(&self) -> bool {
         let mut state = self.state.borrow_mut();
         if state.session.has_pending_calculation() {
-            state.session.advance_calculation();
+            let before = state.stamp();
+            let progress = state.session.advance_calculation();
+            state.record_calculation(before, Some(&progress));
         }
         state.session.has_pending_calculation()
     }
@@ -252,6 +312,7 @@ impl SkinHost {
             state.update_selection(cause);
         }
         state.record_touch(before, None, Vec::new());
+        state.record_calculation(before, None);
         result
     }
 }
@@ -262,6 +323,7 @@ struct Watch {
     query: WorkbookQuery,
     budget: Budget,
     answer: Option<AnswerResult>,
+    footprint: Option<GridArea>,
 }
 
 struct Local {
@@ -347,6 +409,7 @@ impl WorkbookPort for Connection {
                 query,
                 budget,
                 answer: None,
+                footprint: None,
             },
         );
         Ok(id)
@@ -501,6 +564,7 @@ impl WorkbookPort for Connection {
                     .committed
                     .as_ref()
                     .map_or_else(Vec::new, |commit| commit.pending().to_vec());
+                state.record_calculation(before, receipt.recalc.as_ref());
                 state.record_touch(
                     before,
                     receipt
@@ -554,6 +618,7 @@ impl WorkbookPort for Connection {
             .committed
             .as_ref()
             .map_or_else(Vec::new, |commit| commit.pending().to_vec());
+        state.record_calculation(before, receipt.recalc.as_ref());
         state.record_touch(
             before,
             receipt.committed.and_then(|change| {
@@ -577,7 +642,13 @@ impl WorkbookPort for Connection {
         let selection_changed = local.last_selection != state.selection_seq;
         for (&watch, slot) in &mut local.watches {
             if slot.answer.is_some()
-                && !query::invalidated(&state, &slot.query, prior, selection_changed)
+                && !query::invalidated(
+                    &state,
+                    &slot.query,
+                    slot.footprint,
+                    prior,
+                    selection_changed,
+                )
             {
                 continue;
             }
@@ -604,6 +675,7 @@ impl WorkbookPort for Connection {
                 });
             }
             slot.answer = Some(answer);
+            slot.footprint = query::footprint(&state, &slot.query);
         }
         if selection_changed {
             let cause = if state
@@ -742,6 +814,7 @@ impl Connection {
         state.session = session;
         state.opened_at = stamp;
         state.touches.clear();
+        state.calc_touches.clear();
         state.update_selection(SelectionCause::Open);
         Ok(stamp)
     }

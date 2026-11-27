@@ -215,16 +215,44 @@ pub enum Interest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkbookQuery {
     Summary,
-    Census { scope: SourceRef },
-    Cells { interest: Interest },
-    Geometry { sheet: Sheet },
-    Formula { at: Key },
-    Rules { at: Key },
+    Census {
+        scope: SourceRef,
+    },
+    Cells {
+        interest: Interest,
+    },
+    Rows {
+        source: SourceRef,
+        filter: Vec<RowFilter>,
+        sort: Vec<RowSort>,
+        window: RowWindow,
+    },
+    Placement {
+        sheet: Sheet,
+        kind: PlacementKind,
+        shape: Option<PlacementShape>,
+        /// Previously declared lanes on this sheet, without their spacers.
+        #[serde(default)]
+        reserved: Vec<Area>,
+    },
+    Geometry {
+        sheet: Sheet,
+    },
+    Formula {
+        at: Key,
+    },
+    Rules {
+        at: Key,
+    },
     CalcState,
     ViewPart,
     History,
-    Resolve { address: String },
-    PrintPlan { source: SourceRef },
+    Resolve {
+        address: String,
+    },
+    PrintPlan {
+        source: SourceRef,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -279,6 +307,69 @@ pub struct WorkbookCell {
 pub struct CellWindow {
     pub areas: Vec<Area>,
     pub cells: Vec<WorkbookCell>,
+}
+
+/// An exact match on the raw value in a zero-based source column. Filters are combined with AND.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RowFilter {
+    pub column: u32,
+    pub equals: crate::RawValue,
+}
+
+/// One sort key in priority order, using a zero-based source column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowSort {
+    pub column: u32,
+    pub descending: bool,
+}
+
+/// Zero-based offset in the filtered, sorted result and number of rows requested.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowWindow {
+    pub offset: u32,
+    pub limit: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorksheetRow {
+    /// The original, one-based worksheet row, retained across view sort and filter.
+    pub row: u32,
+    pub cells: Vec<WorkbookCell>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RowPage {
+    /// The source bounds, including table metadata rows where applicable.
+    pub bounds: Area,
+    pub columns: u32,
+    pub headers: Option<Vec<String>>,
+    pub totals: Option<Vec<WorkbookCell>>,
+    pub source_rows: u32,
+    pub matched_rows: u32,
+    pub offset: u32,
+    pub rows: Vec<WorksheetRow>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlacementKind {
+    Scalar,
+    Array,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlacementShape {
+    pub rows: u32,
+    pub columns: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Placement {
+    pub at: Key,
+    pub label: Option<Key>,
+    /// Width reserved for this array, from its anchor to the bottom of the sheet.
+    pub lane: Option<Area>,
+    /// The read dependency for rechecking a proposed write, including lane spacing.
+    pub footprint: Area,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

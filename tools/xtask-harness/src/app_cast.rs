@@ -487,3 +487,122 @@ fn inherited() -> BuildResult {
     }
     w.finish()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::sales;
+    use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy};
+    use calc_skin::grid::{Key, Sheet};
+    use calc_skin::{
+        Batch, Budget, Change, Coverage, ModelChange, Origin, PartialWhy, RawValue, RowFilter,
+        RowPage, RowSort, RowWindow, SourceRef, TablePart, Update, ViewId, WorkbookPort,
+        WorkbookQuery, WritePolicy,
+    };
+    use calc_skin_host::SkinHost;
+    use std::sync::Arc;
+
+    #[test]
+    fn sales_rows_watch_a_table_and_live_spill_over_the_full_source() {
+        let (bytes, _) = sales().unwrap();
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(bytes)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let sheets = session.host().sheets();
+        let orders = Sheet::of(sheets[0].id());
+        let report = Sheet::of(sheets[1].id());
+        let host = SkinHost::new(session);
+        while host.advance() {}
+        let port = host.connect(
+            Origin::User {
+                view: ViewId("notebook".into()),
+            },
+            WritePolicy::Commit,
+        );
+        let budget = Budget {
+            cells: 65_536,
+            nodes: 25_000,
+            edges: 0,
+            bytes: 1024 * 1024,
+            millis: 5000,
+        };
+        let window = RowWindow {
+            offset: 0,
+            limit: 20,
+        };
+        let table = WorkbookQuery::Rows {
+            source: SourceRef::Table {
+                name: "Orders".into(),
+                part: TablePart::Data,
+            },
+            filter: vec![RowFilter {
+                column: 3,
+                equals: RawValue::Text("Pending".encode_utf16().collect()),
+            }],
+            sort: vec![RowSort {
+                column: 6,
+                descending: true,
+            }],
+            window,
+        };
+        let spill = WorkbookQuery::Rows {
+            source: SourceRef::Spill {
+                anchor: Key(report.0, report.1, 12, 1),
+            },
+            filter: vec![],
+            sort: vec![],
+            window,
+        };
+        let answer = port.ask(table.clone(), budget).unwrap();
+        let page: RowPage = serde_json::from_value(answer.body).unwrap();
+        assert_eq!(page.headers.unwrap()[6], "Amount");
+        assert_eq!(page.source_rows, 25_000);
+        assert_eq!(page.matched_rows, 4_147);
+        assert_eq!(page.rows[0].cells[0].text, "SO10482");
+        assert_eq!(
+            page.rows[0].cells[6].shown.value,
+            RawValue::Number {
+                bits: 4200.0f64.to_bits()
+            }
+        );
+        let spill_answer = port.ask(spill.clone(), budget).unwrap();
+        assert_eq!(spill_answer.stamp, answer.stamp);
+        assert_eq!(
+            spill_answer.coverage,
+            Coverage::Partial {
+                done: 20,
+                total: Some(4_147),
+                why: PartialWhy::Window,
+            }
+        );
+
+        let table_watch = port.watch(table, budget).unwrap();
+        let spill_watch = port.watch(spill, budget).unwrap();
+        assert_eq!(port.next_frame().unwrap().unwrap().updates.len(), 2);
+        port.commit(Batch {
+            id: "1".into(),
+            workbook: Some(answer.stamp.workbook),
+            base: Some(answer.stamp.model),
+            expects: vec![],
+            selection_seq: None,
+            label: None,
+            changes: vec![Change::Model(ModelChange::Enter {
+                at: Key(orders.0, orders.1, 10_483, 4),
+                text: "Paid".into(),
+            })],
+        })
+        .unwrap();
+        while host.advance() {}
+
+        let frame = port.next_frame().unwrap().unwrap();
+        for watch in [table_watch, spill_watch] {
+            assert!(frame.updates.iter().any(|update| matches!(
+                update,
+                Update::Ready { watch: id, coverage: Coverage::Partial { done: 20, total: Some(4_146), why: PartialWhy::Window }, .. }
+                    if *id == watch
+            )));
+        }
+    }
+}

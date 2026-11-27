@@ -7,8 +7,9 @@
 
 use crate::grid::{Area, Key, Sheet};
 use crate::{
-    Answer, CellWindow, HistoryEntry, Interest, Refusal, SourceRef, WorkbookQuery, WorkbookSummary,
-    WorksheetGeometry,
+    Answer, CellWindow, HistoryEntry, Interest, Placement as PlacementAnswer, PlacementKind,
+    PlacementShape, Refusal, RowFilter, RowPage, RowSort, RowWindow, SourceRef, WorkbookQuery,
+    WorkbookSummary, WorksheetGeometry,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -68,6 +69,24 @@ query!(
 query!(
     /// The cells of an interest. Watched, it arrives as tiles.
     Cells { interest: Interest } => CellWindow, |q: &Cells| WorkbookQuery::Cells { interest: q.interest.clone() });
+query!(
+/// A view window over a rectangular worksheet source and its exact matched row count.
+Rows { source: SourceRef, filter: Vec<RowFilter>, sort: Vec<RowSort>, window: RowWindow }
+    => RowPage, |q: &Rows| WorkbookQuery::Rows {
+        source: q.source.clone(),
+        filter: q.filter.clone(),
+        sort: q.sort.clone(),
+        window: q.window,
+    });
+query!(
+/// A proposed backing cell and its read footprint.
+Placement { sheet: Sheet, kind: PlacementKind, shape: Option<PlacementShape>, reserved: Vec<Area> }
+    => PlacementAnswer, |q: &Placement| WorkbookQuery::Placement {
+        sheet: q.sheet,
+        kind: q.kind,
+        shape: q.shape,
+        reserved: q.reserved.clone(),
+    });
 query!(
     Geometry { sheet: Sheet } => WorksheetGeometry, |q: &Geometry| WorkbookQuery::Geometry { sheet: q.sheet });
 query!(
@@ -206,7 +225,10 @@ mod tests {
             circular,
         };
         let cell = Some(Key(0, 0, 1, 1));
-        assert_eq!(status(CalcMode::Automatic, CalcActivity::Done, None).word(), "");
+        assert_eq!(
+            status(CalcMode::Automatic, CalcActivity::Done, None).word(),
+            ""
+        );
         assert_eq!(
             status(CalcMode::Automatic, CalcActivity::Pending, cell).word(),
             "Calculating"
