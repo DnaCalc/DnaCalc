@@ -2,7 +2,6 @@
 //! (Excel 16.0.20527, Microsoft Print to PDF at 600 dpi, Letter and A4, 0.5 inch margins).
 use super::ui27_cases::{CASES, Case};
 use super::*;
-use crate::projection::Key;
 
 fn area(a: (u32, u32, u32, u32)) -> Area {
     Area(Key(0, 0, a.0, a.1), Key(0, 0, a.2, a.3))

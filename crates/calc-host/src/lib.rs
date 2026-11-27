@@ -121,6 +121,7 @@ pub mod c_api_commands;
 mod page_setup;
 pub mod print_members;
 pub mod print_plan;
+pub mod printing;
 pub use calc_doc_model::{PageBreak, PageSetup};
 pub use page_setup::{PageSetupChange, print_name, print_references};
 mod outline;

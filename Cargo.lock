@@ -378,10 +378,10 @@ dependencies = [
  "calc-fml",
  "calc-func",
  "calc-object-model",
+ "calc-skin",
  "calc-value",
  "calc-vba",
  "calc-verdict",
- "dna-calc-model",
  "miniz_oxide 0.8.9",
  "scoped-tls-hkt",
  "serde_json",
@@ -474,6 +474,17 @@ dependencies = [
  "webview2-com",
  "windows",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "calc-skin"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
@@ -1309,6 +1320,7 @@ name = "dna-calc-model"
 version = "0.1.0"
 dependencies = [
  "calc-macro-security",
+ "calc-skin",
  "calc-value",
  "serde",
  "wasm-bindgen",

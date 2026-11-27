@@ -1,6 +1,28 @@
 {
   "dependency_rules": [
     {
+      "package": "calc-skin",
+      "scope": "closure",
+      "forbidden": [
+        "calc-fml",
+        "calc-func",
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-vba"
+      ],
+      "forbid_apps": true,
+      "reason": "Skin architecture section 3.2: neutral wire and view types shared by page and host"
+    },
+    {
+      "package": "calc-host",
+      "scope": "closure",
+      "forbidden": [],
+      "forbid_apps": true,
+      "reason": "Skin architecture section 5.2: the workbook host owns pagination and depends on no applications"
+    },
+    {
       "package": "calc-syntax",
       "scope": "closure",
       "forbidden": [

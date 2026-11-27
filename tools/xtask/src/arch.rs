@@ -71,6 +71,7 @@ struct Rule {
     package: String,
     direct: bool,
     forbidden: Vec<String>,
+    forbid_apps: bool,
     reason: String,
 }
 
@@ -131,11 +132,11 @@ impl Config {
             .as_array()
             .ok_or("dependency_rules is not an array")?
         {
-            only_keys(
-                rule,
-                &["package", "scope", "forbidden", "reason"],
-                "a dependency rule",
-            )?;
+            let mut keys = vec!["package", "scope", "forbidden", "reason"];
+            if rule.get("forbid_apps").is_some() {
+                keys.push("forbid_apps");
+            }
+            only_keys(rule, &keys, "a dependency rule")?;
             let package = rule["package"]
                 .as_str()
                 .ok_or("a dependency rule has no package")?;
@@ -152,6 +153,10 @@ impl Config {
                 package: package.to_owned(),
                 direct,
                 forbidden: string_list(&rule["forbidden"], "a rule's forbidden list")?,
+                forbid_apps: match rule.get("forbid_apps") {
+                    None => false,
+                    Some(value) => value.as_bool().ok_or("forbid_apps must be a boolean")?,
+                },
                 reason: rule["reason"]
                     .as_str()
                     .ok_or("a dependency rule has no reason")?
@@ -312,7 +317,12 @@ fn dependencies(ws: &Workspace, config: &Config, resolved: &ResolvedTargets) -> 
                 continue;
             };
             let reach = graph.reach(&member.id, normal_or_build, rule.direct);
-            for forbidden in rule.forbidden.iter().filter(|name| reach.contains(*name)) {
+            let mut forbidden = rule.forbidden.iter().collect::<BTreeSet<_>>();
+            if rule.forbid_apps {
+                let apps = ws.root.join("apps");
+                forbidden.extend(ws.members.iter().filter(|member| member.dir.starts_with(&apps)).map(|member| &member.name));
+            }
+            for forbidden in forbidden.into_iter().filter(|name| reach.contains(*name)) {
                 let relation = if rule.direct {
                     "depends directly on"
                 } else {

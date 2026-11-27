@@ -1,52 +1,31 @@
 //! The one pagination route (dc-oxh8w.11): the sheet's stored page setup, geometry and print ranges go through
-//! `dna_calc_model::printing::paginate`, the route print preview, Page Break Preview and PDF print take, and
+//! `calc_host::printing::paginate`, the route print preview, Page Break Preview and PDF print take, and
 //! `Worksheet.HPageBreaks`, `VPageBreaks` and `PageSetup.Pages` read the same plan. The positions of the
-//! automatic breaks are calibrated against the Excel PB1 answers (`apps/dna-calc-model/src/printing/pb1.rs`).
+//! automatic breaks are calibrated against the Excel PB1 answers (`crates/calc-host/src/printing/pb1.rs`).
 
 use crate::HostState;
 use crate::value::{CellKey, GridArea};
 use calc_value::SheetId;
-use dna_calc_model::printing::{PageBreak as ModelBreak, PageSettings, PrintPlan, paginate};
-use dna_calc_model::projection::{Area, Geometry};
-
-/// The neutral geometry of a sheet's stored column and row sizes (no view state).
-pub fn geometry_of(geometry: &crate::SheetGeometry) -> Geometry {
-    Geometry {
-        outline: Vec::new(),
-        summary_below: geometry.summary_below.unwrap_or(true),
-        summary_right: geometry.summary_right.unwrap_or(true),
-        coverage: Vec::new(),
-        auto_filter: None,
-        tables: Vec::new(),
-        merges: Vec::new(),
-        edit_refusal: None,
-        zoom: None,
-        top_left: None,
-        pane_top_left: None,
-        active_cell: None,
-        active_pane: 0,
-        split: None,
-        frozen_rows: 0,
-        frozen_columns: 0,
-        split_window: false,
-        default_row_height: geometry.default_row_height,
-        default_column_width: geometry.default_column_width,
-        base_column_width: geometry.base_column_width,
-        default_digit_px: None,
-        default_font: None,
-        columns: geometry.columns.iter().map(|span| (span.first, span.last, span.width, span.hidden)).collect(),
-        rows: geometry.rows.iter().map(|(&row, format)| (row, format.height, format.hidden)).collect(),
-    }
-}
+use crate::printing::{Geometry, PageBreak as ModelBreak, PageSettings, PrintPlan, paginate};
+use calc_skin::grid::Area;
 
 /// The geometry pagination reads: sizes, the default font's rates and the merges.
 pub fn print_geometry(host: &HostState, sheet: SheetId) -> Geometry {
-    let mut geometry = host.sheet_geometry(sheet).as_ref().map(geometry_of).unwrap_or_default();
-    geometry.default_digit_px = Some(host.default_digit_px());
-    geometry.default_font = host.default_font_name().map(str::to_owned);
-    geometry.default_row_height.get_or_insert(host.default_font_row_points());
-    geometry.merges = host.merged_areas(sheet).into_iter().map(Area::of).collect();
-    geometry
+    let mut print = Geometry {
+        default_digit_px: Some(host.default_digit_px()),
+        default_font: host.default_font_name().map(str::to_owned),
+        merges: host.merged_areas(sheet).into_iter().map(Area::of).collect(),
+        ..Geometry::default()
+    };
+    if let Some(geometry) = host.sheet_geometry(sheet) {
+        print.default_row_height = geometry.default_row_height;
+        print.default_column_width = geometry.default_column_width;
+        print.base_column_width = geometry.base_column_width;
+        print.columns = geometry.columns.iter().map(|span| (span.first, span.last, span.width, span.hidden)).collect();
+        print.rows = geometry.rows.iter().map(|(&row, format)| (row, format.height, format.hidden)).collect();
+    }
+    print.default_row_height.get_or_insert(host.default_font_row_points());
+    print
 }
 
 /// The sheet's stored page setup as the pagination reads it.

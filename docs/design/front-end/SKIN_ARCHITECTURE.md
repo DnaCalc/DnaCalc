@@ -157,7 +157,7 @@ Where Proposals A and B diverged, the table below records which answer is taken 
 
 Mechanically checked rules added to `tools/xtask/architecture.json`:
 
-1. **`calc-skin` closure forbids:** `calc-fml`, `calc-func`, `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-skin-host` and every `apps/*` package. It depends only on `calc-value`, `calc-syntax`, `calc-macro-security`, `serde` and `serde_json`.
+1. **`calc-skin` closure forbids:** `calc-fml`, `calc-func`, `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-skin-host` and every `apps/*` package. It uses CalcValue identities through checked conversions from the existing serializable sheet, cell and range tuples, leaving CalcValue dependency-free.
 2. **`calc-formula-kernel` closure forbids:** `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-addin-host` and every `apps/*` package.
 3. **`calc-formula-host` closure forbids:** `calc-engine`, `calc-host`, `calc-skin-host` and every `apps/*` package.
 4. **`calc-host` closure forbids:** every `apps/*` package (removing today's `dna-calc-model` dependency).
@@ -169,7 +169,7 @@ Mechanically checked rules added to `tools/xtask/architecture.json`:
 
 ## 4. The skin interface (`crates/calc-skin`)
 
-Every type in `calc-skin` derives `Clone, Debug, PartialEq, Serialize, Deserialize`. Page and host are built from the same commit; the handshake checks a contract schema hash and reloads on mismatch, while persisted schemas (`urn:dnacalc:views:v1`, `dna.skin/1`, `dna.page/1`) and the extension component port (`dna.component/1`) are explicitly versioned.
+Every type in `calc-skin` derives `Clone, Debug, PartialEq, Serialize, Deserialize`. Page and host are built from the same commit; the control envelope checks an explicit contract schema version before decoding the payload, while persisted schemas (`urn:dnacalc:views:v1`, `dna.skin/1`, `dna.page/1`) and the extension component port (`dna.component/1`) are explicitly versioned.
 
 ### 4.1 Targets, `SourceRef` and the address grammar
 
@@ -505,7 +505,7 @@ Both proposals chose option (b) of [FRONT_END_IMPLEMENTATION_BRIEF.md](../../pla
 
 `crates/calc-host` remains the single owner of `ModelRoot`, `CalcEngine` and `History`, with six clean changes:
 1. **Owns `FormulaHost`:** `HostState` embeds `FormulaHost` and feeds `engine.set_callable_bindings` and `engine.invalidate_rtd_topic` from it — zero duplicated UDF or RTD admission state.
-2. **Fixes the `dna-calc-model` layering inversion:** Moves `apps/dna-calc-model/src/printing.rs` (1,285 lines, PB1-calibrated pagination) into `crates/calc-host/src/printing/` and removes `dna-calc-model` from `crates/calc-host/Cargo.toml:28`. `Worksheet.HPageBreaks`, `VPageBreaks`, `PageSetup.Pages` and the `PrintPlan` query all call one host module.
+2. **Fixes the `dna-calc-model` layering inversion:** Moves the PB1-calibrated paginator and its fixtures into `crates/calc-host/src/printing/`. Print settings, the published plan and pure row/column metrics are shared by the host and the legacy preview through `calc-skin`. The shared print types also parse header/footer fields, while the preview draws them. `Worksheet.HPageBreaks`, `VPageBreaks`, `PageSetup.Pages` and the `PrintPlan` query all call one host module.
 3. **`ViewPart` replaces `SkinLayout`:** `ModelRoot.layout` becomes `Arc<ViewPart>`, edited via `WorkbookOp::EditView` through the existing `History` inverse/restore machinery, with `model_revision` tracked separately from `view_revision`.
 4. **Structural edits transform anchors:** `calc_fml::reference::StructuralEdit` (row/col insert/delete, cell shift, cut-and-paste move, sheet rename) updates `ViewPart` anchors in the same atomic commit as formula references.
 5. **Non-committing `prepare` and target conflict check:** Exposes `prepare` without committing (returning node IDs on drop) to power `PreviewDepth::WritesOnly`, and checks `expects` against per-step touched targets since `base`.

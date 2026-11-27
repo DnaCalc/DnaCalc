@@ -150,7 +150,20 @@ pub fn preview(
             right = right.max(metrics.col_at((x + w - 1e-7).max(0.), 16384));
         }
     }
-    let plan = calc_host::print_plan::print_plan(host, sheet.id(), &geometry, (bottom, right))?;
+    let bands = dna_calc_model::geometry::sheet_bands(&geometry);
+    let print_geometry = calc_host::printing::Geometry {
+        default_digit_px: bands.default_digit_px,
+        default_font: geometry.default_font.clone(),
+        default_row_height: bands.default_row_height,
+        default_column_width: bands.default_column_width,
+        base_column_width: bands.base_column_width,
+        column_outline_levels: bands.column_outline_levels,
+        row_outline_levels: bands.row_outline_levels,
+        columns: bands.columns.to_vec(),
+        rows: bands.rows.to_vec(),
+        merges: geometry.merges.clone(),
+    };
+    let plan = calc_host::print_plan::print_plan(host, sheet.id(), &print_geometry, (bottom, right))?;
     // Check cardinality before expanding a full-sheet area, title band, or sparse far-away cell.
     let mut keys = BTreeSet::new();
     for region in plan.pages.iter().flat_map(|p| &p.regions) {

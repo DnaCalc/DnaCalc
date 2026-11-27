@@ -6,7 +6,7 @@
 //! `report.rs`); the others stay pending until the descriptor is regenerated on Windows.
 //!
 //! The collections list the automatic breaks of the pagination route print preview takes
-//! (`dna_calc_model::printing::paginate` through [`crate::print_plan`]) with the stored manual ones
+//! (`crate::printing::paginate` through [`crate::print_plan`]) with the stored manual ones
 //! (dc-oxh8w.11).
 
 use super::report::report;

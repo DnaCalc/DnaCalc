@@ -9,7 +9,6 @@
 //! trailing one; manual breaks typed -4135. Folio (code 14) is not settable on that printer (the macro's in-band ERR):
 //! Excel paged it as Letter, which is how its case is built here.
 use super::*;
-use crate::projection::Key;
 use std::collections::BTreeMap;
 
 fn area(t: u32, l: u32, b: u32, r: u32) -> Area {
@@ -146,7 +145,7 @@ fn compare(tag: &str, layout: &Layout) {
     let (excel_h, our_h) = (of(&excel_breaks, "H"), of(&breaks, "H"));
     assert!(our_h.starts_with(&excel_h), "{tag}: row breaks {our_h:?} against Excel {excel_h:?}");
     let (excel_v, our_v) = (of(&excel_breaks, "V"), of(&breaks, "V"));
-    let trailing = format!("V\t{}1\t-4105", crate::address::column_letters(layout.print_area.map_or(layout.columns, |a| a.3) + 1));
+    let trailing = format!("V\t{}1\t-4105", calc_skin::address::column_letters(layout.print_area.map_or(layout.columns, |a| a.3) + 1));
     let mut with_trailing = our_v.clone();
     with_trailing.push(trailing);
     assert!(
