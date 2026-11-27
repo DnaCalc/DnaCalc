@@ -2183,6 +2183,30 @@ fn app_saves_native_scenario_reviews_replay_and_undoes_it_once() {
     assert_eq!(page.shown(at(1)), "4");
 }
 
+/// Native-only: this exercises the App command table without a browser print carrier.
+#[test]
+fn app_print_key_opens_the_executive_summary_and_escape_closes_it() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session.command("view.app").unwrap();
+    page.settle();
+    let before = session.stamp();
+    assert!(page.press("Ctrl+p", Focus::Stage));
+    assert_eq!(
+        session.command("app.print-report"),
+        Err(CommandError::Refused("The browser print carrier is unavailable.".into()))
+    );
+    assert!(page.press("Escape", Focus::Stage));
+    assert_eq!(
+        session.command("app.print-report"),
+        Err(CommandError::Refused("Open the executive summary first".into()))
+    );
+    assert_eq!(session.stamp(), before);
+}
+
 /// Native-only: compares a live formula and a bound line chart from the reopened workbook.
 #[test]
 fn app_pins_live_values_and_line_chart_without_editing_the_workbook() {

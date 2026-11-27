@@ -62,3 +62,42 @@
     padding: var(--dna-gap-2);
     border-block-end: 1px solid var(--dna-line);
 }
+
+.dna-page-print-options { margin-block: var(--dna-gap-3); }
+.dna-page-print-options > .dna-page-tools + .dna-page-tools { margin-block-start: var(--dna-gap-3); }
+.dna-page-print-report {
+    margin-block: var(--dna-gap-3);
+    background: var(--dna-paper);
+    padding: var(--dna-gap-4);
+}
+.dna-page-print-schedule { margin-block-start: var(--dna-gap-4); overflow-x: auto; }
+.dna-page-print-schedule table { inline-size: 100%; border-collapse: collapse; }
+.dna-page-print-schedule :is(td, th) { text-align: end; padding: 0.12rem 0.3rem; }
+
+@page dna-app-report { margin: 12mm; size: A4 portrait; }
+@media print {
+    body:has(.dna-page-print-report) :is(.dna-workbook, .dna-book-stage, .dna-book-work, .dna-page-surface) {
+        display: block;
+        block-size: auto;
+        overflow: visible;
+        padding: 0;
+    }
+    body:has(.dna-page-print-report) :is(
+        .dna-book-mast, .dna-book-deck, .dna-book-bridge, .dna-book-sheets, .dna-book-strip,
+        .dna-book-dock-right, .dna-book-dock-bottom, .dna-book-details, .dna-book-search, .dna-book-found
+    ),
+    .dna-page-surface:has(.dna-page-print-report) > :not(.dna-page-print-report) { display: none; }
+    .dna-page-print-report {
+        page: dna-app-report;
+        --dna-ink: #171714;
+        --dna-paper: #fff;
+        --dna-line: #b8b8b8;
+        color: var(--dna-ink);
+        margin: 0;
+        padding: 0;
+    }
+    .dna-page-print-report .dna-page { max-inline-size: none; }
+    .dna-page-print-report :is(.dna-page-section, .dna-page-card) { break-inside: avoid; }
+    .dna-page-print-schedule { break-before: page; overflow: visible; }
+    .dna-page-print-schedule tr { break-inside: avoid; }
+}

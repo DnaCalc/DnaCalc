@@ -1,7 +1,7 @@
 //! Properties of an authored page control. All edits use the workbook presentation history.
 
 use super::{State, argument, button, cell_source, encode, qualified, unused_anchors};
-use calc_skin::{Bound, DocId, Page, PageNode, PresentationChange, ViewId, WorkbookId};
+use calc_skin::{Bound, DocId, Page, PageNode, PresentationChange, SourceRef, ViewId, WorkbookId};
 use dna_kit::{Live, Session, ViewCommand};
 use leptos::prelude::*;
 
@@ -166,6 +166,32 @@ pub(super) fn commands(state: State, view: &ViewId) -> Vec<ViewCommand> {
         },
     )
     .when("writable");
+    let summary = ViewCommand::new(
+        view,
+        "forms.bind-annual-summary",
+        "Bind annual summary range",
+        &[],
+        move |_| {
+            edit(state, "Bind annual summary range", |page, path| {
+                let PageNode::Part { component, bind, .. } = at_path(&mut page.root, path) else {
+                    unreachable!()
+                };
+                if component != "data-frame" {
+                    return Err("Choose a data frame for the annual summary.".into());
+                }
+                let selection = session.selection().ok_or("Select the annual summary range.")?;
+                let SourceRef::Cells { areas, .. } = selection.target else {
+                    return Err("Select one worksheet range for the annual summary.".into());
+                };
+                let [area] = areas.as_slice() else {
+                    return Err("Select one worksheet range for the annual summary.".into());
+                };
+                let (bound, change) = state.make_binding(*area)?;
+                bind.insert("summary".into(), bound);
+                Ok(vec![change])
+            })
+        },
+    ).when("writable");
     vec![
         choose,
         label,
@@ -173,6 +199,7 @@ pub(super) fn commands(state: State, view: &ViewId) -> Vec<ViewCommand> {
         shift("forms.move-part-down", "Move control later", 1),
         remove,
         rebind,
+        summary,
     ]
 }
 
@@ -287,6 +314,8 @@ pub(super) fn inspector(session: Session, document: DocId, page: Page) -> impl I
             .to_owned();
         let address = bind.get("value").map(|bound| bound.address.clone());
         let can_rebind = component == "input" || component == "value";
+        let summary = bind.get("summary").map(|bound| bound.address.clone());
+        let data_frame = component == "data-frame";
         Some(view! {
             <aside class="dna-page-card" aria-label="Control properties" data-dnacalc="control-properties">
                 <form on:submit=move |event: leptos::ev::SubmitEvent| {
@@ -298,6 +327,10 @@ pub(super) fn inspector(session: Session, document: DocId, page: Page) -> impl I
                 </form>
                 <p>{address}</p>
                 {can_rebind.then(|| button(session, "forms.rebind-part", "Bind to selected cell"))}
+                {data_frame.then(|| view! {
+                    {summary.map(|address| view! { <p>{format!("Annual summary · {address}")}</p> })}
+                    {button(session, "forms.bind-annual-summary", "Bind selected range as annual summary")}
+                })}
                 {button(session, "forms.move-part-up", "Move earlier")}
                 {button(session, "forms.move-part-down", "Move later")}
                 {button(session, "forms.remove-part", "Remove control")}
