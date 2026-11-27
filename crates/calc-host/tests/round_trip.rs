@@ -11386,6 +11386,65 @@ fn dc_mx3x_1__rejected_cached_scalar_formulas_become_literals() {
     }
 }
 
+/// The ww4 Excel 16.0.20527 repair retained cached numbers and blank cells in both group types.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mx3x_1__rejected_group_formulas_keep_individual_cached_values() {
+    for (anchor, member) in [
+        (r#"<f t="array" ref="A1:A3">IRR()</f>"#, ""),
+        (
+            r#"<f t="shared" ref="A1:A3" si="0">IRR()</f>"#,
+            r#"<f t="shared" si="0"/>"#,
+        ),
+    ] {
+        for caches in [[Some(21), Some(22), Some(23)], [None, Some(22), None], [None; 3]] {
+            let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+                let mut data = String::from("<sheetData>");
+                for (i, cache) in caches.into_iter().enumerate() {
+                    let row = i + 1;
+                    let formula = if row == 1 { anchor } else { member };
+                    let value = cache.map(|n| format!("<v>{n}</v>")).unwrap_or_default();
+                    data.push_str(&format!(
+                        r#"<row r="{row}"><c r="A{row}">{formula}{value}</c><c r="B{row}"><f>A{row}+1</f></c></row>"#
+                    ));
+                }
+                data.push_str("</sheetData>");
+                xml.replace("<sheetData/>", &data)
+            });
+            let verify = |book: &mut HostSession| {
+                assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+                let host = book.host();
+                let sheet = host.sheets()[0].id();
+                for (i, cache) in caches.into_iter().enumerate() {
+                    let row = i + 1;
+                    let expected = cache.map_or(ProjectedValue::Empty, |number| {
+                        ProjectedValue::Literal(CalcValue::number(f64::from(number)))
+                    });
+                    assert_eq!(
+                        value(host, at(sheet, &format!("A{row}"))),
+                        expected,
+                        "{anchor} A{row}"
+                    );
+                    assert_eq!(
+                        calculated(host, at(sheet, &format!("B{row}"))),
+                        Some(CalcValue::number(f64::from(cache.unwrap_or(0) + 1))),
+                        "{anchor} B{row}",
+                    );
+                }
+            };
+            let mut book = session(&bytes);
+            verify(&mut book);
+            let sheet = book.host().sheets()[0].id();
+            assert!(enter(&mut book, at(sheet, "C1"), "7").accepted());
+            let mut saved = Vec::new();
+            book.save(&SavePolicy::default(), &mut saved).unwrap();
+            let mut reopened = session(&saved);
+            assert!(reopened.host().open_report().repairs.is_empty());
+            verify(&mut reopened);
+        }
+    }
+}
+
 /// Excel 16.0.20527.20196 records #NAME? for the stored call in hjd_oxfml!D12.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

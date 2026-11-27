@@ -80,6 +80,7 @@ struct Filled {
     area: (u32, u32, u32, u32),
     data_table: bool,
     dynamic_array: bool,
+    rejection: Option<calc_fml::Rejection>,
 }
 
 /// The spelling of each worksheet error in a cell's `<v>`, matched exactly.
@@ -112,6 +113,7 @@ struct Group {
     /// moved from; `None` when it holds an unpaired surrogate, which no member's text is moved
     /// from.
     text: Option<String>,
+    rejection: Option<calc_fml::Rejection>,
     /// (top, left, bottom, right)
     area: (u32, u32, u32, u32),
 }
@@ -205,8 +207,8 @@ struct Sheet<'a> {
 
 impl Sheet<'_> {
     /// Whether the cell at `row` and `column` lies in a filled area other than at its anchor,
-    /// and whether that area is a data table or a dynamic array.
-    fn filled_at(&mut self, row: u32, column: u32) -> Option<(bool, bool)> {
+    /// along with the formula declaration that owns the area.
+    fn filled_at(&mut self, row: u32, column: u32) -> Option<&Filled> {
         self.filled.retain(|filled| filled.area.2 >= row);
         self.filled
             .iter()
@@ -216,7 +218,6 @@ impl Sheet<'_> {
                     && (left..=right).contains(&column)
                     && (row, column) != (top, left)
             })
-            .map(|filled| (filled.data_table, filled.dynamic_array))
     }
 
     /// A cell's cached value as its `<v>` and `vm` give it: a `vm` naming a rich error gives
@@ -348,53 +349,49 @@ impl Sheet<'_> {
             .map_err(|_| CellError::EmptyFormula)
     }
 
-    /// Whether Excel's formula entry refuses `text`, the formula of the cell at `row` and
-    /// `column` as the file stores it, by a measured rule ([`calc_fml::check_entry`]; a parser
-    /// diagnostic, which may be syntax this parser does not hold, is left to the compiler).
-    /// Excel's repair keeps a cached scalar as a constant. A blank or a cache the input
-    /// model cannot represent is recorded as unloaded.
-    fn rejected(
+    /// A measured entry refusal for the spelling stored in the workbook. Parser diagnostics
+    /// remain with the compiler.
+    fn rejection(text: &FormulaText) -> Option<calc_fml::Rejection> {
+        let tree = calc_fml::parse_formula(&text.text().to_string_lossy());
+        let rule = calc_fml::check_entry(&tree, true).err()?.rule;
+        rule.is_measured().then_some(rule)
+    }
+
+    /// Excel removes a rejected formula, keeping a cached scalar as a constant.
+    fn repair_rejected(
         &mut self,
         row: u32,
         column: u32,
-        text: &FormulaText,
-        cache: &Option<CachedValue>,
-    ) -> bool {
-        let tree = calc_fml::parse_formula(&text.text().to_string_lossy());
-        let Err(rejection) = calc_fml::check_entry(&tree, true) else {
-            return false;
-        };
-        if !rejection.rule.is_measured() {
-            return false;
-        }
+        cache: Option<CachedValue>,
+        rejection: calc_fml::Rejection,
+    ) {
         let key = self.key(row, column);
-        let constant = match cache {
+        let constant = match &cache {
             Some(CachedValue::Number(value)) => Some(CellInput::Number(*value)),
             Some(CachedValue::Text(value)) => Some(CellInput::Text(value.clone())),
             Some(CachedValue::Logical(value)) => Some(CellInput::Logical(*value)),
             Some(CachedValue::Error(value)) => Some(CellInput::Error(*value)),
             Some(CachedValue::Image(_)) | None => None,
         };
-        let rule = rejection.rule.to_string();
+        let rule = rejection.to_string();
+        if constant.is_some() || cache.is_none() {
+            self.load.repairs.push(super::LoadRepair::RejectedFormulaValue {
+                at: key,
+                rule: rule.clone(),
+            });
+        }
         if let Some(input) = constant {
             self.load.inputs.push((key, input));
-            self.load
-                .repairs
-                .push(super::LoadRepair::RejectedFormulaValue { at: key, rule });
-            return true;
+            return;
         }
         if let Some(cached) = cache {
-            let cached = FileCached::new(cached.clone(), Arc::clone(&self.part));
+            let cached = FileCached::new(cached, Arc::clone(&self.part));
             self.load.value_caches.insert((row, column), cached);
+            self.load.unloaded.push((
+                key,
+                calc_doc_model::UnloadedCell::RejectedFormula { rule, cached: true },
+            ));
         }
-        self.load.unloaded.push((
-            key,
-            calc_doc_model::UnloadedCell::RejectedFormula {
-                rule,
-                cached: cache.is_some(),
-            },
-        ));
-        true
     }
 
     fn record(
@@ -547,7 +544,9 @@ impl Sheet<'_> {
             self.load.unloaded.push((key, UnloadedCell::MacroSheet));
             return Ok(column);
         }
-        if let Some((data_table, dynamic_array)) = self.filled_at(row, column) {
+        if let Some(filled) = self.filled_at(row, column) {
+            let (data_table, dynamic_array, rejection) =
+                (filled.data_table, filled.dynamic_array, filled.rejection);
             // Excel's P04/P06 saved spills carry `<f ca="1"/>` on members.
             // Only a proven dynamic footprint can own this empty cache marker;
             // a real expression or another formula declaration still overlaps.
@@ -570,13 +569,13 @@ impl Sheet<'_> {
                 && formula
                     .as_ref()
                     .is_some_and(|f| !f.text.is_empty() && plain(f));
-            if dropped {
+            if dropped && rejection.is_none() {
                 self.load.repairs.push(super::LoadRepair::FormulaInsideArray {
                     sheet: self.id,
                     row,
                     column,
                 });
-            } else if formula.is_some() && !cache_marker {
+            } else if formula.is_some() && !cache_marker && !dropped {
                 return Err(fail(CellError::Malformed {
                     detail: "a formula inside the area an array formula or data table fills",
                 }));
@@ -592,17 +591,23 @@ impl Sheet<'_> {
                 (None, None) => None,
             };
             let key = self.key(row, column);
-            match cache {
-                Some(Ok(value)) => {
+            match (cache, rejection) {
+                (Some(Ok(value)), Some(rule)) => {
+                    self.repair_rejected(row, column, Some(value), rule);
+                }
+                (Some(Ok(value)), None) => {
                     let cache = FileCached::new(value, Arc::clone(&self.part));
                     self.load.value_caches.insert((row, column), cache);
                     if data_table {
                         self.load.unloaded.push((key, UnloadedCell::DataTable));
                     }
                 }
-                Some(Err(why)) => self.load.unloaded.push((key, why)),
-                None if data_table => self.load.unloaded.push((key, UnloadedCell::DataTable)),
-                None => {}
+                (Some(Err(why)), _) => self.load.unloaded.push((key, why)),
+                (None, Some(rule)) if formula.is_some() => {
+                    self.repair_rejected(row, column, None, rule);
+                }
+                (None, _) if data_table => self.load.unloaded.push((key, UnloadedCell::DataTable)),
+                (None, _) => {}
             }
             return Ok(column);
         }
@@ -750,6 +755,7 @@ impl Sheet<'_> {
                         area,
                         data_table: true,
                         dynamic_array: false,
+                        rejection: None,
                     });
                     return Ok(());
                 }
@@ -766,10 +772,19 @@ impl Sheet<'_> {
                 let CellInput::Formula(text) = Self::formula_input(&formula.text)? else {
                     unreachable!()
                 };
-                // A formula of one cell that Excel's entry refuses holds nothing (dc-mx3x). A
-                // larger array formula's area keeps its formula, which compiles to the same
-                // rejection.
-                if (top, left) == (bottom, right) && self.rejected(row, column, &text, &cache) {
+                let singleton = (top, left) == (bottom, right);
+                if (singleton || matches!(kind, ArrayKind::Legacy))
+                    && let Some(rule) = Self::rejection(&text)
+                {
+                    self.repair_rejected(row, column, cache, rule);
+                    if !singleton {
+                        self.filled.push(Filled {
+                            area,
+                            data_table: false,
+                            dynamic_array: false,
+                            rejection: Some(rule),
+                        });
+                    }
                     return Ok(());
                 }
                 let input = CellInput::Formula(
@@ -786,6 +801,7 @@ impl Sheet<'_> {
                         area,
                         data_table: false,
                         dynamic_array: matches!(kind, ArrayKind::Dynamic { .. }),
+                        rejection: None,
                     });
                 }
                 self.record(row, column, None, cache);
@@ -794,8 +810,9 @@ impl Sheet<'_> {
             None | Some("normal") => {
                 let input = Self::formula_input(&formula.text)?;
                 if let CellInput::Formula(text) = &input
-                    && self.rejected(row, column, text, &cache)
+                    && let Some(rule) = Self::rejection(text)
                 {
+                    self.repair_rejected(row, column, cache, rule);
                     return Ok(());
                 }
                 let key = self.key(row, column);
@@ -835,13 +852,23 @@ impl Sheet<'_> {
                 let units = decode(&formula.text);
                 let text = String::from_utf16(&units).ok();
                 let input = Self::formula_units(units)?;
-                let key = self.key(row, column);
-                self.load.inputs.push((key, input));
+                let rejection = match &input {
+                    CellInput::Formula(text) => Self::rejection(text),
+                    _ => unreachable!(),
+                };
                 let group = Group {
                     master: (row, column),
                     text,
+                    rejection,
                     area,
                 };
+                if let Some(rule) = rejection {
+                    self.groups.insert(index, group);
+                    self.repair_rejected(row, column, cache, rule);
+                    return Ok(());
+                }
+                let key = self.key(row, column);
+                self.load.inputs.push((key, input));
                 let shared = self.shared(index, &group);
                 self.groups.insert(index, group);
                 self.record(row, column, Some(shared), cache);
@@ -870,6 +897,9 @@ impl Sheet<'_> {
             if !(top..=bottom).contains(&row) || !(left..=right).contains(&column) {
                 return Err(detail("a member outside its group's ref"));
             }
+            if group.rejection.is_some() {
+                continue;
+            }
             let group_moves = moves
                 .entry(member.index)
                 .or_insert_with(|| match &group.text {
@@ -895,6 +925,7 @@ impl Sheet<'_> {
         let masters: BTreeMap<CellKey, u32> = self
             .groups
             .iter()
+            .filter(|(_, group)| group.rejection.is_none())
             .map(|(&index, group)| (self.key(group.master.0, group.master.1), index))
             .collect();
         let sources: BTreeMap<u32, ExcelText> = self
@@ -908,6 +939,9 @@ impl Sheet<'_> {
             .collect();
         let mut blocks = BTreeMap::new();
         for (&index, group) in &self.groups {
+            if group.rejection.is_some() {
+                continue;
+            }
             let master = self.key(group.master.0, group.master.1);
             let source = sources[&index].clone();
             let key = group
@@ -958,6 +992,11 @@ impl Sheet<'_> {
             }
         }
         for member in members {
+            let group = &self.groups[&member.index];
+            if let Some(rule) = group.rejection {
+                self.repair_rejected(member.row, member.column, member.cache, rule);
+                continue;
+            }
             let at = self.key(member.row, member.column);
             let block = &blocks[&member.index];
             self.load.inputs.push((
@@ -966,7 +1005,7 @@ impl Sheet<'_> {
                     FormulaText::member(Arc::clone(block), at).expect("validated member"),
                 ),
             ));
-            let shared = self.shared(member.index, &self.groups[&member.index]);
+            let shared = self.shared(member.index, group);
             self.record(member.row, member.column, Some(shared), member.cache);
         }
         Ok(())

@@ -479,7 +479,7 @@ pub enum LoadRepair {
         /// Column of the affected cell.
         column: u32,
     },
-    /// Excel removed a rejected stored formula and kept its cached scalar as a constant.
+    /// Excel removed a rejected stored formula, keeping a cached scalar or leaving a blank.
     RejectedFormulaValue {
         /// Cell holding the rejected formula.
         at: CellKey,
