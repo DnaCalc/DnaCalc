@@ -372,6 +372,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.dna-skin-studio { flex-basis: min(32rem, 48vw); }
 .dna-skin-studio textarea {
     display: block;
     inline-size: 100%;
@@ -380,6 +381,25 @@
     background: var(--dna-paper);
     color: var(--dna-ink);
     font: 0.875rem / 1.5 monospace;
+}
+.dna-skin-contrast {
+    margin-block: var(--dna-gap-3);
+}
+.dna-skin-contrast summary { cursor: pointer; }
+.dna-skin-contrast table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+.dna-skin-contrast :is(th, td) {
+    padding: var(--dna-gap-1) var(--dna-gap-2);
+    border-block-end: 1px solid var(--dna-line);
+    text-align: start;
+}
+.dna-skin-contrast [data-contrast-pass="false"] td:last-child {
+    color: var(--dna-red-ink);
+    font-weight: 600;
 }
 .dna-book-deck[data-compact="true"] { gap: var(--dna-gap-1); }
 .dna-workbook .dna-book-formula { font-size: var(--dna-formula-font-size, 1em); }

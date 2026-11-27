@@ -431,6 +431,10 @@ impl Studio {
                         </textarea>
                     </label>
                     <p role="alert">{move || self.error.get()}</p>
+                    {move || {
+                        let source = self.source.get();
+                        skin::review_theme(&source).ok().map(contrast_review)
+                    }}
                     {command_button(session, TRY, "Try on")}
                     {move || self.personal.with(Option::is_some).then(|| {
                         command_button(session, CLEAR_PROFILE, "Clear my saved skin")
@@ -439,6 +443,50 @@ impl Studio {
                 </aside>
             </Show>
         }
+    }
+}
+
+fn contrast_review(report: skin::ThemeReview) -> impl IntoView {
+    let count = report.contrast.len();
+    let failing = report
+        .contrast
+        .iter()
+        .filter(|reading| !reading.passes())
+        .count();
+    let rows = report
+        .contrast
+        .into_iter()
+        .filter(|reading| {
+            !reading.passes()
+                || (reading.theme == report.theme
+                    && matches!(
+                        (reading.foreground, reading.background),
+                        ("ink" | "ink-2" | "ink-3", "paper" | "paper-2")
+                            | ("accent-ink", "paper")
+                            | ("chrome-ink" | "amber", "chrome")
+                    ))
+        })
+        .map(|reading| {
+            let pair = format!("{} on {}", reading.foreground, reading.background);
+            let label = pair.clone();
+            view! {
+                <tr data-skin-contrast=pair data-contrast-pass=reading.passes().to_string()>
+                    <th scope="row">{label}</th>
+                    <td>{format!("{:.4}:1", reading.ratio)}</td>
+                    <td>{format!("{:.1}:1", reading.minimum)}</td>
+                    <td>{if reading.passes() { "Pass" } else { "Fail" }}</td>
+                </tr>
+            }
+        })
+        .collect_view();
+    view! {
+        <details class="dna-skin-contrast" open={failing > 0}>
+            <summary>{format!("Contrast · {} of {count} pass", count - failing)}</summary>
+            <table>
+                <thead><tr><th>"Pair"</th><th>"Ratio"</th><th>"Minimum"</th><th>"Result"</th></tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </details>
     }
 }
 
