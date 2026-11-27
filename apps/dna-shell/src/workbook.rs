@@ -198,13 +198,8 @@ impl WorkbookFrame {
                 self.area.set(None);
                 self.sheet.set(None);
             }
-            if let Some(calc) = self.read::<serde_json::Value>(self.calc_watch) {
-                self.calculation.set(match calc["state"].as_i64() {
-                    Some(2) if calc["mode"] == "Manual" => "Calculate",
-                    Some(2) => "Calculating",
-                    _ if !calc["circular"].is_null() => "Circular reference",
-                    _ => "",
-                });
+            if let Some(calc) = self.read::<query::CalcStatus>(self.calc_watch) {
+                self.calculation.set(calc.word());
             }
             if let Some(summary) = self.read(self.summary_watch) {
                 self.summary.set(Some(summary));
@@ -433,15 +428,14 @@ impl WorkbookFrame {
 
     fn run(self, operation: Operation) {
         let notice = self
-            .read::<serde_json::Value>(self.history_watch)
+            .read::<query::HistoryList>(self.history_watch)
             .and_then(|history| {
                 let (verb, stack) = match operation {
-                    Operation::Undo => ("Undid", "undo_entries"),
-                    Operation::Redo => ("Redid", "redo_entries"),
+                    Operation::Undo => ("Undid", history.undo),
+                    Operation::Redo => ("Redid", history.redo),
                     _ => return None,
                 };
-                let label = history[stack][0]["label"].as_str()?;
-                Some(format!("{verb} · {label}"))
+                Some(format!("{verb} · {}", stack.first()?.label))
             });
         self.request(
             WorkbookRequest::Run(operation),

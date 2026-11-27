@@ -3,6 +3,7 @@ use calc_doc_model::{SheetKind, SheetVisibility};
 use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea};
 use calc_host::{HostState, ProjectedCell, ProjectedValue, ProjectionRequest, search::entry_text};
 use calc_skin::grid::{Area, Key, Sheet};
+use calc_skin::query::Query;
 use calc_skin::*;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -443,7 +444,10 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                     formulas += u64::from(matches!(input, calc_doc_model::CellInput::Formula(_)));
                 }
             }
-            json!({ "formulas": formulas, "literals": cells - formulas })
+            query::CensusOf::encode(&query::Census {
+                formulas,
+                literals: cells - formulas,
+            })?
         }
         WorkbookQuery::Cells { interest } => encode(project_window(state, interest, budget)?)?,
         WorkbookQuery::Geometry { sheet } => {
@@ -460,11 +464,15 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             if precedents.len() as u64 > budget.edges {
                 return Err(over_budget(precedents.len() as u64, 0));
             }
-            json!({
-                "input": if formula { calc_formula_kernel::display::formula(&text) } else { text },
-                "formula": formula,
-                "precedents": precedents.into_iter().map(Area::of).collect::<Vec<_>>(),
-            })
+            query::Formula::encode(&query::FormulaFacts {
+                input: if formula {
+                    calc_formula_kernel::display::formula(&text)
+                } else {
+                    text
+                },
+                formula,
+                precedents: precedents.into_iter().map(Area::of).collect(),
+            })?
         }
         WorkbookQuery::Rules { at } => {
             let at = cell(*at)?;
@@ -475,13 +483,27 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 batch::rules(&state.session, at).err()
             };
             let validation = host.validation(at).map(|rule| format!("{rule:?}"));
-            json!({ "refusal": refusal, "validation": validation })
+            query::Rules::encode(&query::CellRules {
+                refusal,
+                validation,
+            })?
         }
-        WorkbookQuery::CalcState => json!({
-            "mode": format!("{:?}", host.calc_mode()),
-            "state": host.calculation_state(),
-            "circular": host.circular_reported().map(Key::of)
-        }),
+        WorkbookQuery::CalcState => query::CalcState::encode(&query::CalcStatus {
+            mode: match host.calc_mode() {
+                calc_host::CalcMode::Automatic => query::CalcMode::Automatic,
+                calc_host::CalcMode::AutomaticExceptTables => {
+                    query::CalcMode::AutomaticExceptTables
+                }
+                calc_host::CalcMode::Manual => query::CalcMode::Manual,
+            },
+            // The host reports Excel's CalculationState: 0 is xlDone.
+            activity: if host.calculation_state() == 0 {
+                query::CalcActivity::Done
+            } else {
+                query::CalcActivity::Pending
+            },
+            circular: host.circular_reported().map(Key::of),
+        })?,
         WorkbookQuery::ViewPart => {
             let part = host.model().view_part();
             let anchors = part.anchors().map(|anchor| {
@@ -497,7 +519,12 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::History => {
             let (undo, redo) = state.session.history_depth();
             let (undo_entries, redo_entries) = state.session.skin_history();
-            json!({ "undo": undo, "redo": redo, "undo_entries": undo_entries, "redo_entries": redo_entries })
+            query::History::encode(&query::HistoryList {
+                undo: undo_entries,
+                redo: redo_entries,
+                undo_depth: undo as u64,
+                redo_depth: redo as u64,
+            })?
         }
         WorkbookQuery::Resolve { address } => {
             let source = SourceRef::parse(address, Notation::A1, &address_book(state))

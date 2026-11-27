@@ -245,7 +245,7 @@ fn replacements_refuse_previous_workbook_drafts_and_old_history() {
     draft.workbook = Some(before.workbook);
     assert!(matches!(port.commit(draft), Err(Refusal::Invalid { .. })));
     assert_eq!(
-        port.ask(WorkbookQuery::History, BUDGET).unwrap().body["undo"],
+        port.ask(WorkbookQuery::History, BUDGET).unwrap().body["undo_depth"],
         0
     );
 }
@@ -272,4 +272,73 @@ fn suspended_screen_updates_resume_as_one_frame() {
     let frame = port.next_frame().unwrap().unwrap();
     assert_eq!(frame.updates.len(), 2);
     assert!(port.next_frame().unwrap().is_none());
+}
+
+/// Asks through the port and decodes the answer as the query's own type.
+fn ask<Q: query::Query>(port: &impl WorkbookPort, query: Q) -> Q::Answer {
+    Q::decode(port.ask(query.request(), BUDGET).unwrap())
+        .unwrap()
+        .body
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn every_answer_decodes_as_its_query_type() {
+    use query::{CalcActivity, CalcMode};
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let a1 = Key(sheet.0, sheet.1, 1, 1);
+    let a2 = Key(sheet.0, sheet.1, 2, 1);
+    port.commit(batch(1, vec![enter(a1, "2"), enter(a2, "=A1*21")]))
+        .unwrap();
+
+    let history = ask(&port, query::History);
+    assert_eq!((history.undo_depth, history.redo_depth), (1, 0));
+    assert_eq!(history.undo.len(), 1);
+    assert_eq!(history.undo[0].kind, ChangeKind::Model);
+    assert!(history.redo.is_empty());
+    port.run(Operation::Undo).unwrap();
+    let history = ask(&port, query::History);
+    assert_eq!((history.undo.len(), history.redo.len()), (0, 1));
+    port.run(Operation::Redo).unwrap();
+
+    let calc = ask(&port, query::CalcState);
+    assert_eq!(calc.mode, CalcMode::Automatic);
+    assert_eq!(calc.circular, None);
+    assert!(matches!(calc.activity, CalcActivity::Done | CalcActivity::Pending));
+
+    let census = ask(
+        &port,
+        query::CensusOf {
+            scope: SourceRef::Sheet(sheet),
+        },
+    );
+    assert_eq!((census.formulas, census.literals), (1, 1));
+
+    let formula = ask(&port, query::Formula { at: a2 });
+    assert!(formula.formula);
+    assert_eq!(formula.input, "=A1*21");
+    assert_eq!(formula.precedents, [Area(a1, a1)]);
+
+    let rules = ask(&port, query::Rules { at: a2 });
+    assert_eq!((rules.refusal, rules.validation), (None, None));
+
+    assert_eq!(ask(&port, query::Summary).sheets[0].sheet, sheet);
+    assert_eq!(
+        ask(
+            &port,
+            query::Resolve {
+                address: "A2".into()
+            }
+        ),
+        target(a2)
+    );
+    assert!(ask(&port, query::Geometry { sheet }).default_row_height > 0.);
+    let window = ask(
+        &port,
+        query::Cells {
+            interest: Interest::Area(Area(a1, a2)),
+        },
+    );
+    assert_eq!(window.cells.len(), 2);
 }
