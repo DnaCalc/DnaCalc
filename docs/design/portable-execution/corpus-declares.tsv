@@ -1,0 +1,262 @@
+entry_point	group	windows	macos	linux	server	web-hosted	web-wasm	wasi	clean_projects	suspect_projects	note
+kernel32!RtlMoveMemory	memory	native	replace	replace	replace	replace	replace	replace	0	52	over the VM address space only; Guarded refuses (ffi)
+kernel32!Sleep	time	native	replace	replace	replace	replace	replace	replace	2	47	no reach; tier 1
+kernel32!GetTimeZoneInformation	time	native	replace	replace	replace	replace	replace	replace	0	37	no reach; tier 1
+kernel32!TzSpecificLocalTimeToSystemTime	time	native	replace	replace	replace	replace	replace	replace	0	35	no reach; tier 1
+kernel32!SystemTimeToTzSpecificLocalTime	time	native	replace	replace	replace	replace	replace	replace	0	35	no reach; tier 1
+user32!FindWindowA	window	native	reject	reject	reject	reject	reject	reject	2	16	needs an HWND
+oleaut32!DispCallFunc	code	native	reject	reject	reject	reject	reject	reject	0	15	native code, memory protection or processes
+kernel32!GetModuleHandleA	code	native	reject	reject	reject	reject	reject	reject	0	14	native code, memory protection or processes
+kernel32!CloseHandle	handle	native	reject	reject	reject	reject	reject	reject	0	14	raw kernel handles
+kernel32!GlobalAlloc	memory	native	replace	replace	replace	replace	replace	replace	0	13	over the VM address space only; Guarded refuses (ffi)
+user32!GetDC	gdi	native	reject	reject	reject	reject	reject	reject	0	12	needs a device context
+kernel32!QueryPerformanceFrequency	time	native	replace	replace	replace	replace	replace	replace	0	11	no reach; tier 1
+kernel32!QueryPerformanceCounter	time	native	replace	replace	replace	replace	replace	replace	0	11	no reach; tier 1
+kernel32!GlobalUnlock	memory	native	replace	replace	replace	replace	replace	replace	0	11	over the VM address space only; Guarded refuses (ffi)
+kernel32!GlobalLock	memory	native	replace	replace	replace	replace	replace	replace	0	11	over the VM address space only; Guarded refuses (ffi)
+user32!SetWindowPos	window	native	reject	reject	reject	reject	reject	reject	0	11	needs an HWND
+user32!SendMessageA	window	native	reject	reject	reject	reject	reject	reject	0	11	needs an HWND
+kernel32!LoadLibraryA	code	native	reject	reject	reject	reject	reject	reject	0	11	native code, memory protection or processes
+kernel32!lstrlenW	string	native	replace	replace	replace	replace	replace	replace	0	11	over the VM address space; tier 1
+user32!GetWindowTextA	window	native	reject	reject	reject	reject	reject	reject	1	9	needs an HWND
+user32!FindWindowExA	window	native	reject	reject	reject	reject	reject	reject	1	9	needs an HWND
+user32!GetAsyncKeyState	keys	native	replace	replace	reject	replace	replace	reject	0	10	key state of our own window; tier 2
+user32!OpenClipboard	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	10	the clipboard idiom with a managed global heap; tier 2
+user32!CloseClipboard	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	10	the clipboard idiom with a managed global heap; tier 2
+user32!EmptyClipboard	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	10	the clipboard idiom with a managed global heap; tier 2
+user32!SetClipboardData	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	10	the clipboard idiom with a managed global heap; tier 2
+kernel32!WideCharToMultiByte	string	native	replace	replace	replace	replace	replace	replace	0	10	over the VM address space; tier 1
+kernel32!GetLastError	time	native	replace	replace	replace	replace	replace	replace	0	10	no reach; tier 1
+user32!SetWindowLongA	window	native	reject	reject	reject	reject	reject	reject	1	8	needs an HWND
+webview2loader!CreateCoreWebView2EnvironmentWithOptions	own-dll	native	reject	reject	reject	reject	reject	reject	0	9	the project's own or a third-party DLL
+kernel32!VirtualAlloc	code	native	reject	reject	reject	reject	reject	reject	0	9	native code, memory protection or processes
+user32!SetTimer	window	native	reject	reject	reject	reject	reject	reject	0	9	needs an HWND
+kernel32!FreeLibrary	code	native	reject	reject	reject	reject	reject	reject	0	9	native code, memory protection or processes
+gdi32!GetDeviceCaps	gdi	native	reject	reject	reject	reject	reject	reject	0	9	needs a device context
+gdi32!DeleteObject	gdi	native	reject	reject	reject	reject	reject	reject	0	9	needs a device context
+winhttp!WinHttpOpen	net	native	reject	reject	reject	reject	reject	reject	0	9	use the WinHttpRequest class
+winhttp!WinHttpCloseHandle	net	native	reject	reject	reject	reject	reject	reject	0	9	use the WinHttpRequest class
+user32!GetWindowLongPtrA	window	native	reject	reject	reject	reject	reject	reject	0	9	needs an HWND
+user32!SetWindowLongPtrA	window	native	reject	reject	reject	reject	reject	reject	0	9	needs an HWND
+ole32!CoTaskMemFree	memory	native	replace	replace	replace	replace	replace	replace	0	9	over the VM address space only; Guarded refuses (ffi)
+user32!GetWindowLongA	window	native	reject	reject	reject	reject	reject	reject	1	7	needs an HWND
+user32!DrawMenuBar	window	native	reject	reject	reject	reject	reject	reject	1	7	needs an HWND
+user32!ReleaseDC	gdi	native	reject	reject	reject	reject	reject	reject	0	8	needs a device context
+kernel32!WriteFile	handle	native	reject	reject	reject	reject	reject	reject	0	8	raw kernel handles
+kernel32!GlobalFree	memory	native	replace	replace	replace	replace	replace	replace	0	8	over the VM address space only; Guarded refuses (ffi)
+shell32!ShellExecuteA	open	native	mediated	mediated	reject	mediated	mediated	reject	0	8	open verb on a document or URL only, through the open facet; tier 2
+kernel32!VirtualFree	code	native	reject	reject	reject	reject	reject	reject	0	8	native code, memory protection or processes
+user32!GetWindow	window	native	reject	reject	reject	reject	reject	reject	0	7	needs an HWND
+kernel32!GetSystemTime	time	native	replace	replace	replace	replace	replace	replace	0	7	no reach; tier 1
+kernel32!ReadFile	handle	native	reject	reject	reject	reject	reject	reject	0	7	raw kernel handles
+kernel32!SetCurrentDirectoryA	path	native	replace	replace	replace	replace	replace	replace	1	5	through the path map and file facet; tier 1
+user32!GetCursorPos	window	native	reject	reject	reject	reject	reject	reject	1	5	needs an HWND
+user32!GetWindowTextLengthA	window	native	reject	reject	reject	reject	reject	reject	1	5	needs an HWND
+kernel32!VirtualProtect	code	native	reject	reject	reject	reject	reject	reject	0	6	native code, memory protection or processes
+user32!PostMessageA	window	native	reject	reject	reject	reject	reject	reject	0	6	needs an HWND
+kernel32!CreateFileW	handle	native	reject	reject	reject	reject	reject	reject	0	6	raw kernel handles
+kernel32!GetTickCount	time	native	replace	replace	replace	replace	replace	replace	0	6	no reach; tier 1
+user32!MoveWindow	window	native	reject	reject	reject	reject	reject	reject	0	6	needs an HWND
+oleaut32!OleCreatePictureIndirect	gdi	native	reject	reject	reject	reject	reject	reject	0	6	needs a device context
+winhttp!WinHttpGetProxyForUrl	net	native	reject	reject	reject	reject	reject	reject	0	6	use the WinHttpRequest class
+user32!GetClipboardData	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	6	the clipboard idiom with a managed global heap; tier 2
+winhttp!WinHttpGetIEProxyConfigForCurrentUser	net	native	reject	reject	reject	reject	reject	reject	0	6	use the WinHttpRequest class
+oleaut32!SysAllocString	string	native	replace	replace	replace	replace	replace	replace	0	6	over the VM address space; tier 1
+kernel32!GlobalSize	memory	native	replace	replace	replace	replace	replace	replace	0	6	over the VM address space only; Guarded refuses (ffi)
+kernel32!MultiByteToWideChar	string	native	replace	replace	replace	replace	replace	replace	0	6	over the VM address space; tier 1
+kernel32!GetProcAddress	code	native	reject	reject	reject	reject	reject	reject	0	6	native code, memory protection or processes
+user32!GetClassNameA	window	native	reject	reject	reject	reject	reject	reject	1	4	needs an HWND
+user32!GetActiveWindow	window	native	reject	reject	reject	reject	reject	reject	1	4	needs an HWND
+user32!KillTimer	window	native	reject	reject	reject	reject	reject	reject	0	5	needs an HWND
+comdlg32!ChooseColorA	dialog	native	replace	replace	reject	replace	mediated	reject	0	5	through the file dialog facet; tier 3
+shlwapi!#172	other	native	reject	reject	reject	reject	reject	reject	0	5	-
+kernel32!RtlZeroMemory	memory	native	replace	replace	replace	replace	replace	replace	0	5	over the VM address space only; Guarded refuses (ffi)
+oleaut32!VariantCopy	memory	native	replace	replace	replace	replace	replace	replace	0	5	over the VM address space only; Guarded refuses (ffi)
+gdi32!CreateSolidBrush	gdi	native	reject	reject	reject	reject	reject	reject	0	5	needs a device context
+user32!IsWindow	window	native	reject	reject	reject	reject	reject	reject	0	5	needs an HWND
+user32!GetKeyboardState	keys	native	replace	replace	reject	replace	replace	reject	0	5	key state of our own window; tier 2
+gdi32!SelectObject	gdi	native	reject	reject	reject	reject	reject	reject	0	5	needs a device context
+user32!ShowWindow	window	native	reject	reject	reject	reject	reject	reject	0	5	needs an HWND
+ole32!IIDFromString	guid	native	replace	replace	replace	replace	replace	replace	0	5	tier 1
+user32!IsClipboardFormatAvailable	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	5	the clipboard idiom with a managed global heap; tier 2
+kernel32!CreateProcessA	code	native	reject	reject	reject	reject	reject	reject	0	5	native code, memory protection or processes
+kernel32!CreatePipe	code	native	reject	reject	reject	reject	reject	reject	0	5	native code, memory protection or processes
+kernel32!PeekNamedPipe	code	native	reject	reject	reject	reject	reject	reject	0	5	native code, memory protection or processes
+user32!DialogBoxParamA	window	native	reject	reject	reject	reject	reject	reject	0	5	needs an HWND
+ole32!CoCreateGuid	guid	native	replace	replace	replace	replace	replace	replace	0	5	tier 1
+oleaut32!OleTranslateColor	gdi	native	reject	reject	reject	reject	reject	reject	0	4	needs a device context
+user32!GetKeyState	keys	native	replace	replace	reject	replace	replace	reject	0	4	key state of our own window; tier 2
+user32!GetForegroundWindow	window	native	reject	reject	reject	reject	reject	reject	0	4	needs an HWND
+kernel32!lstrlenA	string	native	replace	replace	replace	replace	replace	replace	0	4	over the VM address space; tier 1
+kernel32!lstrcpyA	string	native	replace	replace	replace	replace	replace	replace	0	4	over the VM address space; tier 1
+user32!LoadKeyboardLayoutA	window	native	reject	reject	reject	reject	reject	reject	0	4	needs an HWND
+user32!GetKeyboardLayoutNameA	identity	native	replace	replace	replace	replace	replace	replace	0	4	from the persona; tier 1
+oleaut32!SysFreeString	string	native	replace	replace	replace	replace	replace	replace	0	4	over the VM address space; tier 1
+user32!GetAncestor	window	native	reject	reject	reject	reject	reject	reject	0	4	needs an HWND
+kernel32!lstrcpyW	string	native	replace	replace	replace	replace	replace	replace	0	4	over the VM address space; tier 1
+user32!GetDesktopWindow	window	native	reject	reject	reject	reject	reject	reject	0	4	needs an HWND
+kernel32!SetLastError	time	native	replace	replace	replace	replace	replace	replace	0	4	no reach; tier 1
+user32!GetClientRect	window	native	reject	reject	reject	reject	reject	reject	0	4	needs an HWND
+crypt32!CryptStringToBinaryW	string	native	replace	replace	replace	replace	replace	replace	0	4	over the VM address space; tier 1
+shlwapi!SHCreateStreamOnFileW	handle	native	reject	reject	reject	reject	reject	reject	0	4	raw kernel handles
+kernel32!FindClose	path	native	replace	replace	replace	replace	replace	replace	0	4	through the path map and file facet; tier 1
+user32!BringWindowToTop	window	native	reject	reject	reject	reject	reject	reject	1	2	needs an HWND
+user32!SetForegroundWindow	window	native	reject	reject	reject	reject	reject	reject	1	2	needs an HWND
+user32!DestroyMenu	window	native	reject	reject	reject	reject	reject	reject	1	2	needs an HWND
+user32!CreatePopupMenu	window	native	reject	reject	reject	reject	reject	reject	1	2	needs an HWND
+user32!GetSystemMetrics	identity	native	replace	replace	replace	replace	replace	replace	1	2	from the persona; tier 1
+user32!SetLayeredWindowAttributes	window	native	reject	reject	reject	reject	reject	reject	1	2	needs an HWND
+advapi32!RegCloseKey	registry	native	reject	reject	reject	reject	reject	reject	0	3	not the VB settings store
+advapi32!RegQueryValueExA	registry	native	reject	reject	reject	reject	reject	reject	0	3	not the VB settings store
+kernel32!lstrcpy	string	native	replace	replace	replace	replace	replace	replace	0	3	over the VM address space; tier 1
+wininet!DeleteUrlCacheEntryA	path	native	replace	replace	replace	replace	replace	replace	0	3	through the path map and file facet; tier 1
+urlmon!URLDownloadToFileA	download	native	replace	replace	replace	replace	mediated	replace	0	3	network and file facets; tier 2
+kernel32!GetShortPathNameW	path	native	replace	replace	replace	replace	replace	replace	0	3	through the path map and file facet; tier 1
+runtimeloader64!LoadRuntime	own-dll	native	reject	reject	reject	reject	reject	reject	0	3	the project's own or a third-party DLL
+kernel32!AddDllDirectory	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+kernel32!SetDefaultDllDirectories	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+mscoree!CLRCreateInstance	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+winhttp!WinHttpReceiveResponse	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+winhttp!WinHttpConnect	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+winhttp!WinHttpQueryHeaders	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+kernel32!GetCurrentProcess	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+winhttp!WinHttpReadData	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+kernel32!DeleteFileW	path	native	replace	replace	replace	replace	replace	replace	0	3	through the path map and file facet; tier 1
+winhttp!WinHttpSendRequest	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+winhttp!WinHttpOpenRequest	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+winhttp!WinHttpSetOption	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+winhttp!WinHttpQueryDataAvailable	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+user32!IsWindowEnabled	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+user32!WindowFromPoint	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+kernel32!GetCurrentThreadId	identity	native	replace	replace	replace	replace	replace	replace	0	3	from the persona; tier 1
+user32!ShowWindowAsync	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+wsock32!WSACleanup	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+wsock32!socket	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+wsock32!WSAStartup	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+gdi32!CreatePen	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+user32!SetKeyboardState	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+wsock32!recv	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+wsock32!closesocket	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+wsock32!send	net	native	reject	reject	reject	reject	reject	reject	0	3	use the WinHttpRequest class
+kernel32!OpenProcess	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+user32!GetWindowThreadProcessId	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+oleaut32!SysReAllocString	string	native	replace	replace	replace	replace	replace	replace	0	3	over the VM address space; tier 1
+ole32!CLSIDFromString	guid	native	replace	replace	replace	replace	replace	replace	0	3	tier 1
+user32!RedrawWindow	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+kernel32!GetExitCodeProcess	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+user32!GetWindowRect	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+kernel32!VirtualQuery	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+user32!GetWindowLongPtrW	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+kernel32!SetEnvironmentVariableW	identity	native	replace	replace	replace	replace	replace	replace	0	3	from the persona; tier 1
+kernel32!GetEnvironmentVariableW	identity	native	replace	replace	replace	replace	replace	replace	0	3	from the persona; tier 1
+user32!SetWindowLongPtrW	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+kernel32!GetLocalTime	time	native	replace	replace	replace	replace	replace	replace	0	3	no reach; tier 1
+kernel32!WaitForSingleObject	code	native	reject	reject	reject	reject	reject	reject	0	3	native code, memory protection or processes
+user32!FindWindowExW	window	native	reject	reject	reject	reject	reject	reject	0	3	needs an HWND
+crypt32!CryptBinaryToStringW	string	native	replace	replace	replace	replace	replace	replace	0	3	over the VM address space; tier 1
+oleaut32!SysStringLen	string	native	replace	replace	replace	replace	replace	replace	0	3	over the VM address space; tier 1
+kernel32!WritePrivateProfileStringA	path	native	replace	replace	replace	replace	replace	replace	0	3	through the path map and file facet; tier 1
+kernel32!GetPrivateProfileStringA	path	native	replace	replace	replace	replace	replace	replace	0	3	through the path map and file facet; tier 1
+gdiplus!GdipCreateHBITMAPFromBitmap	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipCreateSolidFill	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdiplusShutdown	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdiplusStartup	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipDeleteGraphics	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipCreateBitmapFromScan0	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipGetImageGraphicsContext	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipDeleteBrush	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipSetSmoothingMode	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+gdiplus!GdipDisposeImage	gdi	native	reject	reject	reject	reject	reject	reject	0	3	needs a device context
+user32!SetParent	window	native	reject	reject	reject	reject	reject	reject	1	1	needs an HWND
+kernel32!GetVersionExA	identity	native	replace	replace	replace	replace	replace	replace	0	2	from the persona; tier 1
+user32!SendInput	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+kernel32!GetLocaleInfoA	identity	native	replace	replace	replace	replace	replace	replace	0	2	from the persona; tier 1
+winhttp!WinHttpQueryOption	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+winhttp!WinHttpSetTimeouts	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+winhttp!WinHttpWriteData	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+kernel32!GetProcessHandleCount	code	native	reject	reject	reject	reject	reject	reject	0	2	native code, memory protection or processes
+kernel32!MoveFileExW	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+winhttp!WinHttpAddRequestHeaders	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+psapi!GetProcessMemoryInfo	code	native	reject	reject	reject	reject	reject	reject	0	2	native code, memory protection or processes
+user32!IsChild	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!SetWindowsHookExA	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!SystemParametersInfoA	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+vbe7!VarPtr	memory	native	replace	replace	replace	replace	replace	replace	0	2	over the VM address space only; Guarded refuses (ffi)
+user32!TrackPopupMenu	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!GetMenuItemID	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+wsock32!gethostbyname	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+gdi32!Ellipse	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+user32!GetTopWindow	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!SetMenuItemBitmaps	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!GetSubMenu	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+wsock32!inet_addr	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+user32!GetMenu	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+wsock32!connect	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+user32!AppendMenuW	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!CheckMenuRadioItem	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+ws2_32!htons	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+wsock32!inet_ntoa	net	native	reject	reject	reject	reject	reject	reject	0	2	use the WinHttpRequest class
+gdi32!Arc	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+kernel32!GetCurrentProcessId	identity	native	replace	replace	replace	replace	replace	replace	0	2	from the persona; tier 1
+user32!DestroyWindow	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+vbe7!rtcCallByName	code	native	reject	reject	reject	reject	reject	reject	0	2	native code, memory protection or processes
+user32!CopyImage	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!keybd_event	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+oleacc!WindowFromAccessibleObject	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+oleacc!AccessibleObjectFromWindow	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!IsIconic	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+kernel32!RtlFillMemory	memory	native	replace	replace	replace	replace	replace	replace	0	2	over the VM address space only; Guarded refuses (ffi)
+shell32!SHBrowseForFolderA	dialog	native	replace	replace	reject	replace	mediated	reject	0	2	through the file dialog facet; tier 3
+shell32!SHGetPathFromIDListA	dialog	native	replace	replace	reject	replace	mediated	reject	0	2	through the file dialog facet; tier 3
+kernel32!GlobalMemoryStatusEx	identity	native	replace	replace	replace	replace	replace	replace	0	2	from the persona; tier 1
+user32!RegisterClipboardFormatA	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	2	the clipboard idiom with a managed global heap; tier 2
+user32!ReleaseCapture	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+gdi32!DeleteDC	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdi32!GetStockObject	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdi32!CloseEnhMetaFile	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+ntdll!RtlComputeCrc32	string	native	replace	replace	replace	replace	replace	replace	0	2	over the VM address space; tier 1
+user32!SetCursor	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+user32!LoadCursorA	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+gdi32!CreateCompatibleBitmap	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+wininet!InternetGetConnectedState	identity	native	replace	replace	replace	replace	replace	replace	0	2	from the persona; tier 1
+gdiplus!GdipFillPath	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+dwmapi!DwmSetWindowAttribute	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+gdiplus!GdipFillRectangleI	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdiplus!GdipClosePathFigure	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdiplus!GdipAddPathArcI	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+user32!SetWindowRgn	window	native	reject	reject	reject	reject	reject	reject	0	2	needs an HWND
+gdiplus!GdipFillEllipseI	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdiplus!GdipCreatePath	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdi32!CreateRoundRectRgn	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdiplus!GdipSetPixelOffsetMode	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+gdiplus!GdipDeletePath	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+kernel32!GetFileSizeEx	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+kernel32!FindNextFileW	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+kernel32!FindFirstFileExW	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+shlwapi!StrCmpLogicalW	string	native	replace	replace	replace	replace	replace	replace	0	2	over the VM address space; tier 1
+mpr!WNetGetConnectionW	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+kernel32!FindFirstFileW	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+ole32!StringFromGUID2	guid	native	replace	replace	replace	replace	replace	replace	0	2	tier 1
+winmm!PlaySoundA	gdi	native	reject	reject	reject	reject	reject	reject	0	2	needs a device context
+kernel32!FindFirstFileA	path	native	replace	replace	replace	replace	replace	replace	0	2	through the path map and file facet; tier 1
+kernel32!OpenFile	handle	native	reject	reject	reject	reject	reject	reject	0	2	raw kernel handles
+advapi32!RegOpenKeyExA	registry	native	reject	reject	reject	reject	reject	reject	0	2	not the VB settings store
+user!GetSystemMetrics	identity	native	replace	replace	replace	replace	replace	replace	1	0	from the persona; tier 1
+advapi32!RegCreateKeyA	registry	native	reject	reject	reject	reject	reject	reject	0	1	not the VB settings store
+kernel32!GetTempPathA	path	native	replace	replace	replace	replace	replace	replace	0	1	through the path map and file facet; tier 1
+kernel32!RegisterClipboardFormatA	clipboard	native	replace	replace	reject	mediated	mediated	reject	0	1	the clipboard idiom with a managed global heap; tier 2
+kernel32!FileTimeToSystemTime	time	native	replace	replace	replace	replace	replace	replace	0	1	no reach; tier 1
+imagehlp!MakeSureDirectoryPathExists	path	native	replace	replace	replace	replace	replace	replace	0	1	through the path map and file facet; tier 1
+winmm!timeGetTime	time	native	replace	replace	replace	replace	replace	replace	0	1	no reach; tier 1
+comdlg32!GetSaveFileNameA	dialog	native	replace	replace	reject	replace	mediated	reject	0	1	through the file dialog facet; tier 3
+libaddin.dylib!concatCC_C	mac-dylib	reject	native	reject	reject	reject	reject	reject	0	1	Mac dialect
+libaddin.dylib!strlenC_L	mac-dylib	reject	native	reject	reject	reject	reject	reject	0	1	Mac dialect
+libaddin.dylib!freeP	mac-dylib	reject	native	reject	reject	reject	reject	reject	0	1	Mac dialect
+libaddin.dylib!strcpyCC	mac-dylib	reject	native	reject	reject	reject	reject	reject	0	1	Mac dialect
+libaddin.dylib!addDD_D	mac-dylib	reject	native	reject	reject	reject	reject	reject	0	1	Mac dialect
+kernel32!GetFileAttributesW	path	native	replace	replace	replace	replace	replace	replace	0	1	through the path map and file facet; tier 1
+kernel32!CreateDirectoryW	path	native	replace	replace	replace	replace	replace	replace	0	1	through the path map and file facet; tier 1
+kernel32!WritePrivateProfileStringW	path	native	replace	replace	replace	replace	replace	replace	0	1	through the path map and file facet; tier 1
+kernel32!SystemTimeToFileTime	time	native	replace	replace	replace	replace	replace	replace	0	1	no reach; tier 1
+kernel32!GetPrivateProfileStringW	path	native	replace	replace	replace	replace	replace	replace	0	1	through the path map and file facet; tier 1
+kernel32!GetTickCount64	time	native	replace	replace	replace	replace	replace	replace	0	1	no reach; tier 1

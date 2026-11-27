@@ -30,3 +30,26 @@ with and without the four always-present libraries (VBA, Excel, stdole, Office;
 VBA and Excel are implicit and never stored in the dir stream). `summary.json` is
 written before the coverage search. `--summaries-from-existing` rebuilds the
 references and coverage from an existing `projects.jsonl`.
+
+## Host-reach footprint (dc-54aki)
+
+`footprint.py` reads module source (olefile and its own MS-OVBA decompressor; no oletools
+needed) and records, per procedure, the host-reach constructs it uses: file statements,
+`Environ`, `Shell`, `CreateObject` ProgIDs, early-bound external classes, called `Declare`
+entry points, object-model members that reach the host, and the shapes of path literals. It
+evaluates `#If` with the Windows dialect constants, then closes each procedure's set over the
+project's call graph. It writes `procedures.jsonl` with construct names only, never source text.
+
+`footprint_report.py` holds the verdict tables (feature, COM class and Declare group, one
+verdict per host) and joins the scans with `dnacalc run --all --fixtures --macro-level guarded
+--json` outputs of the triage-clean set. It writes the TSVs in
+`docs/design/portable-execution/`. The triage-suspect set may be scanned; it is never run.
+
+```
+python3 -I footprint.py --list <paths> --root <dir> --out <scan> [--watch-members <names>] [--watch-vba <names>]
+python3 -I footprint_report.py --clean <scan> [--suspect <scan>] [--runs <dir>] \
+    [--calcvba-matrix <CalcVBA>/crates/calcvba-symbol/src/portability/matrix.rs] --out docs/design/portable-execution
+```
+
+This is a regex scan, the first measurement for docs/design/PORTABLE_EXECUTION.md. The product
+check is CalcVBA's portability report over bound code (dc-8svfs.1).
