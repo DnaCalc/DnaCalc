@@ -1002,6 +1002,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic explains when active-cell freezing starts from a scrolled worksheet",
+        actions: &[
+            Action::Window(960, 600),
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::ScrollGrid(180, 180),
+            Action::Into("name-box", "D15"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-cell=D15]", "aria-selected", "true")),
+            Action::Wait(Check::Js(
+                "the grid is still scrolled",
+                "document.querySelector('[data-dnacalc=grid]').scrollTop > 20",
+            )),
+            Action::Keys("grid", "\u{e03a}wff"),
+            Action::Wait(Check::TextContains("strip", "Return to the top-left")),
+        ],
+        checks: &[
+            Check::Value("name-box", "D15"),
+            Check::Js(
+                "the refusal kept the worksheet model and panes unchanged",
+                "__dnaProbe().stamp.model === 0 && getComputedStyle(document.querySelector('[data-cell=A1]')).position !== 'sticky'",
+            ),
+        ],
+    },
+    Case {
         name: "Notebook NC01 opens the complete named Sales chain",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -1357,8 +1381,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "notebook-sales",
+        name: "classic-freeze-scrolled",
         start: 46,
+        end: 47,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "notebook-sales",
+        start: 47,
         end: PREVIEW_CASES.len(),
         core: 8,
         setup: &[],
