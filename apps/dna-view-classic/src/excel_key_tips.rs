@@ -73,6 +73,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     command("W V G", "Gridlines", "grid.toggle-gridlines"),
     pending("W L", "Normal View"),
     pending("W P", "Page Layout View"),
+    command("W U", "Customisation Studio", "studio.open"),
     pending("W I", "Page Break Preview"),
     group("R P", "Protect"),
     pending("R P S", "Protect Sheet"),

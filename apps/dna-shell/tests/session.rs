@@ -2791,3 +2791,71 @@ fn app_clock_step_controls_a_workbook_source_and_keeps_its_formula() {
     assert_eq!(page.shown(at(1)), "0");
     assert_eq!(page.shown(at(5)), "1");
 }
+/// Native-only: exercises the live shell's one keymap and workbook session.
+#[test]
+fn trying_on_a_keymap_is_reversible_and_preserves_workbook_stamps() {
+    let page = Page::open();
+    let session = page.session;
+    let before = session.stamp();
+    let manifest = serde_json::json!({
+        "schema": "dna.skin/1",
+        "id": "calm-dark-audit",
+        "name": "Calm Dark Audit",
+        "extends": "dna:default",
+        "theme": {
+            "base": "cockpit-dark",
+            "density": "working",
+            "overrides": {"formula.font.size": "15.5px"}
+        },
+        "commands": [{
+            "id": "skin.show-inspector",
+            "label": "Show Inspector",
+            "steps": [["view.inspector", null]]
+        }, {
+            "id": "skin.edit",
+            "label": "Edit the active cell",
+            "steps": [["grid.edit-cell", null]]
+        }],
+        "keymap": {
+            "profile": "excel-365-win-en-us",
+            "bindings": [{
+                "when": "view:classic && mode:ready",
+                "chord": "Ctrl+Shift+E",
+                "command": "grid.edit-cell"
+            }]
+        }
+    });
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("studio.try-on"),
+            args: manifest.clone(),
+        })
+        .unwrap();
+    page.settle();
+    assert_eq!(session.stamp(), before);
+    assert_eq!(session.view(), ViewId("classic".into()));
+    session.command("skin.show-inspector").unwrap();
+    assert_eq!(session.view(), ViewId("inspector".into()));
+    assert!(session.command("skin.edit").is_err());
+    assert!(session.edit().is_none());
+    session.command("view.classic").unwrap();
+    page.settle();
+    let mut collision = manifest;
+    collision["keymap"]["bindings"][0]["chord"] = serde_json::json!("Ctrl+E");
+    assert!(session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("studio.try-on"),
+        args: collision,
+    }).is_err());
+    session.command("studio.close").unwrap();
+    assert!(!page.press("F2", Focus::Stage));
+    assert!(page.press("Ctrl+Shift+e", Focus::Stage));
+    assert!(session.edit().is_some());
+    assert!(page.press("Escape", Focus::Editor));
+    assert!(session.edit().is_none());
+    assert!(page.press("Escape", Focus::Stage));
+    assert!(session.command("skin.show-inspector").is_err());
+    assert!(!page.press("Ctrl+Shift+e", Focus::Stage));
+    assert!(page.press("F2", Focus::Stage));
+    assert!(session.edit().is_some());
+    assert_eq!(session.stamp(), before);
+}
