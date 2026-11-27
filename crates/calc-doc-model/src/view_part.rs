@@ -13,6 +13,7 @@ pub struct ViewAnchor {
     pub spill: bool,
     /// An orphan has no live location. It can be rebound by using the same ID in an edit.
     location: Option<GridArea>,
+    object: Option<(SheetKey, String)>,
 }
 
 impl ViewAnchor {
@@ -21,6 +22,7 @@ impl ViewAnchor {
             id,
             spill: false,
             location: Some(area),
+            object: None,
         }
     }
 
@@ -29,6 +31,7 @@ impl ViewAnchor {
             id,
             spill: true,
             location: Some(GridArea::cell(at)),
+            object: None,
         }
     }
 
@@ -37,7 +40,21 @@ impl ViewAnchor {
             id,
             spill,
             location: None,
+            object: None,
         }
+    }
+
+    pub fn object(id: AnchorId, sheet: SheetKey, name: String) -> Self {
+        Self {
+            id,
+            spill: false,
+            location: None,
+            object: Some((sheet, name)),
+        }
+    }
+
+    pub fn object_target(&self) -> Option<(SheetKey, &str)> {
+        self.object.as_ref().map(|(sheet, name)| (*sheet, name.as_str()))
     }
 
     pub fn area(&self) -> Option<GridArea> {

@@ -57,6 +57,11 @@ fn parse_anchor(el: &XmlElement, model: &ModelRoot, id: AnchorId) -> Option<View
     let spill = match el.attribute("kind")? {
         "cells" => false,
         "spill" => true,
+        "object" => {
+            let key = SheetKey::new(el.attribute("sheet_key")?.parse().ok()?);
+            let name = el.attribute("name")?.to_owned();
+            return (!name.is_empty()).then(|| ViewAnchor::object(id, key, name));
+        }
         _ => return None,
     };
     let location = || {
@@ -393,6 +398,9 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
 }
 
 fn attribute_fields(anchor: &ViewAnchor, model: &ModelRoot) -> (Option<String>, Option<String>) {
+    if let Some((sheet, _)) = anchor.object_target() {
+        return (Some(sheet.get().to_string()), None);
+    }
     let Some(area) = anchor.area() else {
         return (None, None);
     };
@@ -417,11 +425,12 @@ fn new_anchor(anchor: &ViewAnchor, model: &ModelRoot, out: &mut Vec<u8>) {
     for (name, value) in [
         ("xmlns", Some(VIEW_PART_NAMESPACE)),
         ("id", Some(&anchor.id.to_string())),
-        ("kind", Some(if anchor.spill { "spill" } else { "cells" })),
+        ("kind", Some(anchor_kind(anchor))),
         ("sheet_key", sheet.as_deref()),
         ("ref", reference.as_deref()),
         ("signature", signature.as_deref()),
-        ("state", anchor.area().is_none().then_some("orphan")),
+        ("name", anchor.object_target().map(|(_, name)| name)),
+        ("state", anchor_state(anchor)),
     ] {
         if let Some(value) = value {
             out.push(b' ');
@@ -431,6 +440,20 @@ fn new_anchor(anchor: &ViewAnchor, model: &ModelRoot, out: &mut Vec<u8>) {
         }
     }
     out.extend_from_slice(b"/>");
+}
+
+fn anchor_kind(anchor: &ViewAnchor) -> &'static str {
+    if anchor.object_target().is_some() {
+        "object"
+    } else if anchor.spill {
+        "spill"
+    } else {
+        "cells"
+    }
+}
+
+fn anchor_state(anchor: &ViewAnchor) -> Option<&'static str> {
+    (anchor.area().is_none() && anchor.object_target().is_none()).then_some("orphan")
 }
 
 /// Inserts into a container which may have been written with a self-closing start tag.
@@ -489,10 +512,11 @@ pub(super) fn item(
         let tag = RawTag::parse(&original[stored.start.0..stored.start.1]);
         let (sheet, reference) = attribute_fields(anchor, model);
         let mut changes = vec![
-            ("kind", Some(if anchor.spill { "spill" } else { "cells" })),
-            ("state", anchor.area().is_none().then_some("orphan")),
+            ("kind", Some(anchor_kind(anchor))),
+            ("state", anchor_state(anchor)),
+            ("name", anchor.object_target().map(|(_, name)| name)),
         ];
-        if anchor.area().is_some() {
+        if anchor.area().is_some() || anchor.object_target().is_some() {
             changes.extend([
                 ("sheet_key", sheet.as_deref()),
                 ("ref", reference.as_deref()),

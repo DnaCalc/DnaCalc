@@ -83,19 +83,29 @@ fn coords(text: &str, notation: Notation, active: Option<Key>) -> Option<(u32, u
 impl SourceRef {
     pub fn parse(text: &str, notation: Notation, book: &AddressBook) -> Result<Self, AddressError> {
         let same = |left: &str, right: &str| fold_workbook_name(left) == fold_workbook_name(right);
+        let object = text.trim_start().strip_prefix("obj:");
         let text = text.trim();
         if text.is_empty() {
             return Err(AddressError::Invalid);
         }
-        let (qualifier, reference) = if let Some((qualifier, reference)) = qualified(text) {
+        let lookup_sheet = |qualifier: &str| {
             let name = sheet_text(qualifier).ok_or(AddressError::Invalid)?;
-            let id = book
+            book
                 .sheets
                 .iter()
                 .find(|(_, sheet)| same(sheet, &name))
                 .map(|(id, _)| *id)
-                .ok_or(AddressError::UnknownSheet)?;
-            (Some(id), reference)
+                .ok_or(AddressError::UnknownSheet)
+        };
+        if let Some(object) = object {
+            let (sheet, name) = object.split_once('/').ok_or(AddressError::Invalid)?;
+            if name.is_empty() {
+                return Err(AddressError::Invalid);
+            }
+            return Ok(Self::Object { sheet: lookup_sheet(sheet)?, name: name.into() });
+        }
+        let (qualifier, reference) = if let Some((qualifier, reference)) = qualified(text) {
+            (Some(lookup_sheet(qualifier)?), reference)
         } else {
             (None, text)
         };

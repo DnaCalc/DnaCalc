@@ -96,18 +96,14 @@ pub(super) fn rail(session: Session, inventory: Watch<query::Inventory>) -> impl
                         <ul>{answer.body.into_iter().filter_map(|item| match item {
                             InventoryItem::Table(table) if Some(Sheet(table.area.0.0, table.area.0.1)) == sheet() => {
                                 let args = serde_json::to_value(&table).expect("table facts serialize");
-                                Some(view! {
-                                    <li><button type="button" data-command="forms.add-table"
-                                        on:click=move |_| {
-                                            let _ = session.run(&Invocation {
-                                                command: CommandId::new("forms.add-table"),
-                                                args: args.clone(),
-                                            });
-                                        }>{format!("Add {}", table.name)}</button></li>
-                                }.into_any())
+                                Some(add_object(session, "forms.add-table", table.name, args).into_any())
                             }
                             InventoryItem::Chart { object: SourceRef::Object { sheet: owner, name } }
-                                if Some(owner) == sheet() => Some(view! { <li>{name}</li> }.into_any()),
+                                if Some(owner) == sheet() => {
+                                    let args = serde_json::to_value(SourceRef::Object { sheet: owner, name: name.clone() })
+                                        .expect("chart identities serialize");
+                                    Some(add_object(session, "forms.add-chart", name, args).into_any())
+                                },
                             _ => None,
                         }).collect_view()}</ul>
                     }.into_any(),
@@ -116,6 +112,17 @@ pub(super) fn rail(session: Session, inventory: Watch<query::Inventory>) -> impl
                 }}
             </details>
         </aside>
+    }
+}
+
+fn add_object(session: Session, command: &'static str, name: String, args: serde_json::Value) -> impl IntoView {
+    view! {
+        <li><button type="button" data-command=command on:click=move |_| {
+            let _ = session.run(&Invocation {
+                command: CommandId::new(command),
+                args: args.clone(),
+            });
+        }>{format!("Add {name}")}</button></li>
     }
 }
 

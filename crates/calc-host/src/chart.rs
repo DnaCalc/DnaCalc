@@ -274,6 +274,27 @@ impl HostState {
     /// The charts on `sheet`, in the drawing's order, with their series as the workbook holds
     /// them now; and how many charts the file holds that could not be read.
     pub fn charts(&self, sheet: SheetId) -> (Vec<ChartView>, usize) {
+        self.charts_matching(sheet, |_| true)
+    }
+
+    /// Projects the uniquely named chart on a worksheet without reading unrelated series.
+    pub fn chart_named(&self, sheet: SheetId, name: &str) -> Option<ChartView> {
+        if !self.has_named_chart(sheet, name) {
+            return None;
+        }
+        self.charts_matching(sheet, |chart| chart.name == name).0.into_iter().next()
+    }
+
+    /// Whether a name identifies exactly one chart on the worksheet.
+    pub fn has_named_chart(&self, sheet: SheetId, name: &str) -> bool {
+        self.model().definitions().charts(sheet).iter().filter(|chart| chart.name == name).take(2).count() == 1
+    }
+
+    fn charts_matching(
+        &self,
+        sheet: SheetId,
+        include: impl Fn(&calc_doc_model::Chart) -> bool,
+    ) -> (Vec<ChartView>, usize) {
         // A chart sheet a macro made has no loaded part and nothing unread (dc-oxh8w.23).
         let no_charts = calc_doc_model::SheetCharts::default();
         let read = match self.loaded.sheet(sheet) {
@@ -301,7 +322,7 @@ impl HostState {
         let origin = CellKey::new(sheet, 1, 1).expect("A1 is a cell");
         let mut views = Vec::new();
         let mut unread = read.unread;
-        for chart in self.model().definitions().charts(sheet) {
+        for chart in self.model().definitions().charts(sheet).iter().filter(|chart| include(chart)) {
             let Some(place) = self.frame_place(sheet, &chart.anchor, chart.edit_as.as_deref()) else {
                 // Its cells were deleted: Excel deletes the chart with them.
                 continue;

@@ -85,6 +85,11 @@ query!(
     |q: &OutputCandidates| WorkbookQuery::OutputCandidates { scope: q.scope.clone() }
 );
 query!(
+    /// The workbook renderer's image of an exact worksheet chart.
+    ChartImageOf { object: SourceRef } => crate::ChartImage,
+    |q: &ChartImageOf| WorkbookQuery::ChartImage { object: q.object.clone() }
+);
+query!(
     /// Workbook link caches, admitted RTD topics and bound volatile cells.
     SourceInventory => Sources, |_: &SourceInventory| WorkbookQuery::Sources);
 query!(

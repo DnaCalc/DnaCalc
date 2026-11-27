@@ -467,12 +467,21 @@ pub(crate) fn prepare(
                             SourceRef::Spill { anchor: at } => {
                                 ViewAnchor::spill(*anchor, cell(*at)?)
                             }
+                            SourceRef::Object { sheet, name } => {
+                                let key = before.sheet_by_id(sheet.id())
+                                    .filter(|_| state.session.host().has_named_chart(sheet.id(), name))
+                                    .map(|entry| entry.key())
+                                    .ok_or_else(|| invalid("The chart is unavailable"))?;
+                                ViewAnchor::object(*anchor, key, name.clone())
+                            }
                             _ => return Err(unavailable("dc-aje2v", "This anchor source")),
                         };
-                        if binding.area().is_none_or(|area| {
-                            before.sheet_by_id(area.sheet()).is_none()
-                                && !inserted.as_ref().is_some_and(|(sheet, _)| sheet.id() == area.sheet())
-                        }) {
+                        if binding.object_target().is_none()
+                            && binding.area().is_none_or(|area| {
+                                before.sheet_by_id(area.sheet()).is_none()
+                                    && !inserted.as_ref().is_some_and(|(sheet, _)| sheet.id() == area.sheet())
+                            })
+                        {
                             return Err(invalid("The anchor's sheet is unavailable"));
                         }
                         part.clone().with_anchor(binding)

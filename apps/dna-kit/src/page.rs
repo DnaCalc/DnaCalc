@@ -95,8 +95,12 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
                         </section>
                     }.into_any()
                 }
-                "value" | "input" | "data-frame" | "notebook-excerpt" => {
-                    let slot = if matches!(component.as_str(), "value" | "input") { "value" } else { "rows" };
+                "value" | "input" | "data-frame" | "notebook-excerpt" | "chart" => {
+                    let slot = match component.as_str() {
+                        "chart" => "object",
+                        "value" | "input" => "value",
+                        _ => "rows",
+                    };
                     match bind.remove(slot) {
                         Some(bound) => part(session, id.clone(), label.clone(), component, bound, mode.input),
                         None => missing(),
@@ -166,7 +170,9 @@ fn part(
     let resolved = resolve_bound(session, bound.clone());
     let contents = move || match resolved.get() {
         Live::Ready(source) => {
-            if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
+            if component == "chart" {
+                chart_image(session, source)
+            } else if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
                 schedule(session, source)
             } else {
                 scalar(
@@ -182,6 +188,21 @@ fn part(
         _ => view! { <p aria-busy="true">"Reading source…"</p> }.into_any(),
     };
     view! { <section class="dna-page-card" data-page-part=id>{contents}</section> }.into_any()
+}
+
+fn chart_image(session: Session, object: SourceRef) -> AnyView {
+    let watch = session.following::<query::ChartImageOf>();
+    let query = query::ChartImageOf { object };
+    (move || match watch.at(Some(query.clone())) {
+        Live::Ready(answer) if answer.coverage == Coverage::Complete => view! {
+            <figure class="dna-page-chart-frame">
+                <img class="dna-page-chart" src=answer.body.data_url alt=answer.body.label/>
+                {answer.body.uses_saved_values.then(|| view! { <figcaption>"Uses saved chart data"</figcaption> })}
+            </figure>
+        }.into_any(),
+        Live::Ready(_) | Live::Refused(_) => missing(),
+        _ => view! { <p aria-busy="true">"Reading chart…"</p> }.into_any(),
+    }).into_any()
 }
 
 fn single_cell(source: &SourceRef) -> Option<Key> {

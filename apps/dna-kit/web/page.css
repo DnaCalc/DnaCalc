@@ -43,6 +43,8 @@
 .dna-page-surface :is(button, input) { min-block-size: 36px; max-inline-size: 100%; }
 .dna-page-value { display: grid; }
 .dna-page-prose { white-space: pre-wrap; }
+.dna-page-chart { max-inline-size: 100%; block-size: auto; }
+.dna-page-chart-frame { margin: 0; }
 .dna-page-live-value output {
     padding-inline: var(--dna-gap-1);
     border-radius: var(--dna-radius-card);

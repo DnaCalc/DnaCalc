@@ -670,6 +670,41 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             ),
         ],
     },
+    Case {
+        name: "Classic F1 opens the current keyboard shortcuts and Escape closes Help",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e031}"),
+            Action::Wait(Check::Rendered("shortcut-help", true)),
+            Action::Wait(Check::TextContains("shortcut-help", "Toggle Command Deck")),
+            Action::Wait(Check::TextContains("shortcut-help", "Ctrl+F1")),
+            Action::Keys("grid", "\u{e00c}"),
+        ],
+        checks: &[
+            Check::Rendered("shortcut-help", false),
+            Check::Value("name-box", "B2"),
+            Check::Js(
+                "opening Help left the workbook revision alone",
+                "__dnaProbe().stamp.model === 0",
+            ),
+        ],
+    },
+    Case {
+        name: "Classic Help remains reachable by button when the Deck is folded",
+        actions: &[
+            Action::Wait(Check::Rendered("[data-command='shell.toggle-deck']", true)),
+            Action::Click("[data-command='shell.toggle-deck']"),
+            Action::Wait(Check::Attr("[data-command='shell.toggle-deck']", "aria-expanded", "false")),
+            Action::Click("[data-command='shell.help']"),
+            Action::Wait(Check::Rendered("shortcut-help", true)),
+            Action::Click("[data-command='shell.close-help']"),
+        ],
+        checks: &[
+            Check::Rendered("shortcut-help", false),
+            Check::Attr("[data-command='shell.toggle-deck']", "aria-expanded", "false"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -774,8 +809,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-deck-fold",
         start: 34,
-        end: PREVIEW_CASES.len(),
+        end: 35,
         core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-help",
+        start: 35,
+        end: PREVIEW_CASES.len(),
+        core: 2,
         setup: &[],
     },
 ];
