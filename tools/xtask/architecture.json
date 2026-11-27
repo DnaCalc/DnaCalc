@@ -34,8 +34,7 @@
       "scope": "closure",
       "forbidden": [
         "calc-engine",
-        "calc-host",
-        "calc-skin-host"
+        "calc-host"
       ],
       "forbid_apps": true,
       "reason": "Skin architecture section 5.1: level zero has a formula session and no workbook engine"
@@ -48,7 +47,6 @@
         "calc-doc",
         "calc-engine",
         "calc-host",
-        "calc-skin-host",
         "calc-formula-host",
         "calc-chart-render"
       ],
@@ -62,7 +60,6 @@
         "calc-doc",
         "calc-engine",
         "calc-host",
-        "calc-skin-host",
         "calc-formula-host",
         "calc-chart-render"
       ],
@@ -76,7 +73,6 @@
         "calc-doc",
         "calc-engine",
         "calc-host",
-        "calc-skin-host",
         "calc-formula-host",
         "calc-chart-render"
       ],
@@ -90,7 +86,6 @@
         "calc-doc",
         "calc-engine",
         "calc-host",
-        "calc-skin-host",
         "calc-formula-host",
         "calc-chart-render",
         "dna-shell"
