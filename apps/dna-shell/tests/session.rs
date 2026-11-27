@@ -1193,6 +1193,146 @@ fn notebook_names_a_spill_renames_its_callers_and_defines_a_lambda() {
     assert_eq!(page.shown(page.at(1, 2)), "42");
 }
 
+/// Native-only: exercises a named spill obstruction through the preview and undo route.
+#[test]
+fn notebook_preview_moves_a_named_spill_obstruction_without_overwriting() {
+    use calc_skin::{Batch, Change, InventoryItem, InventoryKind, ModelChange, NameChange, NameScope};
+    use dna_kit::commands::CommandId;
+
+    let page = Page::open();
+    let session = page.session;
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation { command: CommandId::new(command), args }).unwrap();
+        page.settle();
+    };
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    run("notebook.author-columns", serde_json::json!(1));
+    run("notebook.author", serde_json::json!("=SEQUENCE(MAX(1,B2))"));
+    let anchor = session.active().unwrap();
+    let at = |row, col| Key(anchor.0, anchor.1, row, col);
+    assert_eq!(page.shown(anchor), "1");
+    let obstruction = at(12, 1);
+    let target = at(10, 25);
+    let enter = |at, formula: &str| {
+        session.select_cell(at);
+        page.settle();
+        session.edit_text(formula.into());
+        session.commit_edit();
+        page.settle();
+    };
+    session.command("view.classic").unwrap();
+    enter(obstruction, r#"="Review with Sam""#);
+    enter(target, "Reserved");
+    let stamp = session.stamp().unwrap();
+    session.submit(Batch {
+        id: String::new(),
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        expects: vec![],
+        selection_seq: None,
+        label: Some("Name review note".into()),
+        changes: vec![Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::Define {
+                name: "reviewNote".into(),
+                formula: "=Analysis!$A$12".into(),
+            },
+        })],
+    });
+    page.settle();
+    enter(at(2, 2), "4");
+    assert_eq!(page.shown(anchor), "#SPILL!");
+    let names = session.watch(query::Inventory { kinds: vec![InventoryKind::Names] });
+    let has_note = |address: &str| {
+        matches!(session.read(names), Live::Ready(answer) if answer.body.iter().any(|entry| matches!(
+            entry, InventoryItem::Name { name, formula, .. } if name == "reviewNote" && formula.ends_with(address)
+        )))
+    };
+    session.command("view.notebook").unwrap();
+    page.settle();
+    assert!(has_note("$A$12"));
+    let blocked = session.stamp().unwrap();
+    run("notebook.move-obstruction", serde_json::json!([anchor, obstruction, target]));
+    assert_eq!(session.stamp(), Some(blocked));
+    assert_eq!(page.shown(target), "Reserved");
+    assert_eq!(page.shown(anchor), "#SPILL!");
+
+    let vacant = at(12, 25);
+    run("notebook.move-obstruction", serde_json::json!([anchor, obstruction, vacant]));
+    let Seam::Review(preview) = session.seam() else {
+        panic!("Expected a move review: {}", session.notice());
+    };
+    assert_eq!(preview.writes.len(), 2);
+    assert_eq!(session.stamp(), Some(blocked));
+    assert!(has_note("$A$12"));
+    session.command("edit.cancel").unwrap();
+    page.settle();
+    assert!(matches!(session.seam(), Seam::Idle));
+    assert_eq!(session.stamp(), Some(blocked));
+    assert_eq!(page.shown(anchor), "#SPILL!");
+    assert_eq!(page.shown(vacant), "");
+    run("notebook.move-obstruction", serde_json::json!([anchor, obstruction, vacant]));
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(at(13, 1)), "4");
+    assert_eq!(page.shown(vacant), "Review with Sam");
+    assert!(has_note("$Y$12"));
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(anchor), "#SPILL!");
+    assert_eq!(page.shown(obstruction), "Review with Sam");
+    assert!(has_note("$A$12"));
+}
+
+/// Native-only: verifies a moved spill's name, backing anchor and Undo through the workbook packets.
+#[test]
+fn notebook_moving_a_lane_moves_the_spill_and_the_notebook_anchor() {
+    use calc_skin::{InventoryItem, InventoryKind, SourceRef};
+    use dna_kit::commands::CommandId;
+    let page = Page::open();
+    let session = page.session;
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation { command: CommandId::new(command), args }).unwrap();
+        page.settle();
+    };
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    run("notebook.author-columns", serde_json::json!(2));
+    run("notebook.author", serde_json::json!("=SEQUENCE(4,2)"));
+    let anchor = session.active().unwrap();
+    let at = |row, col| Key(anchor.0, anchor.1, row, col);
+    let to = at(10, 4);
+    run("notebook.name-output", serde_json::json!("scopeOrders"));
+    let part = session.watch(query::ViewPartOf);
+    let names = session.watch(query::Inventory { kinds: vec![InventoryKind::Names] });
+    page.settle();
+    run("notebook.move-lane", serde_json::json!([anchor, to]));
+    assert!(matches!(session.seam(), Seam::Review(_)));
+    assert_eq!(page.shown(at(13, 2)), "8");
+    assert_eq!(page.shown(to), "");
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(anchor), "");
+    assert_eq!(page.shown(at(13, 5)), "8");
+    assert!(matches!(session.read(part), Live::Ready(answer) if answer.body.anchors.iter().any(|a|
+        a.source == Some(SourceRef::Spill { anchor: to }))));
+    assert!(matches!(session.read(names), Live::Ready(answer) if answer.body.iter().any(|record| matches!(record,
+        InventoryItem::Name { name, formula, .. } if name == "scopeOrders" && formula.contains("$D$10")
+    ))));
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(at(13, 2)), "8");
+    assert_eq!(page.shown(to), "");
+    assert!(matches!(session.read(part), Live::Ready(answer) if answer.body.anchors.iter().any(|a|
+        a.source == Some(SourceRef::Spill { anchor }))));
+    assert!(matches!(session.read(names), Live::Ready(answer) if answer.body.iter().any(|record| matches!(record,
+        InventoryItem::Name { name, formula, .. } if name == "scopeOrders" && formula.contains("$A$10")
+    ))));
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {

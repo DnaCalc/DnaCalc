@@ -316,6 +316,7 @@ pub(crate) fn invalidated(
         }
         WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
         WorkbookQuery::DefinedName { .. } => authored,
+        WorkbookQuery::SpillBlockers { .. } => authored || recalculated,
         WorkbookQuery::Structure { scope } => {
             (authored && scope_touched())
                 || (recalculated && matches!(scope, SourceRef::Spill { .. }))
@@ -784,6 +785,28 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::DefinedName { scope, name } => {
             meter.work(0, 1, 0)?;
             query::DefinedName::encode(&crate::names::facts(host, scope, name)?)?
+        }
+        WorkbookQuery::SpillBlockers { anchor } => {
+            let anchor = cell(*anchor)?;
+            let desired = host.blocked_spill_area(anchor)
+                .ok_or_else(|| invalid("The spill no longer has a current blocked extent"))?;
+            let limit = budget.cells.min(64) as usize;
+            let (areas, more) = host.spill_blockers(anchor, limit);
+            let mut blockers = Vec::new();
+            for area in areas {
+                meter.work(1, 0, 0)?;
+                let at = area.first();
+                let cell_to_move = (area.cell_count() == 1 && host.model().cell(at).is_some()
+                    && host.spill_area(at).is_none_or(|spill| spill.cell_count() == 1)
+                    && batch::rules(&state.session, at).is_ok())
+                    .then(|| Key::of(at));
+                blockers.push(SpillBlocker { area: Area::of(area), cell_to_move });
+            }
+            query::SpillBlockers::encode(&calc_skin::SpillBlockers {
+                desired: Area::of(desired),
+                blockers,
+                more,
+            })?
         }
         WorkbookQuery::Structure { scope } => query::StructureOf::encode(&Evidence::Derived {
             from: Derivation::Structure,

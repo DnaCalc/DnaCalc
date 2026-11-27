@@ -144,6 +144,33 @@ fn calculation_changes_report_previous_and_published_formula_values() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn spill_blockers_report_the_current_attempted_extent_and_authored_obstruction() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    let anchor = at(10, 1);
+    let obstruction = at(12, 1);
+    connection.commit(batch(1, vec![
+        enter(obstruction, "Review"),
+        enter(at(2, 2), "4"),
+        enter(anchor, "=SEQUENCE(B2,2)"),
+    ])).unwrap();
+    while host.advance() {}
+    let query = query::SpillBlockers { anchor };
+    let answer = query::SpillBlockers::decode(connection.ask(query.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.desired, Area(anchor, at(13, 2)));
+    assert_eq!(answer.body.blockers, vec![SpillBlocker {
+        area: Area(obstruction, obstruction),
+        cell_to_move: Some(obstruction),
+    }]);
+    assert!(!answer.body.more);
+    connection.commit(batch(2, vec![enter(at(2, 2), "1")])).unwrap();
+    while host.advance() {}
+    assert!(connection.ask(query.request(), BUDGET).is_err());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn row_watches_refresh_for_a_spill_change_in_their_read_footprint() {
     let (host, sheet) = workbook();
     let port = port(&host);

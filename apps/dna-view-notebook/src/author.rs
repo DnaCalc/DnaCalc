@@ -100,22 +100,7 @@ impl Authoring {
                 columns: request.columns,
             });
             let reserved = if shape.is_some() {
-                snapshot
-                    .chain
-                    .cells
-                    .iter()
-                    .filter_map(|item| {
-                        let at = snapshot.source(item.id).and_then(first_cell)?;
-                        let width = item.lane_columns?;
-                        if Sheet(at.0, at.1) != sheet {
-                            return None;
-                        }
-                        let right = at.3.checked_add(width.checked_sub(1)?)?;
-                        let bounds =
-                            Area(Key(at.0, at.1, 10, at.3), Key(at.0, at.1, 1_048_576, right));
-                        bounds.area().map(|_| bounds)
-                    })
-                    .collect()
+                snapshot.reserved_lanes(sheet)
             } else {
                 Vec::new()
             };
@@ -196,6 +181,18 @@ impl Authoring {
             }
         });
         Ok(())
+    }
+}
+
+impl super::Snapshot {
+    pub(super) fn reserved_lanes(&self, sheet: Sheet) -> Vec<Area> {
+        self.chain.cells.iter().filter_map(|item| {
+            let at = self.source(item.id).and_then(first_cell)?;
+            if Sheet(at.0, at.1) != sheet { return None; }
+            let right = at.3.checked_add(item.lane_columns?.checked_sub(1)?)?;
+            let bounds = Area(Key(at.0, at.1, 10, at.3), Key(at.0, at.1, 1_048_576, right));
+            bounds.area().map(|_| bounds)
+        }).collect()
     }
 }
 

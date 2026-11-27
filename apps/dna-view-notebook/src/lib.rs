@@ -3,6 +3,7 @@
 mod author;
 mod commands;
 mod names;
+mod spill;
 mod stage;
 
 use calc_skin::grid::{Area, Key, Sheet};

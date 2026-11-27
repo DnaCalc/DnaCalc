@@ -18,6 +18,24 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
     };
     vec![
         command(
+            "notebook.move-obstruction",
+            "Review spill obstruction move",
+            &[],
+            |state, action| {
+                let (anchor, from, to) = argument(action)?;
+                spill::review_move(state, anchor, from, to)
+            },
+        ).when("mode:notebook-command && writable"),
+        command(
+            "notebook.move-lane",
+            "Review spill lane move",
+            &[],
+            |state, action| {
+                let (anchor, to) = argument(action)?;
+                spill::review_move(state, anchor, anchor, to)
+            },
+        ).when("mode:notebook-command && writable"),
+        command(
             "notebook.link",
             "Start with selected cells",
             &[],
