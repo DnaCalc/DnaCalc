@@ -987,7 +987,7 @@ fn operator(session: Session, state: State) -> AnyView {
     view! {
         <div class="dna-page-surface" data-dnacalc="app">
             {move || match page.get() {
-                Ok((document, _)) => {
+                Ok((document, document_id)) => {
                     let batched = document.input == InputPolicy::Batched;
                     let has_inputs = !page_inputs(&document).is_empty();
                     let has_comparison = !comparison_bindings(&document).is_empty();
@@ -1005,7 +1005,7 @@ fn operator(session: Session, state: State) -> AnyView {
                                 printing::stage(session, document).into_any()
                             } else {
                                 view! {
-                                    <PageRenderer session document input=INPUT compare=true scenario=PageScenario {
+                                    <PageRenderer session document input=INPUT compare=true clock_document=document_id scenario=PageScenario {
                                         review: REVIEW_SCENARIO,
                                         save: SAVE_SCENARIO,
                                     } />

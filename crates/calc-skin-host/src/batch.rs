@@ -469,6 +469,21 @@ pub(crate) fn prepare(
                     edits.extend(prepare_literal(&state.session, at, text)?);
                     areas.push(GridArea::cell(at));
                 }
+                ModelChange::IncrementBound { bound } => {
+                    require_current_model(request, base.model)?;
+                    let at = crate::query::bound_cell(state, bound)?;
+                    literal_target(&state.session, at)?;
+                    let Some(CellInput::Number(count)) = before.cell(at) else {
+                        return Err(invalid("The control needs a nonnegative integer"));
+                    };
+                    let count = count.get();
+                    if count.fract() != 0.0 || !(0.0..999_999_999_999_999.0).contains(&count) {
+                        return Err(invalid("The control needs an incrementable nonnegative integer"));
+                    }
+                    let next = (count as u64 + 1).to_string();
+                    edits.extend(prepare_literal(&state.session, at, &next)?);
+                    areas.push(GridArea::cell(at));
+                }
                 ModelChange::ShowScenario { scenario } => {
                     require_current_model(request, base.model)?;
                     let scenario = crate::inventory::worksheet_scenarios(
@@ -575,6 +590,47 @@ pub(crate) fn prepare(
                     )
                     .map_err(excel)?;
                     let target = plan.target();
+                    areas.push(target);
+                    if !paste_areas.contains(&target) {
+                        paste_areas.push(target);
+                    }
+                    edits.extend(plan.into_edits(host).map_err(excel)?);
+                }
+                ModelChange::FillRange { selected, direction } => {
+                    require_current_model(request, base.model)?;
+                    let selected = grid_area(*selected)?;
+                    let first = selected.first();
+                    let last = selected.last();
+                    let key = |row, column| {
+                        CellKey::new(selected.sheet(), row, column).expect("inside the selection")
+                    };
+                    let (seed_end, target_start) = match direction {
+                        FillDirection::Down if first.row() < last.row() => (
+                            key(first.row(), last.column()),
+                            key(first.row() + 1, first.column()),
+                        ),
+                        FillDirection::Right if first.column() < last.column() => (
+                            key(last.row(), first.column()),
+                            key(first.row(), first.column() + 1),
+                        ),
+                        FillDirection::Down => return Err(invalid("Select at least two rows to fill down.")),
+                        FillDirection::Right => return Err(invalid("Select at least two columns to fill right.")),
+                    };
+                    let from = GridArea::new(first, seed_end).expect("an ordered seed range");
+                    let target = GridArea::new(target_start, last).expect("an ordered fill range");
+                    let host = state.session.host();
+                    let excel = |reason| Refusal::Excel { reason };
+                    let plan = prepare_paste_oriented(
+                        host,
+                        PasteSource::Fill {
+                            from,
+                            down: *direction == FillDirection::Down,
+                            series: false,
+                        },
+                        target,
+                        PasteMode::All,
+                        false,
+                    ).map_err(excel)?;
                     areas.push(target);
                     if !paste_areas.contains(&target) {
                         paste_areas.push(target);

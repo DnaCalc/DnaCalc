@@ -478,6 +478,8 @@ pub enum ModelChange {
         bound: Bound,
         text: String,
     },
+    /// Advance a bound nonnegative integer control by one, with worksheet validation.
+    IncrementBound { bound: Bound },
     /// Insert the changing values of an existing worksheet scenario in one workbook edit.
     ShowScenario { scenario: crate::ScenarioRef },
     /// Capture the current authored literal values in the worksheet's native Scenario Manager.
@@ -494,6 +496,10 @@ pub enum ModelChange {
         copy: u64,
         to: Area,
         contents: PasteContents,
+    },
+    FillRange {
+        selected: Area,
+        direction: FillDirection,
     },
     SetColumnsHidden {
         sheet: Sheet,
@@ -531,6 +537,12 @@ pub enum PasteContents {
     Values,
     Formulas,
     AllTransposed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FillDirection {
+    Down,
+    Right,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

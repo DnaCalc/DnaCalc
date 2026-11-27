@@ -1488,3 +1488,78 @@ fn opening_an_automatic_workbook_publishes_calculated_spills() {
         Provenance::Calculated { .. }
     ));
 }
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn local_rtd_clock_starts_paused_with_the_calculated_opening_tick() {
+    use std::time::Duration;
+
+    let (host, sheet) = workbook();
+    host.enable_model_clock();
+    let port = port(&host);
+    let at = |column| Key(sheet.0, sheet.1, 1, column);
+    port.commit(batch(
+        1,
+        vec![
+            enter(at(2), "2"),
+            enter(at(3), "FALSE"),
+            enter(at(4), "0"),
+            enter(at(5), "0"),
+            enter(at(6), "TRUE"),
+            enter(
+                at(1),
+                r#"=RTD("DnaCalc.Clock",,"stock","tick",B1,AND(C1,F1),D1,E1)"#,
+            ),
+        ],
+    ))
+    .unwrap();
+    while host.advance() {}
+
+    let read = query::Rows {
+        source: target(at(1)),
+        filter: Vec::new(),
+        sort: Vec::new(),
+        window: RowWindow {
+            offset: 0,
+            limit: 1,
+        },
+    };
+    let read = || query::Rows::decode(port.ask(read.request(), BUDGET).unwrap()).unwrap();
+    let opening = read();
+    let actual = &opening.body.rows[0].cells[0].shown;
+    assert_eq!(
+        actual.value,
+        RawValue::Number {
+            bits: 0.0f64.to_bits()
+        }
+    );
+    assert!(matches!(actual.provenance, Provenance::Calculated { .. }));
+    let value = |n: f64| RawValue::Number { bits: n.to_bits() };
+    let tick = || read().body.rows[0].cells[0].shown.value.clone();
+    assert!(!host.advance_model_clock(Duration::from_secs(1)));
+    assert_eq!(read().stamp, opening.stamp);
+
+    port.commit(batch(2, vec![enter(at(3), "TRUE")])).unwrap();
+    while host.advance() {}
+    let running = read().stamp;
+    assert!(!host.advance_model_clock(Duration::from_millis(499)));
+    assert!(host.advance_model_clock(Duration::from_millis(1)));
+    while host.advance() {}
+    assert_eq!(tick(), value(1.0));
+    assert_eq!(read().stamp.model, running.model);
+    assert!(read().stamp.calc.0 > running.calc.0);
+
+    port.commit(batch(3, vec![enter(at(6), "FALSE")])).unwrap();
+    while host.advance() {}
+    assert!(!host.advance_model_clock(Duration::from_secs(1)));
+    assert_eq!(tick(), value(1.0));
+
+    port.commit(batch(4, vec![enter(at(3), "FALSE"), enter(at(4), "1")]))
+        .unwrap();
+    while host.advance() {}
+    assert_eq!(tick(), value(2.0));
+    assert!(!host.advance_model_clock(Duration::from_secs(1)));
+
+    port.commit(batch(5, vec![enter(at(5), "1")])).unwrap();
+    while host.advance() {}
+    assert_eq!(tick(), value(0.0));
+}

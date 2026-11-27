@@ -313,6 +313,37 @@ fn classic_filter_key_tip_uses_the_current_region_and_undoes_the_toggle() {
     assert_eq!(filter_range(), Some(range));
 }
 
+/// Native-only: drives CalcHost's fill planner through Classic keyboard commands.
+#[test]
+fn classic_fill_down_and_right_translate_formulas_as_separate_undo_steps() {
+    let page = Page::open();
+    let session = page.session;
+    for (row, column, text) in [(1, 1, "10"), (2, 1, "30"), (1, 2, "=A1+1"), (4, 1, "4"), (4, 2, "=A4")] {
+        session.begin_edit(page.at(row, column), Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    assert!(page.press("Ctrl+d", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "31");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    assert_eq!(page.shown(page.at(1, 2)), "11");
+
+    session.select_cell(page.at(4, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert!(page.press("Ctrl+r", Focus::Stage));
+    assert_eq!(page.shown(page.at(4, 3)), "4");
+    session.select_cell(page.at(4, 3));
+    page.settle();
+    assert_eq!(session.entry(), "=B4");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(4, 3)), "");
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
@@ -2569,4 +2600,119 @@ fn forms_maker_reopens_a_bound_workbook_chart_and_reads_its_image() {
     let chart = query::ChartImageOf::decode(ask(drawing.request())).unwrap().body;
     assert!(chart.data_url.starts_with("data:image/svg+xml;base64,PHN2Zy"));
     assert!(!chart.label.is_empty());
+}
+/// Native-only: drives App clock commands through the workbook connection.
+#[test]
+fn app_clock_step_controls_a_workbook_source_and_keeps_its_formula() {
+    use calc_skin::{
+        AnchorId, Batch, Bound, Change, DocId, ModelChange, Page as Declaration, PageNode,
+        PresentationChange, SourceRef, WorkbookPort, grid::Area,
+    };
+    use std::num::NonZeroU128;
+
+    let page = Page::open();
+    page.host.enable_model_clock();
+    let session = page.session;
+    let at = |col| page.at(1, col);
+    let formula = r#"=RTD("DnaCalc.Clock",,"stock","tick",B1,C1,D1,E1)"#;
+    let mut changes: Vec<_> = [formula, "2", "FALSE", "0", "0", "=A1>=3"]
+        .into_iter()
+        .enumerate()
+        .map(|(index, text)| {
+            Change::Model(ModelChange::Enter {
+                at: at(index as u32 + 1),
+                text: text.into(),
+            })
+        })
+        .collect();
+    let mut bind = std::collections::BTreeMap::new();
+    for (index, slot) in ["tick", "rate", "running", "step", "reset", "stopped"]
+        .into_iter()
+        .enumerate()
+    {
+        let anchor = AnchorId(NonZeroU128::new(index as u128 + 1).unwrap());
+        let key = at(index as u32 + 1);
+        bind.insert(
+            slot.into(),
+            Bound {
+                anchor,
+                address: format!("Sheet1!{}1", char::from(b'A' + index as u8)),
+            },
+        );
+        changes.push(Change::Presentation(PresentationChange::Bind {
+            anchor,
+            source: SourceRef::Cells {
+                sheet: page.sheet,
+                areas: vec![Area(key, key)],
+            },
+        }));
+    }
+    let body = Declaration {
+        schema: calc_skin::PageSchema::V1,
+        title: "Clock controls".into(),
+        input: calc_skin::InputPolicy::Live,
+        root: PageNode::Part {
+            id: "clock".into(),
+            component: "clock".into(),
+            bind,
+            props: Default::default(),
+        },
+    };
+    let doc_id = DocId(NonZeroU128::new(12).unwrap());
+    changes.push(Change::Presentation(PresentationChange::CreateDoc {
+        doc: doc_id,
+        view: ViewId("app".into()),
+        sheet: None,
+        schema: 1,
+        expect_view_rev: Some(session.stamp().unwrap().view),
+        body: serde_json::to_value(body).unwrap(),
+    }));
+    let author = page.host.connect(
+        Origin::User {
+            view: ViewId("classic".into()),
+        },
+        WritePolicy::Commit,
+    );
+    author
+        .commit(Batch {
+            id: "500".into(),
+            workbook: None,
+            base: None,
+            expects: vec![],
+            selection_seq: None,
+            label: None,
+            changes,
+        })
+        .unwrap();
+    page.settle();
+    session.command("view.app").unwrap();
+    page.settle();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("clock.control"),
+            args: serde_json::json!([doc_id, "clock", "Step", null]),
+        })
+        .unwrap();
+    page.settle();
+    assert_eq!(page.shown(at(1)), "1", "{}", session.notice());
+    assert_eq!(page.shown(at(3)), "FALSE");
+    assert_eq!(page.shown(at(4)), "1");
+    let formula_query = query::Formula { at: at(1) };
+    use calc_skin::query::Query;
+    let answer = page
+        .port
+        .ask(formula_query.request(), dna_kit::PAGE_BUDGET)
+        .unwrap();
+    assert_eq!(query::Formula::decode(answer).unwrap().body.input, formula);
+    session.command("view.inspector").unwrap();
+    page.settle();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("clock.control"),
+            args: serde_json::json!([doc_id, "clock", "Reset", null]),
+        })
+        .unwrap();
+    page.settle();
+    assert_eq!(page.shown(at(1)), "0");
+    assert_eq!(page.shown(at(5)), "1");
 }

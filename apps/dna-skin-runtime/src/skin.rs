@@ -206,6 +206,13 @@ fn validate_page(page: &Page) -> Result<(), String> {
         {
             return Err(format!("Page part {id} needs the {slot} binding"));
         }
+        if component == "clock" {
+            for slot in ["tick", "rate", "running", "step", "reset", "stopped"] {
+                if !slots.contains_key(slot) {
+                    return Err(format!("Page part {id} needs the {slot} binding"));
+                }
+            }
+        }
         Ok(())
     })
 }
