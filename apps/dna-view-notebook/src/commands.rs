@@ -139,13 +139,38 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
             Ok(())
         })
         .when("editing && writable"),
+        command("notebook.anchor-reference", "Cycle reference anchors", &["F4"], |state, _| {
+            let draft = state.session.edit().ok_or("Edit a formula first.")?;
+            let editor = state.formula_editor.get_value();
+            let (start, end) = editor.map_or_else(|| {
+                let end = draft.text.encode_utf16().count();
+                (end, end)
+            }, |editor| editor.selection());
+            if let Some((text, start, end)) = dna_formula_ui::editor::cycle_anchors(&draft.text, start, end) {
+                if let Some(editor) = editor {
+                    editor.place(text, end);
+                    if let Some(field) = editor.field.get_untracked() {
+                        let _ = field.set_selection_range(start as u32, end as u32);
+                    }
+                } else {
+                    state.session.edit_text(text);
+                }
+            }
+            Ok(())
+        }).when("editing && writable"),
         command(
             "notebook.run-next",
             "Run and advance",
             &["Shift+Enter"],
-            |state, _| state.run_and_advance(),
+            |state, _| state.run_and_advance(false),
         )
         .when("editing && writable"),
+        command(
+            "notebook.run-insert",
+            "Run and insert below",
+            &["Alt+Enter"],
+            |state, _| state.run_and_advance(true),
+        ).when("editing && writable"),
         command(
             "notebook.run-all",
             "Run all held drafts",
@@ -232,16 +257,28 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
         )
         .when("mode:notebook-command && writable"),
         command(
+            "notebook.insert-above",
+            "Insert formula slot above",
+            &["A"],
+            |state, _| state.insert_slot(false),
+        ).when("mode:notebook-command && writable"),
+        command(
+            "notebook.insert-below",
+            "Insert formula slot below",
+            &["B"],
+            |state, _| state.insert_slot(true),
+        ).when("mode:notebook-command && writable"),
+        command(
             "notebook.prose-above",
             "Insert Markdown above",
-            &["A"],
+            &[],
             |state, _| state.insert_prose(false),
         )
         .when("mode:notebook-command && writable"),
         command(
             "notebook.prose-below",
             "Insert Markdown below",
-            &["B"],
+            &[],
             |state, _| state.insert_prose(true),
         )
         .when("mode:notebook-command && writable"),
@@ -269,12 +306,11 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
         })
         .when("mode:notebook-command && writable"),
         command("notebook.copy", "Copy cell", &["C"], |state, _| {
-            state.copy()
+            state.copy(false)
         })
         .when("mode:notebook-command"),
         command("notebook.cut", "Cut cell", &["X"], |state, _| {
-            state.copy()?;
-            state.delete(false)
+            state.copy(true)
         })
         .when("mode:notebook-command && writable"),
         command("notebook.paste", "Paste cell below", &["V"], |state, _| {
@@ -517,16 +553,28 @@ impl State {
         source: Option<SourceRef>,
         after: bool,
     ) -> Result<(), String> {
+        let id = AnchorId(snapshot.next_id()?);
+        let batch = self.prepare_insert(snapshot, Item::new(id, kind), source, after)?;
+        self.item.set(Some((snapshot.part.stamp.workbook, id)));
+        self.session.submit(batch);
+        Ok(())
+    }
+
+    fn prepare_insert(
+        self,
+        snapshot: &Snapshot,
+        item: Item,
+        source: Option<SourceRef>,
+        after: bool,
+    ) -> Result<Batch, String> {
         let mut chain = snapshot.chain.clone();
         let at = self
             .selected(snapshot)
             .map_or(0, |index| index + usize::from(after));
-        let id = AnchorId(snapshot.next_id()?);
-        chain.cells.insert(at, Item::new(id, kind));
+        let id = item.id;
+        chain.cells.insert(at, item);
         let changes = source.into_iter().map(|source| bind(id, source)).collect();
-        self.submit(snapshot, &chain, changes, "Add Notebook cell")?;
-        self.item.set(Some((snapshot.part.stamp.workbook, id)));
-        Ok(())
+        self.prepare_batch(snapshot, &chain, changes, "Add Notebook cell")
     }
 
     fn insert_prose(self, after: bool) -> Result<(), String> {
@@ -539,6 +587,11 @@ impl State {
             None,
             after,
         )
+    }
+
+    fn insert_slot(self, after: bool) -> Result<(), String> {
+        let snapshot = self.snapshot()?;
+        self.add(&snapshot, Kind::CodeSlot, None, after)
     }
 
     fn change_item(self, label: &str, change: impl FnOnce(&mut Item)) -> Result<(), String> {
@@ -568,6 +621,9 @@ impl State {
     fn edit(self) -> Result<(), String> {
         let snapshot = self.snapshot()?;
         let item = self.current(&snapshot)?;
+        if matches!(item.kind, Kind::CodeSlot) {
+            return self.author.open_at(self, Some(item.id));
+        }
         if matches!(item.kind, Kind::Table { .. }) {
             return Err("Open the linked worksheet to edit this range.".into());
         }
@@ -610,16 +666,31 @@ impl State {
         }
     }
 
-    fn run_and_advance(self) -> Result<(), String> {
+    fn run_and_advance(self, insert: bool) -> Result<(), String> {
+        if insert && let Some(edit) = self.session.edit() && edit.text.contains('\n') {
+            if let Some(editor) = self.formula_editor.get_value() {
+                let (start, end) = editor.selection();
+                let mut units: Vec<u16> = edit.text.encode_utf16().collect();
+                let start = start.min(units.len());
+                let end = end.clamp(start, units.len());
+                drop(units.splice(start..end, [u16::from(b'\n')]));
+                editor.place(String::from_utf16_lossy(&units), start + 1);
+            } else {
+                self.session.edit_text(format!("{}\n", edit.text));
+            }
+            return Ok(());
+        }
         let snapshot = self.snapshot()?;
         let current = self
             .selected(&snapshot)
             .ok_or("Choose a Notebook cell first.")?;
         let next = snapshot.chain.cells.get(current + 1).map(|item| item.id);
         self.session.commit_edit_then(move || {
-            if let Some(next) = next {
+            if let Some(next) = next.filter(|_| !insert) {
                 self.select(snapshot.part.stamp, next, snapshot.source(next));
                 stage::reveal(next);
+            } else if let Err(reason) = self.insert_slot(true) {
+                self.session.refuse(calc_skin::Refusal::Invalid { reason });
             }
         });
         Ok(())
@@ -682,18 +753,23 @@ impl State {
         }
     }
 
-    fn copy(self) -> Result<(), String> {
+    fn copy(self, cut: bool) -> Result<(), String> {
         let snapshot = self.snapshot()?;
         let mut item = self.current(&snapshot)?;
-        if let Kind::Function { owns_name, .. } = &mut item.kind {
-            *owns_name = false;
+        let binding = snapshot.source(item.id).cloned();
+        if cut {
+            self.delete(false)?;
+        } else {
+            item.owned = false;
+            item.lane_columns = None;
+            item.output_name = None;
+            if let Kind::Function { owns_name, .. } = &mut item.kind {
+                *owns_name = false;
+            }
         }
         self.workspace.update_value(|workspace| {
             workspace.owner = Some(snapshot.part.stamp.workbook);
-            workspace.copied = Some(CopiedCell {
-                kind: item.kind,
-                binding: snapshot.source(item.id).cloned(),
-            });
+            workspace.copied = Some(CopiedCell { item, binding, cut });
         });
         Ok(())
     }
@@ -708,7 +784,30 @@ impl State {
                     .flatten()
             })
             .ok_or("Copy or cut a Notebook cell first.")?;
-        self.add(&snapshot, copy.kind, copy.binding, true)
+        let mut item = copy.item;
+        let previous = item.id;
+        if copy.cut && snapshot.chain.cells.iter().any(|item| item.id == previous) {
+            return Err("The cut cell is already in the Notebook.".into());
+        }
+        if !copy.cut || snapshot.anchor(previous).is_some() {
+            item.id = AnchorId(snapshot.next_id()?);
+        }
+        let id = item.id;
+        let stamp = snapshot.part.stamp;
+        let batch = self.prepare_insert(&snapshot, item, copy.binding, true)?;
+        self.session.submit_then(batch, move || {
+            self.item.set(Some((stamp.workbook, id)));
+            if copy.cut {
+                self.workspace.update_value(|workspace| {
+                    if workspace.owner == Some(stamp.workbook) && workspace.copied.as_ref()
+                        .is_some_and(|entry| entry.cut && entry.item.id == previous)
+                    {
+                        workspace.copied = None;
+                    }
+                });
+            }
+        });
+        Ok(())
     }
 
     fn to_prose(self) -> Result<(), String> {
@@ -724,11 +823,9 @@ impl State {
     fn to_formula(self) -> Result<(), String> {
         let snapshot = self.snapshot()?;
         let item = self.current(&snapshot)?;
-        if snapshot.source(item.id).is_none() {
-            return Err("Link a worksheet cell for this formula first.".into());
-        }
+        let source = snapshot.source(item.id).is_some();
         self.change_item("Convert Notebook cell to formula", |item| {
-            item.kind = Kind::Formula
+            item.kind = if source { Kind::Formula } else { Kind::CodeSlot };
         })
     }
 }

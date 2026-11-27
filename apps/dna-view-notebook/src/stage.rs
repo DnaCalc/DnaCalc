@@ -133,6 +133,12 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                 Some(Item { kind: Kind::Prose { markdown }, .. }) => prose(state, id, markdown).into_any(),
                 Some(Item { kind: Kind::Function { name, .. }, .. }) =>
                     super::names::live_function(state.session, name).into_any(),
+                Some(Item { kind: Kind::CodeSlot, .. }) => view! {
+                    <button type="button" data-command="notebook.edit" on:click=move |_| {
+                        invoke(state.session, "notebook.focus", id);
+                        let _ = state.session.command("notebook.edit");
+                    }>"Enter formula"</button>
+                }.into_any(),
                 Some(Item { kind: Kind::Formula, folded, line_numbers, .. }) => match source.get() {
                     Some(source) => formula(state, id, source, folded, line_numbers).into_any(),
                     None => view! { <p role="status">"The worksheet source is unavailable."</p> }.into_any(),
@@ -188,7 +194,7 @@ fn formula(
                     }
                 }}</code></pre>
             }>
-                {move || formula_editor(session)}
+                {move || formula_editor(state)}
             </Show>
             <Show when=move || held().is_some()>
                 <p class="dna-notebook-draft">"Edited · not run"
@@ -235,11 +241,16 @@ fn formula(
     }
 }
 
-fn formula_editor(session: Session) -> impl IntoView {
+fn formula_editor(state: State) -> impl IntoView {
+    let session = state.session;
     let text = TextBinding::new(Signal::derive(move || session.entry()), move |text| {
         session.edit_text(text)
     });
     let assist = FormulaAssist::new(text);
+    state.formula_editor.set_value(Some(assist));
+    on_cleanup(move || {
+        state.formula_editor.try_set_value(None);
+    });
     let diagnostics = Signal::derive(Vec::new);
     view! {
         <div class="dna-notebook-formula-editor" data-dna-editor="true">

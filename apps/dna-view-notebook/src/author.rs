@@ -13,6 +13,7 @@ struct Request {
     workbook: WorkbookId,
     sheet: Option<Sheet>,
     columns: u32,
+    slot: Option<AnchorId>,
 }
 
 #[derive(Clone, Copy)]
@@ -32,6 +33,10 @@ impl Authoring {
     }
 
     pub(super) fn open(self, state: State) -> Result<(), String> {
+        self.open_at(state, None)
+    }
+
+    pub(super) fn open_at(self, state: State, slot: Option<AnchorId>) -> Result<(), String> {
         if !matches!(state.session.seam(), Seam::Idle) {
             return Err("Finish the change in progress first.".into());
         }
@@ -52,6 +57,7 @@ impl Authoring {
             workbook,
             sheet: preferred.map(|sheet| sheet.sheet),
             columns: 0,
+            slot,
         }));
         let _ = self.placement(state);
         Ok(())
@@ -140,13 +146,22 @@ impl Authoring {
         } else {
             SourceRef::Spill { anchor: slot }
         };
-        let id = AnchorId(snapshot.next_id()?);
         let mut chain = snapshot.chain.clone();
-        let index = state.selected(&snapshot).map_or(0, |index| index + 1);
+        let id = request.slot.map_or_else(|| snapshot.next_id().map(AnchorId), Ok)?;
+        let index = if request.slot.is_some() {
+            chain.cells.iter().position(|item| item.id == id && matches!(item.kind, Kind::CodeSlot))
+                .ok_or("That formula slot was removed.")?
+        } else {
+            state.selected(&snapshot).map_or(0, |index| index + 1)
+        };
         let mut item = Item::new(id, Kind::Formula);
         item.owned = true;
         item.lane_columns = (request.columns > 0).then_some(request.columns);
-        chain.cells.insert(index, item);
+        if request.slot.is_some() {
+            chain.cells[index] = item;
+        } else {
+            chain.cells.insert(index, item);
+        }
         let mut changes = Vec::new();
         if request.sheet.is_none() {
             changes.push(Change::Model(ModelChange::InsertWorksheet {
