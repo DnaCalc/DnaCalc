@@ -1,13 +1,13 @@
 # Appendix A. Classic Keyboard, Key-Tip, and Mouse Conformance
 
-Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11`, `D-12`, `D-35`–`D-43` · Architectural contract: [SKIN_ARCHITECTURE.md §§7.1, 8.3, 17.3](../SKIN_ARCHITECTURE.md) · Mockups: [Pro 21 F01](http://127.0.0.1:8720/p21/classic.html#F01), [Pro 21 C01](http://127.0.0.1:8720/p21/classic.html#C01)–[Pro 21 C07](http://127.0.0.1:8720/p21/classic.html#C07)
+Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11`, `D-12`, `D-38`–`D-49` · Architectural contract: [SKIN_ARCHITECTURE.md §§7.1, 8.3, 17.3](../SKIN_ARCHITECTURE.md) · Mockups: [Pro 21 F01](http://127.0.0.1:8720/p21/classic.html#F01), [Pro 21 C01](http://127.0.0.1:8720/p21/classic.html#C01)–[Pro 21 C07](http://127.0.0.1:8720/p21/classic.html#C07)
 
 ---
 
 ## A.1 Conformance Rules and Tier Definitions
 
 1. **Single data-driven profile (`excel-365-win-en-us`):** Every row below is an entry in Classic's machine-readable conformance table (`apps/dna-skin-runtime` + `apps/dna-grid`), driving both keymap dispatch and automated browser/native conformance suites (`SKIN_ARCHITECTURE.md §8.3`). Where Microsoft's public documentation is ambiguous, observed behaviour on pinned Windows Desktop Excel 365 (`en-US`) wins (`RUN-ON-WINDOWS.txt`).
-2. **Tier 1 (`T1`) vs Tier 2 (`T2`):** **`T1`** gestures are mandatory for the Milestone 3 switch commit (`>= 832` smoke cases); **`T2`** gestures complete full desktop power-user parity across Classic's 13 dialog and object families. Unimplemented commands reached by key tip or chord surface a typed `Refusal::NotModelled` naming the owning work package—never failing silently or firing a different command (`D-11`).
+2. **Tier 1 (`T1`) vs Tier 2 (`T2`):** **`T1`** gestures are mandatory for the Milestone 3 switch commit (`869` non-skin-group Classic/shell/shared smoke cases, less superseded skin-switcher checks replaced by new view tests); **`T2`** gestures complete full desktop power-user parity across Classic's 13 dialog and object families. Unimplemented commands reached by key tip or chord surface a typed `Refusal::NotModelled` naming the owning work package—never failing silently or firing a different command (`D-11`).
 
 ---
 
@@ -27,11 +27,11 @@ Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11
 | `A-010` | `T1` | `Tab` / `Shift+Tab` | `Ready` / `Enter` / `Edit` | Commits any active draft and moves right (`Tab`) or left (`Shift+Tab`), wrapping inside a multi-cell selection or Excel `ListObject` Table (inserting a new Table row at the bottom-right cell). |
 | `A-011` | `T1` | `Ctrl+Enter` | `Enter` / `Edit` / `Point` | Commits the active value or R1C1-adjusted relative formula across **every selected cell/area** simultaneously without moving the active cell (`C05`). |
 | `A-012` | `T1` | `Ctrl+Shift+Enter` | `Enter` / `Edit` / `Point` | Commits a legacy CSE `{=…}` array formula over the selected range where explicitly requested (dynamic arrays spill natively on plain `Enter`). |
-| `A-013` | `T1` | `Esc` | Any draft / ants / mode | Cancels active cell/formula draft restoring exact prior formula and `Stamp.model`; in `Ready` cancels marching-ants clipboard mode or `Extend`/`Add` mode (`D-36`). |
+| `A-013` | `T1` | `Esc` | Any draft / copy outline / mode | Cancels active cell/formula draft restoring exact prior formula and `Stamp.model`; in `Ready` cancels the static dashed clipboard copy outline (`D-20`) or `Extend`/`Add` mode. |
 | `A-014` | `T1` | `Ctrl+;` / `Ctrl+Shift+:` | `Ready` / `Enter` / `Edit` | Inserts current local date (`Ctrl+;`) or time (`Ctrl+Shift+:`) as a static Excel serial number with matching date/time format. |
 | `A-015` | `T1` | `F4` | `Enter` / `Edit` / `Point` vs `Ready` | While editing a formula (`C03`): cycles the reference token(s) under/touching the caret or selection through `A1 -> $A$1 -> A$1 -> $A1 -> A1`. In `Ready`: repeats the last repeatable formatting/structural command (`Ctrl+Y` equivalent). |
 | `A-016` | `T1` | `F3` / `Ctrl+Shift+F3` | `Edit`/`Point` vs `Ready` | `F3` while editing inserts a Defined Name (`Paste Name`); in `Ready` pastes list of names. `Ctrl+Shift+F3` creates names from selection headers (via Preview Seam). |
-| `A-017` | `T1` | `F9` / `Shift+F9` / `Ctrl+Alt+F9` | `Edit` vs `Ready` | In `Edit`: evaluates selected sub-expression (or whole formula) to literal(s), reversible via **single-step `Ctrl+Z` un-bake** while staying in `Edit` (`D-37`). In `Ready`: recalculates workbook (`F9`), active sheet (`Shift+F9`), or full rebuild (`Ctrl+Alt+F9`). |
+| `A-017` | `T1` | `F9` / `Shift+F9` / `Ctrl+Alt+F9` | `Edit` vs `Ready` | In `Edit`: evaluates selected sub-expression (or whole formula) to literal(s), reversible via **single-step `Ctrl+Z` un-bake** while staying in `Edit` (`D-43`). In `Ready`: recalculates workbook (`F9`), active sheet (`Shift+F9`), or full rebuild (`Ctrl+Alt+F9`). |
 | `A-018` | `T1` | `Ctrl+~` (`Ctrl+\``) | `Ready` | Toggles **Show Formulas** mode on the active sheet (widening columns 2x temporarily without mutating stored column widths). |
 | `A-019` | `T2` | `Ctrl+Shift+U` | `Ready` / `Edit` | Expands or collapses the multi-line Bridge formula bar; its bottom splitter edge also drags smoothly by pointer `[P19-FABLE-0284]`. |
 | `A-020` | `T2` | `Ctrl+'` / `Ctrl+Shift+"` | `Ready` / `Enter` / `Edit` | Copies the exact formula text (`Ctrl+'`) or evaluated value (`Ctrl+Shift+"`) from the cell immediately above into the active cell and remains in `Edit` mode `[P19-FABLE-0286]`. |
@@ -45,7 +45,7 @@ Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11
 
 | ID | Tier | Gesture / Chord | Scope | Exact Classic Behaviour |
 |---|---|---|---|---|
-| `A-024` | `T1` | Arrow / `Shift+Arrow` / `Ctrl+Arrow` after operator (`=`, `+`, `(`, `,`, `:`) | `Enter` / `Point` | Enters **`Point`** mode (`C02`), moving the dashed marching-ants range cursor and rewriting the active reference token at the amber caret using the 5-step cool Reference Palette + numbered corner notches `①..⑤` (`D-36`). |
+| `A-024` | `T1` | Arrow / `Shift+Arrow` / `Ctrl+Arrow` after operator (`=`, `+`, `(`, `,`, `:`) | `Enter` / `Point` | Enters **`Point`** mode (`C02`), moving the static dashed range cursor and rewriting the active reference token at the amber caret using the 5-step cool Reference Palette + numbered corner notches `①..⑤` (`D-42`). |
 | `A-025` | `T1` | Click / drag cells or headers while in `Enter`/`Point`/`Edit` after operator | Any sheet | Inserts or replaces the active reference (`B3`, `B3:B14`, `B:B`, `3:3`); clicking another sheet tab (`Ctrl+PgUp`/`PgDn` or mouse) prefixes `Sheet!` (`'My Sheet'!B3`) and returns the viewport cleanly to the formula's home sheet on commit or `Esc`. |
 | `A-026` | `T2` | Click cell in another open workbook | `Point` | Inserts an absolute external workbook reference matching Excel syntax: `[Book.xlsx]Sheet!$A$1` `[P19-FABLE-0298]`. |
 | `A-027` | `T1` | Select inside an Excel `ListObject` Table | `Point` | Inserts structured references (`Orders[Amount]`, `[@Amount]`, `Orders[[#Headers],[Amount]]`) when `Use table names in formulas` is enabled (`D-42`). |
@@ -62,7 +62,7 @@ Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11
 | `A-031` | `T1` | `Ctrl+Arrow` / `Ctrl+Shift+Arrow` | Data-edge jump (or selection extension): inside contiguous non-blank run jumps to last non-blank cell before blank; on blank or run edge jumps across blank island to next non-blank cell (or sheet boundary `1048576` / `XFD`). |
 | `A-032` | `T1` | `End`, then `Arrow` / `Home` / `Enter` | Arms `END` Strip indicator; next arrow performs data-edge jump (`End, Home` -> last used cell; `End, Enter` -> last non-blank in row). |
 | `A-033` | `T1` | `PgUp` / `PgDn` · `Alt+PgUp` / `Alt+PgDn` | Scrolls one full viewport height up/down (`PgUp`/`PgDn`) or one full viewport width left/right (`Alt+PgUp`/`Alt+PgDn`). |
-| `A-034` | `T1` | `Ctrl+PgUp` / `Ctrl+PgDn` | Switches to previous / next visible worksheet tab (keeping active view pinned per `D-86`; `Alt+[` / `Alt+]` alternate in browsers per §A.8). |
+| `A-034` | `T1` | `Ctrl+PgUp` / `Ctrl+PgDn` | Switches to previous / next visible worksheet tab (keeping active view pinned per `D-86`; `Ctrl+Alt+PageUp` / `Ctrl+Alt+PageDown` alternate in browsers per `D-39` and §A.8). |
 | `A-035` | `T1` | `Ctrl+G` / `F5` & Name Box | `Ctrl+G`/`F5` opens **Go To** (with back-history + `Special…` for Formulas, Constants, Blanks, Dependents, Precedents, Conditional Formats, Data Validation, Differences, Visible cells); Name Box accepts any `SourceRef` / A1 / Name (`Enter` jumps/selects; typing an unused identifier defines a Name). |
 | `A-036` | `T1` | `Ctrl+[` / `Ctrl+]` · `Ctrl+Shift+{` / `Ctrl+Shift+}` | Selects direct precedents (`[`), direct dependents (`]`), all precedents (`{`), or all dependents (`}`) of selection on active/first sheet. |
 | `A-037` | `T2` | `Ctrl+Backspace` | Scrolls the viewport immediately to bring the active cell back into view without altering the selection `[P19-FABLE-0311]`. |
@@ -90,13 +90,13 @@ Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11
 | `A-052` | `T2` | Right-button drag Fill Handle | Opens explicit context menu on release: `Copy Cells`, `Fill Series`, `Fill Formatting Only`, `Fill Without Formatting`, date-unit fills, `Linear Trend`, `Growth Trend`, and `Series…` dialog `[P19-FABLE-0343, P19-NEON-0166]`. |
 | `A-053` | `T2` | Drag Fill Handle inward over selection | Shades passed-over cells in muted grey hatch during drag and clears their values/formulas on release (preserving cell formatting) `[P19-FABLE-0345, P19-NEON-0168]`. |
 | `A-054` | `T2` | `Shift` + drag Fill Handle | Outward drag inserts blank cells shifting downstream rows/columns; inward drag deletes cells shifting upstream `[P19-FABLE-0346]`. |
-| `A-055` | `T1` | `Ctrl+D` / `Ctrl+R` / `Ctrl+E` (Flash Fill) | `Ctrl+D` fills down; `Ctrl+R` fills right; `Ctrl+E` synthesizes Flash Fill examples and routes large/ambiguous writes through the Preview Seam (`D-39`). |
+| `A-055` | `T1` | `Ctrl+D` / `Ctrl+R` / `Ctrl+E` (Flash Fill) | `Ctrl+D` fills down; `Ctrl+R` fills right; `Ctrl+E` synthesizes Flash Fill examples and routes large/ambiguous writes through the Preview Seam (`D-25`, `D-47`). |
 | `A-056` | `T2` | `Alt,H,F,I` Fill Menu | Exposes `Down`, `Right`, `Up`, `Left`, `Across Worksheets`, `Series…` (Linear/Growth/Date/AutoFill with step & stop value), `Justify`, and `Flash Fill` `[P19-FABLE-0348]`. |
 | `A-057` | `T1` | Selection border drag (`Move` / `+Ctrl` Copy / `+Shift` Insert) | Plain border drag cuts-and-moves (`C06`, updating dependent refs like Excel `Cut`); `Ctrl`+drag copies (`+` cursor badge); `Shift`+drag shows an I-beam between rows/columns to insert-and-shift without overwriting. |
 | `A-058` | `T2` | `Alt` + drag selection border onto Sheet Tab | Hovering over another worksheet tab for `400 ms` while holding `Alt` switches to that sheet so the dragged range can be dropped directly across sheets `[P19-FABLE-0354, P19-NEON-0173]`. |
 | `A-059` | `T2` | Right-button drag selection border | Releases into Excel's 10-choice drop menu: `Move Here`, `Copy Here`, `Copy Here as Values Only`, `Copy Here as Formats Only`, `Link Here`, `Create Hyperlink Here`, and the four `Shift Down/Right and Move/Copy` actions `[P19-FABLE-0355]`. |
 | `A-060` | `T2` | `"Enable fill handle and cell drag-and-drop"` setting | Workbook/host preference disabling fill handle and border drag-and-drop is honoured cleanly when toggled off `[P19-FABLE-0357]`. |
-| `A-061` | `T1` | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Enter` | Starts marching-ants source mode: `Enter` pastes once and clears ants; `Ctrl+V` pastes and keeps ants (`Ctrl+C`) for repeated pastes; `Ctrl+X` moves on paste rewriting references across the workbook (`D-29`). |
+| `A-061` | `T1` | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Enter` | Starts static dashed clipboard source outline (`D-20`) with Strip readout: `Enter` pastes once and clears outline; `Ctrl+V` pastes and keeps outline (`Ctrl+C`) for repeated pastes; `Ctrl+X` moves on paste rewriting references across the workbook (`D-28`). |
 | `A-062` | `T1` | `Ctrl+Alt+V` & `Alt,H,V,*` Paste Special | Full Paste Special dialog and single-key accelerators (`V` Values, `F` Formulas, `T` Formats, `W` Column Widths, `E` Transpose, `S` Skip Blanks, `D`/`S`/`M`/`I` Add/Subtract/Multiply/Divide, Paste Link). |
 | `A-063` | `T2` | Multi-area & `Alt+;` Visible-Only Copy | Multi-area `Ctrl+C` succeeds whenever selected areas align on shared rows or shared columns (and returns Excel's exact refusal message otherwise) `[P19-FABLE-0363]`; `Alt+;` followed by `Ctrl+C` copies strictly visible cells, collapsing hidden rows/columns on paste `[P19-FABLE-0366]`. |
 | `A-064` | `T2` | Format Painter (`Single-click` vs `Double-click`) | Single click applies copied formatting once; double-clicking locks Format Painter across multiple targets until `Esc` or button click `[P19-FABLE-0369]`. |
@@ -113,7 +113,7 @@ Cross-reference: [Part IV. Classic](04-classic.md) · Governing decisions: `D-11
 | `A-068` | `T2` | `Alt+Shift+Right` / `Alt+Shift+Left` / `Ctrl+8` | Groups (`Right`) or ungroups (`Left`) selected rows/columns into Excel outline levels; `Ctrl+8` toggles outline gutter visibility; gutter `1`/`2`/`3` level buttons and `+`/`-` expand/collapse by click `[P19-FABLE-0374]`. |
 | `A-069` | `T1` | `Ctrl+1` & Number/Font Chords | `Ctrl+1` opens Format Cells (`Number`, `Alignment`, `Font`, `Border`, `Fill`, `Protection`); `Ctrl+B`/`I`/`U`/`5` toggle Bold/Italic/Underline/Strikethrough; `Ctrl+Shift+~` General, `$` Currency, `%` Percent, `^` Scientific, `#` Date, `@` Time, `!` Number (`#,##0.00`). |
 | `A-070` | `T1` | `Ctrl+T` / `Ctrl+Shift+L` / `Alt+Down` | `Ctrl+T` (`Ctrl+L`) creates a `ListObject` Table; `Ctrl+Shift+L` toggles AutoFilter dropdowns; `Alt+Down` on a header opens Sort/Filter criteria. |
-| `A-071` | `T1` | `Ctrl+F` / `Ctrl+H` | Opens **Bridge-docked Find / Replace bar** (never covering grid cells; `Replace All` stages through the Preview Seam, `D-40`). |
+| `A-071` | `T1` | `Ctrl+F` / `Ctrl+H` | Opens **Bridge-docked Find / Replace bar** (never covering grid cells; `Replace All` stages through the Preview Seam, `D-46`). |
 | `A-072` | `T1` | `Shift+F2` / `Ctrl+Alt+M` | Edits/inserts legacy Note (`Shift+F2`) or threaded Comment (`Ctrl+Alt+M`). |
 | `A-073` | `T2` | Object Manipulation & `Ctrl+6` | Drag moves, 8 handles resize (`Shift` locks aspect ratio, `Alt` snaps to cell grid edges), arrows nudge `1 px`, `Delete` removes, `Ctrl+6` cycles object visibility, right-click opens `Assign Macro…` and `Format Control…` `[P19-FABLE-0379]`. |
 | `A-074` | `T2` | Chart Element Selection & `Alt+F1` / `F11` | First click selects chart frame, second click selects sub-element (series, axis, legend, title; arrows cycle elements, `Delete` removes removable elements); `Alt+F1` embeds default chart on sheet; `F11` creates chart sheet (desktop; `Alt,N,C` in browser) `[P19-FABLE-0381]`. |
@@ -138,20 +138,20 @@ Pressing and releasing bare `Alt` in Classic (`C01`) activates modal Deck key-ti
 |---|---|---|---|
 | `N-01` | `Ctrl+W` / `Ctrl+F4` | Closes browser tab | `Alt,F,C` or Command Palette (`Alt+Q -> Close workbook`); `beforeunload` guards unsaved changes. |
 | `N-02` | `Ctrl+N` | Opens new browser window | `Alt,F,N` or `Alt+Q -> New workbook`. |
-| `N-03` | `Ctrl+PgUp` / `Ctrl+PgDn` | Switches browser tabs in Chrome/Firefox | `Alt+[` / `Alt+]` (or `Alt+Shift+PgUp` / `PgDn`) + Sheet Tab bar click. |
+| `N-03` | `Ctrl+PgUp` / `Ctrl+PgDn` | Switches browser tabs in Chrome/Firefox | `Ctrl+Alt+PageUp` / `Ctrl+Alt+PageDown` (`D-39`) + Sheet Tab bar click. |
 | `N-04` | `Ctrl+0` | Resets browser page zoom | `Alt,H,O,U,C` or column header context menu -> `Hide`. |
 | `N-05` | `F11` | Toggles browser fullscreen | `Alt+F1` (embedded chart) or `Alt,N,C` -> `Move to Chart Sheet`. |
 | `N-06` | Async Clipboard read (`Ctrl+V` external) | First-use browser permission prompt | Falls back seamlessly to native `paste` DOM event payload (`text/html` + `text/plain`). |
 
 ### A.8.2 Deliberate Strand & Safety Improvements Over Excel (`SD-01`–`SD-10`)
 
-1. **`SD-01` — Cool 5-step Reference Palette + Amber Caret (`D-36`):** Replaces Excel's warm red/orange reference borders with 5 cool hues + distinct border dash styles + corner numbers `①..⑤`, reserving red strictly for `#Error` and amber strictly for the active caret/focus.
-2. **`SD-02` — Single-step `F9` Sub-Expression Un-Bake (`D-37`):** Pressing `Ctrl+Z` immediately after `F9` inside `Edit` restores the sub-expression without dropping the entire edit session.
-3. **`SD-03` — Non-Destructive `#SPILL!` Diagnostic Card (`D-38`):** Outlines the intended dashed spill footprint, highlights blocking cells (`Summary!A21`), and offers previewed `Select blocker` / `Move blocker` repairs—never auto-clearing user data.
-4. **`SD-04` — Preview Seam on Bulk/Inferred Writes (`D-24`, `D-39`, `D-40`):** `Flash Fill`, `Replace All`, and multi-cell overwrites stage exact cell diffs in the Seam before mutating the model.
-5. **`SD-05` — Non-Occluding Bridge Find/Replace (`D-40`):** Docks under the Bridge rather than floating a modal box over the cells being searched.
-6. **`SD-06` — `< 40%` Semantic Structural Zoom (`D-41`):** Below `40%` zoom, swaps unreadable 3 px text for clean structural block regions and heat tints while keeping coordinates selectable.
-7. **`SD-07` — Explicit Provenance Badges (`D-30`, `D-31`):** `◊ As saved`, hatched `Stale`, and external/add-in tags never masquerade as freshly calculated numbers.
+1. **`SD-01` — Cool 5-step Reference Palette + Amber Caret (`D-42`):** Replaces Excel's warm red/orange reference borders with 5 cool hues + distinct border dash styles + corner numbers `①..⑤`, reserving red strictly for `#Error` and amber strictly for the active caret/focus.
+2. **`SD-02` — Single-step `F9` Sub-Expression Un-Bake (`D-43`):** Pressing `Ctrl+Z` immediately after `F9` inside `Edit` restores the sub-expression without dropping the entire edit session.
+3. **`SD-03` — Non-Destructive `#SPILL!` Diagnostic Card (`D-45`):** Outlines the intended dashed spill footprint, highlights blocking cells (`Summary!A21`), and offers previewed `Select blocker` / `Move blocker` repairs—never auto-clearing user data.
+4. **`SD-04` — Preview Seam on Bulk/Inferred Writes (`D-25`, `D-46`, `D-47`):** `Flash Fill`, `Replace All`, and multi-cell overwrites stage exact cell diffs in the Seam before mutating the model.
+5. **`SD-05` — Non-Occluding Bridge Find/Replace (`D-46`):** Docks under the Bridge rather than floating a modal box over the cells being searched.
+6. **`SD-06` — `< 40%` Semantic Structural Zoom (`D-48`):** Below `40%` zoom, swaps unreadable 3 px text for clean structural block regions and heat tints while keeping coordinates selectable.
+7. **`SD-07` — Explicit Provenance Badges (`D-18`):** `◊ As saved`, hatched `Stale`, and external/add-in tags never masquerade as freshly calculated numbers.
 8. **`SD-08` — View-Switching Chords (`D-12`):** `Ctrl+Alt+1..4` (`Alt+Shift+1..5` when `AltGr` collides, `Alt+Q` for App/Forms) leave `Ctrl+1` (`Format Cells`), `Alt+1..9` (QAT), and `Ctrl+Alt+5` (floating objects) 100% intact.
 9. **`SD-09` — Pinned Active View Across Sheet Tabs (`D-86`):** Clicking a sheet tab never unexpectedly swaps Classic out from under the user.
-10. **`SD-10` — Author-Owned Worksheet Paper vs Strand Chrome (`D-08`):** Chrome uses Recursive/Strand tokens; worksheet cells honour author fonts, borders, fills, and explicit colors even in `cockpit-dark` (`U04`).
+10. **`SD-10` — Author-Owned Worksheet Paper vs Strand Chrome (`D-40`):** Chrome uses Recursive/Strand tokens; worksheet cells honour author fonts, borders, fills, and explicit colors even in `cockpit-dark` (`U04`).
