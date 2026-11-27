@@ -119,6 +119,9 @@ query!(
 query!(
     CalcState => CalcStatus, |_: &CalcState| WorkbookQuery::CalcState);
 query!(
+    /// Authored notes, optionally limited to a single anchor.
+    NotesOf { anchor: Option<crate::AnchorId> } => Vec<crate::AnchoredNote>, |q: &NotesOf| WorkbookQuery::Notes { anchor: q.anchor });
+query!(
     /// The one history: what Ctrl+Z and Ctrl+Y will do next, newest first.
     History => HistoryList, |_: &History| WorkbookQuery::History);
 query!(

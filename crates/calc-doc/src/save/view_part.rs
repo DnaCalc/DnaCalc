@@ -1,12 +1,13 @@
 //! The versioned custom XML part. Retain its source spans so saving an anchor leaves other
 //! sections and data from a later writer intact.
 
-use super::text::{RawTag, Splice, attribute_value};
+use super::text::{RawTag, Splice, attribute_value, xstring};
 use crate::load::address;
 use crate::xml::{XmlElement, XmlEvent, XmlPart};
 use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{
-    AnchorId, CellInput, ModelRoot, SheetKey, VIEW_PART_NAMESPACE, ViewAnchor, ViewPart,
+    AnchorId, CellInput, ModelRoot, NoteId, SheetKey, VIEW_PART_NAMESPACE, ViewAnchor, ViewNote,
+    ViewPart,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -20,6 +21,12 @@ struct StoredAnchor {
     whole: Span,
 }
 
+struct StoredNote {
+    note: ViewNote,
+    start: Span,
+    whole: Span,
+}
+
 struct Index {
     root: Span,
     digest: Option<String>,
@@ -27,6 +34,9 @@ struct Index {
     anchors: Option<(Span, usize)>,
     known: BTreeMap<AnchorId, StoredAnchor>,
     ids: BTreeSet<AnchorId>,
+    notes: Option<(Span, usize)>,
+    known_notes: BTreeMap<NoteId, StoredNote>,
+    note_ids: BTreeSet<NoteId>,
 }
 
 fn is(element: &XmlElement, local: &str) -> bool {
@@ -80,10 +90,15 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         anchors: None,
         known: BTreeMap::new(),
         ids: BTreeSet::new(),
+        notes: None,
+        known_notes: BTreeMap::new(),
+        note_ids: BTreeSet::new(),
     };
     let mut depth = 1;
     let mut in_anchors = false;
+    let mut in_notes = false;
     let mut pending = None;
+    let mut pending_note: Option<StoredNote> = None;
     while let Some(event) = read.next_event().ok()? {
         let span = read.span();
         match event {
@@ -105,6 +120,32 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                             whole: span,
                         });
                     }
+                } else if depth == 1 && is(&el, "notes") {
+                    if index.notes.replace((span, span.1)).is_some() {
+                        return None;
+                    }
+                    in_notes = true;
+                } else if depth == 2 && in_notes && is(&el, "note") {
+                    if let Some(id) = el.attribute("id").and_then(|id| id.parse().ok()) {
+                        if !index.note_ids.insert(id) {
+                            return None;
+                        }
+                        pending_note =
+                            el.attribute("anchor")
+                                .and_then(|id| id.parse().ok())
+                                .map(|anchor| StoredNote {
+                                    note: ViewNote {
+                                        id,
+                                        anchor,
+                                        text: String::new(),
+                                    },
+                                    start: span,
+                                    whole: span,
+                                });
+                    }
+                } else if depth >= 3 && in_notes {
+                    // Retain richer note elements from future writers as source.
+                    pending_note = None;
                 }
                 depth += 1;
             }
@@ -116,6 +157,21 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                     stored.whole.1 = span.1;
                     index.known.insert(stored.anchor.id, stored);
                 }
+                if depth == 2
+                    && let Some(mut stored) = pending_note.take()
+                {
+                    stored.whole.1 = span.1;
+                    if let Ok(text) =
+                        String::from_utf16(&crate::load::strings::decode(&stored.note.text))
+                    {
+                        stored.note.text = text;
+                        index.known_notes.insert(stored.note.id, stored);
+                    }
+                }
+                if depth == 1 && in_notes {
+                    index.notes.as_mut().unwrap().1 = span.0;
+                    in_notes = false;
+                }
                 if depth == 1 && in_anchors {
                     index.anchors.as_mut().unwrap().1 = span.0;
                     in_anchors = false;
@@ -124,7 +180,11 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                     index.root_close = span.0;
                 }
             }
-            XmlEvent::Text(_) => {}
+            XmlEvent::Text(text) => {
+                if let Some(note) = pending_note.as_mut() {
+                    note.note.text.push_str(&text);
+                }
+            }
         }
     }
     Some(index)
@@ -254,7 +314,8 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                     ViewAnchor::orphan(stored.anchor.id, stored.anchor.spill)
                 }
             });
-            ViewPart::loaded(xml.bytes().to_vec(), anchors)
+            let notes = index.known_notes.into_values().map(|stored| stored.note);
+            ViewPart::loaded(xml.bytes().to_vec(), anchors, notes)
         }
         None => ViewPart::opaque(xml.bytes().to_vec()),
     }
@@ -382,28 +443,103 @@ pub(super) fn item(
         }
         new_anchor(anchor, model, &mut new);
     }
+    let mut new_sections = Vec::new();
+    append_section(
+        &mut splice,
+        original,
+        &mut new_sections,
+        "anchors",
+        index.anchors,
+        &new,
+    );
+
+    let mut ordered_notes = index.known_notes.values().collect::<Vec<_>>();
+    ordered_notes.sort_unstable_by_key(|stored| stored.start.0);
+    for stored in ordered_notes {
+        let Some(note) = part.note(stored.note.id) else {
+            splice.replace(stored.whole, &[]);
+            continue;
+        };
+        if note != &stored.note {
+            let tag = RawTag::parse(&original[stored.start.0..stored.start.1]);
+            let anchor = note.anchor.to_string();
+            let mut open = tag.rebuilt(&[("anchor", Some(&anchor))], false);
+            xstring(&note.text.encode_utf16().collect::<Vec<_>>(), &mut open);
+            open.extend_from_slice(b"</");
+            open.extend_from_slice(tag.qualified_name());
+            open.push(b'>');
+            splice.replace(stored.whole, &open);
+        }
+    }
+    let mut new = Vec::new();
+    for note in part
+        .notes()
+        .filter(|note| !index.known_notes.contains_key(&note.id))
+    {
+        if index.note_ids.contains(&note.id) {
+            return Err(super::SaveRefusal::InvalidPart {
+                part: VIEW_PART_NAMESPACE.to_owned(),
+                detail: format!("a retained note already uses {}", note.id),
+            });
+        }
+        new.extend_from_slice(b"<note xmlns=");
+        attribute_value(VIEW_PART_NAMESPACE, &mut new);
+        new.extend_from_slice(b" id=");
+        attribute_value(&note.id.to_string(), &mut new);
+        new.extend_from_slice(b" anchor=");
+        attribute_value(&note.anchor.to_string(), &mut new);
+        new.push(b'>');
+        xstring(&note.text.encode_utf16().collect::<Vec<_>>(), &mut new);
+        new.extend_from_slice(b"</note>");
+    }
+    append_section(
+        &mut splice,
+        original,
+        &mut new_sections,
+        "notes",
+        index.notes,
+        &new,
+    );
     if root.is_empty() {
-        let mut open = root.rebuilt(&[("model", Some(&digest))], new.is_empty());
-        if !new.is_empty() {
-            open.extend_from_slice(format!("<anchors xmlns=\"{VIEW_PART_NAMESPACE}\">").as_bytes());
-            open.extend_from_slice(&new);
-            open.extend_from_slice(b"</anchors></");
+        let mut open = root.rebuilt(&[("model", Some(&digest))], new_sections.is_empty());
+        if !new_sections.is_empty() {
+            open.extend_from_slice(&new_sections);
+            open.extend_from_slice(b"</");
             open.extend_from_slice(root.qualified_name());
             open.push(b'>');
         }
         splice.replace(index.root, &open);
-    } else if !new.is_empty() {
-        if let Some((start, close)) = index.anchors {
-            insert(&mut splice, original, start, close, &new);
-        } else {
-            let mut body = format!("<anchors xmlns=\"{VIEW_PART_NAMESPACE}\">").into_bytes();
-            body.extend_from_slice(&new);
-            body.extend_from_slice(b"</anchors>");
-            insert(&mut splice, original, index.root, index.root_close, &body);
-        }
+    } else if !new_sections.is_empty() {
+        insert(
+            &mut splice,
+            original,
+            index.root,
+            index.root_close,
+            &new_sections,
+        );
     }
     Ok(Some(crate::CustomXmlItem {
         namespace: VIEW_PART_NAMESPACE.to_owned(),
         content: splice.finish(),
     }))
+}
+
+fn append_section(
+    splice: &mut Splice<'_>,
+    original: &[u8],
+    sections: &mut Vec<u8>,
+    name: &str,
+    existing: Option<(Span, usize)>,
+    new: &[u8],
+) {
+    if new.is_empty() {
+        return;
+    }
+    if let Some((start, close)) = existing {
+        insert(splice, original, start, close, new);
+    } else {
+        sections.extend_from_slice(format!("<{name} xmlns=\"{VIEW_PART_NAMESPACE}\">").as_bytes());
+        sections.extend_from_slice(new);
+        sections.extend_from_slice(format!("</{name}>").as_bytes());
+    }
 }

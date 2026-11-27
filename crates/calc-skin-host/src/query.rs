@@ -214,6 +214,7 @@ pub(crate) fn invalidated(
         }
         WorkbookQuery::Geometry { .. } | WorkbookQuery::PrintPlan { .. } => authored,
         WorkbookQuery::ViewPart => presentation || recalculated,
+        WorkbookQuery::Notes { .. } => presentation,
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
         WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
         WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
@@ -571,6 +572,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         | WorkbookQuery::Structure { .. } => Some("Choose a smaller worksheet area"),
         WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
         WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
+        WorkbookQuery::Notes { .. } => Some("Choose one anchor"),
         WorkbookQuery::Sources => Some("Increase the source inventory budget"),
         WorkbookQuery::Contributions { .. } => Some("Increase the contribution scan budget"),
         _ => None,
@@ -737,6 +739,26 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 })
             }).collect::<Vec<_>>();
             json!({ "opaque": part.is_opaque(), "anchors": anchors })
+        }
+        WorkbookQuery::Notes { anchor } => {
+            let part = host.model().view_part();
+            if part.is_opaque() {
+                return Err(unavailable("dc-b67gh", "Notes in an unreadable view part"));
+            }
+            let mut notes = Vec::new();
+            for note in part.notes() {
+                meter.check()?;
+                if anchor.is_none_or(|anchor| anchor == note.anchor) {
+                    meter.work(0, 1, 0)?;
+                    notes.push(AnchoredNote {
+                        id: note.id,
+                        anchor: note.anchor,
+                        text: note.text.clone(),
+                        source: anchor_source(state, note.anchor).ok(),
+                    });
+                }
+            }
+            query::NotesOf::encode(&notes)?
         }
         WorkbookQuery::History => {
             let (undo, redo) = state.session.history_depth();

@@ -532,10 +532,21 @@ impl WorkbookPort for Connection {
                     )?))));
                 }
                 for change in &prepared.preview.presentation {
-                    if let PresentationChange::Bind { anchor, .. }
-                    | PresentationChange::RemoveAnchor { anchor } = change
-                    {
-                        let target = Target::Anchor(*anchor);
+                    let anchor = match change {
+                        PresentationChange::Bind { anchor, .. }
+                        | PresentationChange::RemoveAnchor { anchor }
+                        | PresentationChange::PutNote { anchor, .. } => Some(*anchor),
+                        PresentationChange::RemoveNote { id } => state
+                            .session
+                            .host()
+                            .model()
+                            .view_part()
+                            .note(*id)
+                            .map(|note| note.anchor),
+                        _ => None,
+                    };
+                    if let Some(anchor) = anchor {
+                        let target = Target::Anchor(anchor);
                         if !targets.contains(&target) {
                             targets.push(target);
                         }

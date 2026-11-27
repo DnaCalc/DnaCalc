@@ -32,4 +32,4 @@ pub struct SemanticTemplateKey {
 }
 
 mod view_id;
-pub use view_id::{AnchorId, DocId, InvalidId};
+pub use view_id::{AnchorId, DocId, InvalidId, NoteId};

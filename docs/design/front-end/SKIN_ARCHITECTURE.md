@@ -447,6 +447,7 @@ Every query implements `Query` (`FormulaQuery` at level 0, `WorkbookQuery` at le
 | `TrialFor { at }` | Snapshot `Trial` (`formula`, `CallerSnapshot`, precedent `Shown<CellValue>`s, `Stamp`) for level-0 exploration | Shell -> Explorer |
 | `PrintPlan { target, setup }` | Calibrated page breaks (`calc_host::print_plan`) and page layout | Print preview / export |
 | `ViewPart` | Anchors with resolution status (`Bound`, `Relocated`, `Orphan`), preferences, document headers, notes, trail, embedded skins | Runtime, all views |
+| `Notes { anchor }` | Authored note text and current anchor resolution. An omitted anchor requests notes across the workbook. | Inspector Notes |
 | `History` & `Proposals` | Undo/redo `HistoryEntry` lists, checkpoints, pending agent `Proposal`s | Shell History, Agent panel |
 | `Find`, `Special`, `Stats`, `Resolve` | Find/Go To Special, status-bar selection aggregates, complex reference resolution | Shell, Strip |
 
@@ -761,7 +762,7 @@ Everything DNA Calc authors outside Excel's own parts lives in **one** custom XM
   </decls>
   <skins><skin id="calm-review"><![CDATA[{ "schema": "dna.skin/1", ... }]]></skin></skins>
   <readings><!-- confirmed / corrected pattern readings with evidence fingerprints --></readings>
-  <notes><!-- anchored review notes and findings (D5) --></notes>
+  <notes><note id="b9c2..." anchor="0f1e...">Check the West sales total.</note></notes>
   <trail enabled="true"><!-- agent proposal & unit summary records (D14) --></trail>
   <requires><extension id="dnakode.live-tree" version="^1.0"/></requires>
 </dnaViews>
@@ -772,7 +773,7 @@ Everything DNA Calc authors outside Excel's own parts lives in **one** custom XM
 - **Retiring v1 (`urn:dnacalc:view-manifest`):** Because zero user or corpus workbooks use v1 (verified via `git grep`), `crates/calc-doc/src/{load,save}/manifest.rs` and `calc-doc-model/src/layout.rs` (with `_dna.block.<hex>` hidden names) are deleted outright at the switch, satisfying `D10` and `D13`.
 - **Transient viewport state stays local:** Camera pan/zoom, scroll offsets, splitter widths, open companion pane, Inspector recordings, recovery journals (`OPFS` / desktop profile store, replaying committed `CommandIdToken`s once and restoring unrun drafts as drafts, `Pro C-14`) and user skins live in per-user local storage — **never** inside `.xlsx`, avoiding noisy file diffs on scroll. Classic's frozen panes, sheet zoom and active cell remain in Excel's standard `<sheetViews>`.
 
-The first codec slice reads and writes cell ranges and spill anchors. It retains other declarations in the original XML. It writes a SHA-256 digest of authored sheet names, cell inputs and defined names, plus a signature for each anchored range's inputs and shape. A digest mismatch retains a local binding only when the address still matches its signature. Named, table and object resolution and unique fingerprint relocation extend this path.
+The codec reads and writes cell ranges, spill anchors and plain-text notes keyed by stable note and anchor IDs. It retains other declarations in the original XML. It writes a SHA-256 digest of authored sheet names, cell inputs and defined names, plus a signature for each anchored range's inputs and shape. A digest mismatch retains a local binding only when the address still matches its signature. Notes follow their anchors through structural edits and retain their text if the anchor becomes orphaned. Named, table and object resolution and unique fingerprint relocation extend this path.
 
 ### 12.2 Anchors and reconciliation after external edits (`D13`)
 

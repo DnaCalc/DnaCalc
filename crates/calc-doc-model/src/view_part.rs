@@ -1,6 +1,6 @@
 //! Authored view metadata. Sheet identities are mapped to stable keys by the package codec.
 
-use calc_syntax::AnchorId;
+use calc_syntax::{AnchorId, NoteId};
 use calc_value::GridArea;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -44,15 +44,28 @@ impl ViewAnchor {
     }
 }
 
+/// A person's plain-text note follows its view anchor across structural edits.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ViewNote {
+    pub id: NoteId,
+    pub anchor: AnchorId,
+    pub text: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ViewPart {
     source: Option<Arc<[u8]>>,
     opaque: bool,
     anchors: BTreeMap<AnchorId, ViewAnchor>,
+    notes: BTreeMap<NoteId, ViewNote>,
 }
 
 impl ViewPart {
-    pub fn loaded(source: Vec<u8>, anchors: impl IntoIterator<Item = ViewAnchor>) -> Self {
+    pub fn loaded(
+        source: Vec<u8>,
+        anchors: impl IntoIterator<Item = ViewAnchor>,
+        notes: impl IntoIterator<Item = ViewNote>,
+    ) -> Self {
         Self {
             source: Some(source.into()),
             opaque: false,
@@ -60,6 +73,7 @@ impl ViewPart {
                 .into_iter()
                 .map(|anchor| (anchor.id, anchor))
                 .collect(),
+            notes: notes.into_iter().map(|note| (note.id, note)).collect(),
         }
     }
 
@@ -68,6 +82,7 @@ impl ViewPart {
             source: Some(source.into()),
             opaque: true,
             anchors: BTreeMap::new(),
+            notes: BTreeMap::new(),
         }
     }
 
@@ -94,6 +109,24 @@ impl ViewPart {
 
     pub fn without_anchor(mut self, id: AnchorId) -> Self {
         self.anchors.remove(&id);
+        self
+    }
+
+    pub fn note(&self, id: NoteId) -> Option<&ViewNote> {
+        self.notes.get(&id)
+    }
+
+    pub fn notes(&self) -> impl Iterator<Item = &ViewNote> {
+        self.notes.values()
+    }
+
+    pub fn with_note(mut self, note: ViewNote) -> Self {
+        self.notes.insert(note.id, note);
+        self
+    }
+
+    pub fn without_note(mut self, id: NoteId) -> Self {
+        self.notes.remove(&id);
         self
     }
 

@@ -213,3 +213,12 @@ pub struct ContributionCriterion {
     /// Disjoint spans of positions whose only failed criterion was this one.
     pub failing_only_this: Vec<Area>,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnchoredNote {
+    pub id: crate::NoteId,
+    pub anchor: crate::AnchorId,
+    pub text: String,
+    /// The currently bound source. A deleted or orphaned anchor has no source.
+    pub source: Option<SourceRef>,
+}

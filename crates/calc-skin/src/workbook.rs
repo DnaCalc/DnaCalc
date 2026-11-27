@@ -266,6 +266,9 @@ pub enum WorkbookQuery {
     },
     CalcState,
     ViewPart,
+    Notes {
+        anchor: Option<AnchorId>,
+    },
     History,
     Resolve {
         address: String,
@@ -444,6 +447,14 @@ pub enum PresentationChange {
     },
     RemoveAnchor {
         anchor: AnchorId,
+    },
+    PutNote {
+        id: crate::NoteId,
+        anchor: AnchorId,
+        text: String,
+    },
+    RemoveNote {
+        id: crate::NoteId,
     },
 }
 

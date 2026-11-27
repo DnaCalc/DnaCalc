@@ -997,3 +997,110 @@ fn contributions_scan_every_position_and_use_the_formula_kernels_matches() {
     assert_eq!(answer.stamp.model, committed.model);
     assert_eq!(answer.stamp.calc, committed.calc);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn anchored_note_uses_one_undo_entry_and_round_trips_as_presentation() {
+    use calc_skin::query::{NotesOf, Query};
+
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = Key(sheet.0, sheet.1, 1, 1);
+    let anchor = AnchorId(NonZeroU128::new(101).unwrap());
+    let note = NoteId(NonZeroU128::new(102).unwrap());
+    let text = "Check <West> & \"Paid\"\r\nbefore sign-off. _x0020_";
+    let edit = batch(
+        1,
+        vec![
+            Change::Presentation(PresentationChange::Bind {
+                anchor,
+                source: target(at),
+            }),
+            Change::Presentation(PresentationChange::PutNote {
+                id: note,
+                anchor,
+                text: text.into(),
+            }),
+        ],
+    );
+    let preview = connection.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+    assert_eq!(preview.kind(), Some(ChangeKind::Presentation));
+    assert!(preview.writes.is_empty());
+    let added = connection.commit(edit).unwrap();
+    assert_eq!(added.model, preview.base.model);
+    assert!(added.view > preview.base.view);
+
+    let query = NotesOf {
+        anchor: Some(anchor),
+    };
+    let read = |connection: &dyn WorkbookPort| {
+        NotesOf::decode(connection.ask(query.request(), BUDGET).unwrap())
+            .unwrap()
+            .body
+    };
+    assert_eq!(
+        read(&connection),
+        vec![AnchoredNote {
+            id: note,
+            anchor,
+            text: text.into(),
+            source: Some(target(at)),
+        }]
+    );
+    connection.run(Operation::Undo).unwrap();
+    assert!(read(&connection).is_empty());
+    connection.run(Operation::Redo).unwrap();
+    assert_eq!(read(&connection)[0].text, text);
+
+    host.with_session(SelectionCause::History, |session| {
+        use calc_host::{Axis, AxisChange, AxisEdit, SkinIntent};
+        let change = AxisEdit::new(sheet.id(), Axis::Rows, AxisChange::Insert, 1, 1).unwrap();
+        let result = session.dispatch(SkinIntent::EditAxis(change));
+        assert!(result.error.is_none(), "{:?}", result.error);
+    });
+    let moved = Key(sheet.0, sheet.1, 2, 1);
+    assert_eq!(read(&connection)[0].source, Some(target(moved)));
+
+    let saved = host.with_session(SelectionCause::Open, |session| {
+        let mut bytes = Vec::new();
+        session
+            .save(&calc_host::SavePolicy::default(), &mut bytes)
+            .unwrap();
+        bytes
+    });
+    let opened = SkinHost::new(
+        HostSession::open(
+            Arc::new(MemorySource::new(saved)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let reopened_connection = port(&opened);
+    let reopened = read(&reopened_connection);
+    assert_eq!(reopened.len(), 1);
+    assert_eq!(reopened[0].id, note);
+    assert_eq!(reopened[0].text, text);
+    assert!(
+        matches!(&reopened[0].source, Some(SourceRef::Cells { areas, .. }) if areas[0].0.2 == 2 && areas[0].0.3 == 1)
+    );
+
+    reopened_connection
+        .commit(batch(
+            2,
+            vec![Change::Presentation(PresentationChange::RemoveAnchor {
+                anchor,
+            })],
+        ))
+        .unwrap();
+    assert_eq!(read(&reopened_connection)[0].source, None);
+    reopened_connection
+        .commit(batch(
+            3,
+            vec![Change::Presentation(PresentationChange::RemoveNote {
+                id: note,
+            })],
+        ))
+        .unwrap();
+    assert!(read(&reopened_connection).is_empty());
+}

@@ -162,6 +162,19 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
                     PresentationChange::RemoveAnchor { anchor } => {
                         part.clone().without_anchor(*anchor)
                     }
+                    PresentationChange::PutNote { id, anchor, text } => {
+                        if part.anchor(*anchor).is_none()
+                            && !part.note(*id).is_some_and(|note| note.anchor == *anchor)
+                        {
+                            return Err(invalid("Choose an existing anchor for this note"));
+                        }
+                        part.clone().with_note(calc_doc_model::ViewNote {
+                            id: *id,
+                            anchor: *anchor,
+                            text: text.clone(),
+                        })
+                    }
+                    PresentationChange::RemoveNote { id } => part.clone().without_note(*id),
                     _ => return Err(unavailable("dc-aje2v", "Editing view documents")),
                 };
                 if next != part {

@@ -19,7 +19,7 @@ mod target;
 mod wire;
 mod workbook;
 
-pub use calc_syntax::{AnchorId, DocId, InvalidId};
+pub use calc_syntax::{AnchorId, DocId, InvalidId, NoteId};
 pub use declarations::*;
 pub use formula::*;
 pub use formula_tools::*;

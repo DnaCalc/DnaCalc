@@ -72,3 +72,4 @@ impl std::error::Error for InvalidId {}
 
 stable_id!(AnchorId);
 stable_id!(DocId);
+stable_id!(NoteId);
