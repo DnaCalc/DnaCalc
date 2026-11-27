@@ -1,0 +1,15 @@
+scope	verdict	windows	macos	linux	server	web-hosted	web-wasm	wasi
+procedures	native	35059	27175	27172	27118	27118	27090	27118
+procedures	model	1308	594	594	594	594	592	594
+procedures	host	11471	3552	3552	3337	3529	3364	3167
+procedures	shim	0	1793	1793	1657	1776	1349	1651
+procedures	replace	0	6854	6854	5678	6770	5872	5510
+procedures	mediated	0	26	11	0	189	1709	0
+procedures	reject	30	7874	7892	9484	7892	7892	9828
+projects (worst procedure)	native	61	19	18	17	17	17	17
+projects (worst procedure)	model	77	3	3	3	3	3	3
+projects (worst procedure)	host	388	25	25	22	24	23	22
+projects (worst procedure)	shim	0	87	87	76	87	8	76
+projects (worst procedure)	replace	0	193	193	92	182	94	85
+projects (worst procedure)	mediated	0	3	2	0	15	183	0
+projects (worst procedure)	reject	6	202	204	322	204	204	329
