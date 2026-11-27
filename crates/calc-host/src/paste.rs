@@ -76,7 +76,8 @@ impl PastePlan {
     pub fn replaces(&self) -> u64 {
         self.replaces
     }
-    pub(crate) fn into_edits(self, host: &HostState) -> Result<Vec<CellEdit>, String> {
+    /// Take the prepared edits for a host transaction at the revision inspected by the planner.
+    pub fn into_edits(self, host: &HostState) -> Result<Vec<CellEdit>, String> {
         if self.scope != Some(host.command_scope) || self.revision != host.revision().get() {
             return Err("The workbook changed after the preview; paste again".into());
         }

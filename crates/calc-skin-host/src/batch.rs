@@ -1,7 +1,10 @@
-use crate::{State, cell, grid_area, invalid, unavailable};
+use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
 use calc_doc_model::ViewAnchor;
 use calc_host::value::{CellKey, GridArea};
-use calc_host::{CellEdit, CommandError, HostSession, IntentError, search::entry_text};
+use calc_host::{
+    CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, prepare_paste,
+    search::entry_text,
+};
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::*;
 use std::{collections::BTreeSet, sync::Arc};
@@ -160,7 +163,11 @@ fn rewrite_run(
     Ok((targets, edits))
 }
 
-pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Refusal> {
+pub(crate) fn prepare(
+    state: &mut State,
+    request: &Batch,
+    copied: Option<&CopiedCells>,
+) -> Result<Prepared, Refusal> {
     let base = state.stamp();
     state.check_base(request)?;
     if request
@@ -232,6 +239,38 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
                         edits.push(CellEdit::Clear { area });
                         areas.push(area);
                     }
+                }
+                ModelChange::PasteCopied { copy, to, contents } => {
+                    // A single-cell destination can expand. Keep the preview's whole model
+                    // revision so a concurrent edit outside the selected cell cannot be lost.
+                    let expected = request.base.ok_or_else(|| invalid("Paste requires a workbook revision."))?;
+                    if expected != base.model {
+                        return Err(Refusal::Conflict {
+                            base: expected,
+                            conflicts: vec![Target::Source(SourceRef::Workbook)],
+                        });
+                    }
+                    let copied = copied
+                        .filter(|copied| (copied.workbook, copied.id) == (base.workbook, *copy))
+                        .ok_or_else(|| invalid("Copy worksheet cells again before pasting."))?;
+                    let mode = match contents {
+                        PasteContents::Values => PasteMode::Values,
+                        PasteContents::Formulas => PasteMode::Formulas,
+                    };
+                    let host = state.session.host();
+                    let excel = |reason| Refusal::Excel { reason };
+                    let plan = prepare_paste(
+                        host,
+                        PasteSource::Snapshot {
+                            snapshot: &copied.snapshot,
+                            cut: false,
+                        },
+                        grid_area(*to)?,
+                        mode,
+                    )
+                    .map_err(excel)?;
+                    areas.push(plan.target());
+                    edits.extend(plan.into_edits(host).map_err(excel)?);
                 }
             },
             Change::Presentation(change) => {

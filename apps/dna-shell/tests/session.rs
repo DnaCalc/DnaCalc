@@ -2,9 +2,9 @@
 //! the keymap, the session and `calc-skin-host`, joined by packets as a carrier joins them.
 #![cfg(not(target_arch = "wasm32"))]
 
-use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, blank_package};
+use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, SkinIntent, blank_package};
 use calc_skin::grid::{Key, Sheet};
-use calc_skin::{Interest, Origin, Packet, ViewId, WritePolicy, query};
+use calc_skin::{Interest, Origin, Packet, SelectionCause, ViewId, WritePolicy, query};
 use calc_skin_host::{Connection, SkinHost};
 use dna_kit::commands::CommandError;
 use dna_kit::{Focus, InputMode, KeyInput, Live, Registry, Seam, Session};
@@ -217,7 +217,7 @@ fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     assert_eq!(session.mode(), InputMode::KeyTips);
     assert!(!page.press("Tab", Focus::Stage));
     assert_eq!(session.active(), Some(page.at(1, 1)));
-    for key in ["h", "v", "Escape", "v", "v"] {
+    for key in ["h", "v", "Escape", "v", "t"] {
         assert!(page.press(key, Focus::Stage), "{key}");
     }
     assert_eq!(session.mode(), InputMode::Ready);
@@ -229,7 +229,7 @@ fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
         assert!(page.press(key, Focus::Stage), "{key}");
     }
     assert_eq!(session.mode(), InputMode::Ready);
-    assert!(session.notice().contains("Paste Values"), "{}", session.notice());
+    assert!(session.notice().contains("Copy worksheet cells"), "{}", session.notice());
 
     let alt = KeyInput {
         key: "Alt".into(),
@@ -256,6 +256,96 @@ fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     assert!(page.press("j", Focus::Stage));
     assert_eq!(session.edit().unwrap().text, "j");
     assert!(!page.press("F10", Focus::Editor));
+}
+
+/// Native-only: drives workbook clipboard commands through the real host.
+#[test]
+fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {
+    let page = Page::open();
+    let session = page.session;
+    session.begin_edit(page.at(1, 1), Some("=21*2".into()));
+    session.commit_edit();
+    page.settle();
+    session.begin_edit(page.at(1, 2), Some("'001".into()));
+    session.commit_edit();
+    page.settle();
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 1)), "42");
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert!(page.press("Ctrl+c", Focus::Stage));
+
+    page.host.with_session(SelectionCause::Open, |host| {
+        let receipt = host.dispatch(SkinIntent::EnterCell {
+            at: page.at(1, 1).cell().unwrap(),
+            text: "=20*2".into(),
+        });
+        assert!(receipt.error.is_none());
+    });
+    page.settle();
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["F10", "h", "v", "v"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(page.shown(page.at(2, 2)), "42");
+    assert_eq!(page.shown(page.at(2, 3)), "001");
+    assert_eq!(session.entry(), "42");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    assert_eq!(page.shown(page.at(2, 3)), "");
+    assert_eq!(page.shown(page.at(1, 1)), "40");
+
+    for key in ["F10", "e", "s", "v", "Enter"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(session.entry(), "42");
+}
+
+/// Native-only: drives workbook clipboard commands through the real host.
+#[test]
+fn classic_paste_formulas_translates_references_at_the_destination() {
+    let page = Page::open();
+    let session = page.session;
+    session.begin_edit(page.at(1, 2), Some("=A1+$A$1".into()));
+    session.commit_edit();
+    page.settle();
+    assert!(page.press("Ctrl+c", Focus::Stage));
+    session.select_cell(page.at(3, 3));
+    page.settle();
+    for key in ["F10", "h", "v", "f"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(session.entry(), "=B3+$A$1");
+}
+
+/// Native-only: interleaves a real host edit between a paste preview and its commit.
+#[test]
+fn classic_paste_refuses_if_the_host_changes_after_preview() {
+    let page = Page::open();
+    let session = page.session;
+    session.begin_edit(page.at(1, 1), Some("42".into()));
+    session.commit_edit();
+    page.settle();
+    assert!(page.press("Ctrl+c", Focus::Stage));
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    session.command("classic.paste-values").unwrap();
+    let preview = page.sent.borrow_mut().pop_front().expect("paste preview");
+    session.deliver(page.port.handle(preview));
+    assert_eq!(session.seam(), Seam::Committing);
+
+    page.host.with_session(SelectionCause::Open, |host| {
+        let receipt = host.dispatch(SkinIntent::EnterCell {
+            at: page.at(2, 2).cell().unwrap(),
+            text: "99".into(),
+        });
+        assert!(receipt.error.is_none());
+    });
+    page.settle();
+
+    assert!(matches!(session.last_refusal(), Some(calc_skin::Refusal::Conflict { .. })));
+    assert_eq!(page.shown(page.at(2, 2)), "99");
 }
 
 /// Native-only: drives the real workbook host through packets.

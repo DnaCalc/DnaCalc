@@ -41,8 +41,8 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     group("L", "Developer"),
     command("Q", "Command Search", "shell.search"),
     group("H V", "Paste"),
-    pending("H V V", "Paste Values"),
-    pending("H V F", "Paste Formulas"),
+    command("H V V", "Paste Values", "classic.paste-values"),
+    command("H V F", "Paste Formulas", "classic.paste-formulas"),
     pending("H V T", "Paste Transpose"),
     group("H O", "Format"),
     pending("H O I", "AutoFit Column Width"),
@@ -83,5 +83,5 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     },
     group("E S", "Paste Special"),
     group("E S V", "Values"),
-    pending("E S V ENTER", "Paste Values"),
+    command("E S V ENTER", "Paste Values", "classic.paste-values"),
 ];

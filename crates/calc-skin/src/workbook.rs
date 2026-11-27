@@ -438,6 +438,11 @@ pub enum ModelChange {
     ClearContents {
         areas: Vec<Area>,
     },
+    PasteCopied {
+        copy: u64,
+        to: Area,
+        contents: PasteContents,
+    },
     RewriteFormula {
         at: Key,
         expected_old: String,
@@ -450,6 +455,12 @@ pub enum ModelChange {
         new_text: String,
         extent: Area,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PasteContents {
+    Values,
+    Formulas,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -571,6 +582,7 @@ pub enum Operation {
     Revert(EntryId),
     Calculate { scope: SourceRef },
     CancelCalculation,
+    CopyCells { workbook: WorkbookId, copy: u64, from: Area },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

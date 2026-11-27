@@ -13,7 +13,9 @@ mod structure;
 mod survey;
 
 use calc_host::value::{CellKey, GridArea, Selection as HostSelection};
-use calc_host::{CommandJournal, CommandStamp, HostProgress, HostSession, SkinIntent, ValueChange};
+use calc_host::{
+    CommandJournal, CommandStamp, CopySnapshot, HostProgress, HostSession, SkinIntent, ValueChange,
+};
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::FormulaResultChange;
 use calc_skin::*;
@@ -327,6 +329,7 @@ impl SkinHost {
             formula: RefCell::default(),
             local: RefCell::new(Local {
                 journal: CommandJournal::new(128, 1024 * 1024),
+                copied: None,
                 watches: BTreeMap::new(),
                 last_stamp: None,
                 last_selection: 0,
@@ -379,6 +382,7 @@ struct Watch {
 
 struct Local {
     journal: CommandJournal<Result<Stamp, Refusal>>,
+    copied: Option<CopiedCells>,
     watches: BTreeMap<WatchId, Watch>,
     last_stamp: Option<Stamp>,
     last_selection: u64,
@@ -387,6 +391,12 @@ struct Local {
     next_publication: u64,
     awaiting_tiles: Option<u64>,
     last_client_seq: u64,
+}
+
+struct CopiedCells {
+    workbook: WorkbookId,
+    id: u64,
+    snapshot: CopySnapshot,
 }
 
 pub struct Connection {
@@ -533,10 +543,11 @@ impl WorkbookPort for Connection {
         }
         let mut state = self.host.borrow_mut();
         let base = state.stamp();
+        let local = self.local.borrow();
         Ok(
             match self
                 .check_write(&state)
-                .and_then(|()| batch::prepare(&mut state, request))
+                .and_then(|()| batch::prepare(&mut state, request, local.copied.as_ref()))
             {
                 Ok(staged) => staged.preview,
                 Err(refusal) => Preview {
@@ -577,7 +588,7 @@ impl WorkbookPort for Connection {
         }
         let result =
             (|| {
-                let prepared = batch::prepare(&mut state, &request)?;
+                let prepared = batch::prepare(&mut state, &request, local.copied.as_ref())?;
                 let Some(kind) = prepared.preview.kind() else {
                     return Ok(before);
                 };
@@ -680,6 +691,25 @@ impl WorkbookPort for Connection {
             },
             Operation::Revert(_) => {
                 return Err(unavailable("dc-zh096", "Reverting an earlier edit"));
+            }
+            Operation::CopyCells { workbook, copy, from } => {
+                if workbook != before.workbook {
+                    return Err(Refusal::StaleSelection);
+                }
+                let from = grid_area(from)?;
+                let mut local = self.local.borrow_mut();
+                if let Some(previous) = local.copied.as_ref().filter(|c| c.workbook == workbook) {
+                    if copy == previous.id && from == previous.snapshot.area() {
+                        return Ok(before);
+                    }
+                    if copy <= previous.id {
+                        return Err(invalid("The clipboard request has expired."));
+                    }
+                }
+                let snapshot = CopySnapshot::capture(state.session.host(), from)
+                    .map_err(|error| Refusal::Excel { reason: error.to_string() })?;
+                local.copied = Some(CopiedCells { workbook, id: copy, snapshot });
+                return Ok(before);
             }
         };
         let receipt = state.session.dispatch(intent);
@@ -900,6 +930,7 @@ impl Connection {
         state.calc_touches.clear();
         state.calculation_changes = None;
         state.update_selection(SelectionCause::Open);
+        self.local.borrow_mut().copied = None;
         Ok(stamp)
     }
 

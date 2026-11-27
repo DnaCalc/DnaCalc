@@ -550,6 +550,49 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::TextContains("[data-page-part='schedule'] caption", "Rows 13–24 of 360"),
         ],
     },
+    Case {
+        name: "Classic Home Paste Values keeps the result as a constant",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "=21*2"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-cell=A1]", "data-provenance", "calculated")),
+            Action::Click("[data-cell=A1]"),
+            Action::Keys("grid", "\u{e009}c\u{e000}"),
+            Action::Wait(Check::TextContains("strip", "Copied worksheet cells")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e03a}hvv"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=B2]", "42"),
+            Check::Attr("[data-cell=B2]", "data-provenance", "literal"),
+            Check::Value("formula-bar", "42"),
+        ],
+    },
+    Case {
+        name: "Classic Excel 2003 Paste Values aliases the Home action",
+        actions: &[
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "")),
+            Action::Keys("grid", "\u{e03a}esv\u{e007}"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=B2]", "42"),
+            Check::Attr("[data-cell=B2]", "data-provenance", "literal"),
+        ],
+    },
+    Case {
+        name: "Classic Home Paste Formulas preserves the copied formula",
+        actions: &[
+            Action::Click("[data-cell=C2]"),
+            Action::Keys("grid", "\u{e03a}hvf"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=C2]", "42"),
+            Check::Attr("[data-cell=C2]", "data-provenance", "calculated"),
+            Check::Value("formula-bar", "=21*2"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -619,8 +662,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "loan",
         start: 24,
+        end: 27,
+        core: 3,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-paste",
+        start: 27,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 24,
+        core: 3,
         setup: &[],
     },
 ];
