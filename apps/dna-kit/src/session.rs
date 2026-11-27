@@ -9,12 +9,12 @@
 //! moves and at no other time, and a component that reads a watch runs again when a frame touches
 //! that watch.
 
-use crate::view::ViewCommand;
+use crate::view::{View, ViewCommand};
 use calc_skin::grid::Key;
 use calc_skin::query::{self, Query};
 use calc_skin::{
-    Answer, Batch, Budget, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply, Operation,
-    Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookSummary,
+    Answer, Batch, Budget, Coverage, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply,
+    Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
@@ -50,6 +50,8 @@ struct Inner {
     keymap: RefCell<Keymap>,
     local: RefCell<HashMap<TypeId, Box<dyn Any>>>,
     summary: Cell<Option<Watch<query::Summary>>>,
+    initial_view: ViewId,
+    opening_views: RefCell<Option<OpeningViews>>,
     /// The watch on the active cell's entry, which the editor shows and F2 opens.
     entry: Cell<Option<(Key, Watch<query::Formula>)>>,
     /// A cell whose entry was asked to open before it arrived.
@@ -58,6 +60,12 @@ struct Inner {
     passive_views: RefCell<Vec<ViewId>>,
     after_commit: RefCell<Option<Box<dyn FnOnce()>>>,
     alt_tap: Cell<bool>,
+}
+
+struct OpeningViews {
+    watch: Watch<query::ViewPartOf>,
+    views: Vec<Rc<dyn View>>,
+    opened: Option<WorkbookId>,
 }
 
 #[derive(Clone, Copy)]
@@ -104,6 +112,8 @@ impl Session {
                 keymap: RefCell::default(),
                 local: RefCell::default(),
                 summary: Cell::new(None),
+                initial_view: view.clone(),
+                opening_views: RefCell::default(),
                 entry: Cell::new(None),
                 opening: Cell::new(None),
                 notebook_profile: RefCell::new(None),
@@ -153,6 +163,7 @@ impl Session {
             let ticks = inner.ticks.borrow();
             changes.watches.iter().filter_map(|key| ticks.get(key).cloned()).collect()
         };
+        self.choose_opening_view(&inner);
         touched.into_iter().for_each(tick);
         for (moved, signal) in [
             (changes.stamp, self.stamp),
@@ -523,6 +534,55 @@ impl Session {
     }
 
     // Views
+
+    pub(crate) fn install_opening_views(self, views: Vec<Rc<dyn View>>) {
+        let inner = self.inner();
+        let watch = self.watch(query::ViewPartOf);
+        inner.opening_views.replace(Some(OpeningViews {
+            watch,
+            views,
+            opened: None,
+        }));
+        self.choose_opening_view(&inner);
+    }
+
+    fn choose_opening_view(self, inner: &Inner) {
+        let selected = {
+            let mut opening = inner.opening_views.borrow_mut();
+            let Some(opening) = opening.as_mut() else {
+                return;
+            };
+            let Some(stamp) = self.peek(Client::stamp) else {
+                return;
+            };
+            if opening.opened == Some(stamp.workbook) {
+                return;
+            }
+            let preferred = match self.peek(|client| client.read(opening.watch)) {
+                Live::Ready(answer) if answer.stamp.workbook == stamp.workbook => {
+                    let part = answer.body;
+                    part.preferred.clone().filter(|id| {
+                        !part.opaque
+                            && answer.coverage == Coverage::Complete
+                            && opening.views.iter().any(|view| {
+                                view.spec().id == *id && view.can_open_preferred(&part)
+                            })
+                    })
+                }
+                Live::Refused(_) => None,
+                _ => return,
+            };
+            opening.opened = Some(stamp.workbook);
+            preferred.unwrap_or_else(|| inner.initial_view.clone())
+        };
+        self.show(selected);
+    }
+
+    /// The workbook's authored presentation, including opening preferences.
+    pub fn view_part(self) -> Live<Answer<query::ViewPartFacts>> {
+        let watch = self.inner().opening_views.borrow().as_ref().map(|opening| opening.watch);
+        watch.map_or(Live::Loading, |watch| self.read(watch))
+    }
 
     /// Per-session presentation state shared by a view's commands, stage and dock.
     /// A view initializes it when installing its commands, under the session owner.

@@ -186,6 +186,11 @@ pub trait View: 'static {
         true
     }
 
+    /// A preferred view opens only when its authored declaration is usable.
+    fn can_open_preferred(&self, _part: &calc_skin::query::ViewPartFacts) -> bool {
+        false
+    }
+
     /// Checked from the workbook's counts before `mount`. The default takes any workbook.
     fn fit(&self, _census: &Census) -> Fit {
         Fit::Whole
@@ -234,6 +239,7 @@ impl crate::Registry {
 
     /// Registers every view's commands and keys with the session. The shell calls this once.
     pub fn install_commands(&self, session: Session) {
+        session.install_opening_views(self.views.clone());
         for view in &self.views {
             if !view.cell_editor() {
                 session.disable_stage_entry(view.spec().id);

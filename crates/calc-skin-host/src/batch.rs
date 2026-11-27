@@ -364,6 +364,12 @@ pub(crate) fn prepare(
                         part.clone().with_document(document)
                     }
                     PresentationChange::RemoveDoc { doc } => part.clone().without_document(*doc),
+                    PresentationChange::PreferView { view, expect_view_rev } => {
+                        if *expect_view_rev != base.view {
+                            return Err(invalid("The view preferences have changed. Retry the edit."));
+                        }
+                        part.clone().with_preferred(view.as_ref().map(|view| view.0.clone()))
+                    }
                 };
                 if next != part {
                     part = next;

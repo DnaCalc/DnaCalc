@@ -870,11 +870,103 @@ fn notebook_delete_prefix_does_not_carry_into_a_reopened_workbook() {
     session.open("Reopened notebook.xlsx".into(), bytes);
     page.settle();
     let reopened = session.stamp().unwrap();
+    assert_eq!(session.view().0, "classic");
+    session.command("view.notebook").unwrap();
 
     assert!(page.press("d", Focus::Stage));
     assert_eq!(session.stamp().unwrap().view, reopened.view);
     assert!(page.press("d", Focus::Stage));
     assert!(session.stamp().unwrap().view > reopened.view);
+}
+
+/// Native-only: opens generated workbooks through the real workbook service.
+#[test]
+fn opening_app_requires_a_saved_preference_and_a_readable_page() {
+    const APP: &str = r#"<decl id="00000000-0000-0000-0000-000000000001" view="app" schema="1"><![CDATA[{"schema":"dna.page/1","title":"Planner","root":{"kind":"Stack","children":[]}}]]></decl>"#;
+
+    let page = Page::open();
+    let session = page.session;
+    let open = |prefs: &str, docs: &str| {
+        let ns = "urn:dnacalc:views:v1";
+        let bytes = calc_doc::write_session(&calc_doc::SessionFile {
+            sheet: "Loan".into(),
+            formula: None,
+            constants: Vec::new(),
+            custom: Some(calc_doc::CustomXmlItem {
+                namespace: ns.into(),
+                content: format!(r#"<dnaViews xmlns="{ns}" version="1">{prefs}<decls>{docs}</decls></dnaViews>"#)
+                    .into_bytes(),
+            }),
+            date_1904: false,
+            cached: None,
+            vba: None,
+            look: None,
+        }).unwrap();
+        session.open("Planner.xlsx".into(), bytes);
+        page.settle();
+    };
+
+    open("", APP);
+    let Live::Ready(part) = session.view_part() else {
+        panic!("the authored App declaration did not load");
+    };
+    assert_eq!(part.body.documents.len(), 1);
+    assert_eq!(session.view().0, "classic", "page alone is not consent");
+
+    let preferred = r#"<prefs preferred="app"/>"#;
+    open(preferred, APP);
+    assert_eq!(session.view().0, "app");
+    assert!(page.press("Alt+Shift+1", Focus::Stage));
+    assert_eq!(session.view().0, "classic");
+    assert!(page.press("F9", Focus::Stage));
+    assert_eq!(session.view().0, "classic", "later frames preserve the chosen view");
+
+    for docs in ["".into(), APP.replace("dna.page/1", "dna.page/2")] {
+        session.command("view.app").unwrap();
+        open(preferred, &docs);
+        assert_eq!(session.view().0, "classic");
+    }
+}
+
+/// Native-only: saves and reopens a Forms maker preference through the real workbook service.
+#[test]
+fn forms_saves_and_undoes_the_opening_preference_as_presentation() {
+    let page = Page::open();
+    let session = page.session;
+    let save = || {
+        page.host.with_session(calc_skin::SelectionCause::Open, |workbook| {
+            let mut bytes = Vec::new();
+            workbook.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+            bytes
+        })
+    };
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    let before = session.stamp().unwrap();
+    session.command("forms.prefer-app").unwrap();
+    page.settle();
+    assert_eq!(session.view().0, "forms");
+    let preferred = session.stamp().unwrap();
+    assert!(preferred.view > before.view);
+    assert_eq!(preferred.model, before.model);
+    let app_bytes = save();
+
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    let classic_bytes = save();
+    session.open("Planner.xlsx".into(), classic_bytes);
+    page.settle();
+    assert_eq!(session.view().0, "classic");
+    session.open("Planner.xlsx".into(), app_bytes);
+    page.settle();
+    assert_eq!(session.view().0, "app");
+
+    session.command("view.forms").unwrap();
+    session.command("forms.prefer-classic").unwrap();
+    page.settle();
+    session.open("Planner.xlsx".into(), save());
+    page.settle();
+    assert_eq!(session.view().0, "classic");
 }
 
 /// Native-only: exercises the App and Forms commands through the real workbook service.
