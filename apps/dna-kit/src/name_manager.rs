@@ -179,13 +179,7 @@ impl NameManager {
     }
 
     fn dialog(self, session: Session) -> impl IntoView {
-        Effect::new(move |_| {
-            if let Some(dialog) = self.element.get() {
-                if !dialog.open() {
-                    let _ = dialog.show_modal();
-                }
-            }
-        });
+        crate::dialog::show_modal(self.element);
         let filter = RwSignal::new(String::new());
         let inventory = session.watch(query::Inventory {
             kinds: vec![InventoryKind::Names],
@@ -253,7 +247,7 @@ impl NameManager {
             }).collect_view().into_any()
         };
         view! {
-            <dialog class="dna-name-manager" data-dnacalc="name-manager" data-dna-action-field
+            <dialog class="dna-workbook-dialog dna-name-manager" data-dnacalc="name-manager" data-dna-action-field
                 aria-labelledby="dna-name-manager-title" node_ref=self.element
                 on:cancel=move |event: leptos::web_sys::Event| {
                     event.prevent_default();

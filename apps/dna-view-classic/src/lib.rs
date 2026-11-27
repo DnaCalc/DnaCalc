@@ -24,6 +24,7 @@ impl View for Classic {
         session.set_key_tips(view.clone(), excel_key_tips::EXCEL_KEY_TIPS);
         let mut commands = dna_grid::commands(&view, session);
         commands.extend(clipboard::commands(&view, session));
+        commands.extend(dna_kit::sort_dialog::commands(&view, session));
         commands.push(
             ViewCommand::new(&view, "classic.key-tips", "Key tips", &["F10"], move |_| {
                 session.toggle_key_tips();
@@ -35,7 +36,14 @@ impl View for Classic {
     }
 
     fn mount(&self, session: Session) -> MountedView {
-        MountedView::exact(dna_grid::mount(session))
+        MountedView::exact(leptos::view! {
+            {dna_grid::mount(session)}
+            {dna_kit::sort_dialog::mount(session)}
+        })
+    }
+
+    fn cancel_interaction(&self, session: Session) -> bool {
+        dna_kit::sort_dialog::close(session)
     }
 }
 

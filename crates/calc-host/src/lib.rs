@@ -160,7 +160,7 @@ mod paste;
 pub mod search;
 pub use actions::{
     ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
-    prepare_column_visibility, stored_axis_size,
+    prepare_column_visibility, prepare_sort_rows, stored_axis_size,
 };
 pub use paste::{PastePlan, PasteSource, matrix_shape, prepare_paste, prepare_paste_oriented};
 pub mod conditional;
