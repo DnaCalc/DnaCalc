@@ -317,6 +317,7 @@ pub(crate) fn prepare(
     let mut edits = Vec::new();
     let mut areas = Vec::new();
     let mut paste_areas = Vec::new();
+    let mut inserted = None;
     let mut presentation = Vec::new();
     let mut warnings = Vec::new();
     let removes_anchor = request.changes.iter().any(|change| {
@@ -325,12 +326,31 @@ pub(crate) fn prepare(
     for change in &request.changes {
         match change {
             Change::Model(change) => match change {
+                ModelChange::InsertWorksheet { name, sheet } => {
+                    if !edits.is_empty() || inserted.is_some() {
+                        return Err(invalid("Insert the worksheet before entering its cells"));
+                    }
+                    if request.base != Some(base.model) {
+                        return Err(Refusal::Conflict {
+                            base: request.base.unwrap_or(base.model),
+                            conflicts: vec![Target::Source(SourceRef::Workbook)],
+                        });
+                    }
+                    let (id, edit) = state.session.prepare_worksheet_insert(name.clone()).map_err(refusal)?;
+                    if Sheet::of(id) != *sheet {
+                        return Err(invalid("The worksheet location changed. Request a fresh placement."));
+                    }
+                    inserted = Some((*sheet, name.clone()));
+                    edits.push(edit);
+                }
                 ModelChange::Enter { at, text }
                 | ModelChange::RewriteFormula {
                     at, new_text: text, ..
                 } => {
                     let at = cell(*at)?;
-                    rules(&state.session, at)?;
+                    if !inserted.as_ref().is_some_and(|(sheet, _)| sheet.id() == at.sheet()) {
+                        rules(&state.session, at)?;
+                    }
                     if let ModelChange::RewriteFormula { expected_old, .. } = change {
                         require_formula(
                             &before,
@@ -449,10 +469,10 @@ pub(crate) fn prepare(
                             }
                             _ => return Err(unavailable("dc-aje2v", "This anchor source")),
                         };
-                        if binding
-                            .area()
-                            .is_none_or(|area| before.sheet_by_id(area.sheet()).is_none())
-                        {
+                        if binding.area().is_none_or(|area| {
+                            before.sheet_by_id(area.sheet()).is_none()
+                                && !inserted.as_ref().is_some_and(|(sheet, _)| sheet.id() == area.sheet())
+                        }) {
                             return Err(invalid("The anchor's sheet is unavailable"));
                         }
                         part.clone().with_anchor(binding)
@@ -571,6 +591,9 @@ pub(crate) fn prepare(
                 });
             }
         }
+    }
+    if let Some((sheet, name)) = inserted {
+        properties.push(ModelPropertyDiff::WorksheetInserted { sheet, name });
     }
     let preview = Preview {
         base,

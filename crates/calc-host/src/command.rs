@@ -1072,8 +1072,15 @@ fn stage_slice<T>(
         WorkbookOp::EditSheet(edit) => Some(edit),
         _ => None,
     });
+    let initializes_sheet = batch.operations.len() > 1
+        && matches!(
+            batch.operations.first(),
+            Some(WorkbookOp::EditSheet(calc_doc_model::SheetEdit::Insert { .. }))
+        );
+    let mut next_identity = None;
+    let mut inserted = None;
     let document = if let Some(edit) = sheet_edit {
-        if batch.operations.len() != 1 {
+        if batch.operations.len() != 1 && !initializes_sheet {
             return Err(CommandError::Document(EditError::SheetOperation("Submit one worksheet operation per command".to_owned())));
         }
         if host.loaded.structure_protected() {
@@ -1126,7 +1133,18 @@ fn stage_slice<T>(
             }
         }
         let identity = if let calc_doc_model::SheetEdit::Insert { key, .. } | calc_doc_model::SheetEdit::InsertChartSheet { key, .. } = edit {
-            Some(*host.sheet_identities.entry(*key).or_insert_with(|| host.sheet_ids.issue().expect("sheet identity space")))
+            let identity = match host.sheet_identities.get(key) {
+                Some(&id) => id,
+                None => {
+                    let id = host.sheet_ids.next_id().map_err(|error| {
+                        CommandError::Document(EditError::SheetOperation(error.to_string()))
+                    })?;
+                    next_identity = Some((*key, id));
+                    id
+                }
+            };
+            inserted = Some(identity);
+            Some(identity)
         } else { None };
         calc_doc::prepare_sheet_edit(&host.model, &batch, &calc_engine::ReferenceRewriter,
             &mut || identity.expect("only an insertion issues a sheet"))
@@ -1139,8 +1157,18 @@ fn stage_slice<T>(
 
     let formula_cells_before = host.engine.node_count();
     let pending_before = host.engine.pending().count();
-    let engine = calc_engine::prepare_edit(&mut host.engine, &host.model, &batch)
-        .map_err(CommandError::Engine)?;
+    // The structural edit invalidates bindings. After installing the whole authored root,
+    // rebuild against it so its first cells bind on the new worksheet at the same revision.
+    let insertion = initializes_sheet.then(|| OpBatch {
+        base,
+        operations: vec![batch.operations[0].clone()],
+    });
+    let engine = calc_engine::prepare_edit(
+        &mut host.engine,
+        &host.model,
+        insertion.as_ref().unwrap_or(&batch),
+    )
+    .map_err(CommandError::Engine)?;
 
     let tables_changed = batch.operations.iter().any(|op| match op {
         WorkbookOp::SetTables(next) => {
@@ -1177,6 +1205,16 @@ fn stage_slice<T>(
             NodeChange::Removed { .. } => removed += 1,
         }
     }
+    let initialized = inserted.filter(|_| initializes_sheet);
+    if let Some(sheet) = initialized {
+        added += document
+            .model()
+            .sheet_cells(sheet)
+            .into_iter()
+            .flatten()
+            .filter(|(_, input)| matches!(input, CellInput::Formula(_)))
+            .count();
+    }
     let formula_cells = formula_cells_before - removed + added;
     if let Some(budget) = host.options.formula_cell_budget
         && added > removed
@@ -1190,6 +1228,10 @@ fn stage_slice<T>(
 
     if let ControlFlow::Break(value) = prepared(document.model()) {
         return Ok(ControlFlow::Break(value));
+    }
+    if let Some((key, identity)) = next_identity {
+        assert_eq!(host.sheet_ids.issue(), Ok(identity));
+        host.sheet_identities.insert(key, identity);
     }
 
     let mut changed_cells = Vec::new();
@@ -1225,8 +1267,17 @@ fn stage_slice<T>(
 
     let committed = calc_engine::commit_edit(engine);
     host.install_skin_revision(document.into_model());
-    if tables_changed {
+    if tables_changed || initializes_sheet {
         host.engine = host.engine.rebuilt_holding_results(&host.model, &|at| Some(at));
+    }
+    if let Some(sheet) = initialized {
+        changed_cells.extend(
+            host.model
+                .sheet_cells(sheet)
+                .into_iter()
+                .flatten()
+                .map(|(at, _)| at),
+        );
     }
     for edit in &axis_edits {
         host.references.apply(&axis_transform(*edit));

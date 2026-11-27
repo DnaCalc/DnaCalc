@@ -6,10 +6,12 @@ use calc_skin::{
 use dna_kit::{Following, Live, Seam, Session};
 use leptos::prelude::*;
 
+const BACKING_SHEET: &str = "Analysis";
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Request {
     workbook: WorkbookId,
-    sheet: Sheet,
+    sheet: Option<Sheet>,
     columns: u32,
 }
 
@@ -17,6 +19,7 @@ struct Request {
 pub(super) struct Authoring {
     request: RwSignal<Option<Request>>,
     watch: Following<query::Placement>,
+    new_sheet: Following<query::NewSheetPlacement>,
 }
 
 impl Authoring {
@@ -24,6 +27,7 @@ impl Authoring {
         Self {
             request: RwSignal::new(None),
             watch: session.following(),
+            new_sheet: session.following(),
         }
     }
 
@@ -37,28 +41,16 @@ impl Authoring {
             .ok_or("Open a workbook first.")?
             .workbook;
         let summary = state.session.summary().ok_or("Loading worksheets…")?;
-        let visible = |sheet: &&calc_skin::SheetSummary| sheet.visible && sheet.worksheet;
         let preferred = summary
             .sheets
             .iter()
-            .filter(visible)
-            .find(|sheet| sheet.name.eq_ignore_ascii_case("Analysis"));
-        let active = state
-            .session
-            .active()
-            .map(|Key(slot, generation, _, _)| Sheet(slot, generation));
-        let destination = preferred
-            .or_else(|| {
-                summary
-                    .sheets
-                    .iter()
-                    .filter(visible)
-                    .find(|sheet| Some(sheet.sheet) == active)
-            })
-            .ok_or("Select a visible worksheet for the formula.")?;
+            .find(|sheet| sheet.name.eq_ignore_ascii_case(BACKING_SHEET));
+        if preferred.is_some_and(|sheet| !sheet.visible || !sheet.worksheet) {
+            return Err("Analysis must be a visible worksheet for Notebook formulas.".into());
+        }
         self.request.set(Some(Request {
             workbook,
-            sheet: destination.sheet,
+            sheet: preferred.map(|sheet| sheet.sheet),
             columns: 0,
         }));
         let _ = self.placement(state);
@@ -79,6 +71,7 @@ impl Authoring {
     pub(super) fn close(self) {
         self.request.set(None);
         self.watch.at(None);
+        self.new_sheet.at(None);
     }
 
     fn current(self, session: Session) -> Option<Request> {
@@ -90,7 +83,17 @@ impl Authoring {
     }
 
     fn placement(self, state: State) -> Live<Answer<Placement>> {
+        if let Some(Request { sheet: None, columns, .. }) = self.current(state.session) {
+            self.watch.at(None);
+            return self.new_sheet.at(Some(query::NewSheetPlacement {
+                name: BACKING_SHEET.into(),
+                kind: if columns == 0 { PlacementKind::Scalar } else { PlacementKind::Array },
+                shape: (columns > 0).then_some(PlacementShape { rows: 1, columns }),
+            }));
+        }
+        self.new_sheet.at(None);
         let query = self.current(state.session).and_then(|request| {
+            let sheet = request.sheet?;
             let snapshot = state.snapshot().ok()?;
             let shape = (request.columns > 0).then_some(PlacementShape {
                 rows: 1,
@@ -104,7 +107,7 @@ impl Authoring {
                     .filter_map(|item| {
                         let at = snapshot.source(item.id).and_then(first_cell)?;
                         let width = item.lane_columns?;
-                        if Sheet(at.0, at.1) != request.sheet {
+                        if Sheet(at.0, at.1) != sheet {
                             return None;
                         }
                         let right = at.3.checked_add(width.checked_sub(1)?)?;
@@ -117,7 +120,7 @@ impl Authoring {
                 Vec::new()
             };
             Some(query::Placement {
-                sheet: request.sheet,
+                sheet,
                 kind: if shape.is_some() {
                     PlacementKind::Array
                 } else {
@@ -159,20 +162,32 @@ impl Authoring {
         item.owned = true;
         item.lane_columns = (request.columns > 0).then_some(request.columns);
         chain.cells.insert(index, item);
-        let mut batch = state.prepare_batch(
-            &snapshot,
-            &chain,
-            vec![
-                Change::Model(ModelChange::Enter { at: slot, text }),
-                Change::Presentation(PresentationChange::Bind {
-                    anchor: id,
-                    source: source.clone(),
-                }),
-            ],
-            "Add Notebook formula",
-        )?;
-        batch.base = Some(placement.stamp.model);
-        batch.expects.push(source_area(placement.body.footprint));
+        let mut changes = Vec::new();
+        if request.sheet.is_none() {
+            changes.push(Change::Model(ModelChange::InsertWorksheet {
+                name: BACKING_SHEET.into(),
+                sheet: Sheet(slot.0, slot.1),
+            }));
+        }
+        changes.extend([
+            Change::Model(ModelChange::Enter { at: slot, text }),
+            Change::Presentation(PresentationChange::Bind {
+                anchor: id,
+                source: source.clone(),
+            }),
+        ]);
+        let mut batch = state.prepare_batch(&snapshot, &chain, changes, "Add Notebook formula")?;
+        batch.expects.push(if request.sheet.is_some() {
+            batch.base = Some(placement.stamp.model);
+            source_area(placement.body.footprint)
+        } else {
+            let saved = snapshot.part.stamp;
+            let current = state.session.stamp().filter(|stamp| {
+                stamp.workbook == saved.workbook && stamp.view == saved.view
+            }).ok_or("The Notebook changed. Open the formula form again.")?;
+            batch.base = Some(current.model);
+            SourceRef::Workbook
+        });
         let stamp = snapshot.part.stamp;
         state.session.submit_then(batch, move || {
             self.close();
@@ -208,7 +223,14 @@ pub(super) fn mount(state: State) -> impl IntoView {
                 </label>
                 <p role="status" data-notebook-placement>
                     {move || match placement.get() {
-                        Live::Ready(answer) => format!("Worksheet location · {}", stage::address(state.session, Some(answer.body.at))),
+                        Live::Ready(answer) => {
+                            let address = stage::address(state.session, Some(answer.body.at));
+                            if author.current(state.session).is_some_and(|request| request.sheet.is_none()) {
+                                format!("New worksheet · {BACKING_SHEET}!{address}")
+                            } else {
+                                format!("Worksheet location · {address}")
+                            }
+                        },
                         Live::Refused(reason) => format!("Placement is unavailable · {reason:?}"),
                         _ => "Finding a worksheet location…".into(),
                     }}

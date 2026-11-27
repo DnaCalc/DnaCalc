@@ -288,6 +288,27 @@ fn rows_filter_and_sort_the_whole_source_before_windowing() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn new_sheet_placement_is_typed_and_does_not_create_the_sheet() {
+    let (host, original) = workbook();
+    let port = port(&host);
+    let proposal = query::NewSheetPlacement {
+        name: "Analysis".into(),
+        kind: PlacementKind::Array,
+        shape: Some(PlacementShape { rows: 5, columns: 7 }),
+    };
+    let answer = query::NewSheetPlacement::decode(port.ask(proposal.request(), BUDGET).unwrap()).unwrap();
+    let at = answer.body.at;
+    assert_ne!(Sheet(at.0, at.1), original);
+    assert_eq!((at.2, at.3), (10, 1));
+    assert_eq!(answer.body.lane.unwrap().1.3, 7);
+    let summary = query::Summary::decode(port.ask(query::Summary.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(summary.stamp, answer.stamp);
+    assert_eq!(summary.body.sheets.len(), 1);
+    assert_eq!(summary.body.sheets[0].sheet, original);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn placement_leaves_a_spacer_and_accounts_for_cells_far_below_the_spill() {
     let (host, sheet) = workbook();
     let port = port(&host);
