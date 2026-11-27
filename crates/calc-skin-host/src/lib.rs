@@ -750,6 +750,14 @@ impl WorkbookPort for Connection {
             Operation::Revert(_) => {
                 return Err(unavailable("dc-zh096", "Reverting an earlier edit"));
             }
+            Operation::ToggleGridlines { workbook, sheet } => {
+                self.check_write(&state)?;
+                if workbook != before.workbook {
+                    return Err(Refusal::StaleSelection);
+                }
+                state.session.toggle_gridlines(sheet.id()).map_err(batch::refusal)?;
+                return Ok(state.stamp());
+            }
             Operation::CopyCells { workbook, copy, from } => {
                 if workbook != before.workbook {
                     return Err(Refusal::StaleSelection);

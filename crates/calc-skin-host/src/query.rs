@@ -304,7 +304,8 @@ pub(crate) fn invalidated(
         WorkbookQuery::ExpressionTree { .. } | WorkbookQuery::TrialFor { .. } => {
             authored || recalculated || rtd_changed
         }
-        WorkbookQuery::Geometry { .. } | WorkbookQuery::PrintPlan { .. } => authored,
+        WorkbookQuery::Geometry { .. } => authored || presentation,
+        WorkbookQuery::PrintPlan { .. } => authored,
         WorkbookQuery::ViewPart => presentation || recalculated,
         WorkbookQuery::Notes { .. } => presentation,
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
@@ -1086,7 +1087,8 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
         merges: host.merged_areas(id).into_iter().map(Area::of).collect(),
         frozen_rows: panes.map_or(0, |p| p.rows()),
         frozen_columns: panes.map_or(0, |p| p.columns()),
-        zoom: view.and_then(|v| v.zoom).unwrap_or(100),
+        zoom: view.as_ref().and_then(|v| v.zoom).unwrap_or(100),
+        show_grid_lines: view.and_then(|v| v.show_grid_lines),
     })
 }
 

@@ -236,6 +236,45 @@ fn classic_help_keeps_the_active_cell_and_workbook_revision() {
     assert_eq!(session.stamp().unwrap().model, before);
 }
 
+/// Native-only: drives the Classic command through CalcHost and round-trips a scratch XLSX.
+#[test]
+fn classic_gridlines_key_tip_persists_as_a_worksheet_view() {
+    let page = Page::open();
+    let session = page.session;
+    page.settle();
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    page.settle();
+    let before = session.stamp().unwrap();
+    for key in ["F10", "w", "v", "g"] {
+        assert!(page.press(key, Focus::Stage));
+    }
+    let after = session.stamp().unwrap();
+    let show = page.host.with_session(SelectionCause::Open, |book| {
+        book.host().sheet_view(page.sheet.id()).unwrap().show_grid_lines.unwrap_or(true)
+    });
+    assert!(!show, "the Classic command turned off the active sheet's gridlines");
+    assert_eq!((after.model, after.calc), (before.model, before.calc));
+    assert_ne!(after.view, before.view);
+    assert!(session.summary().unwrap().layout_edited);
+    assert!(matches!(session.read(geometry), Live::Ready(answer) if answer.stamp.view == after.view));
+
+    let bytes = page.host.with_session(SelectionCause::Open, |book| {
+        let mut bytes = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+        bytes
+    });
+    session.open("Gridlines.xlsx".into(), bytes);
+    page.settle();
+    let opened_sheet = session.active().unwrap();
+    let opened_sheet = Sheet(opened_sheet.0, opened_sheet.1);
+    assert_eq!(
+        page.host.with_session(SelectionCause::Open, |book| {
+            book.host().sheet_view(opened_sheet.id()).unwrap().show_grid_lines
+        }),
+        Some(false)
+    );
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
