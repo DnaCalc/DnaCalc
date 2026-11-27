@@ -410,8 +410,7 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
     view! {
         {move || match snapshot.get() {
             Some(report) => view! {
-                <pre class="dna-inspector-evidence" data-inspector="audit-evidence"
-                    style="white-space:pre-wrap;overflow-wrap:anywhere">{report.clone()}</pre>
+                <pre class="dna-inspector-evidence" data-inspector="audit-evidence">{report.clone()}</pre>
                 <div class="dna-inspector-actions">
                     {crate::invoke(session, "inspector.copy-report", serde_json::Value::String(report.clone()), "Copy report".into())}
                     {crate::invoke(session, "inspector.print-report", serde_json::Value::String(report), "Print report".into())}
@@ -533,11 +532,25 @@ fn print(text: &str) -> Result<(), String> {
         .document()
         .ok_or("The print document is unavailable.")?;
     document.set_title("DNA Calc audit");
+    let stylesheet = leptos::prelude::document()
+        .query_selector("link[rel='stylesheet']")
+        .map_err(|_| "The report stylesheet is unavailable.")?;
+    if let Some(stylesheet) = stylesheet {
+        let stylesheet = stylesheet
+            .clone_node_with_deep(false)
+            .map_err(|_| "The report stylesheet could not be copied.")?;
+        document
+            .query_selector("head")
+            .map_err(|_| "The print page is unavailable.")?
+            .ok_or("The print page is unavailable.")?
+            .append_child(&stylesheet)
+            .map_err(|_| "The report could not be styled.")?;
+    }
     let report = document
         .create_element("pre")
         .map_err(|_| "The report could not be rendered.")?;
     report
-        .set_attribute("style", "white-space:pre-wrap;overflow-wrap:anywhere")
+        .set_attribute("class", "dna-inspector-evidence")
         .map_err(|_| "The report could not be styled.")?;
     report.set_text_content(Some(text));
     document

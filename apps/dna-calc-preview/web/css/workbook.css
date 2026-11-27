@@ -225,6 +225,7 @@
 .dna-inspector-card h2 { margin-block: 0 var(--dna-gap-2); font-size: 1rem; }
 .dna-inspector-card h3 { margin: 0; font-size: inherit; }
 .dna-inspector-card p { margin-block: var(--dna-gap-2); }
+.dna-inspector-evidence { white-space: pre-wrap; overflow-wrap: anywhere; }
 .dna-inspector-counts, .dna-inspector-columns { display: flex; flex-wrap: wrap; gap: var(--dna-gap-3) 2rem; }
 .dna-inspector-counts div { display: grid; min-width: 6rem; gap: var(--dna-gap-1); }
 .dna-inspector-counts strong { font: 1.6rem / 1.1 monospace; }
