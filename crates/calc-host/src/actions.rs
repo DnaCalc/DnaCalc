@@ -1390,6 +1390,49 @@ pub(crate) fn axis_format_edits(
     size_bits: Option<u64>,
     hidden: Option<bool>,
 ) -> Result<Vec<CellEdit>, String> {
+    let formats = axis_formats(host, sheet, rows, first, count, size_bits, hidden)?;
+    Ok(axis_edits_with_drawings(host, sheet, formats))
+}
+
+/// Prepare column visibility for inclusive ranges, preserving drawings against the final widths.
+pub fn prepare_column_visibility(
+    host: &HostState,
+    sheet: SheetId,
+    bands: &[(u32, u32)],
+    hidden: bool,
+) -> Result<Vec<CellEdit>, String> {
+    let mut formats = BTreeMap::new();
+    for &(first, last) in bands {
+        let count = last
+            .checked_sub(first)
+            .and_then(|span| span.checked_add(1))
+            .ok_or("Invalid column range")?;
+        for edit in axis_formats(host, sheet, false, first, count, None, Some(hidden))? {
+            formats.insert(edit.index(), edit);
+        }
+    }
+    Ok(axis_edits_with_drawings(host, sheet, formats.into_values()))
+}
+
+fn axis_edits_with_drawings(
+    host: &HostState,
+    sheet: SheetId,
+    formats: impl IntoIterator<Item = crate::AxisFormatEdit>,
+) -> Vec<CellEdit> {
+    let mut edits: Vec<_> = formats.into_iter().map(CellEdit::AxisFormat).collect();
+    edits.extend(crate::shapes::kept_sizes(host, sheet, &edits));
+    edits
+}
+
+fn axis_formats(
+    host: &HostState,
+    sheet: SheetId,
+    rows: bool,
+    first: u32,
+    count: u32,
+    size_bits: Option<u64>,
+    hidden: Option<bool>,
+) -> Result<Vec<crate::AxisFormatEdit>, String> {
     if host.model().sheet_by_id(sheet).is_none() {
         return Err("The sheet is unavailable".into());
     }
@@ -1480,14 +1523,11 @@ pub(crate) fn axis_format_edits(
             };
         }
         if old != new {
-            edits.push(CellEdit::AxisFormat(
+            edits.push(
                 crate::AxisFormatEdit::new(sheet, axis, index, new).expect("checked band indices"),
-            ));
+            );
         }
     }
-    // Drawing objects that move but don't size, or neither, keep their size (dc-zjsg.4).
-    let kept = crate::shapes::kept_sizes(host, sheet, &edits);
-    edits.extend(kept);
     Ok(edits)
 }
 

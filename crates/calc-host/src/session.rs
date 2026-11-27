@@ -1337,7 +1337,7 @@ impl HostSession {
         self.prepare_entries(at, text, &[GridArea::cell(at)])
     }
 
-    /// Stage cell contents, copyable worksheet properties and view-part edits as for commit.
+    /// Stage cell contents, worksheet properties and view-part edits as for commit.
     /// The returned root is for inspection only; the live model, history and calculation stay put.
     pub fn preview_edits(&mut self, edits: &[CellEdit]) -> Result<Arc<calc_doc_model::ModelRoot>, IntentError> {
         if edits.iter().any(|edit| {
@@ -1354,11 +1354,14 @@ impl HostSession {
                     | CellEdit::Validations { .. }
                     | CellEdit::ReviewNotes { .. }
                     | CellEdit::ReviewLinks { .. }
+                    | CellEdit::AxisFormat(_)
+                    | CellEdit::Charts { .. }
+                    | CellEdit::Shapes { .. }
                     | CellEdit::View(_)
             )
         }) {
             return Err(IntentError::Workbook(
-                "Preview supports cell contents, copyable worksheet properties and view-part edits".into(),
+                "Preview supports cell contents, worksheet properties and view-part edits".into(),
             ));
         }
         let edits = self.authored_edits(edits.to_vec());

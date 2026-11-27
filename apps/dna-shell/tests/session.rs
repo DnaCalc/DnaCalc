@@ -208,6 +208,20 @@ fn keys_in_another_field_stay_that_fields() {
     assert!(page.press("Alt+q", Focus::Field));
 }
 
+/// Native-only: uses the real shell command table, session and workbook host.
+#[test]
+fn classic_deck_folding_keeps_the_active_cell_and_workbook_revision() {
+    let page = Page::open();
+    let session = page.session;
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    let before = session.stamp().unwrap().model;
+    assert!(page.press("Ctrl+F1", Focus::Stage));
+    assert!(page.press("Ctrl+F1", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert_eq!(session.stamp().unwrap().model, before);
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
@@ -423,6 +437,50 @@ fn classic_paste_refuses_if_the_host_changes_after_preview() {
 
     assert!(matches!(session.last_refusal(), Some(calc_skin::Refusal::Conflict { .. })));
     assert_eq!(page.shown(page.at(2, 2)), "99");
+}
+
+/// Native-only: uses the Classic key map, workbook batches and the real geometry query.
+#[test]
+fn classic_home_hide_columns_updates_worksheet_geometry_and_undo() {
+    use calc_skin::{Selection, SourceRef, grid::Area};
+
+    let page = Page::open();
+    let session = page.session;
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    let hidden = |column| {
+        let Live::Ready(answer) = session.read(geometry) else {
+            panic!("worksheet geometry did not arrive");
+        };
+        answer.body.columns.iter().any(|&(first, last, _, hidden)| {
+            (first..=last).contains(&column) && hidden
+        })
+    };
+    assert!(!hidden(2));
+    for key in ["F10", "h", "o", "u", "c"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(hidden(2));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(!hidden(2));
+
+    let (second, fourth) = (page.at(1, 2), page.at(1, 4));
+    session.select(Selection {
+        seq: 0,
+        target: SourceRef::Cells {
+            sheet: page.sheet,
+            areas: vec![Area(second, second), Area(fourth, fourth)],
+        },
+        active: Some(second),
+        grouped: Vec::new(),
+        item: None,
+    });
+    page.settle();
+    assert!(page.press("Ctrl+0", Focus::Stage));
+    assert!(hidden(2) && !hidden(3) && hidden(4));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(!hidden(2) && !hidden(4));
 }
 
 /// Native-only: drives the real workbook host through packets.

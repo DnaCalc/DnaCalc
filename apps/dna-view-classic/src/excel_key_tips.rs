@@ -48,7 +48,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     pending("H O I", "AutoFit Column Width"),
     pending("H O A", "AutoFit Row Height"),
     group("H O U", "Hide and Unhide"),
-    pending("H O U C", "Hide Columns"),
+    command("H O U C", "Hide Columns", "grid.hide-columns"),
     group("H B", "Borders"),
     pending("H L", "Conditional Formatting"),
     group("H F", "Editing"),

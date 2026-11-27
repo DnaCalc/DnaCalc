@@ -31,6 +31,7 @@ pub struct Chrome {
     views: StoredValue<Vec<Rc<dyn View>>, LocalStorage>,
     search: RwSignal<bool>,
     details: RwSignal<bool>,
+    deck_folded: RwSignal<bool>,
 }
 
 fn a1(at: Key) -> String {
@@ -54,6 +55,9 @@ fn model_property_text(diff: ModelPropertyDiff) -> String {
                 ModelProperty::Notes => "Notes",
                 ModelProperty::Hyperlinks => "Hyperlinks",
                 ModelProperty::RichText => "Rich text",
+                ModelProperty::ColumnVisibility => "Column visibility",
+                ModelProperty::Charts => "Charts",
+                ModelProperty::Shapes => "Shapes",
             };
             format!("{label} changed")
         }
@@ -79,6 +83,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         views: StoredValue::new_local(views.clone()),
         search: RwSignal::new(false),
         details: RwSignal::new(false),
+        deck_folded: RwSignal::new(false),
     };
     register(session, chrome, &views);
     registry.install_commands(session);
@@ -148,8 +153,13 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         chrome.details.update(|open| *open = !*open);
         Ok(())
     });
+    session.register(spec("shell.toggle-deck", "Toggle Command Deck", "!editing"), move |_| {
+        chrome.deck_folded.update(|folded| *folded = !*folded);
+        Ok(())
+    });
     let ready = When::parse("!editing").expect("a built-in condition parses");
     let editing = When::parse("editing").expect("a built-in condition parses");
+    session.bind(Layer::Shell, ready.clone(), "Ctrl+F1", CommandId::new("shell.toggle-deck"));
     for (when, chord, command) in [
         (ready.clone(), "Ctrl+Z", "edit.undo"),
         (ready, "Ctrl+Y", "edit.redo"),
@@ -432,12 +442,20 @@ pub fn workbook(
                 <button type="button" data-command="shell.search" on:click=move |_| { let _ = session.command("shell.search"); }>"Go to" <kbd>"Alt+Q"</kbd></button>
             </header>
             <nav class="dna-book-deck" aria-label="Workbook commands">
-                {file_control}
-                {command_button(session, "edit.undo", "Undo")}
-                {command_button(session, "edit.redo", "Redo")}
-                {command_button(session, "calc.calculate", "Calculate")}
-                {command_button(session, "shell.details", "Details")}
-                {dock_buttons}
+                <div style:display=move || if chrome.deck_folded.get() { "none" } else { "contents" }>
+                    {file_control}
+                    {command_button(session, "edit.undo", "Undo")}
+                    {command_button(session, "edit.redo", "Redo")}
+                    {command_button(session, "calc.calculate", "Calculate")}
+                    {command_button(session, "shell.details", "Details")}
+                    {dock_buttons}
+                </div>
+                <button type="button" data-command="shell.toggle-deck" aria-keyshortcuts="Control+F1"
+                    aria-expanded=move || (!chrome.deck_folded.get()).to_string()
+                    disabled=move || session.mode().editing()
+                    on:click=move |_| { let _ = session.command("shell.toggle-deck"); }>
+                    {move || if chrome.deck_folded.get() { "Expand Deck" } else { "Collapse Deck" }}
+                </button>
                 {key_tip_deck(session)}
             </nav>
             <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {

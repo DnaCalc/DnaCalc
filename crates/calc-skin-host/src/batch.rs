@@ -2,7 +2,8 @@ use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
 use calc_doc_model::{ModelRoot, ViewAnchor};
 use calc_host::value::{CellKey, GridArea};
 use calc_host::{
-    CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, prepare_paste_oriented,
+    Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource,
+    prepare_column_visibility, prepare_paste_oriented,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
@@ -155,6 +156,58 @@ fn paste_properties(
         }
     }
     properties
+}
+
+fn column_properties(
+    before: &ModelRoot,
+    after: &ModelRoot,
+    edits: &[CellEdit],
+) -> Vec<ModelPropertyDiff> {
+    let before = before.definitions();
+    let after = after.definitions();
+    let sheets: BTreeSet<_> = edits
+        .iter()
+        .filter_map(|edit| {
+            let CellEdit::AxisFormat(edit) = edit else {
+                return None;
+            };
+            let sheet = edit.sheet();
+            let hidden = |root: &calc_doc_model::Definitions| {
+                root.axis_layouts().get(sheet, Axis::Columns, edit.index()).hidden()
+            };
+            (edit.axis() == Axis::Columns && hidden(before) != hidden(after)).then_some(sheet)
+        })
+        .collect();
+    let mut properties = Vec::new();
+    for sheet in sheets {
+        let source = SourceRef::Sheet(Sheet::of(sheet));
+        for (property, changed) in [
+            (ModelProperty::ColumnVisibility, true),
+            (ModelProperty::Charts, before.charts(sheet) != after.charts(sheet)),
+            (ModelProperty::Shapes, before.shapes(sheet) != after.shapes(sheet)),
+        ] {
+            if changed {
+                properties.push(ModelPropertyDiff::Scope {
+                    source: source.clone(),
+                    property,
+                });
+            }
+        }
+    }
+    properties
+}
+
+fn require_current_model(request: &Batch, current: Revision) -> Result<(), Refusal> {
+    let expected = request
+        .base
+        .ok_or_else(|| invalid("This change requires a workbook revision."))?;
+    if expected != current {
+        return Err(Refusal::Conflict {
+            base: expected,
+            conflicts: vec![Target::Source(SourceRef::Workbook)],
+        });
+    }
+    Ok(())
 }
 
 fn require_formula(
@@ -338,13 +391,7 @@ pub(crate) fn prepare(
                 ModelChange::PasteCopied { copy, to, contents } => {
                     // A single-cell destination can expand. Keep the preview's whole model
                     // revision so a concurrent edit outside the selected cell cannot be lost.
-                    let expected = request.base.ok_or_else(|| invalid("Paste requires a workbook revision."))?;
-                    if expected != base.model {
-                        return Err(Refusal::Conflict {
-                            base: expected,
-                            conflicts: vec![Target::Source(SourceRef::Workbook)],
-                        });
-                    }
+                    require_current_model(request, base.model)?;
                     let copied = copied
                         .filter(|copied| (copied.workbook, copied.id) == (base.workbook, *copy))
                         .ok_or_else(|| invalid("Copy worksheet cells again before pasting."))?;
@@ -372,6 +419,13 @@ pub(crate) fn prepare(
                         paste_areas.push(target);
                     }
                     edits.extend(plan.into_edits(host).map_err(excel)?);
+                }
+                ModelChange::SetColumnsHidden { sheet, bands, hidden } => {
+                    require_current_model(request, base.model)?;
+                    edits.extend(
+                        prepare_column_visibility(state.session.host(), sheet.id(), bands, *hidden)
+                            .map_err(|reason| Refusal::Excel { reason })?,
+                    );
                 }
             },
             Change::Presentation(change) => {
@@ -504,6 +558,7 @@ pub(crate) fn prepare(
         if !paste_areas.is_empty() {
             properties = paste_properties(&before, &after, &paste_areas, &edits);
         }
+        properties.extend(column_properties(&before, &after, &edits));
         let mut changed = BTreeSet::new();
         for area in areas {
             for root in [&before, &after] {
