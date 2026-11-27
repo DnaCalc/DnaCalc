@@ -247,8 +247,12 @@ impl fmt::Display for Chord {
 fn normal_key(key: &str) -> String {
     let mut letters = key.chars();
     match (letters.next(), letters.next()) {
+        (Some(' '), None) => "Space".into(),
         (Some(only), None) => only.to_uppercase().collect(),
         _ if key.eq_ignore_ascii_case("esc") => "Escape".into(),
+        _ if key.eq_ignore_ascii_case("space") || key.eq_ignore_ascii_case("spacebar") => {
+            "Space".into()
+        }
         _ => key.to_owned(),
     }
 }
@@ -705,6 +709,8 @@ mod tests {
         assert_eq!(press("a", false, false).text(), Some("a"));
         assert_eq!(press("=", false, false).text(), Some("="));
         assert_eq!(press("é", false, false).text(), Some("é"));
+        assert_eq!(press(" ", false, false).text(), Some(" "));
+        assert_eq!(press(" ", true, false).chord(), Chord::parse("Ctrl+Space").unwrap());
         // A named key and a command chord type nothing.
         assert_eq!(press("Enter", false, false).text(), None);
         assert_eq!(press("z", true, false).text(), None);

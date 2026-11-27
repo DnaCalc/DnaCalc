@@ -7,7 +7,7 @@ use crate::xml::{XmlElement, XmlEvent, XmlPart};
 use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{
     AnchorId, CellInput, DocId, ModelRoot, NoteId, SheetKey, VIEW_PART_NAMESPACE, ViewAnchor,
-    ViewDocument, ViewNote, ViewPart,
+    ViewDocument, ViewNote, ViewPart, ViewSkin,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -33,6 +33,13 @@ struct StoredDocument {
     whole: Span,
 }
 
+struct StoredSkin {
+    start: Span,
+    whole: Span,
+    id: String,
+    body: Option<String>,
+}
+
 struct Index {
     root: Span,
     digest: Option<String>,
@@ -44,6 +51,8 @@ struct Index {
     notes: Option<(Span, usize)>,
     known_notes: BTreeMap<NoteId, StoredNote>,
     note_ids: BTreeSet<NoteId>,
+    skins: Option<(Span, usize)>,
+    skin: Option<StoredSkin>,
     declarations: Option<(Span, usize)>,
     known_documents: BTreeMap<DocId, StoredDocument>,
     document_ids: BTreeSet<DocId>,
@@ -109,6 +118,8 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         notes: None,
         known_notes: BTreeMap::new(),
         note_ids: BTreeSet::new(),
+        skins: None,
+        skin: None,
         declarations: None,
         known_documents: BTreeMap::new(),
         document_ids: BTreeSet::new(),
@@ -118,6 +129,8 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
     let mut in_notes = false;
     let mut pending = None;
     let mut pending_note: Option<StoredNote> = None;
+    let mut in_skins = false;
+    let mut pending_skin: Option<StoredSkin> = None;
     let mut in_declarations = false;
     let mut pending_document: Option<StoredDocument> = None;
     while let Some(event) = read.next_event().ok()? {
@@ -169,6 +182,28 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                                     whole: span,
                                 });
                     }
+                } else if depth == 1 && is(&el, "skins") {
+                    if index.skins.replace((span, span.1)).is_some() {
+                        return None;
+                    }
+                    in_skins = true;
+                } else if depth == 2
+                    && in_skins
+                    && is(&el, "skin")
+                    && index.skin.is_none()
+                    && matches!(el.attribute("schema"), None | Some("1"))
+                    && let Some(id) = el.attribute("id").filter(|id| !id.is_empty())
+                {
+                    pending_skin = Some(StoredSkin {
+                        start: span,
+                        whole: span,
+                        id: id.to_owned(),
+                        body: Some(String::new()),
+                    });
+                } else if depth >= 3 && in_skins {
+                    if let Some(skin) = pending_skin.as_mut() {
+                        skin.body = None;
+                    }
                 } else if depth == 1 && is(&el, "decls") {
                     if index.declarations.replace((span, span.1)).is_some() {
                         return None;
@@ -218,6 +253,14 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                     stored.whole.1 = span.1;
                     index.known_documents.insert(stored.document.id, stored);
                 }
+                if depth == 2 && let Some(mut stored) = pending_skin.take() {
+                    stored.whole.1 = span.1;
+                    index.skin = Some(stored);
+                }
+                if depth == 1 && in_skins {
+                    index.skins.as_mut().unwrap().1 = span.0;
+                    in_skins = false;
+                }
                 if depth == 1 && in_declarations {
                     index.declarations.as_mut().unwrap().1 = span.0;
                     in_declarations = false;
@@ -235,6 +278,9 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                 }
             }
             XmlEvent::Text(text) => {
+                if let Some(body) = pending_skin.as_mut().and_then(|skin| skin.body.as_mut()) {
+                    body.push_str(&text);
+                }
                 if let Some(note) = pending_note.as_mut() {
                     note.note.text.push_str(&text);
                 }
@@ -274,7 +320,13 @@ fn text(digest: &mut Sha256, text: &calc_doc_model::value::ExcelText) {
     }
 }
 
-fn input(digest: &mut Sha256, input: &CellInput) {
+#[derive(Clone, Copy)]
+enum FormulaSpelling {
+    Stored,
+    Display,
+}
+
+fn input(digest: &mut Sha256, input: &CellInput, spelling: FormulaSpelling) {
     match input {
         CellInput::Number(number) => {
             digest.update([1]);
@@ -291,10 +343,16 @@ fn input(digest: &mut Sha256, input: &CellInput) {
         }
         CellInput::Formula(formula) => {
             digest.update([5]);
-            // The workbook's shared-formula representation can change on save.
             let rendered = formula.rendered().to_string_lossy();
-            let canonical = calc_fml::assist::display_formula(rendered.trim_start_matches('='));
-            sized(digest, canonical.as_bytes());
+            let source = rendered.trim_start_matches('=');
+            match spelling {
+                FormulaSpelling::Stored => sized(digest, source.as_bytes()),
+                FormulaSpelling::Display => {
+                    // The writer adds file prefixes to functions and LET/LAMBDA bindings.
+                    let display = calc_fml::assist::display_formula(&format!("={source}"));
+                    sized(digest, display[1..].as_bytes());
+                }
+            }
         }
     }
 }
@@ -310,7 +368,7 @@ fn model_digest(model: &ModelRoot) -> String {
             digest.update([2]);
             digest.update(at.row().to_le_bytes());
             digest.update(at.column().to_le_bytes());
-            input(&mut digest, cell);
+            input(&mut digest, cell, FormulaSpelling::Stored);
         }
     }
     for name in model.definitions().names() {
@@ -334,7 +392,7 @@ fn model_digest(model: &ModelRoot) -> String {
     format!("sha256:{:x}", digest.finalize())
 }
 
-fn fingerprint(area: GridArea, model: &ModelRoot) -> String {
+fn fingerprint(area: GridArea, model: &ModelRoot, spelling: FormulaSpelling) -> String {
     let mut digest = Sha256::new();
     digest.update(b"dnacalc-view-part-anchor-v1");
     digest.update(area.row_count().to_le_bytes());
@@ -342,7 +400,7 @@ fn fingerprint(area: GridArea, model: &ModelRoot) -> String {
     for (at, cell) in model.cells(area).into_iter().flatten() {
         digest.update((at.row() - area.first().row()).to_le_bytes());
         digest.update((at.column() - area.first().column()).to_le_bytes());
-        input(&mut digest, cell);
+        input(&mut digest, cell, spelling);
     }
     format!("sha256:{:x}", digest.finalize())
 }
@@ -375,10 +433,10 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                     return stored.anchor;
                 };
                 if same_model
-                    || stored
-                        .fingerprint
-                        .as_deref()
-                        .is_some_and(|stored| stored == fingerprint(area, model))
+                    || stored.fingerprint.as_deref().is_some_and(|stored| {
+                        stored == fingerprint(area, model, FormulaSpelling::Display)
+                            || stored == fingerprint(area, model, FormulaSpelling::Stored)
+                    })
                 {
                     stored.anchor
                 } else {
@@ -392,6 +450,9 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                 .map(|stored| stored.document);
             ViewPart::loaded(xml.bytes().to_vec(), anchors, notes, documents)
                 .with_preferred(index.prefs.and_then(|(_, preferred)| preferred))
+                .with_skin(index.skin.and_then(|skin| {
+                    skin.body.map(|body| ViewSkin { id: skin.id, body })
+                }))
         }
         None => ViewPart::opaque(xml.bytes().to_vec()),
     }
@@ -420,7 +481,7 @@ fn attribute_fields(anchor: &ViewAnchor, model: &ModelRoot) -> (Option<String>, 
 
 fn new_anchor(anchor: &ViewAnchor, model: &ModelRoot, out: &mut Vec<u8>) {
     let (sheet, reference) = attribute_fields(anchor, model);
-    let signature = anchor.area().map(|area| fingerprint(area, model));
+    let signature = anchor.area().map(|area| fingerprint(area, model, FormulaSpelling::Display));
     out.extend_from_slice(b"<anchor");
     for (name, value) in [
         ("xmlns", Some(VIEW_PART_NAMESPACE)),
@@ -505,7 +566,7 @@ pub(super) fn item(
             splice.replace(stored.whole, &[]);
             continue;
         };
-        let signature = anchor.area().map(|area| fingerprint(area, model));
+        let signature = anchor.area().map(|area| fingerprint(area, model, FormulaSpelling::Display));
         if anchor == &stored.anchor && signature == stored.fingerprint {
             continue;
         }
@@ -610,6 +671,7 @@ pub(super) fn item(
         index.notes,
         &new,
     );
+    write_skin(part, &index, original, &mut splice, &mut new_sections);
     write_documents(part, &index, original, &mut splice, &mut new_sections)?;
     if root.is_empty() {
         let mut open = root.rebuilt(&[("model", Some(&digest))], new_sections.is_empty());
@@ -655,6 +717,36 @@ fn append_section(
     }
 }
 
+fn write_skin(
+    part: &ViewPart,
+    index: &Index,
+    original: &[u8],
+    edits: &mut PartEdits,
+    new_sections: &mut Vec<u8>,
+) {
+    match (part.skin(), &index.skin) {
+        (Some(skin), Some(stored))
+            if skin.id != stored.id || Some(skin.body.as_str()) != stored.body.as_deref() =>
+        {
+            let tag = RawTag::parse(&original[stored.start.0..stored.start.1]);
+            let mut bytes = tag.rebuilt(&[("id", Some(&skin.id))], false);
+            json_text(&skin.body, tag.qualified_name(), &mut bytes);
+            edits.replace(stored.whole, &bytes);
+        }
+        (Some(skin), None) => {
+            let mut bytes = b"<skin xmlns=".to_vec();
+            attribute_value(VIEW_PART_NAMESPACE, &mut bytes);
+            bytes.extend_from_slice(b" id=");
+            attribute_value(&skin.id, &mut bytes);
+            bytes.push(b'>');
+            json_text(&skin.body, b"skin", &mut bytes);
+            append_section(edits, original, new_sections, "skins", index.skins, &bytes);
+        }
+        (None, Some(stored)) if stored.body.is_some() => edits.replace(stored.whole, &[]),
+        _ => {}
+    }
+}
+
 fn write_documents(
     part: &ViewPart,
     index: &Index,
@@ -678,7 +770,7 @@ fn write_documents(
                 ],
                 false,
             );
-            document_text(document, tag.qualified_name(), &mut bytes);
+            json_text(&document.body, tag.qualified_name(), &mut bytes);
             edits.replace(stored.whole, &bytes);
         }
     }
@@ -710,7 +802,7 @@ fn write_documents(
             }
         }
         new.push(b'>');
-        document_text(document, b"decl", &mut new);
+        json_text(&document.body, b"decl", &mut new);
     }
     append_section(
         edits,
@@ -723,8 +815,8 @@ fn write_documents(
     Ok(())
 }
 
-fn document_text(document: &ViewDocument, tag: &[u8], out: &mut Vec<u8>) {
-    out.extend_from_slice(quick_xml::escape::escape(&document.body).as_bytes());
+fn json_text(body: &str, tag: &[u8], out: &mut Vec<u8>) {
+    out.extend_from_slice(quick_xml::escape::escape(body).as_bytes());
     out.extend_from_slice(b"</");
     out.extend_from_slice(tag);
     out.push(b'>');

@@ -1,7 +1,8 @@
 //! Bounded spreadsheet viewport shared by workbook views.
 //!
 //! The grid is given the session and nothing else. It keeps its own watches: the cells of the
-//! page that holds the active cell, and the geometry of that cell's sheet. It handles no key:
+//! page that holds the active cell, any leading frozen bands, and the geometry of that cell's
+//! sheet. It handles no key:
 //! its motion and its edit keys are commands ([`commands`]) the keymap resolves.
 
 use calc_skin::grid::{Area, Key, Sheet};
@@ -17,6 +18,9 @@ const PAGE_ROWS: u32 = 36;
 const PAGE_COLUMNS: u32 = 18;
 const LAST_ROW: u32 = 1_048_576;
 const LAST_COLUMN: u32 = 16_384;
+
+#[derive(Clone, Copy, Default)]
+struct ViewportScroll(RwSignal<bool>);
 
 /// The page of the sheet that holds `at`: the area the grid watches and draws.
 pub fn page_of(at: Key) -> Area {
@@ -67,6 +71,16 @@ fn select_range(session: Session, anchor: Key, to: Key) {
         grouped: Vec::new(),
         item: None,
     });
+}
+
+fn visible_bands(first: u32, last: u32, frozen: u32) -> Vec<(u32, u32)> {
+    if frozen == 0 {
+        vec![(first, last)]
+    } else if first <= frozen + 1 {
+        vec![(1, last.max(frozen))]
+    } else {
+        vec![(1, frozen), (first, last)]
+    }
 }
 
 fn far_corner(anchor: Key, areas: &[Area]) -> Key {
@@ -284,6 +298,17 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.freeze-panes", "Freeze or Unfreeze Panes", &[], move |_| {
+            let (Some(at), Some(stamp)) = (session.active(), session.stamp()) else {
+                return Err("No worksheet cell is selected.".into());
+            };
+            let Area(first, _) = page_of(at);
+            let off_origin = (first.2, first.3) != (1, 1)
+                || session.local::<ViewportScroll>().0.get_untracked();
+            session.operate(Operation::ToggleFreezePanes { workbook: stamp.workbook, at, off_origin }, None);
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.toggle-filter", "Toggle Filter", &["Ctrl+Shift+L"], move |_| {
             let areas = selected_areas(session);
             let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
@@ -336,22 +361,50 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
     let geometry = session.following::<query::Geometry>();
     let selected = Memo::new(move |_| selected_areas(session));
     let dragging = RwSignal::new(None::<Key>);
+    let scroll = session.local::<ViewportScroll>().0;
+    if editable {
+        scroll.set(false);
+    }
     view! {
         <div class="dna-sheet" data-dnacalc="grid" tabindex="0" node_ref=focus
             role="region" aria-label="Worksheet grid"
             on:pointerup=move |_| dragging.set(None)
             on:pointercancel=move |_| dragging.set(None)
+            on:scroll=move |_| {
+                if editable && let Some(viewport) = focus.get_untracked() {
+                    scroll.set(viewport.scroll_top() != 0 || viewport.scroll_left() != 0);
+                }
+            }
         >
             <div class="dna-sheet-content" node_ref=content>
             {move || {
                 let area = page.get();
-                let window = cells.at(area.map(|area| query::Cells { interest: Interest::Area(area) }));
                 let geometry = geometry.at(area.map(|Area(first, _)| query::Geometry { sheet: Sheet(first.0, first.1) }));
-                let (Some(Area(first, last)), Live::Ready(window)) = (area, window) else {
+                let Some(Area(first, last)) = area else {
+                    cells.at(None);
+                    return view! { <p class="dna-sheet-loading">"Loading worksheet…"</p> }.into_any();
+                };
+                let geometry = match geometry { Live::Ready(answer) => Some(answer.body), _ => None };
+                // Keep the visible part of each frozen strip when the active cell moves to another page.
+                let (frozen_rows, frozen_columns) = geometry.as_ref().map_or((0, 0), |g| {
+                    (g.frozen_rows.min(PAGE_ROWS), g.frozen_columns.min(PAGE_COLUMNS))
+                });
+                let row_bands = visible_bands(first.2, last.2, frozen_rows);
+                let column_bands = visible_bands(first.3, last.3, frozen_columns);
+                let mut areas = Vec::new();
+                for &(top, bottom) in &row_bands {
+                    for &(left, right) in &column_bands {
+                        areas.push(Area(Key(first.0, first.1, top, left), Key(first.0, first.1, bottom, right)));
+                    }
+                }
+                let interest = match areas.as_slice() {
+                    [only] => Interest::Area(*only),
+                    _ => Interest::Areas(areas),
+                };
+                let Live::Ready(window) = cells.at(Some(query::Cells { interest })) else {
                     return view! { <p class="dna-sheet-loading">"Loading worksheet…"</p> }.into_any();
                 };
                 let window = window.body;
-                let geometry = match geometry { Live::Ready(answer) => Some(answer.body), _ => None };
                 let hide_gridlines = geometry.as_ref().is_some_and(|g| g.show_grid_lines == Some(false));
                 let layout = geometry.as_ref().map(|g| {
                     metrics::sheet_metrics(Some(SheetBands {
@@ -365,13 +418,35 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                     })).scaled(f64::from(g.zoom) / 100.)
                 }).unwrap_or_default();
                 let cells: BTreeMap<_, _> = window.cells.iter().map(|cell| (cell.at, cell)).collect();
-                let columns: Vec<_> = (first.3..=last.3).filter(|&column| layout.width(column) > 0.).collect();
+                let columns: Vec<_> = column_bands.into_iter().flat_map(|(a, b)| a..=b)
+                    .filter(|&column| layout.width(column) > 0.).collect();
+                let paned = frozen_rows > 0 || frozen_columns > 0;
+                let pane_row_edge = (frozen_rows > 0)
+                    .then(|| layout.visible_row(frozen_rows, false, frozen_rows));
+                let pane_column_edge = (frozen_columns > 0)
+                    .then(|| layout.visible_col(frozen_columns, false, frozen_columns));
+                let pixels = |dimension| format!("{dimension}px");
+                let pinned_left = |column| (column <= frozen_columns)
+                    .then(|| pixels(layout.header_w + layout.col_start(column)));
+                let table_width = paned.then(|| pixels(layout.header_w + columns.iter()
+                    .map(|&column| layout.width(column)).sum::<f64>()));
+                let column_widths = paned.then(|| {
+                    let widths = columns.iter().map(|&column| {
+                        view! { <col style:width=pixels(layout.width(column))/> }
+                    }).collect_view();
+                    view! { <colgroup><col style:width=pixels(layout.header_w)/>{widths}</colgroup> }
+                });
                 let headings = columns.iter().copied().map(|column| {
-                    let width = format!("{}px", layout.width(column));
-                    view! { <th scope="col" style:width=width>{address::column_letters(column)}</th> }
+                    view! { <th scope="col" style:width=pixels(layout.width(column))
+                        class:dna-frozen-column=column <= frozen_columns
+                        class:dna-frozen-column-edge=Some(column) == pane_column_edge
+                        style:inset-inline-start=pinned_left(column)>{address::column_letters(column)}</th> }
                 }).collect_view();
-                let rows = (first.2..=last.2).filter(|&row| layout.height(row) > 0.).map(|row| {
-                    let row_height = format!("{}px", layout.height(row));
+                let rows = row_bands.into_iter().flat_map(|(a, b)| a..=b)
+                    .filter(|&row| layout.height(row) > 0.).map(|row| {
+                    let row_height = pixels(layout.height(row));
+                    let pinned_top = (row <= frozen_rows)
+                        .then(|| pixels(layout.header_h + layout.row_start(row)));
                     let contents = columns.iter().copied().map(|column| {
                         let key = Key(first.0, first.1, row, column);
                         let cell = cells.get(&key).copied();
@@ -405,6 +480,12 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                                 class:dna-selected=is_selected
                                 class:dna-active=move || active.get() == Some(key)
                                 class:dna-number=number class:dna-error=error
+                                class:dna-frozen-row=row <= frozen_rows
+                                class:dna-frozen-column=column <= frozen_columns
+                                class:dna-frozen-row-edge=Some(row) == pane_row_edge
+                                class:dna-frozen-column-edge=Some(column) == pane_column_edge
+                                style:inset-block-start=pinned_top.clone()
+                                style:inset-inline-start=pinned_left(column)
                                 data-cell=location data-provenance=provenance
                                 data-filter-header=filter_header.to_string()
                                 title=filter_header.then_some("AutoFilter is enabled for this column")
@@ -441,12 +522,18 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                             >{text}</td>
                         }
                     }).collect_view();
-                    view! { <tr aria-rowindex=row style:height=row_height><th scope="row">{row}</th>{contents}</tr> }
+                    view! { <tr aria-rowindex=row style:height=row_height>
+                        <th scope="row" class:dna-frozen-row=row <= frozen_rows
+                            class:dna-frozen-row-edge=Some(row) == pane_row_edge style:inset-block-start=pinned_top>{row}</th>
+                        {contents}</tr> }
                 }).collect_view();
                 view! {
                     <table role="grid" aria-label="Worksheet" aria-rowcount="1048576" aria-colcount="16384"
-                        class:dna-sheet-gridlines-hidden=hide_gridlines>
-                        <thead><tr><th class="dna-sheet-corner" aria-label="Row headings"></th>{headings}</tr></thead>
+                        class:dna-sheet-gridlines-hidden=hide_gridlines class:dna-sheet-paned=paned style:width=table_width>
+                        {column_widths}
+                        <thead><tr style:height=paned.then(|| pixels(layout.header_h))>
+                            <th class="dna-sheet-corner" aria-label="Row headings"></th>{headings}
+                        </tr></thead>
                         <tbody>{rows}</tbody>
                     </table>
                 }.into_any()

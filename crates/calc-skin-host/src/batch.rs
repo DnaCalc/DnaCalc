@@ -758,6 +758,28 @@ pub(crate) fn prepare(
                         part.clone().with_document(document)
                     }
                     PresentationChange::RemoveDoc { doc } => part.clone().without_document(*doc),
+                    PresentationChange::KeepSkin { skin, expect_view_rev } => {
+                        if *expect_view_rev != base.view {
+                            return Err(invalid("The workbook presentation changed. Try on the skin again."));
+                        }
+                        if skin.level != Level::Workbook || skin.id.trim().is_empty() || skin.name.trim().is_empty() {
+                            return Err(invalid("A workbook skin needs an ID and name"));
+                        }
+                        for page in skin.pages.values() {
+                            page.root.try_for_each_part(&mut |_, _, slots| {
+                                for bound in slots.values() {
+                                    crate::query::bound_source(state, bound)?;
+                                }
+                                Ok::<_, Refusal>(())
+                            })?;
+                        }
+                        let body = serde_json::to_string(skin)
+                            .map_err(|error| invalid(error.to_string()))?;
+                        part.clone().with_skin(Some(calc_doc_model::ViewSkin {
+                            id: skin.id.clone(),
+                            body,
+                        }))
+                    }
                     PresentationChange::PreferView { view, expect_view_rev } => {
                         if *expect_view_rev != base.view {
                             return Err(invalid("The view preferences have changed. Retry the edit."));

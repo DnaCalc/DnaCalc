@@ -485,6 +485,7 @@ pub fn workbook(
     file_control: AnyView,
 ) -> impl IntoView + use<> {
     chrome.studio.follow_workbook(session);
+    chrome.studio.follow_file_skin(session);
     let specs = registry.views();
     let views = chrome.views;
     let docks: Vec<_> = registry.docks().collect();
@@ -596,16 +597,19 @@ pub fn workbook(
             });
         }
     });
-    Effect::new(move |was_open: Option<bool>| {
-        let open = chrome.studio.editing();
-        if !open && was_open == Some(true) {
+    Effect::new(move |previous: Option<(bool, bool)>| {
+        let editing = chrome.studio.editing();
+        let trying = chrome.studio.trying();
+        if !editing && previous.is_some_and(|(was_editing, was_trying)| {
+            was_editing || was_trying != trying
+        }) {
             request_animation_frame(move || {
                 if let Some(stage) = stage_node.get_untracked() {
                     let _ = stage.focus();
                 }
             });
         }
-        open
+        (editing, trying)
     });
     let sheet = move || session.active().map(|at| Sheet(at.0, at.1));
     let switcher = specs.iter().map(|spec| {

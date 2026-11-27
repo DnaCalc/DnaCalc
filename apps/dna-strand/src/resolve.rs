@@ -19,6 +19,21 @@ pub enum ThemeError {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ContrastReading {
+    pub theme: Theme,
+    pub foreground: &'static str,
+    pub background: &'static str,
+    pub ratio: f64,
+    pub minimum: f64,
+}
+
+impl ContrastReading {
+    pub fn passes(self) -> bool {
+        self.ratio >= self.minimum
+    }
+}
+
 pub struct ResolvedTheme {
     theme: Theme,
     colours: BTreeMap<String, Rgb>,
@@ -32,9 +47,53 @@ impl ResolvedTheme {
             .copied()
             .or_else(|| self.theme.tokens().resolve(key))
     }
+
+    /// Check the selected palette and the default palettes of the other themes.
+    pub fn contrast_readings(&self) -> impl Iterator<Item = ContrastReading> + '_ {
+        SANCTIONED_PAIRS.iter().map(|pair| {
+            let colour = |token| {
+                if pair.theme == self.theme {
+                    self.colour(token)
+                } else {
+                    let key = if token == "red" { "red-ink" } else { token };
+                    pair.theme.tokens().resolve(key)
+                }
+                .expect("sanctioned Strand token")
+            };
+            ContrastReading {
+                theme: pair.theme,
+                foreground: pair.fg,
+                background: pair.bg,
+                ratio: contrast_ratio(colour(pair.fg), colour(pair.bg)),
+                minimum: pair.min_ratio,
+            }
+        })
+    }
+
+    pub fn check_contrast(&self) -> Result<(), ThemeError> {
+        if let Some(reading) = self.contrast_readings().find(|reading| !reading.passes()) {
+            return Err(ThemeError::Contrast {
+                foreground: reading.foreground,
+                background: reading.background,
+                ratio: reading.ratio,
+                minimum: reading.minimum,
+            });
+        }
+        Ok(())
+    }
 }
 
 pub fn resolve<'a>(
+    theme: Theme,
+    overrides: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<ResolvedTheme, ThemeError> {
+    let resolved = resolve_draft(theme, overrides)?;
+    resolved.check_contrast()?;
+    Ok(resolved)
+}
+
+/// Resolve a draft for inspection, including pairs that fail contrast.
+pub fn resolve_draft<'a>(
     theme: Theme,
     overrides: impl IntoIterator<Item = (&'a str, &'a str)>,
 ) -> Result<ResolvedTheme, ThemeError> {
@@ -66,20 +125,6 @@ pub fn resolve<'a>(
                 b: rgb as u8,
             },
         );
-    }
-    for pair in SANCTIONED_PAIRS.iter().filter(|pair| pair.theme == theme) {
-        let ratio = contrast_ratio(
-            resolved.colour(pair.fg).expect("sanctioned foreground"),
-            resolved.colour(pair.bg).expect("sanctioned background"),
-        );
-        if ratio < pair.min_ratio {
-            return Err(ThemeError::Contrast {
-                foreground: pair.fg,
-                background: pair.bg,
-                ratio,
-                minimum: pair.min_ratio,
-            });
-        }
     }
     Ok(resolved)
 }

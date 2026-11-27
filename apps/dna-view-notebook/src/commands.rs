@@ -155,6 +155,16 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
             Ok(())
         })
         .when("editing && writable"),
+        command("notebook.complete", "Show formula completions", &["Ctrl+Space"], |state, _| {
+            let assist = state.formula_editor.get_value().ok_or("Open a Notebook formula.")?;
+            assist.open_completion();
+            Ok(())
+        }).when("editing && writable"),
+        command("notebook.evaluate-part", "Evaluate formula selection", &["F9"], |state, _| {
+            let assist = state.formula_editor.get_value().ok_or("Open a Notebook formula.")?;
+            assist.evaluate_selection();
+            Ok(())
+        }).when("editing && writable"),
         command("notebook.anchor-reference", "Cycle reference anchors", &["F4"], |state, _| {
             let draft = state.session.edit().ok_or("Edit a formula first.")?;
             let editor = state.formula_editor.get_value();
@@ -389,6 +399,17 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
                 Ok(())
             },
         ),
+        command("notebook.follow-source", "Go to workbook source", &[], |state, action| {
+            let source: SourceRef = argument(action)?;
+            let snapshot = state.snapshot()?;
+            if let Some(item) = snapshot.chain.cells.iter().find(|item| snapshot.source(item.id) == Some(&source)) {
+                state.select(snapshot.part.stamp, item.id, Some(&source));
+                stage::reveal(item.id);
+            } else {
+                state.session.navigate(Target::Source(source));
+            }
+            Ok(())
+        }),
         command(
             "notebook.rows-page",
             "Show another page of rows",

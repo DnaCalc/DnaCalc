@@ -275,6 +275,7 @@ pub enum WorkbookQuery {
     },
     SpillBlockers { anchor: Key },
     DefinedName { scope: crate::NameScope, name: String },
+    FormulaNames { cells: Vec<Key> },
     Geometry {
         sheet: Sheet,
     },
@@ -283,6 +284,12 @@ pub enum WorkbookQuery {
     },
     TrialFor {
         at: Key,
+    },
+    EvaluateDraftPart {
+        at: Key,
+        formula: String,
+        start: usize,
+        len: usize,
     },
     ExpressionTree {
         at: Key,
@@ -305,6 +312,9 @@ pub enum WorkbookQuery {
     },
     ConsistentBindings {
         reads: Vec<crate::BindingRead>,
+    },
+    BoundInput {
+        bound: Bound,
     },
     PrintPlan {
         source: SourceRef,
@@ -572,6 +582,11 @@ pub enum PresentationChange {
         view: Option<ViewId>,
         expect_view_rev: Revision,
     },
+    /// Save the skin declaration in the workbook's authored presentation.
+    KeepSkin {
+        skin: Box<crate::SkinManifest>,
+        expect_view_rev: Revision,
+    },
     Bind {
         anchor: AnchorId,
         source: SourceRef,
@@ -656,6 +671,9 @@ pub struct DefinedNameText {
 pub struct DefinedNameFacts {
     pub definition: DefinedNameText,
     pub parameters: Option<Vec<String>>,
+    /// The direct range or spill anchor when the workbook name has a stable address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -727,6 +745,14 @@ pub enum Operation {
     Calculate { scope: SourceRef },
     CancelCalculation,
     ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
+    /// Freeze the leading bands before the confirmed active cell, or unfreeze the sheet.
+    ToggleFreezePanes {
+        workbook: WorkbookId,
+        at: Key,
+        /// The worksheet viewport has moved away from its leading row or column.
+        #[serde(default)]
+        off_origin: bool,
+    },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
     /// Pin the current publication for these page bindings without editing the workbook.
     PinBaseline { expected: Stamp, bounds: Vec<Bound>, budget: Budget },

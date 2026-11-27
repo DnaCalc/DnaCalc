@@ -103,7 +103,7 @@ mod graph;
 mod linked;
 pub use linked::{LinkedInputStamp, LinkedWorkbookSnapshot};
 mod name_change;
-pub use name_change::{NameChangeFailure, NameChangeRequest, mentions_name, valid_defined_name};
+pub use name_change::{NameChangeFailure, NameChangeRequest, cell_name_uses, mentions_name, valid_defined_name};
 mod pinned;
 mod random;
 mod read;
