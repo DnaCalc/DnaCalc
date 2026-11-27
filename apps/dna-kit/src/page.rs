@@ -6,8 +6,11 @@ use calc_skin::grid::Key;
 use calc_skin::query;
 use calc_skin::{
     Bound, Coverage, DocId, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
+    WorkbookCell,
 };
 use leptos::prelude::*;
+
+mod reader;
 
 #[derive(Clone, Copy)]
 pub struct PageInput {
@@ -83,15 +86,23 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
         }
         PageNode::Part { id, component, mut bind, props } => {
             let label = props.get("label").and_then(|value| value.as_str()).unwrap_or(&id).to_owned();
-            let source = match component.as_str() {
-                "value" | "input" => bind.remove("value"),
-                "data-frame" => bind.remove("rows"),
-                _ => None,
-            };
-            let body = match source {
-                Some(bound) => part(session, id.clone(), label.clone(), component.clone(), bound, mode.input),
-                None if matches!(component.as_str(), "value" | "input" | "data-frame") => missing(),
-                None => view! { <p class="dna-page-card">{label.clone()} " · Component unavailable"</p> }.into_any(),
+            let body = match component.as_str() {
+                "rich-prose" => {
+                    let text = props.get("text").and_then(|value| value.as_str()).unwrap_or_default();
+                    view! {
+                        <section class="dna-page-card" data-page-part=id.clone()>
+                            {reader::prose(session, text, &bind)}
+                        </section>
+                    }.into_any()
+                }
+                "value" | "input" | "data-frame" | "notebook-excerpt" => {
+                    let slot = if matches!(component.as_str(), "value" | "input") { "value" } else { "rows" };
+                    match bind.remove(slot) {
+                        Some(bound) => part(session, id.clone(), label.clone(), component, bound, mode.input),
+                        None => missing(),
+                    }
+                }
+                _ => view! { <p class="dna-page-card">{label.clone()} " · Component unavailable"</p> }.into_any(),
             };
             if let Some(author) = mode.author {
                 author_control(session, author, id, label, body)
@@ -128,7 +139,20 @@ fn author_control(
 }
 
 fn missing() -> AnyView {
-    view! { <p class="dna-page-missing">"Source missing"</p> }.into_any()
+    view! { <span class="dna-page-missing">"Source missing"</span> }.into_any()
+}
+
+fn resolve_bound(session: Session, bound: Bound) -> Memo<Live<SourceRef>> {
+    let source = session.following::<query::ResolveBound>();
+    let query = query::ResolveBound { bound };
+    Memo::new(move |_| match source.at(Some(query.clone())) {
+        Live::Ready(answer) if answer.coverage == Coverage::Complete => Live::Ready(answer.body),
+        Live::Ready(_) => Live::Refused(calc_skin::Refusal::Invalid {
+            reason: "Source missing".into(),
+        }),
+        Live::Refused(reason) => Live::Refused(reason),
+        Live::Loading | Live::Idle | Live::Outdated => Live::Loading,
+    })
 }
 
 fn part(
@@ -139,23 +163,10 @@ fn part(
     bound: Bound,
     input: Option<PageInput>,
 ) -> AnyView {
-    let source = session.following::<query::ResolveBound>();
-    let query = query::ResolveBound {
-        bound: bound.clone(),
-    };
-    let resolved = Memo::new(move |_| match source.at(Some(query.clone())) {
-        Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete) => {
-            Live::Ready(answer.body)
-        }
-        Live::Ready(_) => Live::Refused(calc_skin::Refusal::Invalid {
-            reason: "Source missing".into(),
-        }),
-        Live::Refused(reason) => Live::Refused(reason),
-        Live::Loading | Live::Idle | Live::Outdated => Live::Loading,
-    });
+    let resolved = resolve_bound(session, bound.clone());
     let contents = move || match resolved.get() {
         Live::Ready(source) => {
-            if component == "data-frame" {
+            if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
                 schedule(session, source)
             } else {
                 scalar(
@@ -173,6 +184,53 @@ fn part(
     view! { <section class="dna-page-card" data-page-part=id>{contents}</section> }.into_any()
 }
 
+fn single_cell(source: &SourceRef) -> Option<Key> {
+    if let SourceRef::Cells { areas, .. } = source
+        && let [area] = areas.as_slice()
+        && area.0 == area.1
+    {
+        return Some(area.0);
+    }
+    None
+}
+
+fn first_cell(session: Session, source: SourceRef) -> Memo<Option<WorkbookCell>> {
+    let rows = session.following::<query::Rows>();
+    Memo::new(move |_| {
+        match rows.at(Some(query::Rows {
+            source: source.clone(),
+            filter: Vec::new(),
+            sort: Vec::new(),
+            window: RowWindow {
+                offset: 0,
+                limit: 1,
+            },
+        })) {
+            Live::Ready(answer) if answer.coverage == Coverage::Complete => answer
+                .body
+                .rows
+                .into_iter()
+                .flat_map(|row| row.cells)
+                .next(),
+            _ => None,
+        }
+    })
+}
+
+fn shown_value(cell: WorkbookCell, label: Option<String>) -> impl IntoView {
+    let error = matches!(cell.shown.value, RawValue::Error(_));
+    let status = match cell.shown.provenance {
+        Provenance::AsSaved => Some("Saved value"),
+        Provenance::Stale { .. } => Some("Previous calculation"),
+        Provenance::Refused { .. } => Some("Calculation refused"),
+        _ => None,
+    };
+    view! {
+        <output class:dna-page-error=error aria-label=label>{cell.text}</output>
+        {status.map(|status| view! { <small>{status}</small> })}
+    }
+}
+
 fn scalar(
     session: Session,
     source: SourceRef,
@@ -180,51 +238,18 @@ fn scalar(
     bound: Bound,
     input: Option<PageInput>,
 ) -> AnyView {
-    let SourceRef::Cells { areas, .. } = &source else {
+    let Some(at) = single_cell(&source) else {
         return missing();
     };
-    let [area] = areas.as_slice() else {
-        return missing();
-    };
-    if area.0 != area.1 {
-        return missing();
-    }
-    let at = area.0;
-    let rows = session.following::<query::Rows>();
-    let read = move || match rows.at(Some(query::Rows {
-        source: source.clone(),
-        filter: Vec::new(),
-        sort: Vec::new(),
-        window: RowWindow {
-            offset: 0,
-            limit: 1,
-        },
-    })) {
-        Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete) => answer
-            .body
-            .rows
-            .into_iter()
-            .flat_map(|row| row.cells)
-            .next(),
-        _ => None,
-    };
-    let read = Memo::new(move |_| read());
+    let read = first_cell(session, source);
     let Some(input) = input else {
         return view! {
             <div class="dna-page-value">
                 <strong>{label}</strong>
-                {move || read.get().map(|cell| {
-                    let error = matches!(cell.shown.value, RawValue::Error(_));
-                    let status = match cell.shown.provenance {
-                        Provenance::AsSaved => Some("Saved value"),
-                        Provenance::Stale { .. } => Some("Previous calculation"),
-                        Provenance::Refused { .. } => Some("Calculation refused"),
-                        _ => None,
-                    };
-                    view! { <output class:dna-page-error=error>{cell.text}</output><small>{status}</small> }
-                })}
+                {move || read.get().map(|cell| shown_value(cell, None))}
             </div>
-        }.into_any();
+        }
+        .into_any();
     };
     let rules = session.following::<query::Rules>();
     let can_write = move || {

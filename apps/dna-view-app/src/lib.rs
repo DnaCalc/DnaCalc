@@ -4,8 +4,8 @@ use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::{self, ViewDocumentFacts, ViewPartFacts};
 use calc_skin::{
     AnchorId, Batch, Bound, Change, Coverage, DocId, InputCandidate, InputPolicy, InputSignal,
-    ModelChange, Page, PageNode, PageSchema, PresentationChange, Refusal, SourceRef, Stamp, ViewId,
-    address,
+    InventoryItem, InventoryKind, ModelChange, Page, PageNode, PageSchema, PresentationChange,
+    Refusal, SourceRef, Stamp, TableInfo, ViewId, address,
 };
 use dna_kit::commands::CommandId;
 use dna_kit::page::{PageAuthor, PageInput, PageRenderer};
@@ -22,6 +22,7 @@ const APP: &str = "app";
 const FORMS: &str = "forms";
 
 mod controls;
+mod rail;
 
 pub fn install(registry: &mut Registry) {
     registry.view(Surface::new(APP, "App"));
@@ -62,7 +63,7 @@ impl View for Surface {
     }
 
     fn commands(&self, session: Session) -> Vec<ViewCommand> {
-        let state = State::new(session);
+        let state = State::new(session, self.id == FORMS);
         self.state.set(Some(state));
         let id = self.spec().id;
         if self.id == APP {
@@ -216,8 +217,27 @@ impl View for Surface {
                     },
                 )
                 .when("writable"),
+                ViewCommand::new(&id, "forms.add-prose", "Add report prose", &[], move |invocation| {
+                    let text = invocation.args.get("text").and_then(serde_json::Value::as_str)
+                        .filter(|text| !text.trim().is_empty())
+                        .ok_or_else(|| "Enter some report prose.".to_owned())?;
+                    let link = invocation.args.get("bind_selected").and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false);
+                    state.add_prose(text, link)
+                }).when("writable"),
+                ViewCommand::new(&id, "forms.add-excerpt", "Add notebook excerpt", &[], move |_| {
+                    state.add_excerpt()
+                }).when("writable"),
             ];
             commands.extend(controls::commands(state, &id));
+            commands.extend(rail::commands(session, &id));
+            commands.push(
+                ViewCommand::new(&id, "forms.add-table", "Add table to App page", &[], move |invocation| {
+                    let table = serde_json::from_value(invocation.args.clone())
+                        .map_err(|_| "Choose a worksheet table.".to_owned())?;
+                    state.add_table(table)
+                }).when("writable"),
+            );
             commands
         }
     }
@@ -258,11 +278,17 @@ impl View for Surface {
 #[derive(Clone, Copy)]
 struct State {
     session: Session,
+    inventory: Option<Watch<query::Inventory>>,
 }
 
 impl State {
-    fn new(session: Session) -> Self {
-        Self { session }
+    fn new(session: Session, author: bool) -> Self {
+        Self {
+            session,
+            inventory: author.then(|| session.watch(query::Inventory {
+                kinds: vec![InventoryKind::Tables, InventoryKind::Charts],
+            })),
+        }
     }
 
     fn snapshot(self) -> Result<(Stamp, Option<ViewDocumentFacts>), String> {
@@ -388,9 +414,10 @@ impl State {
                 .label
                 .filter(|label| !label.trim().is_empty())
                 .unwrap_or_else(|| address.clone());
-            children.push(cell_part(
+            children.push(bound_part(
                 format!("cell-{i}"),
                 "input",
+                "value",
                 Bound { anchor, address },
                 label,
             ));
@@ -419,39 +446,126 @@ impl State {
     }
 
     fn add_cell(self, label: &str) -> Result<(), String> {
-        let (stamp, current) = self.snapshot()?;
-        let current = current.ok_or_else(|| "Create an App page first".to_owned())?;
-        let mut page = decode(&current)?;
         let at = self
             .session
             .active()
             .ok_or_else(|| "Select a worksheet cell".to_owned())?;
-        let address = qualified(self.session, at)
-            .ok_or_else(|| "The source worksheet is unavailable".to_owned())?;
         let formula = self
             .session
             .active_entry()
             .ok_or_else(|| "Reading the selected cell…".to_owned())?
             .formula;
-        let source = cell_source(at);
+        self.append_bound(
+            "Add cell to App page",
+            label,
+            if formula { "value" } else { "input" },
+            "value",
+            Area(at, at),
+        )
+    }
+
+    fn add_table(self, table: TableInfo) -> Result<(), String> {
+        let inventory = self.inventory.expect("Forms reports the workbook's inventory");
+        let Live::Ready(answer) = self.session.read(inventory) else {
+            return Err("Reading worksheet tables…".into());
+        };
+        if self.session.stamp().is_none_or(|stamp| stamp.workbook != answer.stamp.workbook)
+            || answer.coverage != Coverage::Complete
+            || !answer.body.iter().any(|item| matches!(item, InventoryItem::Table(known) if known == &table))
+        {
+            return Err("Choose a current workbook table.".into());
+        }
+        self.append_bound("Add table to App page", &table.name, "data-frame", "rows", table.area)
+    }
+
+    fn append_bound(
+        self,
+        action: &str,
+        label: &str,
+        component: &str,
+        slot: &str,
+        area: Area,
+    ) -> Result<(), String> {
+        let (bound, binding) = self.make_binding(area)?;
+        self.append_part(
+            action,
+            bound_part(String::new(), component, slot, bound, label.to_owned()),
+            Some(binding),
+        )
+    }
+
+    fn add_prose(self, text: &str, link: bool) -> Result<(), String> {
+        let mut bind = BTreeMap::new();
+        let mut change = None;
+        if link {
+            if !text.contains("{=value}") {
+                return Err("Put {=value} where the selected cell's result should appear.".into());
+            }
+            let at = self.session.active().ok_or_else(|| "Select a worksheet cell.".to_owned())?;
+            let (bound, binding) = self.make_binding(Area(at, at))?;
+            bind.insert("value".into(), bound);
+            change = Some(binding);
+        }
+        self.append_part(
+            "Add report prose",
+            PageNode::Part {
+                id: String::new(),
+                component: "rich-prose".into(),
+                bind,
+                props: BTreeMap::from([
+                    ("label".into(), "Report prose".into()),
+                    ("text".into(), text.into()),
+                ]),
+            },
+            change,
+        )
+    }
+
+    fn add_excerpt(self) -> Result<(), String> {
+        let selection = self.session.selection().ok_or_else(|| "Select notebook output cells.".to_owned())?;
+        if let SourceRef::Cells { areas, .. } = selection.target
+            && let [area] = areas.as_slice()
+        {
+            return self.append_bound("Add notebook excerpt", "Notebook excerpt", "notebook-excerpt", "rows", *area);
+        }
+        Err("Select one range of notebook output cells.".into())
+    }
+
+    fn make_binding(self, area: Area) -> Result<(Bound, PresentationChange), String> {
+        let mut address = qualified(self.session, area.0)
+            .ok_or_else(|| "The source worksheet is unavailable".to_owned())?;
+        if area.0 != area.1 {
+            address.push(':');
+            address.push_str(&calc_skin::address::address(area.1.2, area.1.3));
+        }
+        let source = SourceRef::Cells {
+            sheet: Sheet(area.0.0, area.0.1),
+            areas: vec![area],
+        };
         let Live::Ready(part) = self.session.view_part() else {
             return Err("Reading source anchors…".into());
         };
-        let mut part_ids = Vec::new();
-        page.root
-            .for_each_part(&mut |id, _, _| part_ids.push(id.to_owned()));
         let anchor = unused_anchors(&part.body).next()
             .expect("fewer anchors than u128 identifiers");
-        let id = (part_ids.len()..)
+        Ok((Bound { anchor, address }, PresentationChange::Bind { anchor, source }))
+    }
+
+    fn append_part(
+        self,
+        action: &str,
+        mut part: PageNode,
+        binding: Option<PresentationChange>,
+    ) -> Result<(), String> {
+        let (stamp, current) = self.snapshot()?;
+        let current = current.ok_or_else(|| "Create an App page first".to_owned())?;
+        let mut page = decode(&current)?;
+        let mut part_ids = Vec::new();
+        page.root.for_each_part(&mut |id, _, _| part_ids.push(id.to_owned()));
+        let PageNode::Part { id, .. } = &mut part else { unreachable!("appending a page control") };
+        *id = (part_ids.len()..)
             .map(|n| format!("cell-{n}"))
             .find(|id| !part_ids.contains(id))
             .expect("fewer controls than usize identifiers");
-        let part = cell_part(
-            id,
-            if formula { "value" } else { "input" },
-            Bound { anchor, address },
-            label.to_owned(),
-        );
         match &mut page.root {
             PageNode::Stack { children } => children.push(part),
             root => {
@@ -461,18 +575,13 @@ impl State {
                 };
             }
         }
-        self.submit(
-            stamp,
-            "Add cell to App page",
-            vec![
-                PresentationChange::Bind { anchor, source },
-                PresentationChange::PatchDoc {
-                    doc: current.id,
-                    expect_view_rev: stamp.view,
-                    body: encode(&page)?,
-                },
-            ],
-        )
+        let mut changes: Vec<_> = binding.into_iter().collect();
+        changes.push(PresentationChange::PatchDoc {
+            doc: current.id,
+            expect_view_rev: stamp.view,
+            body: encode(&page)?,
+        });
+        self.submit(stamp, action, changes)
     }
 
     fn submit(
@@ -569,11 +678,11 @@ fn cell_source(at: Key) -> SourceRef {
     }
 }
 
-fn cell_part(id: String, component: &str, bound: Bound, label: String) -> PageNode {
+fn bound_part(id: String, component: &str, slot: &str, bound: Bound, label: String) -> PageNode {
     PageNode::Part {
         id,
         component: component.to_owned(),
-        bind: BTreeMap::from([("value".into(), bound)]),
+        bind: BTreeMap::from([(slot.into(), bound)]),
         props: BTreeMap::from([("label".into(), serde_json::Value::String(label))]),
     }
 }
@@ -768,6 +877,7 @@ fn forms(session: Session, state: State) -> AnyView {
             <header class="dna-page-tools">
                 <h1>"Forms maker"</h1>
                 {button(session, "view.app", "Run App")}
+                {button(session, "forms.toggle-picker", "Classic Companion")}
             </header>
             {move || match page.get() {
                 Ok((document, id)) => {
@@ -805,7 +915,9 @@ fn forms(session: Session, state: State) -> AnyView {
                                 <button type="submit" data-command="forms.add-cell">"Add selected cell"</button>
                             </form>
                         </aside>
+                        {reader_tools(session)}
                         <div class="dna-page-author-layout">
+                            {rail::rail(session, state.inventory.expect("Forms has an inventory watch"))}
                             {controls::inspector(session, id, document.clone())}
                             <PageRenderer session document author=PageAuthor {
                                 document: id,
@@ -823,8 +935,39 @@ fn forms(session: Session, state: State) -> AnyView {
                     }.into_any(),
                 },
             }}
+            {rail::companion(session)}
         </div>
     }.into_any()
+}
+
+fn reader_tools(session: Session) -> impl IntoView {
+    let prose = NodeRef::<leptos::html::Textarea>::new();
+    let link = NodeRef::<leptos::html::Input>::new();
+    view! {
+        <details class="dna-page-card">
+            <summary>"Reader content"</summary>
+            <form on:submit=move |event: leptos::ev::SubmitEvent| {
+                event.prevent_default();
+                if let Some(text) = prose.get() {
+                    let _ = session.run(&Invocation {
+                        command: CommandId::new("forms.add-prose"),
+                        args: serde_json::json!({
+                            "text": text.value(),
+                            "bind_selected": link.get().is_some_and(|input| input.checked()),
+                        }),
+                    });
+                }
+            }>
+                <label>"Report prose" <textarea node_ref=prose required/></label>
+                <label>
+                    <input type="checkbox" node_ref=link/>
+                    "Show the selected cell’s value at {=value}"
+                </label>
+                <button type="submit" data-command="forms.add-prose">"Add report prose"</button>
+            </form>
+            {button(session, "forms.add-excerpt", "Add selected notebook outputs")}
+        </details>
+    }
 }
 
 fn draft_review(session: Session, draft: Draft) -> AnyView {

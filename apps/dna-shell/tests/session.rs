@@ -1426,3 +1426,148 @@ fn forms_commands_change_control_order_labels_and_sources_without_model_edits() 
     assert_eq!(controls()[0].0, "cell-1");
     assert_eq!(session.stamp().unwrap().model, model);
 }
+
+/// Native-only: picks worksheet sources served by the real workbook port.
+#[test]
+fn forms_maker_binds_a_table_candidate_as_a_read_only_frame() {
+    use calc_skin::query::Query;
+    use calc_skin::{Evidence, PageNode, SourceRef, WorkbookPort};
+    let page = Page::open();
+    let session = page.session;
+    session.open(
+        "Tables.xlsx".into(),
+        include_bytes!("../../../crates/calc-host/tests/fixtures/pivot/m5-structure/base-table.xlsx")
+            .to_vec(),
+    );
+    page.settle();
+    let sheet = session.summary().unwrap().sheets[0].sheet;
+    let structure = query::StructureOf { scope: SourceRef::Sheet(sheet) };
+    let answer = page.port.ask(structure.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap();
+    let Evidence::Derived { body, .. } = query::StructureOf::decode(answer).unwrap().body else {
+        panic!("worksheet structure was unavailable");
+    };
+    let table = body.tables.iter().find(|table| table.name == "TblSrc").unwrap();
+    let model = session.stamp().unwrap().model;
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("forms.add-table"),
+        args: serde_json::to_value(table).unwrap(),
+    }).unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    let doc: calc_skin::Page = serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let PageNode::Stack { children } = doc.root else { panic!("expected a page stack"); };
+    let [PageNode::Part { component, bind, .. }] = children.as_slice() else { panic!("expected a table control"); };
+    assert_eq!(component, "data-frame");
+    assert_eq!(bind["rows"].address, "Src!B2:E14");
+    assert_eq!(part.body.anchors[0].area, Some(table.area));
+    assert_eq!(session.stamp().unwrap().model, model);
+}
+
+/// Native-only: checks the candidate rail's terminal output query against the live graph.
+#[test]
+fn forms_maker_offers_only_formulas_with_no_readers_as_outputs() {
+    use calc_skin::query::Query;
+    use calc_skin::{SourceRef, WorkbookPort};
+
+    let page = Page::open();
+    let session = page.session;
+    for (column, entry) in [(1, "=1"), (2, "=A1+1"), (3, "=B1*2")] {
+        let at = page.at(1, column);
+        session.select_cell(at);
+        page.settle();
+        session.begin_edit(at, Some(entry.into()));
+        assert!(page.press("Enter", Focus::Editor));
+    }
+    let query = query::OutputCandidates { scope: SourceRef::Sheet(page.sheet) };
+    let answer = page.port.ask(query.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap();
+    assert_eq!(query::OutputCandidates::decode(answer).unwrap().body, [page.at(1, 3)]);
+    session.command("view.forms").unwrap();
+    session.command("forms.toggle-picker").unwrap();
+    session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("forms.pick-cell"),
+        args: serde_json::to_value(page.at(1, 3)).unwrap(),
+    }).unwrap();
+    page.settle();
+    assert_eq!(session.active(), Some(page.at(1, 3)));
+    assert!(session.edit().is_none());
+}
+/// Native-only: prepares a reader page and observes its live value through the real workbook port.
+#[test]
+fn forms_maker_authors_reader_prose_bound_to_the_selected_cell() {
+    use calc_skin::query::Query;
+    use calc_skin::{PageNode, RawValue, RowWindow, WorkbookPort};
+    let page = Page::open();
+    let session = page.session;
+    let at = page.at(1, 1);
+    session.begin_edit(at, Some("=2+5".into()));
+    assert!(page.press("Enter", Focus::Editor));
+    session.select_cell(at);
+    page.settle();
+    let model = session.stamp().unwrap().model;
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("forms.add-prose"),
+            args: serde_json::json!({"text": "Calculated amount {=value}", "bind_selected": true}),
+        })
+        .unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else {
+        panic!("missing view part");
+    };
+    let document: calc_skin::Page =
+        serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let PageNode::Stack { children } = document.root else {
+        panic!("expected a page");
+    };
+    let [
+        PageNode::Part {
+            component,
+            bind,
+            props,
+            ..
+        },
+    ] = children.as_slice()
+    else {
+        panic!("expected reader prose");
+    };
+    assert_eq!(component, "rich-prose");
+    assert_eq!(props["text"], "Calculated amount {=value}");
+    assert_eq!(bind["value"].address, "Sheet1!A1");
+    let source = query::ResolveBound {
+        bound: bind["value"].clone(),
+    };
+    let ask = |query| {
+        page.port
+            .ask(query, dna_skin_runtime::client::PAGE_BUDGET)
+            .unwrap()
+    };
+    let resolved = query::ResolveBound::decode(ask(source.request()))
+        .unwrap()
+        .body;
+    let rows = query::Rows {
+        source: resolved,
+        filter: Vec::new(),
+        sort: Vec::new(),
+        window: RowWindow {
+            offset: 0,
+            limit: 1,
+        },
+    };
+    let shown = query::Rows::decode(ask(rows.request())).unwrap().body;
+    assert_eq!(shown.rows[0].cells[0].text, "7");
+    assert!(matches!(
+        shown.rows[0].cells[0].shown.value,
+        RawValue::Number { .. }
+    ));
+    assert!(matches!(
+        shown.rows[0].cells[0].shown.provenance,
+        calc_skin::Provenance::Calculated { .. }
+    ));
+    assert_eq!(session.stamp().unwrap().model, model);
+}

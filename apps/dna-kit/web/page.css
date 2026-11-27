@@ -42,6 +42,13 @@
 }
 .dna-page-surface :is(button, input) { min-block-size: 36px; max-inline-size: 100%; }
 .dna-page-value { display: grid; }
+.dna-page-prose { white-space: pre-wrap; }
+.dna-page-live-value output {
+    padding-inline: var(--dna-gap-1);
+    border-radius: var(--dna-radius-card);
+    background: var(--dna-paper-2);
+    font-variant-numeric: tabular-nums;
+}
 .dna-page-value output { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
 .dna-page-card label { display: grid; gap: var(--dna-gap-1); }
 .dna-page-error, .dna-page-missing { color: var(--dna-red-ink); }
