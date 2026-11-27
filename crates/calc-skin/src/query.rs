@@ -86,9 +86,22 @@ query!(
 );
 query!(
     /// The workbook renderer's image of an exact worksheet chart.
-    ChartImageOf { object: SourceRef } => crate::ChartImage,
-    |q: &ChartImageOf| WorkbookQuery::ChartImage { object: q.object.clone() }
+    ChartImageOf { object: SourceRef, comparison: Option<crate::Bound> } => crate::ChartImage,
+    |q: &ChartImageOf| WorkbookQuery::ChartImage {
+        object: q.object.clone(), comparison: q.comparison.clone(),
+    }
 );
+query!(
+    /// The active and pinned numeric values for one bound source.
+    NumericComparisonOf { bound: crate::Bound } => Option<NumericComparison>,
+    |q: &NumericComparisonOf| WorkbookQuery::NumericComparison { bound: q.bound.clone() }
+);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NumericComparison {
+    pub baseline: u64,
+    pub current: u64,
+}
 query!(
     /// Workbook link caches, admitted RTD topics and bound volatile cells.
     SourceInventory => Sources, |_: &SourceInventory| WorkbookQuery::Sources);

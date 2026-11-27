@@ -11,6 +11,7 @@ pub enum InventoryKind {
     Tables,
     Charts,
     Shapes,
+    Scenarios,
     PivotTables,
     ExternalLinks,
     VbaProject,
@@ -38,6 +39,15 @@ pub struct ChartImage {
     pub label: String,
     pub data_url: String,
     pub uses_saved_values: bool,
+    #[serde(default)]
+    pub compares_baseline: bool,
+}
+
+/// A named Scenario Manager record on one Excel worksheet.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScenarioRef {
+    pub sheet: Sheet,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,6 +79,7 @@ pub enum InventoryItem {
     Shape {
         object: SourceRef,
     },
+    Scenario(ScenarioRef),
     PivotTable {
         name: String,
         area: Area,

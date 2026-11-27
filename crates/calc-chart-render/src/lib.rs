@@ -5,4 +5,4 @@ mod hierarchy;
 mod raster;
 mod svg;
 pub use raster::{export, install, raster};
-pub use svg::{chart_svg, escape};
+pub use svg::{chart_comparison_svg, chart_svg, escape};

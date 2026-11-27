@@ -565,6 +565,7 @@ pub(super) fn plan(
         .definitions()
         .all_validations()
         .ne(model.definitions().all_validations());
+    let scenarios_changed = base.definitions().all_scenarios().ne(model.definitions().all_scenarios());
     let merges_changed = base
         .definitions()
         .all_merges()
@@ -629,6 +630,7 @@ pub(super) fn plan(
         && !sparklines_changed
         && !links_changed
         && !validation_changed
+        && !scenarios_changed
         && !merges_changed
         && views.is_none()
         && edit.custom_xml.is_empty()
@@ -1589,6 +1591,28 @@ pub(super) fn plan(
                 current.as_ref().unwrap_or(&original),
                 model.definitions().validations(sheet.id()),
             )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
+    if scenarios_changed {
+        for sheet in sheets.iter().filter(|s| model.sheet_by_id(s.id()).is_some()) {
+            let was = base.definitions().scenarios(sheet.id());
+            let now = model.definitions().scenarios(sheet.id());
+            if was == now {
+                continue;
+            }
+            let previous = was.map_or(&[][..], |records| records.entries.as_slice());
+            let added = now
+                .filter(|records| records.unread == 0 && was.is_none_or(|old| old.unread == 0))
+                .and_then(|records| records.entries.strip_prefix(previous))
+                .filter(|records| !records.is_empty())
+                .ok_or_else(|| SaveRefusal::InvalidPart {
+                    part: sheet.part().name().to_owned(),
+                    detail: "Only appending complete Excel scenarios is supported (dc-zh096)".into(),
+                })?;
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out.rewritten.remove(sheet.part().name()).map(|bytes| original.with_bytes(bytes));
+            let bytes = super::scenario::append(current.as_ref().unwrap_or(&original), added)?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }

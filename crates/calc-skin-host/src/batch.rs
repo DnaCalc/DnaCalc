@@ -1,5 +1,5 @@
 use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
-use calc_doc_model::{ModelRoot, ViewAnchor};
+use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetScenario};
 use calc_host::value::{CellKey, GridArea};
 use calc_host::{
     Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource,
@@ -320,6 +320,7 @@ pub(crate) fn prepare(
     let mut inserted = None;
     let mut presentation = Vec::new();
     let mut warnings = Vec::new();
+    let mut scenario_changes = Vec::new();
     let removes_anchor = request.changes.iter().any(|change| {
         matches!(change, Change::Presentation(PresentationChange::RemoveAnchor { .. }))
     });
@@ -365,20 +366,60 @@ pub(crate) fn prepare(
                 }
                 ModelChange::EnterBound { bound, text } => {
                     let at = crate::query::bound_cell(state, bound)?;
-                    rules(&state.session, at)?;
-                    if matches!(before.cell(at), Some(calc_doc_model::CellInput::Formula(_))) {
-                        return Err(Refusal::Protected(source_area(GridArea::cell(at))));
-                    }
-                    let entries = prepare_entry(&state.session, at, text)?;
-                    if entries.iter().any(|entry| match entry {
-                        CellEdit::Clear { .. } => false,
-                        CellEdit::Set { input, .. } => matches!(input, calc_doc_model::CellInput::Formula(_)),
-                        _ => true,
-                    }) {
-                        return Err(invalid("A page input accepts literal values"));
-                    }
-                    edits.extend(entries);
+                    edits.extend(prepare_literal(&state.session, at, text)?);
                     areas.push(GridArea::cell(at));
+                }
+                ModelChange::ShowScenario { scenario } => {
+                    require_current_model(request, base.model)?;
+                    let scenario = crate::inventory::worksheet_scenarios(
+                        state.session.host(), scenario.sheet,
+                    ).find(|entry| entry.name == scenario.name)
+                        .ok_or_else(|| invalid("The worksheet scenario is unavailable"))?;
+                    for input in &scenario.inputs {
+                        let text = String::from_utf16(input.value.utf16_code_units())
+                            .map_err(|_| unavailable("dc-zh096", "This scenario’s input text"))?;
+                        edits.extend(prepare_literal(&state.session, input.at, &text)?);
+                        areas.push(GridArea::cell(input.at));
+                    }
+                }
+                ModelChange::SaveScenario { scenario, inputs } => {
+                    require_current_model(request, base.model)?;
+                    let change = save_scenario(state, scenario, inputs, &mut edits)?;
+                    scenario_changes.push(change);
+                }
+                ModelChange::ResetInputs { inputs } => {
+                    require_current_model(request, base.model)?;
+                    let host = state.session.host();
+                    let opening = host.loaded().model();
+                    let mut seen = BTreeSet::new();
+                    for bound in inputs {
+                        let at = crate::query::bound_cell(state, bound)?;
+                        if !seen.insert(at) {
+                            continue;
+                        }
+                        literal_target(&state.session, at)?;
+                        let original = host.source_at_open(at);
+                        let input = original.and_then(|at| opening.cell(at));
+                        if matches!(input, Some(CellInput::Formula(_)))
+                            || original.is_some_and(|at| opening.definitions().not_available(at, input.is_some()))
+                        {
+                            return Err(invalid("This input's opening value was not a worksheet literal"));
+                        }
+                        let area = GridArea::cell(at);
+                        if let Err(failure) = host.check_entry(at, input)
+                            && failure.style == calc_host::ErrorStyle::Stop
+                        {
+                            return Err(Refusal::Validation {
+                                target: source_area(area),
+                                reason: failure.to_string(),
+                            });
+                        }
+                        edits.push(match input {
+                            Some(input) => CellEdit::Set { at, input: input.clone() },
+                            None => CellEdit::Clear { area },
+                        });
+                        areas.push(area);
+                    }
                 }
                 ModelChange::RewriteFormulaRun {
                     at,
@@ -574,11 +615,11 @@ pub(crate) fn prepare(
         edits.push(CellEdit::View(Arc::new(part)));
     }
     let mut writes = Vec::new();
-    let mut properties = Vec::new();
+    let mut properties = scenario_changes;
     if !edits.is_empty() {
         let after = state.session.preview_edits(&edits).map_err(refusal)?;
         if !paste_areas.is_empty() {
-            properties = paste_properties(&before, &after, &paste_areas, &edits);
+            properties.extend(paste_properties(&before, &after, &paste_areas, &edits));
         }
         properties.extend(column_properties(&before, &after, &edits));
         let mut changed = BTreeSet::new();
@@ -623,6 +664,103 @@ fn prepare_entry(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<C
         },
         other => refusal(other),
     })
+}
+
+fn prepare_literal(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<CellEdit>, Refusal> {
+    literal_target(session, at)?;
+    let entries = prepare_entry(session, at, text)?;
+    if entries.iter().any(|entry| match entry {
+        CellEdit::Clear { .. } => false,
+        CellEdit::Set { input, .. } => matches!(input, CellInput::Formula(_)),
+        _ => true,
+    }) {
+        return Err(invalid("A page input accepts literal values"));
+    }
+    Ok(entries)
+}
+
+fn literal_target(session: &HostSession, at: CellKey) -> Result<(), Refusal> {
+    rules(session, at)?;
+    if matches!(session.host().model().cell(at), Some(CellInput::Formula(_))) {
+        return Err(Refusal::Protected(source_area(GridArea::cell(at))));
+    }
+    Ok(())
+}
+
+fn save_scenario(
+    state: &State,
+    scenario: &ScenarioRef,
+    inputs: &[Bound],
+    edits: &mut Vec<CellEdit>,
+) -> Result<ModelPropertyDiff, Refusal> {
+    let host = state.session.host();
+    let id = crate::query::checked_sheet(host, scenario.sheet)?;
+    if host.sheet_contents_protected(id) {
+        return Err(Refusal::Protected(SourceRef::Sheet(scenario.sheet)));
+    }
+    if scenario.name.is_empty() || scenario.name.encode_utf16().count() > 255 {
+        return Err(invalid("Enter a scenario name of 1–255 characters"));
+    }
+    let mut records = edits.iter().rev().find_map(|edit| match edit {
+        CellEdit::Scenarios { sheet, records } if *sheet == id => records.as_ref(),
+        _ => None,
+    }).or_else(|| host.model().definitions().scenarios(id)).cloned().unwrap_or_default();
+    if records.unread != 0 {
+        return Err(unavailable("dc-zh096", "Adding a scenario to unread Scenario Manager records"));
+    }
+    let folded = calc_doc_model::value::fold_workbook_name(&scenario.name);
+    if records.entries.iter().any(|known| calc_doc_model::value::fold_workbook_name(&known.name) == folded) {
+        return Err(invalid("A scenario with that name already exists on the worksheet"));
+    }
+    let mut cells = BTreeSet::new();
+    for bound in inputs {
+        let at = crate::query::bound_cell(state, bound)?;
+        if at.sheet() == id {
+            cells.insert(at);
+        }
+    }
+    if !(1..=32).contains(&cells.len()) {
+        return Err(invalid("Choose a worksheet with 1–32 changing cells on this App page"));
+    }
+    let mut changing = Vec::with_capacity(cells.len());
+    let mut values = Vec::with_capacity(cells.len());
+    for at in cells {
+        let current = host.model().cell(at);
+        let display = entry_text(current);
+        let text = match current {
+            Some(CellInput::Text(text)) => {
+                let text = String::from_utf16(text.text().utf16_code_units())
+                    .map_err(|_| unavailable("dc-zh096", "This scenario’s input text"))?;
+                format!("'{text}")
+            }
+            _ => display.clone(),
+        };
+        let replay = prepare_literal(&state.session, at, &text)?;
+        let same = match replay.as_slice() {
+            [CellEdit::Set { input, .. }] => Some(input) == current,
+            [CellEdit::Clear { .. }] => current.is_none(),
+            _ => false,
+        };
+        let value: Vec<u16> = text.encode_utf16().collect();
+        if value.len() > 255 || !same {
+            return Err(unavailable("dc-zh096", "Storing this changing cell exactly in Excel Scenario Manager"));
+        }
+        let number_format = host.styles().cell_formats.get(host.cell_style(at) as usize)
+            .and_then(|format| format.number_format_id).unwrap_or(0);
+        changing.push(ScenarioInput {
+            at, value: calc_doc_model::value::ExcelText::from_utf16_code_units(value),
+            number_format, deleted: false, undone: false,
+        });
+        values.push((Key::of(at), display));
+    }
+    records.entries.push(WorksheetScenario {
+        name: scenario.name.clone(),
+        hidden: false,
+        locked: false,
+        inputs: changing,
+    });
+    edits.push(CellEdit::Scenarios { sheet: id, records: Some(records) });
+    Ok(ModelPropertyDiff::AddedScenario { scenario: scenario.clone(), values })
 }
 
 fn encode_document(body: &serde_json::Value) -> Result<String, Refusal> {

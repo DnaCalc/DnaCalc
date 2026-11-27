@@ -234,7 +234,10 @@ pub enum WorkbookQuery {
     },
     ChartImage {
         object: SourceRef,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        comparison: Option<Bound>,
     },
+    NumericComparison { bound: Bound },
     Sources,
     Deps {
         of: SourceRef,
@@ -455,6 +458,15 @@ pub enum ModelChange {
         bound: Bound,
         text: String,
     },
+    /// Insert the changing values of an existing worksheet scenario in one workbook edit.
+    ShowScenario { scenario: crate::ScenarioRef },
+    /// Capture the current authored literal values in the worksheet's native Scenario Manager.
+    SaveScenario {
+        scenario: crate::ScenarioRef,
+        inputs: Vec<Bound>,
+    },
+    /// Restore the exact authored literals from the open workbook to the chosen bound inputs.
+    ResetInputs { inputs: Vec<Bound> },
     ClearContents {
         areas: Vec<Area>,
     },
@@ -567,6 +579,10 @@ pub enum ModelProperty {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPropertyDiff {
+    AddedScenario {
+        scenario: crate::ScenarioRef,
+        values: Vec<(Key, String)>,
+    },
     WorksheetInserted { sheet: Sheet, name: String },
     CellFormat {
         at: Key,
@@ -646,6 +662,8 @@ pub enum Operation {
     CancelCalculation,
     ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
+    /// Pin the current publication for these page bindings without editing the workbook.
+    PinBaseline { expected: Stamp, bounds: Vec<Bound>, budget: Budget },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

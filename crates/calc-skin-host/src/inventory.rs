@@ -3,7 +3,7 @@ use calc_doc_model::{ExternalBook, SheetKind, Table};
 use calc_host::HostState;
 use calc_skin::grid::{Area, Sheet};
 use calc_skin::{
-    ExternalLink, InventoryItem, InventoryKind, NameScope, Refusal, SheetVisibility, SourceRef,
+    ExternalLink, InventoryItem, InventoryKind, NameScope, Refusal, ScenarioRef, SheetVisibility, SourceRef,
     TableInfo,
 };
 
@@ -83,6 +83,14 @@ pub(crate) fn inventory(
                 })?;
             }
         }
+        if wanted(InventoryKind::Scenarios) {
+            for scenario in worksheet_scenarios(host, id) {
+                add(InventoryItem::Scenario(ScenarioRef {
+                    sheet: id,
+                    name: scenario.name.clone(),
+                }))?;
+            }
+        }
     }
     if wanted(InventoryKind::Names) {
         for name in definitions.name_table().definitions() {
@@ -116,6 +124,21 @@ pub(crate) fn inventory(
         add(InventoryItem::VbaProject)?;
     }
     Ok(items)
+}
+
+pub(crate) fn worksheet_scenarios(
+    host: &HostState,
+    sheet: Sheet,
+) -> impl Iterator<Item = &calc_doc_model::WorksheetScenario> {
+    let id = sheet.id();
+    let visible = host.model().sheet_by_id(id).is_some_and(|entry| {
+        entry.kind() == SheetKind::Worksheet
+            && entry.visibility() == calc_doc_model::SheetVisibility::Visible
+    });
+    host.model().definitions().scenarios(id)
+        .into_iter()
+        .flat_map(|records| &records.entries)
+        .filter(move |scenario| visible && (!scenario.hidden || !host.sheet_contents_protected(id)))
 }
 
 pub(crate) fn sources(

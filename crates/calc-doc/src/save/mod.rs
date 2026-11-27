@@ -48,6 +48,7 @@ mod styles;
 mod template_merge;
 mod template_styles;
 pub(crate) mod validation;
+mod scenario;
 pub(crate) mod view_part;
 pub use template_merge::{merge as merge_template_sheets, rename_sheet as rename_template_sheet};
 #[cfg(test)]

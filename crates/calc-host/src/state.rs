@@ -1084,6 +1084,25 @@ impl HostState {
         crate::facts::imported_style(self.loaded.sheet(at.sheet()), &self.axis_edits, at)
     }
 
+    /// The source of a cell in the workbook as opened, excluding rows and columns inserted later.
+    pub fn source_at_open(&self, at: CellKey) -> Option<CellKey> {
+        self.loaded.model().sheet_by_id(at.sheet())?;
+        let (mut row, mut column) = (at.row(), at.column());
+        for edit in self.axis_edits.iter().rev().filter(|edit| edit.sheet() == at.sheet()) {
+            let position = match edit.axis() {
+                calc_doc_model::Axis::Rows => &mut row,
+                calc_doc_model::Axis::Columns => &mut column,
+            };
+            if edit.change() == calc_doc_model::AxisChange::Insert
+                && (edit.first()..=edit.last()).contains(position)
+            {
+                return None;
+            }
+            *position = calc_doc_model::source_position(*edit, *position)?;
+        }
+        CellKey::new(at.sheet(), row, column).ok()
+    }
+
     /// A literal plain number stored as text, with the worksheet's ignored-error ranges applied.
     pub fn number_as_text_warning(&self, cell: &crate::ProjectedCell) -> bool {
         let Some(calc_doc_model::CellInput::Text(text)) = cell.input() else {

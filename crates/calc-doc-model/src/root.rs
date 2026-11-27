@@ -849,6 +849,7 @@ impl ModelRoot {
         let mut data_model = None;
         let mut page_setups = Vec::new();
         let mut validations = Vec::new();
+        let mut scenarios = Vec::new();
         let mut merges = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
@@ -907,6 +908,15 @@ impl ModelRoot {
                 WorkbookOp::SetValidations { sheet, rules } => {
                     self.position_of(operation, *sheet)?;
                     validations.push((*sheet, rules.clone()));
+                }
+                WorkbookOp::SetScenarios { sheet, records } => {
+                    self.position_of(operation, *sheet)?;
+                    if records.iter().flat_map(|records| &records.entries).any(|entry| {
+                        entry.inputs.iter().any(|input| input.at.sheet() != *sheet)
+                    }) {
+                        return Err(ApplyError::SheetEdit { operation });
+                    }
+                    scenarios.push((*sheet, records.clone()));
                 }
                 WorkbookOp::SetMerges { sheet, areas } => {
                     self.position_of(operation, *sheet)?;
@@ -1118,6 +1128,7 @@ impl ModelRoot {
             || !sparklines.is_empty()
             || !page_setups.is_empty()
             || !validations.is_empty()
+            || !scenarios.is_empty()
             || !merges.is_empty()
             || !filters.is_empty()
             || !formats.is_empty()
@@ -1147,6 +1158,9 @@ impl ModelRoot {
             }
             for (sheet, rules) in validations {
                 next = next.with_validations(sheet, rules);
+            }
+            for (sheet, records) in scenarios {
+                next = next.with_scenarios(sheet, records);
             }
             for (sheet, areas) in merges {
                 next = next.with_merges(sheet, areas);

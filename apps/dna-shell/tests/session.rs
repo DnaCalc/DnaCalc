@@ -1557,6 +1557,181 @@ fn forms_and_app_share_the_page_and_history() {
     assert_eq!(page.shown(at), "42");
     assert_eq!(page.shown(page.at(2, 1)), "13");
 }
+
+/// Native-only: saves and applies an Excel Scenario Manager record through the App commands.
+#[test]
+fn app_saves_native_scenario_reviews_replay_and_undoes_it_once() {
+    use calc_skin::query::Query;
+    use calc_skin::{InventoryItem, InventoryKind, WorkbookPort};
+    use serde_json::{Value, json};
+
+    let page = Page::open();
+    let session = page.session;
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new(command),
+            args,
+        }).unwrap();
+        page.settle();
+    };
+    let set = |first: &str, second: &str| {
+        page.host.with_session(SelectionCause::Open, |book| {
+            for (row, text) in [(1, first), (2, second), (3, "=A1+A2")] {
+                let sheet = book.host().sheets()[0].id();
+                let at = calc_host::value::CellKey::new(sheet, row, 1).unwrap();
+                let edits = book.prepare_cell_entry(at, text).unwrap();
+                let receipt = book.dispatch(SkinIntent::Edit { edits });
+                assert!(receipt.accepted(), "{:?}", receipt.error);
+            }
+        });
+        page.settle();
+    };
+    set("2", "3");
+    run("view.forms", Value::Null);
+    run("forms.create", Value::Null);
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    run("forms.add-cell", json!("First input"));
+    session.select_cell(page.at(2, 1));
+    page.settle();
+    run("forms.add-cell", json!("Second input"));
+    run("forms.add-scenario-picker", Value::Null);
+    run("view.app", Value::Null);
+    let before = session.stamp().unwrap();
+    run("app.save-scenario", json!("What & If"));
+    let Seam::Review(preview) = session.seam() else {
+        panic!("review the scenario before saving");
+    };
+    assert!(preview.writes.is_empty());
+    assert!(matches!(
+        preview.properties.as_slice(),
+        [calc_skin::ModelPropertyDiff::AddedScenario { values, .. }] if values.len() == 2
+    ));
+    assert_eq!(session.stamp(), Some(before));
+    run("edit.apply-review", Value::Null);
+    let saved = page.host.with_session(SelectionCause::Open, |book| {
+        let mut bytes = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+        bytes
+    });
+    let doc = calc_doc::open(Arc::new(MemorySource::new(saved.clone())), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("<scenario name=\"What &amp; If\""));
+    assert!(xml.contains("r=\"A1\" val=\"2\""));
+    assert!(xml.contains("r=\"A2\" val=\"3\""));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    let inventory = query::Inventory { kinds: vec![InventoryKind::Scenarios] };
+    assert!(query::Inventory::decode(
+        page.port.ask(inventory.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap()
+    ).unwrap().body.is_empty());
+    session.open("Scenarios.xlsx".into(), saved);
+    page.settle();
+    run("view.app", Value::Null);
+    let answer = query::Inventory::decode(
+        page.port.ask(inventory.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap()
+    ).unwrap();
+    let [InventoryItem::Scenario(scenario)] = answer.body.as_slice() else {
+        panic!("expected the scenario loaded from the worksheet");
+    };
+    let at = |row| Key(scenario.sheet.0, scenario.sheet.1, row, 1);
+    set("4", "5");
+    assert_eq!(page.shown(at(3)), "9");
+    run("app.review-scenario", json!(scenario));
+    let Seam::Review(preview) = session.seam() else {
+        panic!("review the changing cells before applying");
+    };
+    assert_eq!(preview.writes.len(), 2);
+    assert_eq!(page.shown(at(3)), "9");
+    run("edit.apply-review", Value::Null);
+    assert_eq!(page.shown(at(3)), "5");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(at(3)), "9");
+    run("app.reset-inputs", Value::Null);
+    assert_eq!(page.shown(at(1)), "2");
+    assert_eq!(page.shown(at(2)), "3");
+    assert_eq!(page.shown(at(3)), "5");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(at(3)), "9");
+    set("4", "=5");
+    let before = session.stamp().unwrap();
+    run("app.review-scenario", json!(scenario));
+    assert_eq!(session.seam(), Seam::Idle);
+    assert_eq!(session.stamp(), Some(before));
+    assert_eq!(page.shown(at(1)), "4");
+}
+
+/// Native-only: compares a live formula and a bound line chart from the reopened workbook.
+#[test]
+fn app_pins_live_values_and_line_chart_without_editing_the_workbook() {
+    use calc_skin::query::Query;
+    use calc_skin::{SourceRef, WorkbookPort};
+    use serde_json::{Value, json};
+
+    let page = Page::open();
+    let session = page.session;
+    session.open(
+        "Charts.xlsx".into(),
+        include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec(),
+    );
+    page.settle();
+    let sheet = session.summary().unwrap().sheets[0].sheet;
+    let total = Key(sheet.0, sheet.1, 2, 4);
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new(command),
+            args,
+        }).unwrap();
+        page.settle();
+    };
+    run("calc.calculate", Value::Null);
+    assert_eq!(page.shown(total), "20");
+    run("view.forms", Value::Null);
+    run("forms.create", Value::Null);
+    session.select_cell(total);
+    page.settle();
+    run("forms.add-cell", json!("Total"));
+    run("forms.add-chart", json!(SourceRef::Object { sheet, name: "Chart 3".into() }));
+    run("view.app", Value::Null);
+    let stamp = session.stamp();
+    run("app.pin-baseline", Value::Null);
+    assert_eq!(session.stamp(), stamp);
+    let Live::Ready(part) = session.view_part() else { panic!("expected the App declaration"); };
+    let document: calc_skin::Page = serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let mut bindings = std::collections::BTreeMap::new();
+    document.root.for_each_part(&mut |_, component, bind| {
+        if let Some(bound) = bind.values().next() {
+            bindings.insert(component.to_owned(), bound.clone());
+        }
+    });
+    let numeric = query::NumericComparisonOf { bound: bindings["value"].clone() };
+    let chart = |sheet| query::ChartImageOf {
+        object: SourceRef::Object { sheet, name: "Chart 3".into() },
+        comparison: Some(bindings["chart"].clone()),
+    };
+    let ask = |query| page.port.ask(query, dna_skin_runtime::client::PAGE_BUDGET).unwrap();
+    let compared = || query::NumericComparisonOf::decode(ask(numeric.request())).unwrap().body;
+    let first = compared().expect("pin the calculated total");
+    assert_eq!((first.baseline, first.current), (20f64.to_bits(), 20f64.to_bits()));
+    page.host.with_session(SelectionCause::Open, |book| {
+        let at = calc_host::value::CellKey::new(sheet.id(), 2, 2).unwrap();
+        assert!(book.dispatch(SkinIntent::EnterCell { at, text: "30".into() }).accepted());
+    });
+    page.settle();
+    let current = compared().expect("compare against the pinned publication");
+    assert_eq!((current.baseline, current.current), (20f64.to_bits(), 38f64.to_bits()));
+    let overlay = query::ChartImageOf::decode(ask(chart(sheet).request())).unwrap().body;
+    assert!(overlay.compares_baseline && !overlay.uses_saved_values);
+    let saved = page.host.with_session(SelectionCause::Open, |book| {
+        let mut bytes = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+        bytes
+    });
+    session.open("Charts.xlsx".into(), saved);
+    page.settle();
+    assert_eq!(compared(), None);
+    let reopened_sheet = session.summary().unwrap().sheets[0].sheet;
+    assert!(!query::ChartImageOf::decode(ask(chart(reopened_sheet).request())).unwrap().body.compares_baseline);
+}
 /// Native-only: drives authoring commands and history through the real workbook service.
 #[test]
 fn forms_commands_change_control_order_labels_and_sources_without_model_edits() {
@@ -1874,7 +2049,7 @@ fn forms_maker_reopens_a_bound_workbook_chart_and_reads_its_image() {
         },
     };
     assert_eq!(query::ResolveBound::decode(ask(alias.request())).unwrap().body, resolved);
-    let drawing = query::ChartImageOf { object: resolved };
+    let drawing = query::ChartImageOf { object: resolved, comparison: None };
     let chart = query::ChartImageOf::decode(ask(drawing.request())).unwrap().body;
     assert!(chart.data_url.starts_with("data:image/svg+xml;base64,PHN2Zy"));
     assert!(!chart.label.is_empty());

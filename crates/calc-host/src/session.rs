@@ -1395,6 +1395,7 @@ impl HostSession {
                     | CellEdit::Merges { .. }
                     | CellEdit::ConditionalRules { .. }
                     | CellEdit::Validations { .. }
+                    | CellEdit::Scenarios { .. }
                     | CellEdit::ReviewNotes { .. }
                     | CellEdit::ReviewLinks { .. }
                     | CellEdit::AxisFormat(_)

@@ -70,6 +70,8 @@ pub use drawing::{
 mod cells;
 mod validation;
 pub use validation::Validation;
+mod scenario;
+pub use scenario::{ScenarioInput, WorksheetScenario, WorksheetScenarios};
 mod review;
 pub use review::{
     NoteSpan, NoteStyle, NoteStylePatch, ReviewLink, ReviewNote, ReviewSource, note_segments,
