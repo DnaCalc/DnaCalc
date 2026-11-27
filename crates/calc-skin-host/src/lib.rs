@@ -823,10 +823,14 @@ impl Connection {
         {
             return Err(Refusal::PolicyRefused);
         }
+        let locale = self.host.borrow().session.host().entry_environment().profile;
         let mut session = calc_host::HostSession::open_named(
             std::sync::Arc::new(calc_host::MemorySource::new(bytes)),
             &calc_host::OpenPolicy::default(),
-            calc_host::HostOptions::default(),
+            calc_host::HostOptions {
+                locale,
+                ..calc_host::HostOptions::default()
+            },
             &name,
         )
         .map_err(|error| Refusal::Excel {

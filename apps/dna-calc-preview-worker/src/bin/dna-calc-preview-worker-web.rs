@@ -1,7 +1,7 @@
 #[cfg(target_arch = "wasm32")]
 mod worker {
     use calc_host::{
-        HostOptions, HostSession, MemorySource, OpenPolicy, WorkBudget, blank_package,
+        FormatProfile, HostOptions, HostSession, MemorySource, OpenPolicy, WorkBudget, blank_package,
     };
     use calc_skin::{Envelope, Message, Origin, Packet, Refusal, ViewId, WritePolicy, decode};
     use calc_skin_host::{Connection, SkinHost};
@@ -55,10 +55,14 @@ mod worker {
     #[wasm_bindgen(start)]
     pub fn start() -> Result<(), JsValue> {
         let scope: DedicatedWorkerGlobalScope = js_sys::global().dyn_into()?;
+        let locale = scope.navigator().language().as_deref().and_then(FormatProfile::for_culture);
         let mut session = HostSession::open(
             Arc::new(MemorySource::new(blank_package())),
             &OpenPolicy::default(),
-            HostOptions::default(),
+            HostOptions {
+                locale,
+                ..HostOptions::default()
+            },
         )
         .map_err(|error| format!("{error:?}"))?;
         session.set_calculation_budget(WorkBudget::evaluations(64));

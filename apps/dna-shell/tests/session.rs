@@ -660,7 +660,8 @@ fn forms_and_app_share_the_page_and_history() {
         bind["value"].clone()
     }).collect();
 
-    change("view.app", serde_json::Value::Null);
+    assert!(page.press("Alt+Shift+5", Focus::Stage));
+    assert_eq!(session.view().0, "app");
     assert!(!page.press("9", Focus::Stage));
     assert!(session.edit().is_none());
     change("app.draft-input", serde_json::json!([bindings[0], "42"]));

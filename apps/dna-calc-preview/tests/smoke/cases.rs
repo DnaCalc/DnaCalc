@@ -452,7 +452,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Wait(Check::Value("name-box", "A1")),
             Action::Wait(Check::Js("Loan is open", "document.querySelector('.dna-book-title').textContent.includes('Loan')")),
             Action::Click("[data-command='view.app']"),
-            Action::Wait(Check::Rendered("[data-page-part='rate'] input", true)),
+            Action::Wait(Check::Js("Loan's rate is editable", "document.querySelector('[data-page-part=rate] input')?.disabled === false")),
             Action::Wait(Check::TextContains("[data-page-part='payment'] output", "9147.39")),
             Action::Into("[data-page-part='rate'] input", "12%"),
             Action::Wait(Check::TextContains("[data-dnacalc='app'] [role=status]", "Previous valid inputs")),
@@ -462,8 +462,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         checks: &[
             Check::TextContains("[data-page-part='payment'] output", "10286.12"),
             Check::TextContains("[data-page-part='schedule'] caption", "Rows 1–12 of 360"),
-            Check::Rendered(".dna-book-bridge", false),
-            Check::Rendered(".dna-book-strip", true),
+            Check::Rendered("[class~='dna-book-bridge']", false),
+            Check::Rendered("strip", true),
         ],
     },
     Case {

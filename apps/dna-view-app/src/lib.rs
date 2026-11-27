@@ -59,6 +59,8 @@ impl View for Surface {
         self.state.set(Some(state));
         let id = self.spec().id;
         if self.id == APP {
+            // Drafts belong to the session owner, even when App fields are rebuilt.
+            let _ = inputs(session);
             vec![
                 ViewCommand::new(
                     &id,

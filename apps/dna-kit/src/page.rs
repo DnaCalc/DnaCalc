@@ -4,7 +4,9 @@ use crate::commands::{CommandId, Invocation};
 use crate::{Live, Session};
 use calc_skin::grid::Key;
 use calc_skin::query;
-use calc_skin::{Bound, Coverage, Page, PageNode, Provenance, RawValue, RowWindow, SourceRef};
+use calc_skin::{
+    Bound, Coverage, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
+};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
@@ -235,7 +237,8 @@ fn schedule(session: Session, source: SourceRef) -> AnyView {
             sort: Vec::new(),
             window: RowWindow { offset: offset.get(), limit: PAGE },
         })) {
-            Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete) => {
+            Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete
+                | Coverage::Partial { why: PartialWhy::Window, .. }) => {
                 let page = answer.body;
                 let end = page.offset + page.rows.len() as u32;
                 let headings = page.headers.map(|labels| view! {
@@ -251,7 +254,7 @@ fn schedule(session: Session, source: SourceRef) -> AnyView {
                     </table>
                     <button type="button" disabled=page.offset == 0
                         on:click=move |_| offset.set(page.offset.saturating_sub(PAGE))>"Previous rows"</button>
-                    <button type="button" disabled=end >= page.matched_rows
+                    <button type="button" disabled={end >= page.matched_rows}
                         on:click=move |_| offset.set(end)>"Next rows"</button>
                 }.into_any()
             }
