@@ -91,17 +91,15 @@ impl Page {
     }
 
     fn press(&self, key: &str, focus: Focus) -> bool {
-        let (ctrl, alt, key) = match key.split_once('+') {
-            Some(("Ctrl", key)) => (true, false, key),
-            Some(("Alt", key)) => (false, true, key),
-            _ => (false, false, key),
-        };
+        let mut parts = key.split('+');
+        let key = parts.next_back().unwrap();
+        let modifiers: Vec<_> = parts.collect();
         let taken = self.session.key(
             &KeyInput {
                 key: key.to_owned(),
-                ctrl,
-                alt,
-                shift: false,
+                ctrl: modifiers.contains(&"Ctrl"),
+                alt: modifiers.contains(&"Alt"),
+                shift: modifiers.contains(&"Shift"),
                 meta: false,
                 alt_graph: false,
                 composing: false,
@@ -255,6 +253,40 @@ fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     assert!(page.press("j", Focus::Stage));
     assert_eq!(session.edit().unwrap().text, "j");
     assert!(!page.press("F10", Focus::Editor));
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn classic_shift_selects_a_rectangle_and_delete_clears_it_in_one_step() {
+    use calc_skin::{SourceRef, grid::Area};
+
+    let page = Page::open();
+    let session = page.session;
+    for (at, text) in [(page.at(1, 1), "1"), (page.at(2, 2), "=20+22"), (page.at(2, 3), "5")] {
+        session.select_cell(at);
+        page.settle();
+        session.edit_text(text.into());
+        session.commit_edit();
+        page.settle();
+    }
+    session.select_cell(page.at(1, 1));
+    page.settle();
+
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(1, 1)));
+    assert_eq!(session.selection().unwrap().target, SourceRef::Cells {
+        sheet: page.sheet,
+        areas: vec![Area(page.at(1, 1), page.at(2, 2))],
+    });
+    assert!(page.press("Delete", Focus::Stage));
+    assert_eq!(page.shown(page.at(1, 1)), "");
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    assert_eq!(page.shown(page.at(2, 3)), "5");
+
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(1, 1)), "1");
+    assert_eq!(page.shown(page.at(2, 2)), "42");
 }
 
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.

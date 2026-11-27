@@ -395,6 +395,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Text("mode", "Ready"),
         ],
     },
+    Case {
+        name: "Classic Shift arrows extend the visible range from the active cell",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e008}\u{e015}\u{e014}\u{e000}"),
+        ],
+        checks: &[
+            Check::Attr("[data-cell=B2]", "aria-selected", "true"),
+            Check::Attr("[data-cell=C3]", "aria-selected", "true"),
+            Check::Attr("[data-cell=D3]", "aria-selected", "false"),
+            Check::Value("name-box", "B2"),
+        ],
+    },
+    Case {
+        name: "Classic pointer drag selects the entire rectangle",
+        actions: &[Action::Drag("[data-cell=C4]", "[data-cell=A2]")],
+        checks: &[
+            Check::Count("[data-cell][aria-selected=true]", 9),
+            Check::Attr("[data-cell=C4]", "aria-selected", "true"),
+            Check::Attr("[data-cell=A2]", "aria-selected", "true"),
+            Check::Value("name-box", "C4"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -436,8 +460,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-key-tips",
         start: 16,
+        end: 18,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-selection",
+        start: 18,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 16,
+        core: PREVIEW_CASES.len() - 18,
         setup: &[],
     },
 ];

@@ -84,7 +84,7 @@
     min-width: 0;
     outline: none;
 }
-.dna-sheet table { table-layout: fixed; border-spacing: 0; border-collapse: separate; }
+.dna-sheet table { table-layout: fixed; border-spacing: 0; border-collapse: separate; user-select: none; }
 .dna-sheet td, .dna-sheet th {
     box-sizing: border-box;
     min-width: 3rem;
@@ -103,7 +103,10 @@
 }
 .dna-sheet thead { position: sticky; top: 0; z-index: 1; }
 .dna-sheet tbody th { position: sticky; inset-inline-start: 0; }
-.dna-sheet .dna-selected { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
+.dna-sheet .dna-selected:not(.dna-active) {
+    background: color-mix(in srgb, var(--dna-accent-ink) 12%, var(--dna-paper));
+}
+.dna-sheet .dna-active { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
 .dna-sheet .dna-number { text-align: end; }
 .dna-sheet .dna-error { color: var(--dna-red-ink); }
 .dna-sheet [data-provenance="refused"]::after { content: "Refused"; color: var(--dna-red-ink); }
