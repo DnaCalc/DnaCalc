@@ -103,6 +103,9 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         Ok(())
     });
     session.register(spec("edit.cancel", "Cancel", ""), move |_| {
+        if session.step_back_key_tips() {
+            return Ok(());
+        }
         if chrome.search.get_untracked() {
             chrome.search.set(false);
         } else if session.mode().editing() || !matches!(session.seam(), Seam::Idle)
@@ -114,6 +117,7 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
     session.register(
         spec("shell.search", "Search commands and cells", ""),
         move |_| {
+            session.dismiss_key_tips();
             chrome.search.update(|open| *open = !*open);
             Ok(())
         },
@@ -163,6 +167,27 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
             }
             session.bind(Layer::Shell, When::ALWAYS, &format!("Alt+Shift+{digit}"), command);
         }
+    }
+}
+
+fn key_tip_deck(session: Session) -> impl IntoView {
+    move || {
+        session.key_tip_path().map(|path| {
+            view! {
+                <div class="dna-book-key-tips" role="group" aria-label="Excel key tips"
+                    data-dnacalc="key-tips" data-key-tip-path=path>
+                    {session.key_tip_choices().into_iter().map(|tip| {
+                        let key = tip.key();
+                        view! {
+                            <button type="button" data-key-tip=key
+                                on:click=move |_| session.choose_key_tip(key)>
+                                <kbd>{key}</kbd>{tip.label}
+                            </button>
+                        }
+                    }).collect_view()}
+                </div>
+            }
+        })
     }
 }
 
@@ -375,7 +400,7 @@ pub fn workbook(
             if session.key(&key_input(&event), focus_of(&event)) {
                 event.prevent_default();
             }
-        }>
+        } on:keyup=move |event: leptos::ev::KeyboardEvent| session.key_released(&key_input(&event))>
             <header class="dna-book-mast">
                 <span class="dna-fe-mark" aria-hidden="true"><i></i><i></i></span>
                 <strong>"DNA Calc"</strong>
@@ -391,6 +416,7 @@ pub fn workbook(
                 {command_button(session, "calc.calculate", "Calculate")}
                 {command_button(session, "shell.details", "Details")}
                 {dock_buttons}
+                {key_tip_deck(session)}
             </nav>
             <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {
                 let id = session.view();

@@ -43,6 +43,31 @@
 }
 .dna-workbook button { cursor: pointer; padding: 0 var(--dna-gap-2); }
 .dna-workbook button:hover { background: var(--dna-paper-2); }
+.dna-book-deck { position: relative; }
+.dna-book-key-tips {
+    position: absolute;
+    z-index: 2;
+    inset-block-start: 100%;
+    inset-inline-start: var(--dna-gap-3);
+    max-inline-size: calc(100% - 2 * var(--dna-gap-3));
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dna-gap-1);
+    padding: var(--dna-gap-1);
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-chip);
+    background: var(--dna-paper-2);
+}
+.dna-book-key-tips kbd {
+    display: inline-block;
+    min-inline-size: 1.2em;
+    margin-inline-end: var(--dna-gap-1);
+    border: 1px solid var(--dna-accent-ink);
+    border-radius: var(--dna-radius-chip);
+    background: var(--dna-chrome);
+    color: var(--dna-chrome-ink);
+    text-align: center;
+}
 .dna-workbook :is(button, input, .dna-sheet):focus-visible {
     outline: 2px solid var(--dna-accent-ink);
     outline-offset: -2px;
@@ -59,7 +84,7 @@
     min-width: 0;
     outline: none;
 }
-.dna-sheet table { table-layout: fixed; border-spacing: 0; border-collapse: separate; }
+.dna-sheet table { table-layout: fixed; border-spacing: 0; border-collapse: separate; user-select: none; }
 .dna-sheet td, .dna-sheet th {
     box-sizing: border-box;
     min-width: 3rem;
@@ -78,7 +103,10 @@
 }
 .dna-sheet thead { position: sticky; top: 0; z-index: 1; }
 .dna-sheet tbody th { position: sticky; inset-inline-start: 0; }
-.dna-sheet .dna-selected { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
+.dna-sheet .dna-selected:not(.dna-active) {
+    background: color-mix(in srgb, var(--dna-accent-ink) 12%, var(--dna-paper));
+}
+.dna-sheet .dna-active { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
 .dna-sheet .dna-number { text-align: end; }
 .dna-sheet .dna-error { color: var(--dna-red-ink); }
 .dna-sheet [data-provenance="refused"]::after { content: "Refused"; color: var(--dna-red-ink); }

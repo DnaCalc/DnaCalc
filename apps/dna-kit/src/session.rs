@@ -19,7 +19,7 @@ use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
 use dna_skin_runtime::commands::{
     Chord, CommandError, CommandId, CommandSpec, CommandTable, Context, InputMode, Invocation,
-    KeyInput, Keymap, Layer, Resolution, When,
+    KeyInput, KeyTip, KeyTipAction, Keymap, Layer, Resolution, When,
 };
 use leptos::prelude::*;
 use std::any::{Any, TypeId};
@@ -56,6 +56,7 @@ struct Inner {
     notebook_profile: RefCell<Option<ViewId>>,
     passive_views: RefCell<Vec<ViewId>>,
     after_commit: RefCell<Option<Box<dyn FnOnce()>>>,
+    alt_tap: Cell<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -67,6 +68,7 @@ pub struct Session {
     seam: RwSignal<u64>,
     notice: RwSignal<u64>,
     view: RwSignal<ViewId>,
+    tip_path: RwSignal<Option<&'static str>>,
 }
 
 fn tick(signal: impl Update<Value = u64>) {
@@ -90,6 +92,7 @@ impl Session {
                 notebook_profile: RefCell::new(None),
                 passive_views: RefCell::default(),
                 after_commit: RefCell::new(None),
+                alt_tap: Cell::new(false),
             })),
             stamp: RwSignal::new(0),
             selection: RwSignal::new(0),
@@ -97,6 +100,7 @@ impl Session {
             seam: RwSignal::new(0),
             notice: RwSignal::new(0),
             view: RwSignal::new(view),
+            tip_path: RwSignal::new(None),
         };
         let summary = session.watch(query::Summary);
         session.inner().summary.set(Some(summary));
@@ -246,11 +250,13 @@ impl Session {
     pub fn mode(self) -> InputMode {
         self.edit.track();
         let view = self.view();
+        self.tip_path.track();
         self.mode_in(&view)
     }
 
     fn mode_in(self, view: &ViewId) -> InputMode {
         match self.peek(Client::mode) {
+            InputMode::Ready if self.tip_path.get_untracked().is_some() => InputMode::KeyTips,
             InputMode::Ready if self.notebook_profile(view) => InputMode::NotebookCommand,
             mode => mode,
         }
@@ -410,6 +416,7 @@ impl Session {
     /// Starts the draft at `at`: `Some(text)` replaces the entry (typing over a cell), `None`
     /// opens the entry the cell has, as soon as the host has said what it is.
     pub fn begin_edit(self, at: Key, text: Option<String>) {
+        self.dismiss_key_tips();
         match text {
             Some(text) => self.update(|client| client.begin_edit(at, Some(text), "")),
             None => {
@@ -421,6 +428,7 @@ impl Session {
 
     /// The editor's text changed. With no draft this starts one at the active cell.
     pub fn edit_text(self, text: String) {
+        self.dismiss_key_tips();
         self.update(|client| match (client.edit().is_some(), client.active()) {
             (true, _) => client.edit_text(text),
             (false, Some(at)) => {
@@ -507,6 +515,7 @@ impl Session {
     pub fn show(self, view: ViewId) {
         let previous = self.view.get_untracked();
         if previous != view {
+            self.tip_path.set(None);
             if self.notebook_profile(&previous) && self.edit().is_some() && matches!(self.seam(), Seam::Idle) {
                 self.cancel();
             }
@@ -543,6 +552,82 @@ impl Session {
             .keymap
             .borrow_mut()
             .bind(layer, when, chord, command);
+    }
+
+    pub fn set_key_tips(self, view: ViewId, tips: &'static [KeyTip]) {
+        self.inner().keymap.borrow_mut().set_key_tips(view, tips);
+    }
+
+    pub fn key_tip_path(self) -> Option<&'static str> {
+        self.tip_path.get()
+    }
+
+    pub fn dismiss_key_tips(self) {
+        if self.tip_path.get_untracked().is_some() {
+            self.tip_path.set(None);
+        }
+    }
+
+    pub fn key_tip_choices(self) -> Vec<KeyTip> {
+        let Some(path) = self.key_tip_path() else {
+            return Vec::new();
+        };
+        self.inner().keymap.borrow().key_tips(&self.view()).iter()
+            .copied()
+            .filter(|tip| tip.path.rsplit_once(' ').map_or("", |(parent, _)| parent) == path)
+            .filter(|tip| !tip.hidden)
+            .collect()
+    }
+
+    pub fn step_back_key_tips(self) -> bool {
+        let Some(path) = self.tip_path.get_untracked() else {
+            return false;
+        };
+        self.tip_path.set(match path {
+            "" => None,
+            _ => Some(path.rsplit_once(' ').map_or("", |(parent, _)| parent)),
+        });
+        true
+    }
+
+    pub fn toggle_key_tips(self) {
+        let context = self.context();
+        if matches!(context.mode, InputMode::Ready | InputMode::KeyTips)
+            && !self.inner().keymap.borrow().key_tips(&context.view).is_empty()
+        {
+            self.tip_path.update(|path| *path = path.is_none().then_some(""));
+        }
+    }
+
+    pub fn choose_key_tip(self, key: &str) {
+        let Some(path) = self.tip_path.get_untracked() else {
+            return;
+        };
+        let at = self.view.get_untracked();
+        let next = self.inner().keymap.borrow().key_tips(&at).iter().copied().find(|tip| {
+            tip.path.rsplit_once(' ').map_or("", |(parent, _)| parent) == path
+                && tip.key().eq_ignore_ascii_case(key)
+        });
+        if let Some(tip) = next {
+            match tip.action {
+                KeyTipAction::Group => self.tip_path.set(Some(tip.path)),
+                KeyTipAction::Command(id) => {
+                    self.dismiss_key_tips();
+                    let _ = self.command(id);
+                }
+                KeyTipAction::NotModelled { owner } => {
+                    self.dismiss_key_tips();
+                    self.refuse(Refusal::NotModelled { owner: owner.into(), what: tip.label.into() });
+                }
+            }
+        }
+    }
+
+    /// Bare Alt activates the Deck only after release, without swallowing Alt chords.
+    pub fn key_released(self, input: &KeyInput) {
+        if input.key == "Alt" && self.inner().alt_tap.replace(false) {
+            self.toggle_key_tips();
+        }
     }
 
     /// Registers a view's commands with their profile keys.
@@ -587,12 +672,28 @@ impl Session {
 
     /// A key press. `true` when the session took it and the browser must not.
     pub fn key(self, input: &KeyInput, focus: Focus) -> bool {
+        let context = self.context();
+        if input.key == "Alt" && focus == Focus::Stage
+            && matches!(context.mode, InputMode::Ready | InputMode::KeyTips)
+            && !input.ctrl && !input.shift && !input.meta && !input.alt_graph && !input.composing
+            && !self.inner().keymap.borrow().key_tips(&context.view).is_empty()
+        {
+            self.inner().alt_tap.set(true);
+            return true;
+        }
+        self.inner().alt_tap.set(false);
         match focus {
             Focus::Field if !input.alt || input.alt_graph => return false,
             Focus::ActionField if (!input.alt || input.alt_graph) && input.key != "Escape" => return false,
             _ => {}
         }
-        let context = self.context();
+        if focus == Focus::Stage && self.tip_path.get_untracked().is_some()
+            && !input.alt && !input.ctrl && !input.meta && !input.alt_graph && !input.composing
+            && (input.key.len() == 1 || input.key == "Enter")
+        {
+            self.choose_key_tip(&input.key);
+            return true;
+        }
         let resolution = self.inner().keymap.borrow().resolve(input, &context);
         match resolution {
             Resolution::Command(command) => {

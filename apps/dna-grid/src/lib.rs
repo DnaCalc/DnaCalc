@@ -6,8 +6,8 @@
 
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
-use calc_skin::{Interest, Provenance, RawValue, address, query};
-use dna_kit::{Live, Session, ViewCommand};
+use calc_skin::{Batch, Change, Interest, ModelChange, Provenance, RawValue, Selection, SourceRef, address, query};
+use dna_kit::{InputMode, Live, Session, ViewCommand};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
@@ -40,6 +40,43 @@ fn step(at: Key, rows: i64, columns: i64) -> Key {
     Key(sheet, generation, row, column)
 }
 
+fn rectangle(anchor: Key, to: Key) -> Area {
+    Area(
+        Key(anchor.0, anchor.1, anchor.2.min(to.2), anchor.3.min(to.3)),
+        Key(anchor.0, anchor.1, anchor.2.max(to.2), anchor.3.max(to.3)),
+    )
+}
+
+fn selected_areas(session: Session) -> Vec<Area> {
+    match session.selection().map(|selection| selection.target) {
+        Some(SourceRef::Cells { areas, .. }) => areas,
+        _ => Vec::new(),
+    }
+}
+
+fn select_range(session: Session, anchor: Key, to: Key) {
+    session.select(Selection {
+        seq: 0,
+        target: SourceRef::Cells {
+            sheet: Sheet(anchor.0, anchor.1),
+            areas: vec![rectangle(anchor, to)],
+        },
+        active: Some(anchor),
+        grouped: Vec::new(),
+        item: None,
+    });
+}
+
+fn far_corner(anchor: Key, areas: &[Area]) -> Key {
+    if let [Area(first, last)] = areas {
+        let row = if anchor.2 == first.2 { last.2 } else { first.2 };
+        let column = if anchor.3 == first.3 { last.3 } else { first.3 };
+        Key(anchor.0, anchor.1, row, column)
+    } else {
+        anchor
+    }
+}
+
 /// The grid's commands for `view`, with the keys of the Excel profile. A view that mounts the
 /// grid returns these from `View::commands`.
 pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> {
@@ -51,11 +88,40 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         })
         .when("mode:ready")
     };
+    let extend = |id, label, chord, rows, columns| {
+        ViewCommand::new(view, id, label, &[chord], move |_| {
+            let anchor = session.active().ok_or("No cell is selected.")?;
+            let to = far_corner(anchor, &selected_areas(session));
+            select_range(session, anchor, step(to, rows, columns));
+            Ok(())
+        })
+        .when("mode:ready")
+    };
     vec![
         moves("grid.move-down", "Move down", &["ArrowDown", "Enter"], 1, 0),
         moves("grid.move-up", "Move up", &["ArrowUp", "Shift+Enter"], -1, 0),
         moves("grid.move-left", "Move left", &["ArrowLeft", "Shift+Tab"], 0, -1),
         moves("grid.move-right", "Move right", &["ArrowRight", "Tab"], 0, 1),
+        extend("grid.extend-down", "Extend down", "Shift+ArrowDown", 1, 0),
+        extend("grid.extend-up", "Extend up", "Shift+ArrowUp", -1, 0),
+        extend("grid.extend-left", "Extend left", "Shift+ArrowLeft", 0, -1),
+        extend("grid.extend-right", "Extend right", "Shift+ArrowRight", 0, 1),
+        ViewCommand::new(view, "grid.clear-contents", "Clear Contents", &["Delete"], move |_| {
+            let areas = selected_areas(session);
+            let stamp = session.stamp().filter(|_| !areas.is_empty())
+                .ok_or("Select worksheet cells to clear.")?;
+            session.submit(Batch {
+                id: String::new(),
+                workbook: Some(stamp.workbook),
+                base: Some(stamp.model),
+                expects: Vec::new(),
+                selection_seq: None,
+                label: Some("Clear Contents".into()),
+                changes: vec![Change::Model(ModelChange::ClearContents { areas })],
+            });
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.edit-cell", "Edit the cell", &["F2"], move |_| {
             let at = session.active().ok_or("No cell is selected.")?;
             session.begin_edit(at, None);
@@ -77,9 +143,13 @@ pub fn mount(session: Session) -> impl IntoView {
     let page = Memo::new(move |_| active.get().map(page_of));
     let cells = session.following::<query::Cells>();
     let geometry = session.following::<query::Geometry>();
+    let selected = Memo::new(move |_| selected_areas(session));
+    let dragging = RwSignal::new(None::<Key>);
     view! {
         <div class="dna-sheet" data-dnacalc="grid" tabindex="0" node_ref=focus
             role="region" aria-label="Worksheet grid"
+            on:pointerup=move |_| dragging.set(None)
+            on:pointercancel=move |_| dragging.set(None)
         >
             {move || {
                 let area = page.get();
@@ -125,15 +195,43 @@ pub fn mount(session: Session) -> impl IntoView {
                             Provenance::External { .. } => "external",
                         }).unwrap_or("empty");
                         let location = format!("{}{row}", address::column_letters(column));
+                        let is_selected = move || active.get() == Some(key)
+                            || selected.with(|areas| areas.iter().any(|Area(first, last)| {
+                                (first.0, first.1) == (key.0, key.1)
+                                    && (first.2..=last.2).contains(&key.2)
+                                    && (first.3..=last.3).contains(&key.3)
+                            }));
                         view! {
                             <td role="gridcell" aria-colindex=column
-                                aria-selected=move || (active.get() == Some(key)).to_string()
-                                class:dna-selected=move || active.get() == Some(key)
+                                aria-selected=move || is_selected().to_string()
+                                class:dna-selected=is_selected
+                                class:dna-active=move || active.get() == Some(key)
                                 class:dna-number=number class:dna-error=error
                                 data-cell=location data-provenance=provenance
-                                on:click=move |_| {
+                                on:pointerdown=move |event: leptos::ev::PointerEvent| {
+                                    if event.button() == 0 && event.pointer_type() == "mouse" && session.mode() == InputMode::Ready {
+                                        let anchor = if event.shift_key() {
+                                            session.active().unwrap_or(key)
+                                        } else {
+                                            key
+                                        };
+                                        dragging.set(Some(anchor));
+                                    }
+                                }
+                                on:pointerenter=move |event: leptos::ev::PointerEvent| {
+                                    if event.buttons() & 1 != 0
+                                        && let Some(anchor) = dragging.get_untracked()
+                                    {
+                                        select_range(session, anchor, key);
+                                    }
+                                }
+                                on:click=move |event: leptos::ev::MouseEvent| {
                                     if let Some(grid) = focus.get() { let _ = grid.focus(); }
-                                    session.select_cell(key);
+                                    if event.shift_key() && session.mode() == InputMode::Ready {
+                                        select_range(session, session.active().unwrap_or(key), key);
+                                    } else {
+                                        session.select_cell(key);
+                                    }
                                 }
                                 on:dblclick=move |_| session.begin_edit(key, None)
                             >{text}</td>

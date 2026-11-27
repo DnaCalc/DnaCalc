@@ -370,6 +370,56 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic F10 exposes the Excel tab letters and Escape backs out one level",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}"),
+            Action::Wait(Check::Js(
+                "the Deck shows the Excel tab letters",
+                "Array.from(document.querySelectorAll('[data-key-tip]'), tip => tip.dataset.keyTip).join('') === 'FHNPMARWLQ'",
+            )),
+            Action::Keys("grid", "hv\u{e00c}"),
+        ],
+        checks: &[
+            Check::Text("mode", "Key tips"),
+            Check::Attr("[data-dnacalc='key-tips']", "data-key-tip-path", "H"),
+            Check::Js("the keys never entered a cell", "__dnaProbe().draft === null"),
+        ],
+    },
+    Case {
+        name: "Classic sequential Q opens command search from the Deck",
+        actions: &[Action::Keys("grid", "\u{e00c}q")],
+        checks: &[
+            Check::Rendered("[aria-label='Find a command or cell']", true),
+            Check::Absent("[data-dnacalc='key-tips']"),
+            Check::Text("mode", "Ready"),
+        ],
+    },
+    Case {
+        name: "Classic Shift arrows extend the visible range from the active cell",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e008}\u{e015}\u{e014}\u{e000}"),
+        ],
+        checks: &[
+            Check::Attr("[data-cell=B2]", "aria-selected", "true"),
+            Check::Attr("[data-cell=C3]", "aria-selected", "true"),
+            Check::Attr("[data-cell=D3]", "aria-selected", "false"),
+            Check::Value("name-box", "B2"),
+        ],
+    },
+    Case {
+        name: "Classic pointer drag selects the entire rectangle",
+        actions: &[Action::Drag("[data-cell=C4]", "[data-cell=A2]")],
+        checks: &[
+            Check::Count("[data-cell][aria-selected=true]", 9),
+            Check::Attr("[data-cell=C4]", "aria-selected", "true"),
+            Check::Attr("[data-cell=A2]", "aria-selected", "true"),
+            Check::Value("name-box", "C4"),
+        ],
+    },
+    Case {
         name: "A01 Loan batches inputs and recalculates the authored payment",
         actions: &[
             Action::WriteCast("Loan"),
@@ -456,10 +506,24 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "loan",
+        name: "classic-key-tips",
         start: 16,
+        end: 18,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-selection",
+        start: 18,
+        end: 20,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "loan",
+        start: 20,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 16,
+        core: PREVIEW_CASES.len() - 20,
         setup: &[],
     },
 ];
