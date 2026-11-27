@@ -1,0 +1,482 @@
+
+<!-- ============================ 03 ============================ -->
+<section class="s" id="stack">
+  <div class="sh"><span class="num"><i></i><b>03</b></span></div>
+  <h2>The stack, end to end</h2>
+  <p class="lead">Eight bands, one wire. The page never links the engine; the engine never knows a view exists. The layering is checked mechanically from <code>tools/xtask/architecture.json</code>.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w860">
+    <svg viewBox="0 0 900 690" role="img" aria-label="Exploded layer diagram from the views down to calc-value">
+      <text x="20" y="20" class="ink3 sm b">THE PAGE · one wasm bundle · apps/</text>
+      <!-- views -->
+      <rect x="60" y="30" width="700" height="56" rx="9" class="fteal"/>
+      <text x="76" y="53" class="white b">Views and tools</text>
+      <text x="76" y="72" class="white m">dna-view-classic · -inspector · -notebook · -app · -explorer</text>
+      <text x="776" y="54" class="ink3 sm">a view gets a</text><text x="776" y="69" class="ink m b">Session</text>
+      <!-- shell -->
+      <rect x="30" y="96" width="700" height="56" rx="9" class="fchrome"/>
+      <text x="46" y="119" class="cink b">Shell</text>
+      <text x="46" y="138" class="cink2 m">dna-shell · Mast · Deck · Bridge · Stage · Sheet Tabs · Strip</text>
+      <text x="746" y="120" class="ink3 sm">holds no</text><text x="746" y="135" class="ink3 sm">workbook state</text>
+      <!-- kit -->
+      <rect x="60" y="162" width="700" height="56" rx="9" class="fpaper steal w2"/>
+      <text x="76" y="185" class="ink b">Kit, grid, formula field, tokens</text>
+      <text x="76" y="204" class="ink2 m">dna-kit (Session, View, Registry, PageRenderer) · dna-grid · dna-formula-ui · dna-strand</text>
+      <!-- runtime -->
+      <rect x="30" y="228" width="700" height="56" rx="9" class="fpaper steal w2"/>
+      <text x="46" y="251" class="ink b">Client runtime · no DOM, no toolkit</text>
+      <text x="46" y="270" class="ink2 m">dna-skin-runtime · Client · Seam · Live&lt;T&gt; · CommandTable · Keymap · skin::validate</text>
+      <text x="746" y="252" class="ink3 sm">runs natively</text><text x="746" y="267" class="ink3 sm">in tests</text>
+      <!-- contract -->
+      <rect x="20" y="298" width="860" height="52" rx="9" class="famber"/>
+      <text x="36" y="320" class="onamber b">The contract · crates/calc-skin · linked on both sides of the wire</text>
+      <text x="36" y="339" class="onamber m">WorkbookRequest · WorkbookReply · Frame · Envelope { schema, request, message } · Packet { envelope, bytes }</text>
+      <!-- wire -->
+      <line x1="20" y1="382" x2="880" y2="382" class="samber w3 dash"/>
+      <text x="20" y="372" class="amberink sm b">THE WIRE · trait Carrier { send(&amp;Packet), receive() }</text>
+      <g>
+        <rect x="330" y="366" width="118" height="32" rx="9" class="fpaper steal w2"/><text x="389" y="386" text-anchor="middle" class="tealink sm b">Web Worker</text>
+        <rect x="456" y="366" width="112" height="32" rx="9" class="fpaper sgreen w2"/><text x="512" y="386" text-anchor="middle" class="greenink sm b">in-process</text>
+        <rect x="576" y="366" width="150" height="32" rx="9" class="fpaper samber w2"/><text x="651" y="386" text-anchor="middle" class="amberink sm b">WebView2 buffers</text>
+        <rect x="734" y="366" width="146" height="32" rx="9" class="fpaper sink3 dash w15"/><text x="807" y="386" text-anchor="middle" class="ink3 sm b">loopback socket</text>
+      </g>
+      <text x="20" y="424" class="ink3 sm b">THE HOST · native process or a Web Worker · crates/</text>
+      <!-- skin host -->
+      <rect x="30" y="434" width="700" height="56" rx="9" class="fchrome"/>
+      <text x="46" y="457" class="cink b">Level-1 serving</text>
+      <text x="46" y="476" class="cink2 m">calc-skin-host · SkinHost · Connection · queries · footprints · frames · tiles</text>
+      <text x="746" y="458" class="ink3 sm">one Connection</text><text x="746" y="473" class="ink3 sm">per participant</text>
+      <!-- hosts -->
+      <rect x="60" y="500" width="400" height="62" rx="9" class="fchrome2"/>
+      <text x="76" y="523" class="cink b">Level 1 · the workbook</text>
+      <text x="76" y="541" class="cink2 m">calc-host · HostSession · History</text>
+      <text x="76" y="555" class="cink2 m">selection · view part · print plan</text>
+      <rect x="470" y="500" width="290" height="62" rx="9" class="fgreen"/>
+      <text x="486" y="523" class="white b">Level 0 · formulas only</text>
+      <text x="486" y="541" class="white m">calc-formula-host · FormulaHost</text>
+      <text x="486" y="555" class="white m">calc-formula-kernel (also on the page)</text>
+      <!-- kernels -->
+      <rect x="30" y="574" width="700" height="56" rx="9" class="fpaper sink3 w15"/>
+      <text x="46" y="597" class="ink b">Engine, document and function libraries</text>
+      <text x="46" y="616" class="ink2 m">calc-engine · calc-doc · calc-doc-model · calc-fml · calc-func · calc-catalogue · calc-value</text>
+      <text x="746" y="598" class="ink3 sm">no UI crate</text><text x="746" y="613" class="ink3 sm">can link these</text>
+      <!-- boundary letters -->
+      <g class="m b">
+        <circle cx="400" cy="91" r="11" class="famber"/><text x="400" y="95" text-anchor="middle" class="onamber">A</text>
+        <circle cx="400" cy="223" r="11" class="famber"/><text x="400" y="227" text-anchor="middle" class="onamber">B</text>
+        <circle cx="200" cy="291" r="11" class="famber"/><text x="200" y="295" text-anchor="middle" class="onamber">C</text>
+        <circle cx="200" cy="382" r="11" class="famber"/><text x="200" y="386" text-anchor="middle" class="onamber">D</text>
+        <circle cx="260" cy="495" r="11" class="famber"/><text x="260" y="499" text-anchor="middle" class="onamber">E</text>
+        <circle cx="610" cy="495" r="11" class="famber"/><text x="610" y="499" text-anchor="middle" class="onamber">F</text>
+        <circle cx="260" cy="568" r="11" class="famber"/><text x="260" y="572" text-anchor="middle" class="onamber">G</text>
+      </g>
+      <text x="20" y="656" class="ink3 sm">Carriers: Web Worker is what the published preview uses; in-process is the test carrier (calc_skin::InProcess). WebView2 shared buffers exist in</text>
+      <text x="20" y="672" class="ink3 sm">calc-platform-desktop for the established desktop app and are not yet carrying this wire. The loopback socket for this wire is designed.</text>
+    </svg>
+    </div></div>
+    <figcaption>Letters A to G mark the boundaries in the table below. Each boundary is one type and one call.</figcaption>
+  </figure>
+
+  <h3>The boundaries, by name</h3>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>From → to</th><th>What crosses</th><th>The call</th></tr></thead>
+    <tbody>
+      <tr><td><b>A</b></td><td>View → kit</td><td class="wrapc">A view holds a <code>Session</code>, a <code>Copy</code> handle. It reads through typed watches and changes through one seam.</td><td class="wrapc"><code>session.following::&lt;query::Rows&gt;()</code><br><code>session.submit(Batch)</code><br><code>session.run(&amp;Invocation)</code></td></tr>
+      <tr><td><b>B</b></td><td>Kit → runtime</td><td class="wrapc"><code>Session</code> binds the runtime's <code>Client</code> to signals. Every client call returns <code>Changes</code>, so only the signals that moved are updated.</td><td class="wrapc"><code>Client::watch(Q) -&gt; Watch&lt;Q&gt;</code><br><code>Client::submit(Batch) -&gt; Changes</code><br><code>Client::commit_edit() -&gt; Changes</code></td></tr>
+      <tr><td><b>C</b></td><td>Runtime → contract</td><td class="wrapc">The client turns a typed query into its wire form with <code>Query::request()</code> and decodes the answer with <code>Query::decode()</code>.</td><td class="wrapc"><code>WorkbookRequest::{Ask, Watch, Select, Preview, Commit, Run}</code></td></tr>
+      <tr><td><b>D</b></td><td>Page → host</td><td class="wrapc">A <code>Packet</code>: a JSON <code>Envelope</code> carrying the schema version, plus optional binary tile bytes. A wrong schema decodes to <code>Refusal::SchemaMismatch</code>.</td><td class="wrapc"><code>client.take_outbox()</code> → carrier → <code>Connection::handle(Packet) -&gt; Packet</code><br>back: <code>Connection::next_packets()</code> → <code>client.deliver(packet)</code></td></tr>
+      <tr><td><b>E</b></td><td>Serving → workbook</td><td class="wrapc"><code>Connection</code> implements <code>WorkbookPort</code>. A batch is prepared into cell edits, then committed with its history entry.</td><td class="wrapc"><code>batch::prepare</code> → <code>HostSession::preview_edits(&amp;[CellEdit])</code><br><code>HostSession::dispatch_skin_edit(edits, HistoryEntry)</code><br><code>SkinHost::advance()</code> → <code>advance_calculation()</code></td></tr>
+      <tr><td><b>F</b></td><td>Serving → level 0</td><td class="wrapc">Formula trials for the docked Explorer. Only a user connection may ask; others get <code>Refusal::PolicyRefused</code>.</td><td class="wrapc"><code>FormulaHost::handle(FormulaQuery) -&gt; Result&lt;FormulaAnswer, Refusal&gt;</code></td></tr>
+      <tr><td><b>G</b></td><td>Workbook → engine</td><td class="wrapc"><code>calc-host</code> owns the <code>ModelRoot</code> and the calculation engine. A presentation edit is the document operation <code>WorkbookOp::EditView</code> and goes through the same history.</td><td class="wrapc"><code>HostSession</code> transactions over <code>calc-doc-model</code> and <code>calc-engine</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Two host levels, enforced by crate boundaries</h3>
+  <div class="cols">
+    <div class="card k-green"><h4>Level 0: formulas without a workbook</h4><p><code>calc-formula-host</code> evaluates one formula with test inputs, traces its parts and applies a conditional-format rule to the result. Its dependency closure may not contain <code>calc-engine</code> or <code>calc-host</code>. The standalone Formula Explorer runs here and ships no workbook engine.</p></div>
+    <div class="card k-teal"><h4>Level 1: the workbook</h4><p><code>calc-host</code> owns cells, the calculation graph, recalculation, the view part and the history. <code>calc-skin-host</code> serves it: <code>SkinHost::connect(origin, policy)</code> returns a <code>Connection</code> whose origin and write policy are fixed for its life.</p></div>
+  </div>
+
+  <h3>One edit going down, its recalculation coming back</h3>
+  <p>The user is in Classic on <code>B4</code>, types <code>=PMT(B2/12,B3*12,-B1)</code> and presses <kbd>Enter</kbd>. Every name in this diagram is a type or function in the repository.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w860">
+    <svg viewBox="0 0 960 668" role="img" aria-label="Sequence diagram of one cell edit and its recalculation">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--ink-2)"/></marker>
+        <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--green)"/></marker>
+      </defs>
+      <!-- heads -->
+      <g>
+        <rect x="10" y="10" width="130" height="44" rx="9" class="fteal"/><text x="75" y="29" text-anchor="middle" class="white b">dna-shell</text><text x="75" y="45" text-anchor="middle" class="white sm">key handler · grid</text>
+        <rect x="160" y="10" width="150" height="44" rx="9" class="fpaper steal w2"/><text x="235" y="29" text-anchor="middle" class="ink b">Session → Client</text><text x="235" y="45" text-anchor="middle" class="ink3 sm">dna-kit · runtime</text>
+        <rect x="330" y="10" width="120" height="44" rx="9" class="famber"/><text x="390" y="29" text-anchor="middle" class="onamber b">Carrier</text><text x="390" y="45" text-anchor="middle" class="onamber sm">Packet</text>
+        <rect x="470" y="10" width="150" height="44" rx="9" class="fchrome"/><text x="545" y="29" text-anchor="middle" class="cink b">Connection</text><text x="545" y="45" text-anchor="middle" class="cink2 sm">calc-skin-host</text>
+        <rect x="640" y="10" width="150" height="44" rx="9" class="fchrome2"/><text x="715" y="29" text-anchor="middle" class="cink b">HostSession</text><text x="715" y="45" text-anchor="middle" class="cink2 sm">calc-host</text>
+        <rect x="810" y="10" width="140" height="44" rx="9" class="fpaper sink3 w15"/><text x="880" y="29" text-anchor="middle" class="ink b">calc-engine</text><text x="880" y="45" text-anchor="middle" class="ink3 sm">graph · recalc</text>
+      </g>
+      <g class="sline w15 dash">
+        <line x1="75" y1="54" x2="75" y2="650"/><line x1="235" y1="54" x2="235" y2="650"/><line x1="390" y1="54" x2="390" y2="650"/><line x1="545" y1="54" x2="545" y2="650"/><line x1="715" y1="54" x2="715" y2="650"/><line x1="880" y1="54" x2="880" y2="650"/>
+      </g>
+      <!-- 1 -->
+      <line x1="75" y1="88" x2="231" y2="88" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="228" y="80" text-anchor="end" class="ink m">session.key(input, focus)</text>
+      <text x="242" y="84" class="ink3 sm">Keymap::resolve → edit.commit → CommandTable::run</text>
+      <rect x="242" y="96" width="296" height="22" rx="5" class="fambersoft"/><text x="250" y="111" class="ink sm"><tspan class="b">Seam</tspan>: Idle → Previewing · Client::commit_edit()</text>
+      <!-- 2 -->
+      <line x1="235" y1="146" x2="541" y2="146" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="242" y="138" class="ink m">WorkbookRequest::Preview { batch, depth: WritesOnly }</text>
+      <!-- 3 -->
+      <line x1="545" y1="178" x2="711" y2="178" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="552" y="170" class="ink m">preview_edits(&amp;edits)</text>
+      <text x="722" y="174" class="ink3 sm">prepares, does not commit</text>
+      <!-- 4 -->
+      <line x1="545" y1="212" x2="239" y2="212" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ah)"/>
+      <text x="250" y="204" class="ink m">WorkbookReply::Preview(Preview { writes, warnings, refusal })</text>
+      <rect x="20" y="222" width="430" height="22" rx="5" class="fambersoft"/><text x="28" y="237" class="ink sm">clean preview → <tspan class="b">Seam</tspan>: Committing · warnings would stop in Review(Preview)</text>
+      <!-- 5 -->
+      <line x1="235" y1="272" x2="541" y2="272" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="242" y="264" class="ink m">WorkbookRequest::Commit(Batch { changes: [Model(Enter { at, text })] })</text>
+      <text x="552" y="292" class="ink3 sm">check_write · CommandJournal::admit · batch::prepare</text>
+      <!-- 6 -->
+      <line x1="545" y1="318" x2="711" y2="318" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="552" y="310" class="ink m">dispatch_skin_edit(edits,</text><text x="552" y="334" class="ink m">  HistoryEntry { origin, kind, .. })</text>
+      <!-- 7 -->
+      <line x1="715" y1="360" x2="876" y2="360" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="722" y="352" class="ink sm">commit, mark dirty</text>
+      <!-- 8 -->
+      <line x1="545" y1="394" x2="239" y2="394" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ah)"/>
+      <text x="250" y="386" class="ink m">WorkbookReply::Stamp(Stamp { model: n+1, view, calc })</text>
+      <!-- 9 recalculation -->
+      <rect x="470" y="412" width="480" height="62" rx="9" class="fgreensoft sgreen w15"/>
+      <text x="482" y="430" class="greenink sm b">RECALCULATION · in slices, so typing stays responsive</text>
+      <line x1="545" y1="452" x2="711" y2="452" stroke="var(--green)" stroke-width="1.5" marker-end="url(#ahg)"/>
+      <text x="552" y="446" class="ink m">SkinHost::advance()</text>
+      <line x1="715" y1="462" x2="876" y2="462" stroke="var(--green)" stroke-width="1.5" marker-end="url(#ahg)"/>
+      <text x="722" y="456" class="ink m">advance_calculation()</text>
+      <!-- 10 -->
+      <text x="552" y="496" class="ink3 sm">next_frame(): re-answer only the watches whose footprint was touched</text>
+      <line x1="545" y1="526" x2="239" y2="526" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ahg)"/>
+      <text x="250" y="518" class="ink m">Message::Frame(Frame { stamp, events, updates }) + tile bytes</text>
+      <text x="250" y="544" class="ink3 sm">events: [History(entry)] · updates: [Tiles { watch, barrier }, Ready { watch, body }]</text>
+      <!-- 11 -->
+      <rect x="160" y="560" width="330" height="22" rx="5" class="fgreensoft"/><text x="168" y="575" class="ink sm">Client::deliver(packet): the frame is applied whole → Changes</text>
+      <line x1="235" y1="608" x2="79" y2="608" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ahg)"/>
+      <text x="84" y="600" class="ink sm">signals of the watches that moved</text>
+      <text x="20" y="634" class="ink sm">B4 repaints with <tspan class="b">Shown { value: 1580.17…, provenance: Calculated { calc } }</tspan>; the Strip returns to Ready; Ctrl+Z now names this entry.</text>
+    </svg>
+    </div></div>
+    <figcaption>Solid arrows are requests, dashed arrows are replies, green is the recalculation coming back. The page never sees a half-applied step: updates and events from one host step arrive in one <code>Frame</code>.</figcaption>
+  </figure>
+
+  <p>The first lines of that journey, as written in the runtime:</p>
+<pre><span class="k">pub fn</span> commit_edit(&amp;<span class="k">mut</span> self) -&gt; Changes {
+    <span class="k">let</span> Some(edit) = self.edit.clone() <span class="k">else</span> { <span class="k">return</span> Changes::default(); };
+    <span class="k">if</span> !matches!(self.seam(), Seam::Idle | Seam::Queued) { <span class="k">return</span> Changes::default(); }
+    <span class="k">let</span> batch = Batch {
+        id: String::new(),
+        workbook: Some(edit.workbook),
+        base: Some(edit.base),                 <span class="c">// the model revision the draft was started on</span>
+        expects: vec![cell_source(edit.at)],   <span class="c">// refuse if someone else changed this cell since</span>
+        selection_seq: None,
+        label: None,
+        changes: vec![Change::Model(ModelChange::Enter { at: edit.at, text: edit.text })],
+    };
+    self.start(batch, Submission::Draft)       <span class="c">// preview first, then commit when clean</span>
+}</pre>
+  <p class="src">apps/dna-skin-runtime/src/client.rs <span class="st built">Built</span></p>
+</section>
+
+<!-- ============================ 04 ============================ -->
+<section class="s" id="interface">
+  <div class="sh"><span class="num"><i></i><b>04</b></span></div>
+  <h2>The skin interface</h2>
+  <p class="lead">What a view author writes against. It is small on purpose: a trait, a handle, typed questions, and one way to change anything.</p>
+
+  <h3>View</h3>
+  <p>A view is a crate with an <code>install</code> function. This is the whole of Classic's view file. The grid, its commands and its watches live in <code>dna-grid</code>; the view composes them.</p>
+<pre><span class="k">struct</span> Classic;
+
+<span class="k">impl</span> View <span class="k">for</span> Classic {
+    <span class="k">fn</span> spec(&amp;self) -&gt; ViewSpec {
+        ViewSpec { id: ViewId(ID.into()), title: <span class="s">"Classic"</span>, profile: <span class="s">"excel-365-win-en-us"</span> }
+    }
+
+    <span class="k">fn</span> commands(&amp;self, session: Session) -&gt; Vec&lt;ViewCommand&gt; {
+        <span class="k">let</span> view = self.spec().id;
+        session.set_key_tips(view.clone(), excel_key_tips::EXCEL_KEY_TIPS);
+        <span class="k">let mut</span> commands = dna_grid::commands(&amp;view, session);
+        commands.extend(clipboard::commands(&amp;view, session));
+        commands.push(
+            ViewCommand::new(&amp;view, <span class="s">"classic.key-tips"</span>, <span class="s">"Key tips"</span>, &amp;[<span class="s">"F10"</span>], <span class="k">move</span> |_| {
+                session.toggle_key_tips();
+                Ok(())
+            })
+            .when(<span class="s">"!editing"</span>),
+        );
+        commands
+    }
+
+    <span class="k">fn</span> mount(&amp;self, session: Session) -&gt; MountedView {
+        MountedView::exact(dna_grid::mount(session))
+    }
+}
+
+<span class="k">pub fn</span> install(registry: &amp;<span class="k">mut</span> Registry) { registry.view(Classic); }</pre>
+  <p class="src">apps/dna-view-classic/src/lib.rs <span class="st built">Built</span></p>
+
+  <div class="tw"><table>
+    <thead><tr><th>View method</th><th>What it is for</th></tr></thead>
+    <tbody>
+      <tr><td><code>spec()</code></td><td>Identity, the title in the switcher, and the keymap profile the view's keys follow (<code>excel-365-win-en-us</code> or <code>jupyter</code>).</td></tr>
+      <tr><td><code>fit(&amp;Census) -&gt; Fit</code></td><td>Decided from counts before anything mounts: <code>Whole</code>, <code>Simplified { shown, total, explanation }</code> or <code>Declined { reason, alternatives }</code>. Each alternative is a command.</td></tr>
+      <tr><td><code>commands(Session)</code></td><td>Called once when the shell starts, before any mount. A command acts on the session, not on a mounted component, so a key, a button, a skin sequence and an agent's request do the same thing.</td></tr>
+      <tr><td><code>mount(Session) -&gt; MountedView</code></td><td>Returns <code>body</code>, <code>locate(&amp;Selection) -&gt; Located</code> (<code>Exact</code>, <code>Within { label }</code>, <code>Absent</code>) and <code>reveal(&amp;Target)</code>.</td></tr>
+      <tr><td><code>dock()</code>, <code>cell_editor()</code>, <code>can_open_preferred()</code>, <code>cancel_interaction()</code></td><td>Optional: offer a dockable instrument, opt out of the worksheet editor, open as the workbook's preferred view, cancel a view-local interaction on <kbd>Esc</kbd>.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The session</h3>
+  <p><code>Session</code> is a <code>Copy</code> handle that binds the runtime's <code>Client</code> to reactive signals. A reader runs again only for what it read: a frame that touches one watch wakes the readers of that watch, and an edit does not wake a reader of the selection.</p>
+  <div class="cols">
+    <div class="card"><h4>Read</h4><p><code>active()</code> <code>selection()</code> <code>edit()</code> <code>mode()</code> <code>seam()</code> <code>notice()</code> <code>summary()</code> <code>entry()</code> <code>view_part()</code></p></div>
+    <div class="card"><h4>Watch</h4><p><code>watch(Q)</code> <code>read(watch)</code> <code>unwatch(watch)</code> and <code>following::&lt;Q&gt;()</code>, a watch that re-aims when its query changes and is dropped with its component.</p></div>
+    <div class="card"><h4>Select and move</h4><p><code>select(Selection)</code> <code>select_cell(Key)</code> <code>go_to(address)</code> <code>navigate(Target)</code> <code>show(ViewId)</code></p></div>
+    <div class="card"><h4>Change</h4><p><code>begin_edit</code> <code>edit_text</code> <code>commit_edit</code> <code>cancel</code> <code>submit(Batch)</code> <code>submit_for_review(Batch)</code> <code>apply_review()</code> <code>operate(Operation)</code></p></div>
+    <div class="card"><h4>Commands and keys</h4><p><code>install(commands)</code> <code>run(&amp;Invocation)</code> <code>command(id)</code> <code>key(&amp;KeyInput, Focus)</code> <code>search(text)</code> <code>chords_for(command)</code></p></div>
+  </div>
+
+  <h3>Typed queries</h3>
+  <p>A view names a query type and receives that type's answer. JSON bodies and field-name reads are not allowed on either side: the host encodes each answer with the same type's <code>Query::encode</code>, and a body of the wrong shape decodes to <code>Refusal::Transport</code>, never to a default.</p>
+<pre><span class="k">pub trait</span> Query: Clone + PartialEq + <span class="k">'static</span> {
+    <span class="k">type</span> Answer: Clone + PartialEq + Serialize + DeserializeOwned + <span class="k">'static</span>;
+    <span class="k">fn</span> request(&amp;self) -&gt; WorkbookQuery;                       <span class="c">// the wire form</span>
+    <span class="k">fn</span> encode(answer: &amp;Self::Answer) -&gt; Result&lt;Value, Refusal&gt;; <span class="c">// the host calls this and nothing else</span>
+    <span class="k">fn</span> decode(answer: Answer&lt;Value&gt;) -&gt; Result&lt;Answer&lt;Self::Answer&gt;, Refusal&gt;;
+}
+
+<span class="c">// a component asking for one page of rows, as dna-kit's page renderer does</span>
+<span class="k">let</span> rows = session.following::&lt;query::Rows&gt;();
+<span class="k">match</span> rows.at(Some(query::Rows { source, filter: vec![], sort: vec![], window: RowWindow { offset: <span class="n">0</span>, limit: <span class="n">12</span> } })) {
+    Live::Ready(answer) =&gt; <span class="c">/* answer.body: RowPage, answer.coverage, answer.stamp */</span>,
+    Live::Refused(reason) =&gt; <span class="c">/* say why */</span>,
+    _ =&gt; <span class="c">/* Idle, Loading or Outdated */</span>,
+}</pre>
+  <p class="src">crates/calc-skin/src/query.rs · apps/dna-kit/src/page.rs <span class="st built">Built</span></p>
+
+  <p>The 25 workbook queries on the wire today. None is named after a view.</p>
+  <ul class="chips">
+    <li class="t">Summary</li><li class="t">Census</li><li class="t">Inventory</li><li class="t">Structure</li><li class="t">InputCandidates</li><li class="t">Sources</li><li class="t">Deps</li><li class="t">Issues</li><li class="t">Contributions</li><li class="t">Cells</li><li class="t">Rows</li><li class="t">Placement</li><li class="t">Geometry</li><li class="t">Formula</li><li class="t">TrialFor</li><li class="t">ExpressionTree</li><li class="t">Rules</li><li class="t">CalcState</li><li class="t">CalcChanges</li><li class="t">ViewPart</li><li class="t">Notes</li><li class="t">History</li><li class="t">Resolve</li><li class="t">ResolveBound</li><li class="t">PrintPlan</li>
+    <li class="x">Objects</li><li class="x">Proposals</li><li class="x">Find · Special · Stats</li>
+  </ul>
+  <p class="src">Solid: in <code>WorkbookQuery</code> today. Dashed: designed in SKIN_ARCHITECTURE.md section 4.6.</p>
+
+  <h3>Frames and watches</h3>
+  <p>A watched query records what it read. When a commit or a calculation touches that footprint, the host answers it again and puts every update and event of that step into one <code>Frame { stamp, events, updates }</code>. The client applies a frame whole before any signal fires. Cells travel differently: a watched <code>Cells</code> query arrives as binary tiles, with its completion barrier in the same frame as the other updates.</p>
+  <p>While a macro runs with <code>ScreenUpdating = False</code>, <code>next_frame</code> returns nothing, which is exactly what Excel shows.</p>
+
+  <h3>Preview and the seam</h3>
+  <p>Every change from every view goes through one place. The seam is a state of the client, not a convention each view remembers.</p>
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 780 190" role="img" aria-label="The seam state machine">
+      <defs><marker id="as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--ink-2)"/></marker></defs>
+      <g>
+        <rect x="14" y="60" width="96" height="46" rx="9" class="fpaper steal w2"/><text x="62" y="88" text-anchor="middle" class="ink b">Idle</text>
+        <rect x="160" y="60" width="106" height="46" rx="9" class="fpaper steal w2"/><text x="213" y="82" text-anchor="middle" class="ink b">Queued</text><text x="213" y="98" text-anchor="middle" class="ink3 sm">selection in flight</text>
+        <rect x="316" y="60" width="116" height="46" rx="9" class="fambersoft samber w2"/><text x="374" y="88" text-anchor="middle" class="ink b">Previewing</text>
+        <rect x="482" y="14" width="140" height="46" rx="9" class="fambersoft samber w2"/><text x="552" y="36" text-anchor="middle" class="ink b">Review(Preview)</text><text x="552" y="52" text-anchor="middle" class="ink3 sm">warnings: Apply or Cancel</text>
+        <rect x="482" y="106" width="140" height="46" rx="9" class="fgreensoft sgreen w2"/><text x="552" y="134" text-anchor="middle" class="ink b">Committing</text>
+        <rect x="672" y="60" width="96" height="46" rx="9" class="fpaper steal w2"/><text x="720" y="88" text-anchor="middle" class="ink b">Idle</text>
+      </g>
+      <g stroke="var(--ink-2)" stroke-width="1.5" fill="none" marker-end="url(#as)">
+        <path d="M110 83 H156"/><path d="M266 83 H312"/><path d="M432 74 C455 60 462 46 478 40"/><path d="M432 92 C455 106 462 120 478 126"/><path d="M552 60 V102"/><path d="M622 129 C650 122 656 100 668 90"/><path d="M622 37 C650 44 656 66 668 76"/>
+      </g>
+      <text x="14" y="130" class="ink3 sm">submit(batch)</text><text x="14" y="145" class="ink3 sm">commit_edit()</text>
+      <text x="560" y="84" class="ink3 sm">apply_review()</text>
+      <text x="632" y="24" class="ink3 sm">Esc: cancel</text>
+      <text x="632" y="150" class="ink3 sm">Stamp arrives</text>
+      <text x="14" y="178" class="ink3 sm">A draft survives a refused commit. It is dropped only by Esc, by its own commit, or by another workbook arriving.</text>
+    </svg>
+    </div></div>
+  </figure>
+  <p>The host computes the preview from the edits it prepared. <code>Preview::kind()</code> returns <code>Model</code>, <code>Presentation</code> or <code>Both</code> from the writes themselves, never from what the caller claimed. The Bridge shows the result as an inline label, <em>Model change · B4</em>, visible in the screenshot in section 5.</p>
+  <ul class="chips">
+    <li class="t">PreviewDepth::WritesOnly</li><li class="x">PreviewDepth::WithEffects → NotModelled { owner: "dc-zh096" }</li>
+  </ul>
+
+  <h3>The one history</h3>
+  <p><kbd>Ctrl+Z</kbd> first undoes inside an open text draft. Once committed, it undoes the top entry of the workbook's history, whichever view made it. A layout edit and a cell edit sit in the same list, each labelled with its <code>ChangeKind</code> and its <code>Origin</code>.</p>
+<pre><span class="k">pub struct</span> HistoryEntry {
+    <span class="k">pub</span> id: EntryId,
+    <span class="k">pub</span> at: Stamp,
+    <span class="k">pub</span> label: String,              <span class="c">// "Entered B4", "Edited layout"</span>
+    <span class="k">pub</span> origin: Origin,             <span class="c">// User { view } | Agent | Macro | Automation | Extension</span>
+    <span class="k">pub</span> kind: ChangeKind,           <span class="c">// Model | Presentation | Both</span>
+    <span class="k">pub</span> targets: Vec&lt;Target&gt;,
+    <span class="k">pub</span> cells_touched: u64,
+    <span class="k">pub</span> reversibility: Reversibility,
+    <span class="k">pub</span> group: Option&lt;String&gt;,
+    <span class="k">pub</span> unreviewed: bool,           <span class="c">// set for a WritePolicy::ApplyThenReview connection</span>
+}</pre>
+  <p class="src">crates/calc-skin/src/workbook.rs · the origin is stamped by the connection, not by the caller <span class="st built">Built</span></p>
+
+  <h3>Commands and keymaps</h3>
+  <p>Everything a person, a skin, a macro's view request or an agent can ask the page to do is a command with an identity, registered once in a <code>CommandTable</code> with the condition under which it can run. A key chord, a Deck button, the command search and a skin's named sequence all end in <code>CommandTable::run</code>. A view has no key handler.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 780 262" role="img" aria-label="Keymap layers in resolution order">
+      <text x="14" y="22" class="ink2 b">Keymap::resolve(&amp;KeyInput, &amp;Context) → Command(id) | Text | Unbound</text>
+      <g>
+        <rect x="14" y="36" width="560" height="30" rx="7" class="fred"/><text x="26" y="56" class="white b">1 · Safety</text><text x="150" y="56" class="white sm">Esc · Ctrl+Z · Ctrl+Y · Alt+Q. No skin or view rebinds these.</text>
+        <rect x="34" y="70" width="540" height="30" rx="7" class="fchrome"/><text x="46" y="90" class="cink b">2 · Editor</text><text x="150" y="90" class="cink2 sm">while a draft is open: Enter runs edit.commit</text>
+        <rect x="54" y="104" width="520" height="30" rx="7" class="fchrome"/><text x="66" y="124" class="cink b">3 · Component</text><text x="170" y="124" class="cink2 sm">a focused component, ahead of the skin and the view</text>
+        <rect x="74" y="138" width="500" height="30" rx="7" class="famber"/><text x="86" y="158" class="onamber b">4 · Skin</text><text x="190" y="158" class="onamber sm">the manifest's bindings, validated as a whole by set_skin</text>
+        <rect x="94" y="172" width="480" height="30" rx="7" class="fteal"/><text x="106" y="192" class="white b">5 · View</text><text x="210" y="192" class="white sm">excel-365-win-en-us in Classic · jupyter in Notebook</text>
+        <rect x="114" y="206" width="460" height="30" rx="7" class="fpaper steal w2"/><text x="126" y="226" class="ink b">6 · Shell</text><text x="230" y="226" class="ink2 sm">F9 calculate · Ctrl+Alt+1…4 and Alt+Shift+1…5 switch views</text>
+      </g>
+      <g>
+        <text x="596" y="52" class="ink3 sm">AltGr with a printable key,</text><text x="596" y="67" class="ink3 sm">and input-method composition,</text><text x="596" y="82" class="ink3 sm">are text and never commands.</text>
+        <text x="596" y="150" class="ink3 sm">Keymap::departures counts</text><text x="596" y="165" class="ink3 sm">the chords where a skin changes</text><text x="596" y="180" class="ink3 sm">what the view's profile does.</text>
+      </g>
+      <text x="14" y="254" class="ink3 sm">Conditions: view:&lt;id&gt; · mode:&lt;ready|enter|edit|point|…&gt; · editing · writable · ! for not · &amp;&amp; for and</text>
+    </svg>
+    </div></div>
+    <figcaption>Layers resolve top to bottom. <code>InputMode</code> (<code>Ready</code>, <code>Enter</code>, <code>Edit</code>, <code>Point</code>, <code>Object</code>, <code>KeyTips</code>, <code>NotebookCommand</code>) is the runtime's, derived from the client's draft and shown by the Strip.</figcaption>
+  </figure>
+
+  <h3>Capabilities and typed refusals</h3>
+  <p>A host says up front what it can do (<code>Capabilities { read_only, supported, platform_reserved_chords }</code>), and every failure is a typed <code>Refusal</code>. A view contains no platform branches: a missing capability arrives as data.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Refusal</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>NotModelled { owner, what }</code></td><td>Not implemented yet. Names the work package that owns it and counts as a failure in every statistic.</td></tr>
+      <tr><td><code>NotAvailableHere { capability, route }</code></td><td>This host cannot do it (a native add-in in a browser), with a route to one that can.</td></tr>
+      <tr><td><code>Conflict { base, conflicts }</code></td><td>Something in the batch's <code>expects</code> changed since <code>base</code>. Nothing is overwritten silently.</td></tr>
+      <tr><td><code>StaleSelection</code> · <code>ReadOnly</code> · <code>Protected(SourceRef)</code> · <code>Validation { target, reason }</code> · <code>Excel { reason }</code></td><td>Excel's own reasons an edit cannot land, kept apart from ours.</td></tr>
+      <tr><td><code>OverBudget { counts, alternatives }</code></td><td>The question was too large for its budget. Offers narrower scopes instead of hanging.</td></tr>
+      <tr><td><code>PolicyRefused</code></td><td>The connection's <code>WritePolicy</code> does not allow it: a <code>Look</code> or <code>Propose</code> connection cannot commit.</td></tr>
+      <tr><td><code>RequiresWorkbook</code> · <code>Invalid</code> · <code>Irreversible</code> · <code>SchemaMismatch</code> · <code>Transport</code></td><td>A level-0 formula that needs a workbook, a malformed request, an operation that cannot be undone, and the two wire failures.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================ 05 ============================ -->
+<section class="s" id="anatomy">
+  <div class="sh"><span class="num"><i></i><b>05</b></span></div>
+  <h2>Anatomy of a screen</h2>
+  <p class="lead">Two real screens, taken from dnacalc.com on 2026-11-27, with the shell part, component and query behind each region. Then three schematics for the views that are in the repository and not yet published.</p>
+
+  <h3>Classic <span class="st preview">Preview</span></h3>
+  <p><a href="https://dnacalc.com/app/preview/">dnacalc.com/app/preview/</a>, with a six-row loan model typed in and <kbd>F2</kbd> pressed on <code>B4</code>.</p>
+  <figure class="fig">
+    <div class="scroll"><div class="w640">
+      <div class="shot">
+        <img alt="The Classic preview with a loan model and the formula bar in Edit mode" src="{{IMG:classic-preview.webp}}" width="1400" height="728">
+        <span class="pin" style="left:25%;top:4%">1</span>
+        <span class="pin" style="left:83%;top:4%">2</span>
+        <span class="pin" style="left:56%;top:11.4%">3</span>
+        <span class="pin" style="left:10.5%;top:17.8%">4</span>
+        <span class="pin" style="left:55%;top:17.8%">5</span>
+        <span class="pin" style="left:84.3%;top:17.8%">6</span>
+        <span class="pin" style="left:29.5%;top:40.5%">7</span>
+        <span class="pin" style="left:9%;top:91.5%">8</span>
+        <span class="pin" style="left:6%;top:97%">9</span>
+      </div>
+    </div></div>
+    <figcaption>A real capture (docs/guide/skinning/shots/classic-preview.webp). The deployed preview is older than the repository: its Deck has four buttons and its switcher shows Classic only.</figcaption>
+  </figure>
+  <ol class="calls">
+    <li><b>Mast</b> (<code>dna-shell</code>). Workbook name and the host's state word, here <em>Edited</em>, from the <code>Summary</code> watch the session keeps.</li>
+    <li><b>View switcher and Go to</b>. One button per registered view, each a <code>view.&lt;id&gt;</code> command; <kbd>Alt+Q</kbd> runs <code>shell.search</code> over commands and cells.</li>
+    <li><b>Deck</b>. Each button names a command; its <code>data-command</code> attribute is the command identity (<code>edit.undo</code>, <code>edit.redo</code>, <code>calc.calculate</code>, <code>shell.details</code>).</li>
+    <li><b>Bridge · Name Box</b>. Shows the active cell from <code>Selection</code>; typing an address resolves it through the <code>Resolve</code> query.</li>
+    <li><b>Bridge · formula bar</b>. Bound to the session's one <code>EditSession</code>; the entry text comes from the <code>Formula { at }</code> watch on the active cell.</li>
+    <li><b>The seam, inline</b>. <em>Model change · B4</em>: the destination and the kind of the change in progress, before it is committed.</li>
+    <li><b>Stage · the sheet</b> (<code>dna-grid</code>). Watches <code>Cells</code> for the 36 by 18 page holding the active cell, and <code>Geometry</code> for its sheet. Arrows, <kbd>F2</kbd>, <kbd>Delete</kbd> are <code>grid.*</code> commands.</li>
+    <li><b>Sheet Tabs</b>. Sheet descriptors from <code>Summary</code>.</li>
+    <li><b>Strip</b>. Input mode (<em>Edit</em>), the calculation word from <code>CalcState</code>, where the selection is in this view, held notebook drafts, and the latest notice. It is not hidden under any skin.</li>
+  </ol>
+
+  <h3>Formula Explorer, skin 0 <span class="st preview">Preview</span></h3>
+  <p>Embedded at <a href="https://dnacalc.com/onecalc/">dnacalc.com/onecalc/</a>, opened from the link <code>#f=%3DPMT%286.5%25%2F12%2C360%2C-250000%29</code>. This page runs on host level 0: there is no workbook behind it.</p>
+  <figure class="fig">
+    <div class="scroll"><div class="w560">
+      <div class="shot">
+        <img alt="The Formula Explorer workbench with a PMT formula, its result and its evaluation steps" src="{{IMG:formula-explorer.webp}}" width="1200" height="1235">
+        <span class="pin" style="left:32.7%;top:2.5%">1</span>
+        <span class="pin" style="left:58%;top:26.7%">2</span>
+        <span class="pin" style="left:36.8%;top:41.7%">3</span>
+        <span class="pin" style="left:41.6%;top:47.9%">4</span>
+        <span class="pin" style="left:21%;top:66.4%">5</span>
+        <span class="pin" style="left:78.2%;top:12.9%">6</span>
+        <span class="pin" style="left:86%;top:65.7%">7</span>
+        <span class="pin" style="left:27%;top:83.5%">8</span>
+      </div>
+    </div></div>
+    <figcaption>A real capture, cropped above the Test suite and Add-ins cards and the Strip (docs/guide/skinning/shots/formula-explorer.webp).</figcaption>
+  </figure>
+  <ol class="calls">
+    <li><b>Mast</b>, from the same <code>dna-shell</code> in its level-0 configuration: Mast, Stage and Strip only.</li>
+    <li><b>Formula field</b> (<code>dna-formula-ui</code>). Colouring and completion come from <code>calc-formula-kernel</code>, linked into the page, so typing waits on no round trip.</li>
+    <li><b>Evaluate</b> and <b>Formula link</b>. <code>FormulaPort::ask(FormulaQuery, ..)</code>; the link is a <code>FormulaLink</code> fragment, so the formula is never sent in a request URL.</li>
+    <li><b>Local test inputs</b>. Named Excel constants (<code>TestInput { name, constant }</code>) bound through the name catalogue.</li>
+    <li><b>Result</b> (<code>dna_kit::ValueView</code>). The provenance word <em>Calculated</em>, then raw value and formatted text kept apart: <code>Shown&lt;TrialValue&gt;</code>. An array result pages at 32 rows by 16 columns.</li>
+    <li><b>Steps</b>. Each part of the formula evaluated again over the same inputs.</li>
+    <li><b>Functions</b>. The function catalogue this build carries.</li>
+    <li><b>Conditional formatting</b>. A rule applied to the pinned result by the level-0 host.</li>
+  </ol>
+
+  <h3>Inspector, Notebook, App <span class="st built">Built</span></h3>
+  <p>These three views are in the repository and are installed in the preview page at <span class="mono">d002a3c9b</span>, after the deployed build. No screenshot could be taken for this edition (bead <code>dc-72xvs</code>), so these are schematics drawn from the code, not captures. Each region names what is behind it.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w860">
+    <svg viewBox="0 0 900 282" role="img" aria-label="Schematics of the Inspector, Notebook and App views">
+      <!-- inspector -->
+      <g>
+        <rect x="10" y="10" width="285" height="262" rx="9" class="fpaper sink3 dash w15"/>
+        <rect x="10" y="10" width="285" height="24" rx="9" class="fchrome"/><text x="20" y="27" class="cink sm b">Inspector · dna-view-inspector</text>
+        <g>
+          <rect x="20" y="42" width="56" height="20" rx="5" class="famber"/><text x="48" y="56" text-anchor="middle" class="onamber xs">Overview</text>
+          <rect x="79" y="42" width="64" height="20" rx="5" class="fpaper2 sline"/><text x="111" y="56" text-anchor="middle" class="ink2 xs">Precedents</text>
+          <rect x="146" y="42" width="68" height="20" rx="5" class="fpaper2 sline"/><text x="180" y="56" text-anchor="middle" class="ink2 xs">Dependents</text>
+          <rect x="217" y="42" width="34" height="20" rx="5" class="fpaper2 sline"/><text x="234" y="56" text-anchor="middle" class="ink2 xs">Calc</text>
+          <rect x="254" y="42" width="31" height="20" rx="5" class="fpaper2 sline"/><text x="269.5" y="56" text-anchor="middle" class="ink2 xs">Live</text>
+        </g>
+        <rect x="20" y="70" width="265" height="58" rx="7" class="ftealsoft"/><text x="28" y="88" class="ink sm b">Counts and inventory</text><text x="28" y="104" class="ink3 m">CensusOf · Inventory</text><text x="28" y="119" class="ink3 sm">formulas, literals, errors, hidden sheets</text>
+        <rect x="20" y="134" width="265" height="58" rx="7" class="ftealsoft"/><text x="28" y="152" class="ink sm b">Edges of the selected cell</text><text x="28" y="168" class="ink3 m">Deps { of, dir, depth, group }</text><text x="28" y="183" class="ink3 sm">Evidence::Derived, with its coverage</text>
+        <rect x="20" y="198" width="265" height="66" rx="7" class="fgreensoft"/><text x="28" y="216" class="ink sm b">What the last calculation changed</text><text x="28" y="232" class="ink3 m">CalcState · CalcChanges</text><text x="28" y="247" class="ink3 sm">Evidence::Observed, or Unavailable and</text><text x="28" y="259" class="ink3 sm">why; Sources for links and RTD</text>
+      </g>
+      <!-- notebook -->
+      <g>
+        <rect x="307" y="10" width="285" height="262" rx="9" class="fpaper sink3 dash w15"/>
+        <rect x="307" y="10" width="285" height="24" rx="9" class="fchrome"/><text x="317" y="27" class="cink sm b">Notebook · dna-view-notebook</text>
+        <text x="317" y="52" class="ink3 sm">Link selection · New formula · Add Markdown</text>
+        <rect x="317" y="60" width="265" height="38" rx="7" class="fpaper2 sline"/><text x="325" y="76" class="ink sm b">Markdown cell</text><text x="325" y="90" class="ink3 sm">prose kept in the view document</text>
+        <rect x="317" y="104" width="265" height="84" rx="7" class="fpaper2 samber w2"/><text x="325" y="121" class="ink m">=PMT(B2/12,B3*12,-B1)</text><text x="325" y="137" class="amberink sm b">Edited · not run</text><text x="432" y="137" class="ink3 sm">held draft; Esc keeps it</text>
+        <line x1="317" y1="145" x2="582" y2="145" class="sline"/>
+        <text x="325" y="162" class="greenink m b">1580.17</text><text x="390" y="162" class="ink3 sm">Previous result</text><text x="325" y="179" class="ink3 m">Cells · Rows · ExpressionTree</text>
+        <rect x="317" y="194" width="265" height="70" rx="7" class="ftealsoft"/><text x="325" y="212" class="ink sm b">Where a new formula goes</text><text x="325" y="228" class="ink3 m">Placement { sheet, kind, shape, .. }</text><text x="325" y="243" class="ink3 sm">scalar rows and array lanes on a visible</text><text x="325" y="256" class="ink3 sm">sheet; the cell list is a view document</text>
+      </g>
+      <!-- app -->
+      <g>
+        <rect x="604" y="10" width="286" height="262" rx="9" class="fpaper sink3 dash w15"/>
+        <rect x="604" y="10" width="286" height="24" rx="9" class="fchrome"/><text x="614" y="27" class="cink sm b">App and Forms maker · dna-view-app</text>
+        <text x="614" y="54" class="ink big">Loan planner</text>
+        <rect x="614" y="64" width="160" height="94" rx="7" class="fpaper2 sline"/><text x="622" y="80" class="ink3 xs b">ASSUMPTIONS</text>
+        <rect x="622" y="88" width="144" height="18" rx="4" class="fpaper sline"/><text x="628" y="101" class="ink m">0.065</text>
+        <text x="622" y="121" class="amberink sm">Model change · Loan!B2</text>
+        <text x="622" y="138" class="ink3 m">input → EnterBound</text><text x="622" y="152" class="ink3 m">Rules · ResolveBound</text>
+        <rect x="780" y="64" width="100" height="94" rx="7" class="fpaper2 sline"/><text x="788" y="80" class="ink3 xs b">REPAYMENT</text><text x="788" y="104" class="greenink big">1580.17</text><text x="788" y="122" class="ink3 m">value → Rows</text><text x="788" y="138" class="ink3 xs">says "Saved value"</text><text x="788" y="151" class="ink3 xs">when it is one</text>
+        <rect x="614" y="164" width="266" height="48" rx="7" class="fpaper2 sline"/><text x="622" y="181" class="ink sm b">Schedule · Rows 1–12 of 360</text><text x="622" y="199" class="ink3 m">data-frame → Rows, 12 at a time</text>
+        <rect x="614" y="218" width="266" height="46" rx="7" class="ftealsoft"/><text x="622" y="235" class="ink sm b">Forms maker: same renderer, with handles</text><text x="622" y="251" class="ink3 m">InputCandidates · CreateDoc · PatchDoc</text>
+      </g>
+    </svg>
+    </div></div>
+    <figcaption>Schematic: dashed frames mark a drawing made from the source, not a screen capture. Button labels and status words are the code's own. Inspector instruments also dock beside any view (<code>DockSpec</code>, <code>ToolSpec</code>); the docked Formula Explorer is installed the same way.</figcaption>
+  </figure>
+</section>

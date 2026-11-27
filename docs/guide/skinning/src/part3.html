@@ -1,0 +1,532 @@
+
+<!-- ============================ 06 ============================ -->
+<section class="s" id="skin">
+  <div class="sh"><span class="num"><i></i><b>06</b></span></div>
+  <h2>What a skin is</h2>
+  <p class="lead">A skin is one JSON document. It can be read in a minute, checked in under a second, and it cannot do anything a person could not do by hand in the application.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 780 214" role="img" aria-label="The seven parts of a skin manifest">
+      <rect x="10" y="10" width="760" height="40" rx="9" class="fchrome"/>
+      <text x="24" y="35" class="cink b">dna.skin/1</text><text x="124" y="35" class="cink2 m">id · name · extends: dna:default | dna:explorer · level: workbook | formula</text>
+      <g>
+        <rect x="10" y="58" width="104" height="96" rx="9" class="fambersoft samber w2"/><text x="20" y="80" class="ink b">theme</text><text x="20" y="98" class="ink3 sm">base theme</text><text x="20" y="112" class="ink3 sm">density</text><text x="20" y="126" class="ink3 sm">token overrides</text>
+        <rect x="120" y="58" width="104" height="96" rx="9" class="fpaper steal w2"/><text x="130" y="80" class="ink b">shell</text><text x="130" y="98" class="ink3 sm">deck</text><text x="130" y="112" class="ink3 sm">docked panels</text><text x="130" y="126" class="ink3 sm">Strip pins</text>
+        <rect x="230" y="58" width="104" height="96" rx="9" class="fpaper steal w2"/><text x="240" y="80" class="ink b">keymap</text><text x="240" y="98" class="ink3 sm">profile</text><text x="240" y="112" class="ink3 sm">bindings:</text><text x="240" y="126" class="ink3 sm">when, chord,</text><text x="240" y="140" class="ink3 sm">command</text>
+        <rect x="340" y="58" width="104" height="96" rx="9" class="fpaper steal w2"/><text x="350" y="80" class="ink b">commands</text><text x="350" y="98" class="ink3 sm">named sequences</text><text x="350" y="112" class="ink3 sm">of built-in</text><text x="350" y="126" class="ink3 sm">commands</text>
+        <rect x="450" y="58" width="104" height="96" rx="9" class="fpaper steal w2"/><text x="460" y="80" class="ink b">views</text><text x="460" y="98" class="ink3 sm">settings</text><text x="460" y="112" class="ink3 sm">per view id</text>
+        <rect x="560" y="58" width="104" height="96" rx="9" class="fambersoft samber w2"/><text x="570" y="80" class="ink b">pages</text><text x="570" y="98" class="ink3 sm">dna.page/1</text><text x="570" y="112" class="ink3 sm">trees, by id,</text><text x="570" y="126" class="ink3 sm">for panels</text>
+        <rect x="670" y="58" width="100" height="96" rx="9" class="fpaper sink3 dash w15"/><text x="680" y="80" class="ink b">requires</text><text x="680" y="98" class="ink3 sm">extensions</text><text x="680" y="112" class="ink3 sm">by id and</text><text x="680" y="126" class="ink3 sm">version</text>
+      </g>
+      <text x="10" y="178" class="ink3 sm">The whole schema is <tspan class="m">SkinManifest</tspan> in crates/calc-skin/src/declarations.rs, a 204-line file of plain serde types. No field holds a script,</text>
+      <text x="10" y="194" class="ink3 sm">an expression, HTML or a URL. The same file defines <tspan class="m">Page</tspan> and <tspan class="m">PageNode</tspan>.</text>
+    </svg>
+    </div></div>
+  </figure>
+
+  <h3>A complete skin, annotated</h3>
+  <p>This file is in the repository at <code>docs/guide/skinning/examples/calm-review.dnaskin.json</code>. Its palette is the one the CLI's own test accepts.</p>
+<pre>{
+  <span class="k">"schema"</span>: <span class="s">"dna.skin/1"</span>,<span class="pin">1</span>
+  <span class="k">"id"</span>: <span class="s">"calm-review"</span>, <span class="k">"name"</span>: <span class="s">"Calm Review"</span>,
+  <span class="k">"extends"</span>: <span class="s">"dna:default"</span>, <span class="k">"level"</span>: <span class="s">"workbook"</span>,
+  <span class="k">"theme"</span>: {<span class="pin">2</span>
+    <span class="k">"base"</span>: <span class="s">"cockpit-dark"</span>, <span class="k">"density"</span>: <span class="s">"working"</span>,
+    <span class="k">"overrides"</span>: {
+      <span class="k">"ink.secondary"</span>: <span class="s">"#A4B8C2"</span>, <span class="k">"ink-3"</span>: <span class="s">"#A4B8C2"</span>,
+      <span class="k">"surface.panel"</span>: <span class="s">"#22343C"</span>,
+      <span class="k">"formula.font.size"</span>: <span class="s">"15.5px"</span>
+    }
+  },
+  <span class="k">"shell"</span>: {<span class="pin">3</span>
+    <span class="k">"deck"</span>: <span class="s">"compact"</span>,
+    <span class="k">"panels"</span>: { <span class="k">"right"</span>: [ { <span class="k">"id"</span>: <span class="s">"inspector.trace"</span>, <span class="k">"width_px"</span>: <span class="n">320</span> }, <span class="s">"audit-rail"</span> ] },
+    <span class="k">"strip_pins"</span>: [ { <span class="k">"address"</span>: <span class="s">"Loan!B4"</span>, <span class="k">"label"</span>: <span class="s">"Payment"</span> } ]
+  },
+  <span class="k">"keymap"</span>: {<span class="pin">4</span>
+    <span class="k">"profile"</span>: <span class="s">"excel-365-win-en-us"</span>,
+    <span class="k">"bindings"</span>: [
+      { <span class="k">"when"</span>: <span class="s">"view:classic &amp;&amp; mode:ready"</span>, <span class="k">"chord"</span>: <span class="s">"Ctrl+Shift+E"</span>, <span class="k">"command"</span>: <span class="s">"grid.edit-cell"</span> }
+    ]
+  },
+  <span class="k">"commands"</span>: [<span class="pin">5</span>
+    { <span class="k">"id"</span>: <span class="s">"skin.clear-and-next"</span>, <span class="k">"label"</span>: <span class="s">"Clear and move down"</span>,
+      <span class="k">"steps"</span>: [ [<span class="s">"grid.clear-contents"</span>, <span class="n">null</span>], [<span class="s">"grid.move-down"</span>, <span class="n">null</span>] ] }
+  ],
+  <span class="k">"views"</span>: { <span class="k">"classic"</span>: { <span class="k">"provenance_tints"</span>: <span class="n">true</span> }, <span class="k">"notebook"</span>: { <span class="k">"layout"</span>: <span class="s">"down"</span> } },<span class="pin">6</span>
+  <span class="k">"pages"</span>: {<span class="pin">7</span>
+    <span class="k">"audit-rail"</span>: {
+      <span class="k">"schema"</span>: <span class="s">"dna.page/1"</span>, <span class="k">"title"</span>: <span class="s">"Audit"</span>, <span class="k">"input"</span>: <span class="s">"live"</span>,
+      <span class="k">"root"</span>: { <span class="k">"kind"</span>: <span class="s">"stack"</span>, <span class="k">"children"</span>: [
+        { <span class="k">"kind"</span>: <span class="s">"section"</span>, <span class="k">"title"</span>: <span class="s">"Assumptions"</span>, <span class="k">"children"</span>: [
+          { <span class="k">"kind"</span>: <span class="s">"part"</span>, <span class="k">"id"</span>: <span class="s">"rate"</span>, <span class="k">"component"</span>: <span class="s">"input"</span>,
+            <span class="k">"bind"</span>: { <span class="k">"value"</span>: { <span class="k">"anchor"</span>: <span class="s">"00000000-0000-0000-0000-0000000000a2"</span>, <span class="k">"address"</span>: <span class="s">"Loan!B2"</span> } },
+            <span class="k">"props"</span>: { <span class="k">"label"</span>: <span class="s">"Rate"</span> } } ] },
+        { <span class="k">"kind"</span>: <span class="s">"part"</span>, <span class="k">"id"</span>: <span class="s">"payment"</span>, <span class="k">"component"</span>: <span class="s">"value"</span>,
+          <span class="k">"bind"</span>: { <span class="k">"value"</span>: { <span class="k">"anchor"</span>: <span class="s">"00000000-0000-0000-0000-0000000000a4"</span>, <span class="k">"address"</span>: <span class="s">"Loan!B4"</span> } },
+          <span class="k">"props"</span>: { <span class="k">"label"</span>: <span class="s">"Monthly payment"</span> } } ] }
+    }
+  }
+}</pre>
+  <ol class="calls">
+    <li><b>Schema and base.</b> <code>extends</code> must be <code>dna:default</code> or <code>dna:explorer</code>. <code>level</code> says which host level the skin is for.</li>
+    <li><b>Theme.</b> A base theme (<code>cockpit-light</code>, <code>cockpit-dark</code>, <code>high-contrast</code>), a density (<code>working</code>, <code>reading</code>), and overrides of the open tokens. Formula text size may be 10 to 32 px.</li>
+    <li><b>Shell.</b> Deck compactness, panels docked right or bottom (an instrument id or one of this skin's page ids), and extra Strip read-outs pinned to an address.</li>
+    <li><b>Keymap.</b> Bindings over the Excel profile. <code>when</code> uses the condition grammar of section 4. The whole layer is refused if any binding is wrong.</li>
+    <li><b>Command sequences.</b> An id starting <code>skin.</code>, a label, and steps that name built-in commands. A sequence runs only when a person invokes it, and stops at the first step that refuses.</li>
+    <li><b>Per-view settings.</b> A free JSON object per view id, read by that view.</li>
+    <li><b>Pages.</b> <code>dna.page/1</code> trees by id. Here one page, docked on the right by item 3.</li>
+  </ol>
+
+  <h3>Pages: dna.page/1</h3>
+  <p>A page is a flow layout. Six node kinds, no pixel coordinates, no formulas: all computation stays in workbook cells. A <code>Part</code> names a component and binds its slots with a <code>Bound</code>, which holds two identities that must agree before it can write.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w860">
+    <svg viewBox="0 0 900 236" role="img" aria-label="A page tree and what it renders">
+      <defs><marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--ink-3)"/></marker></defs>
+      <text x="10" y="20" class="ink2 b">The tree</text>
+      <g>
+        <rect x="150" y="30" width="110" height="28" rx="7" class="famber"/><text x="205" y="49" text-anchor="middle" class="onamber b">grid · 2 columns</text>
+        <rect x="28" y="86" width="154" height="28" rx="7" class="fteal"/><text x="105" y="105" text-anchor="middle" class="white b">section Assumptions</text>
+        <rect x="232" y="86" width="146" height="28" rx="7" class="fteal"/><text x="305" y="105" text-anchor="middle" class="white b">section Repayment</text>
+        <g class="sm">
+          <rect x="10" y="142" width="60" height="24" rx="5" class="fpaper steal w15"/><text x="40" y="158" text-anchor="middle" class="ink">input</text>
+          <rect x="76" y="142" width="60" height="24" rx="5" class="fpaper steal w15"/><text x="106" y="158" text-anchor="middle" class="ink">input</text>
+          <rect x="142" y="142" width="60" height="24" rx="5" class="fpaper steal w15"/><text x="172" y="158" text-anchor="middle" class="ink">input</text>
+          <rect x="232" y="142" width="60" height="24" rx="5" class="fpaper steal w15"/><text x="262" y="158" text-anchor="middle" class="ink">value</text>
+          <rect x="298" y="142" width="84" height="24" rx="5" class="fpaper steal w15"/><text x="340" y="158" text-anchor="middle" class="ink">data-frame</text>
+        </g>
+        <g class="sink3 w15"><path d="M205 58 V72 H105 V86 M205 72 H305 V86 M105 114 V128 H40 V142 M105 128 H172 V142 M106 128 V142 M305 114 V128 H262 V142 M305 128 H340 V142"/></g>
+        <text x="10" y="186" class="ink3 m">bind.value → { anchor, "Loan!B2" }</text>
+        <text x="10" y="204" class="ink3 m">bind.rows  → { anchor, "Loan!A9:D20" }</text>
+      </g>
+      <line x1="404" y1="100" x2="468" y2="100" class="sink3 w2" marker-end="url(#ap)"/>
+      <text x="436" y="90" text-anchor="middle" class="ink3 xs">PageRenderer</text>
+      <text x="480" y="20" class="ink2 b">What it draws</text>
+      <rect x="480" y="30" width="410" height="196" rx="9" class="fpaper sline w15"/>
+      <text x="494" y="54" class="ink big">Loan planner</text>
+      <rect x="494" y="64" width="186" height="150" rx="7" class="fpaper2 sline"/><text x="504" y="82" class="ink3 sm b">▾ ASSUMPTIONS</text>
+      <text x="504" y="100" class="ink sm b">Loan</text><rect x="504" y="104" width="166" height="18" rx="4" class="fpaper sline"/><text x="510" y="117" class="ink m">250000</text>
+      <text x="504" y="136" class="ink sm b">Rate</text><rect x="504" y="140" width="166" height="18" rx="4" class="fpaper samber w2"/><text x="510" y="153" class="ink m">0.065</text>
+      <text x="504" y="170" class="amberink sm">Model change · Loan!B2</text>
+      <text x="504" y="188" class="ink sm b">Years</text><rect x="504" y="192" width="166" height="18" rx="4" class="fpaper sline"/><text x="510" y="205" class="ink m">30</text>
+      <rect x="690" y="64" width="190" height="150" rx="7" class="fpaper2 sline"/><text x="700" y="82" class="ink3 sm b">▾ REPAYMENT</text>
+      <text x="700" y="100" class="ink sm b">Monthly payment</text><text x="700" y="120" class="greenink big">1580.170059</text>
+      <text x="700" y="140" class="ink3 sm">Rows 1–12 of 12</text>
+      <g class="sline"><path d="M700 148 H870 M700 164 H870 M700 180 H870 M700 196 H870 M756 148 V206 M812 148 V206"/></g>
+      </svg>
+    </div></div>
+    <figcaption>A sketch of what the renderer draws for <code>docs/guide/skinning/examples/loan-planner.dnapage.json</code>. The "Model change" label and "Rows a–b of n" caption are the renderer's own strings.</figcaption>
+  </figure>
+
+  <div class="tw"><table>
+    <thead><tr><th>Node</th><th>Fields</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td><code>stack</code> · <code>row</code></td><td><code>children</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>grid</code></td><td><code>columns</code> (1 to 255), <code>children</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>section</code></td><td><code>title</code>, <code>folded</code>, <code>children</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>tabs</code></td><td><code>tabs: [{ label, body }]</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>part</code> · component <code>value</code></td><td class="wrapc">needs <code>bind.value</code>; draws the cell's formatted text with its provenance word</td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>part</code> · component <code>input</code></td><td class="wrapc">needs <code>bind.value</code>; writes with <code>ModelChange::EnterBound</code>; disabled when the cell holds a formula or <code>Rules</code> reports a refusal</td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>part</code> · component <code>data-frame</code></td><td class="wrapc">needs <code>bind.rows</code>; a 12-row window over <code>Rows</code> with "Rows a–b of n"</td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>part</code> · component <code>chart</code></td><td class="wrapc">needs <code>bind.object</code> (checked by the validator); the renderer shows "Component unavailable" until the <code>Objects</code> query lands</td><td><span class="st build">In build</span></td></tr>
+      <tr><td><code>part</code> · scenario picker, action button, sheet excerpt, extension component</td><td>in SKIN_ARCHITECTURE.md section 6.3</td><td><span class="st designed">Designed</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Strand tokens and the contrast check</h3>
+  <p>Strand is DNA Calc's design language: petrol chrome around bright paper, and colour only where it means something. A skin may move the neutral surfaces. It may not touch the signals.</p>
+  <div class="two">
+    <div class="can"><h4>Open to a skin</h4><ul>
+      <li><span class="sw" style="background:var(--bg)"></span><span class="sw" style="background:var(--paper)"></span><span class="sw" style="background:var(--paper-2)"></span><code>bg</code> <code>paper</code> <code>paper-2</code><small>surfaces; <code>surface.panel</code> is an alias for <code>paper-2</code></small></li>
+      <li><span class="sw" style="background:var(--ink)"></span><span class="sw" style="background:var(--ink-2)"></span><span class="sw" style="background:var(--ink-3)"></span><code>ink</code> <code>ink-2</code> <code>ink-3</code><small>text; <code>ink.secondary</code> is an alias for <code>ink-2</code></small></li>
+      <li><span class="sw" style="background:var(--line)"></span><span class="sw" style="background:var(--line-soft)"></span><code>line</code> <code>line-soft</code><small>borders and grid rules</small></li>
+      <li><span class="sw" style="background:var(--chrome)"></span><span class="sw" style="background:var(--chrome-2)"></span><code>chrome</code> <code>chrome-2</code> <code>chrome-ink</code> <code>chrome-ink-2</code><small>the Mast, Bridge and Strip</small></li>
+      <li><span class="sw" style="background:var(--teal)"></span><code>accent</code> <code>accent-ink</code> <code>accent-soft</code><small>structure and interactive accents</small></li>
+      <li><code>formula.font.size</code><small>10 to 32 px</small></li>
+    </ul></div>
+    <div class="cannot"><h4>Closed to every skin</h4><ul>
+      <li><span class="sw" style="background:var(--red)"></span>Red<small>errors, and nothing else</small></li>
+      <li><span class="sw" style="background:var(--amber)"></span>Amber<small>focus and "now": the cursor, the selection, a running calculation</small></li>
+      <li><span class="sw" style="background:var(--signal)"></span>Signal orange<small>external and volatile values</small></li>
+      <li><span class="sw" style="background:var(--green)"></span>Green<small>a fresh, calculated value</small></li>
+      <li>Any other token name<small>the validator answers "The token … cannot be changed by a skin"</small></li>
+      <li>The workbook's own cell formatting<small>an authored fill or a red negative is model content, not theme</small></li>
+    </ul></div>
+  </div>
+  <p><code>dna_strand::resolve(theme, overrides)</code> applies the overrides and then checks every sanctioned foreground and background pair of that theme. There are 61 pairs in <code>SANCTIONED_PAIRS</code>: 22 for <code>cockpit-light</code>, 17 for <code>cockpit-dark</code>, 22 for <code>high-contrast</code>. Text needs 4.5:1 (7:1 under high contrast). One failing pair refuses the whole skin, with the pair and the ratio in the message.</p>
+
+  <h3>Keymaps and Excel key tips</h3>
+  <p>A skin's bindings form one layer of the keymap, below the safety, editor and component layers and above the view's own profile. The validator refuses a skin that binds any of these chords:</p>
+  <ul class="chips"><li>Esc</li><li>Ctrl+Z</li><li>Ctrl+Y</li><li>F4</li><li>Ctrl+Enter</li><li>Alt+Q</li><li>Ctrl+Alt+1</li><li>Alt+Shift+1</li></ul>
+  <p>It also refuses two bindings for the same chord whose conditions can both hold, an unknown condition, and (when the skin is applied to a running page) a command that is not registered. Classic's key tips are data: a table of Excel's own letter sequences in <code>dna-view-classic/src/excel_key_tips.rs</code>, shown with <kbd>F10</kbd>. A tip whose command is not built answers with a typed not-modelled notice naming the owning bead; it is never bound to something else.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Piece</th><th>Where</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>Manifest and page types</td><td><code>calc_skin::SkinManifest</code>, <code>Page</code>, <code>PageNode</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Validation: schema, tokens, contrast, keys, sequences, page parts</td><td><code>dna_skin_runtime::skin::validate</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Skin key layer and departure count</td><td><code>Keymap::set_skin</code>, <code>Keymap::departures</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Named sequences</td><td><code>CommandTable::register_sequence</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Excel key tips in Classic</td><td class="wrapc">a table of 50 sequences: 6 run a command (<kbd>Alt</kbd> <kbd>H</kbd> <kbd>V</kbd> <kbd>V</kbd> is Paste Values), 20 answer not-modelled naming <code>dc-s2xup</code>, the rest are groups</td><td><span class="st build">In build</span></td></tr>
+      <tr><td>Loading a manifest into a running page (theme, keys, panels, Strip pins)</td><td>the pieces above exist; no application calls them with a user's file yet</td><td><span class="st build">In build</span></td></tr>
+      <tr><td>Try-On banner, Keep for this file, Keep for me</td><td>SKIN_ARCHITECTURE.md sections 8.1 and 10</td><td><span class="st designed">Designed</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================ 07 ============================ -->
+<section class="s" id="make">
+  <div class="sh"><span class="num"><i></i><b>07</b></span></div>
+  <h2>Make a skin, step by step</h2>
+  <p class="lead">Five small exercises, from one colour to a whole App. They follow the Design Book's customisation scenes U01 to U05. Writing and validating work today; trying a skin on in the running application is the next piece to land.</p>
+
+  <ol class="steps">
+    <li>
+      <h4>Change a colour <span class="st built">Built</span></h4>
+      <p>Start from the smallest valid skin and override one open token. Secondary text on panels, lighter:</p>
+<pre>{ <span class="k">"schema"</span>: <span class="s">"dna.skin/1"</span>, <span class="k">"id"</span>: <span class="s">"mine"</span>, <span class="k">"name"</span>: <span class="s">"Mine"</span>,
+  <span class="k">"theme"</span>: { <span class="k">"base"</span>: <span class="s">"cockpit-dark"</span>, <span class="k">"density"</span>: <span class="s">"working"</span>,
+             <span class="k">"overrides"</span>: { <span class="k">"ink.secondary"</span>: <span class="s">"#A4B8C2"</span>, <span class="k">"ink-3"</span>: <span class="s">"#A4B8C2"</span>, <span class="k">"surface.panel"</span>: <span class="s">"#22343C"</span> } } }</pre>
+      <p>Pick a colour that is too dim and the skin is refused. With <code>"ink.secondary": "#7D97A0"</code> on that panel the CLI exits with code 2 and names the pair: <code>ink-2 on paper-2 has …:1 contrast, minimum 4.5:1</code>.</p>
+    </li>
+    <li>
+      <h4>Rebind a key <span class="st built">Built</span></h4>
+      <p>Give Classic's "Edit the cell" a second chord while the grid is in Ready mode:</p>
+<pre><span class="k">"keymap"</span>: { <span class="k">"profile"</span>: <span class="s">"excel-365-win-en-us"</span>, <span class="k">"bindings"</span>: [
+  { <span class="k">"when"</span>: <span class="s">"view:classic &amp;&amp; mode:ready"</span>, <span class="k">"chord"</span>: <span class="s">"Ctrl+Shift+E"</span>, <span class="k">"command"</span>: <span class="s">"grid.edit-cell"</span> } ] }</pre>
+      <p>Try <code>"chord": "Escape"</code> and the answer is <code>Escape is reserved</code>. Bind the same chord twice under conditions that can both hold and it is <code>Overlapping skin bindings for Ctrl+Shift+E</code>. Command ids are the ones the command search (<kbd>Alt+Q</kbd>) lists: <code>grid.edit-cell</code>, <code>grid.move-down</code>, <code>grid.clear-contents</code>, <code>edit.undo</code>, <code>calc.calculate</code>, <code>view.notebook</code>, <code>inspector.details</code> and the rest.</p>
+    </li>
+    <li>
+      <h4>Add a panel page <span class="st build">In build</span></h4>
+      <p>Write a <code>dna.page/1</code> tree under <code>pages</code> and name its id in <code>shell.panels.right</code>, as the <code>audit-rail</code> page in section 6 does. The page validates today; docking a skin's page in the running shell waits for manifest loading.</p>
+    </li>
+    <li>
+      <h4>Restyle Classic <span class="st build">In build</span></h4>
+      <p>Combine the pieces: a dark base, larger formula text, a compact Deck and a trace instrument docked at 320 px. That is the complete example in section 6. Note what it leaves alone: row heights and cell formats are workbook content, and changing them would be a model change, not a skin.</p>
+    </li>
+    <li>
+      <h4>A three-line App <span class="st built">Built</span></h4>
+      <p>An App is a page stored in the workbook, not in a skin. Three inputs and a result:</p>
+<pre>{ <span class="k">"schema"</span>: <span class="s">"dna.page/1"</span>, <span class="k">"title"</span>: <span class="s">"Loan"</span>, <span class="k">"root"</span>: { <span class="k">"kind"</span>: <span class="s">"stack"</span>, <span class="k">"children"</span>: [
+  { <span class="k">"kind"</span>: <span class="s">"part"</span>, <span class="k">"id"</span>: <span class="s">"rate"</span>,  <span class="k">"component"</span>: <span class="s">"input"</span>, <span class="k">"bind"</span>: { <span class="k">"value"</span>: { <span class="k">"anchor"</span>: <span class="s">"…a2"</span>, <span class="k">"address"</span>: <span class="s">"Loan!B2"</span> } } },
+  { <span class="k">"kind"</span>: <span class="s">"part"</span>, <span class="k">"id"</span>: <span class="s">"years"</span>, <span class="k">"component"</span>: <span class="s">"input"</span>, <span class="k">"bind"</span>: { <span class="k">"value"</span>: { <span class="k">"anchor"</span>: <span class="s">"…a3"</span>, <span class="k">"address"</span>: <span class="s">"Loan!B3"</span> } } },
+  { <span class="k">"kind"</span>: <span class="s">"part"</span>, <span class="k">"id"</span>: <span class="s">"pay"</span>,   <span class="k">"component"</span>: <span class="s">"value"</span>, <span class="k">"bind"</span>: { <span class="k">"value"</span>: { <span class="k">"anchor"</span>: <span class="s">"…a4"</span>, <span class="k">"address"</span>: <span class="s">"Loan!B4"</span> } } } ] } }</pre>
+      <p>In the application you do not type anchors. The Forms maker lists candidate inputs from the workbook (<code>InputCandidates</code>: unlocked or validated cells), and "Add selected cell to page" creates the anchor and patches the page in one batch. The App view then runs the page with no authoring handles.</p>
+    </li>
+  </ol>
+
+  <h3>Validate it</h3>
+<pre><span class="c">$</span> dnacalc skin validate calm-review.dnaskin.json --json
+{ <span class="k">"schema"</span>: <span class="s">"dna.skin/1"</span>, <span class="k">"valid"</span>: <span class="n">true</span>, <span class="k">"theme"</span>: <span class="s">"cockpit-dark"</span>, <span class="k">"density"</span>: <span class="s">"working"</span>,
+  <span class="k">"formula_font_px"</span>: <span class="n">15.5</span>, <span class="k">"colour_overrides"</span>: { … }, <span class="k">"contrast_pairs"</span>: <span class="n">17</span>,
+  <span class="k">"bindings"</span>: <span class="n">2</span>, <span class="k">"bindings_checked"</span>: <span class="n">null</span> }
+
+<span class="c">$</span> dnacalc skin validate page.json --workbook Book.xlsx   <span class="c"># a binding whose anchor is not in the workbook</span>
+dnacalc: Sheet1!B3: Source missing                        <span class="c"># exit 2</span></pre>
+  <p class="src">apps/dnacalc/src/skin.rs · report fields as that file builds them; messages as apps/dnacalc/tests/cli.rs asserts them <span class="st built">Built</span></p>
+  <p>Without <code>--workbook</code> the check is the document alone: schema, tokens, contrast, keys, sequences, page parts. With it, the CLI opens the workbook read-only in manual calculation, connects as <code>Origin::Automation</code> with <code>WritePolicy::Look</code>, and asks <code>ResolveBound</code> for every binding. A binding whose anchor and address do not resolve to the same source fails, with no guessing at a nearby cell.</p>
+  <div class="note">The report above was written from the code and its tests. It could not be run on the day of writing: the lane's build host was below its free-disk limit for new builds. The two example files were checked against the validator's rules by reading; running them is the first step of bead <code>dc-72xvs</code>.</div>
+
+  <h3>Try it on, and keep it <span class="st designed">Designed</span></h3>
+  <p>The design is one banner: <em>Trying "Calm Review" · Keep for this file · Keep for me · Discard</em>. A skin under trial is mounted and can be discarded with <kbd>Esc</kbd>. Keeping it for the file writes one presentation change; the model revision does not move. When a workbook you receive carries a skin, its pages and per-view settings apply on open, and its theme, key bindings and shell layout are only offered under the same banner. A file never rebinds your keyboard unasked.</p>
+
+  <h3>Where it is stored, and how it travels</h3>
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 780 262" role="img" aria-label="Where view data lives in an xlsx package">
+      <rect x="10" y="10" width="500" height="240" rx="14" class="fpaper sline w2"/>
+      <text x="24" y="34" class="ink b">Loan.xlsx · an ordinary Excel package</text>
+      <rect x="24" y="46" width="472" height="70" rx="9" class="fgreensoft sgreen w15"/>
+      <text x="36" y="66" class="ink b">Excel's own parts · the model</text>
+      <text x="36" y="84" class="ink2 m">xl/workbook.xml · xl/worksheets/sheet1.xml · xl/styles.xml · …</text>
+      <text x="36" y="102" class="ink3 sm">cells, formulas, names, formats, charts; panes and zoom in sheetViews</text>
+      <rect x="24" y="124" width="472" height="114" rx="9" class="fambersoft samber w15"/>
+      <text x="36" y="144" class="ink b">One custom XML part · the view part</text>
+      <text x="36" y="162" class="ink2 m">customXml/item….xml · xmlns="urn:dnacalc:views:v1"</text>
+      <g class="sm">
+        <rect x="36" y="172" width="100" height="24" rx="5" class="fpaper sgreen w15"/><text x="86" y="188" text-anchor="middle" class="ink">preferred view</text>
+        <rect x="142" y="172" width="62" height="24" rx="5" class="fpaper sgreen w15"/><text x="173" y="188" text-anchor="middle" class="ink">anchors</text>
+        <rect x="210" y="172" width="112" height="24" rx="5" class="fpaper sgreen w15"/><text x="266" y="188" text-anchor="middle" class="ink">view documents</text>
+        <rect x="328" y="172" width="50" height="24" rx="5" class="fpaper sgreen w15"/><text x="353" y="188" text-anchor="middle" class="ink">notes</text>
+        <rect x="36" y="204" width="56" height="24" rx="5" class="fpaper sink3 dash w15"/><text x="64" y="220" text-anchor="middle" class="ink3">skins</text>
+        <rect x="98" y="204" width="68" height="24" rx="5" class="fpaper sink3 dash w15"/><text x="132" y="220" text-anchor="middle" class="ink3">readings</text>
+        <rect x="172" y="204" width="80" height="24" rx="5" class="fpaper sink3 dash w15"/><text x="212" y="220" text-anchor="middle" class="ink3">agent trail</text>
+        <rect x="258" y="204" width="108" height="24" rx="5" class="fpaper sink3 dash w15"/><text x="312" y="220" text-anchor="middle" class="ink3">model digest</text>
+      </g>
+      <text x="388" y="188" class="ink3 xs">in ViewPart today</text>
+      <text x="388" y="220" class="ink3 xs">designed sections</text>
+      <rect x="530" y="10" width="240" height="112" rx="14" class="fpaper steal w2"/>
+      <text x="544" y="34" class="ink b">Your own storage</text>
+      <text x="544" y="54" class="ink3 sm">never inside the .xlsx:</text>
+      <text x="544" y="72" class="ink2 sm">scroll and camera position</text>
+      <text x="544" y="88" class="ink2 sm">splitter widths, open panels</text>
+      <text x="544" y="104" class="ink2 sm">your personal skins ("Keep for me")</text>
+      <rect x="530" y="134" width="240" height="116" rx="14" class="fpaper sline w2"/>
+      <text x="544" y="158" class="ink b">Opened in Excel</text>
+      <text x="544" y="178" class="ink3 sm">Excel sees a normal workbook and</text>
+      <text x="544" y="193" class="ink3 sm">ignores the custom part. No hidden</text>
+      <text x="544" y="208" class="ink3 sm">names are ever added. If the part is</text>
+      <text x="544" y="223" class="ink3 sm">stripped, the model is intact and the</text>
+      <text x="544" y="238" class="ink3 sm">workbook opens in Classic.</text>
+    </svg>
+    </div></div>
+    <figcaption>The App page you made in step 5 is a view document in this part, written by <code>PresentationChange::CreateDoc</code> and <code>PatchDoc</code> through the one history. An unknown or future version of the part is kept byte for byte on save. Whether desktop Excel keeps the part across every save route is being verified on Windows under bead <code>dc-o6y3m</code>.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================ 08 ============================ -->
+<section class="s" id="limits">
+  <div class="sh"><span class="num"><i></i><b>08</b></span></div>
+  <h2>What skins can and cannot do</h2>
+  <p class="lead">The limits are the feature. They are what makes it safe to open a stranger's workbook and to let an agent restyle yours.</p>
+
+  <div class="two">
+    <div class="can"><h4>A skin can</h4><ul>
+      <li>Choose a theme and a density, and move the neutral tokens<small>within the contrast law</small></li>
+      <li>Set the size of formula text<small>10 to 32 px</small></li>
+      <li>Add or change key bindings over the view's profile<small>and see how many keys depart from Excel</small></li>
+      <li>Name a sequence of built-in commands<small>run on request, through the normal undo</small></li>
+      <li>Dock instruments and its own pages beside any view</li>
+      <li>Pin extra read-outs to the Strip</li>
+      <li>Carry pages of bound components<small>inputs, values, row windows</small></li>
+      <li>Pass settings to a view<small>the view decides what they mean</small></li>
+      <li>Travel inside a workbook, or stay with you</li>
+    </ul></div>
+    <div class="cannot"><h4>A skin cannot</h4><ul>
+      <li>Change how anything calculates<small>no engine handle crosses the contract</small></li>
+      <li>Contain code, expressions, HTML or URLs<small>the schema has no field for them</small></li>
+      <li>Edit a cell, a formula, a name or a format by being applied<small>applying a skin is a presentation change; <code>Stamp.model</code> does not move</small></li>
+      <li>Recolour red, amber, signal orange or green</li>
+      <li>Break a sanctioned contrast pair</li>
+      <li>Rebind Esc, Ctrl+Z, Ctrl+Y, F4, Ctrl+Enter, Alt+Q, or the way back to Classic</li>
+      <li>Hide the Strip or a trust prompt</li>
+      <li>Run anything when a workbook opens</li>
+      <li>Add a new kind of component or a new view<small>that is an extension, or a crate</small></li>
+    </ul></div>
+  </div>
+
+  <h3>When data is not enough: the extension boundary <span class="st designed">Designed</span></h3>
+  <p>A new kind of visual component needs code, and code never comes from a file. The design is an installed, signed package (<code>.dnaext</code>: a manifest and a Rust-compiled Wasm module) approved once through a trust card. A workbook or skin names the extension by id and version in <code>requires</code>; it never carries it.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 780 206" role="img" aria-label="An extension runs in a Worker and exchanges bound slot values for a render tree">
+      <defs><marker id="ae" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--ink-2)"/></marker></defs>
+      <rect x="10" y="14" width="300" height="180" rx="14" class="fpaper steal w2"/>
+      <text x="24" y="38" class="ink b">The page · dna-kit</text>
+      <rect x="24" y="50" width="272" height="56" rx="9" class="ftealsoft"/><text x="34" y="70" class="ink sm b">Part { component: "dnakode.live-tree",</text><text x="34" y="86" class="ink sm b">       bind: { read slots, write slots } }</text><text x="34" y="100" class="ink3 sm">resolved by the kit, never by the guest</text>
+      <rect x="24" y="116" width="272" height="64" rx="9" class="fpaper2 sline"/><text x="34" y="136" class="ink sm b">draws the returned tree with Strand</text><text x="34" y="152" class="ink3 sm">tokens, contrast and accessibility are the kit's;</text><text x="34" y="167" class="ink3 sm">write intents become ordinary batches</text>
+      <rect x="470" y="14" width="300" height="180" rx="14" class="fpaper sink3 dash w2"/>
+      <text x="484" y="38" class="ink b">A Web Worker · signed Wasm guest</text>
+      <text x="484" y="62" class="ink2 sm">no DOM</text><text x="484" y="80" class="ink2 sm">no CSS</text><text x="484" y="98" class="ink2 sm">no network</text><text x="484" y="116" class="ink2 sm">no queries of its own</text>
+      <text x="484" y="146" class="ink3 sm">It sees only the values on the slots</text><text x="484" y="161" class="ink3 sm">it was bound to, and answers with</text><text x="484" y="176" class="ink3 sm">a drawing and intents.</text>
+      <line x1="314" y1="70" x2="466" y2="70" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ae)"/>
+      <text x="322" y="60" class="ink m">Shown&lt;T&gt; · Stamp</text><text x="322" y="88" class="ink3 sm">on declared read slots</text>
+      <line x1="466" y1="148" x2="314" y2="148" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#ae)"/>
+      <text x="322" y="138" class="ink m">RenderTree · intents</text><text x="322" y="166" class="ink3 sm">through the seam</text>
+    </svg>
+    </div></div>
+    <figcaption>Write intents arrive as <code>Origin::Extension</code> batches. If the extension is not installed, the kit shows "Needs extension … · not installed" and offers the bound source as a plain table; nothing is fetched. Designed for milestone 8. Its first component, the expression tree, already exists as an ordinary kit component (<code>dna_kit::live_tree</code>) so nothing waits on the sandbox.</figcaption>
+  </figure>
+
+  <p><b>Why files never carry code.</b> A spreadsheet is the document people forward without thinking. If presentation could carry behaviour, every received workbook would be a program to audit. Keeping skins and pages as data means the question "what will opening this do?" has one answer: draw.</p>
+</section>
+
+<!-- ============================ 09 ============================ -->
+<section class="s" id="agents">
+  <div class="sh"><span class="num"><i></i><b>09</b></span></div>
+  <h2>For coding agents</h2>
+  <p class="lead">You write against the same contract as a person's view. There is no private door, and the address you send is the address a person types in the Name Box.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 780 206" role="img" aria-label="Two lanes for agents: looks and model">
+      <rect x="10" y="10" width="372" height="186" rx="14" class="fpaper samber w2"/>
+      <text x="24" y="36" class="ink big">Lane 1 · Looks</text>
+      <text x="24" y="56" class="ink3 sm">skins, pages, view documents</text>
+      <text x="24" y="82" class="ink2 sm">1 · write dna.skin/1 or dna.page/1 JSON</text>
+      <text x="24" y="100" class="ink2 sm">2 · <tspan class="m">dnacalc skin validate</tspan> until it passes</text>
+      <text x="24" y="118" class="ink2 sm">3 · submit as a Try-On; the person keeps or discards</text>
+      <text x="24" y="146" class="ink3 sm">Keeping it is one PresentationChange.</text>
+      <text x="24" y="162" class="ink3 sm">The model revision provably does not move.</text>
+      <text x="24" y="184" class="greenink sm b">steps 1–2 built</text><text x="124" y="184" class="ink3 sm b">· step 3 designed</text>
+      <rect x="398" y="10" width="372" height="186" rx="14" class="fpaper steal w2"/>
+      <text x="412" y="36" class="ink big">Lane 2 · Model</text>
+      <text x="412" y="56" class="ink3 sm">cells, formulas, names</text>
+      <text x="412" y="82" class="ink2 sm">1 · connect with a WritePolicy: Look or Propose</text>
+      <text x="412" y="100" class="ink2 sm">2 · read with typed queries, within a Budget</text>
+      <text x="412" y="118" class="ink2 sm">3 · send a Proposal of units, each a Batch</text>
+      <text x="412" y="136" class="ink2 sm">4 · the person ticks units; Decide commits them</text>
+      <text x="412" y="162" class="ink3 sm">Each accepted unit is its own history entry.</text>
+      <text x="412" y="184" class="greenink sm b">steps 1–2 built</text><text x="512" y="184" class="ink3 sm b">· steps 3–4 designed</text>
+    </svg>
+    </div></div>
+  </figure>
+
+  <h3>The contract you write against</h3>
+  <div class="tw"><table>
+    <thead><tr><th>You need</th><th>Use</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>An address for anything</td><td class="wrapc"><code>SourceRef</code>: <code>Cells</code>, <code>Spill</code>, <code>Name</code>, <code>Table</code>, <code>Object</code>, <code>Sheet</code>, <code>Workbook</code>. Text addresses resolve with the <code>Resolve</code> query.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>To read</td><td class="wrapc"><code>WorkbookPort::ask(query, budget)</code>. Check <code>coverage</code> before you trust a count; expect <code>OverBudget</code> with narrower alternatives on large workbooks.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>To know what an edit would write</td><td class="wrapc"><code>WorkbookPort::preview(&amp;batch, PreviewDepth::WritesOnly)</code> returns the exact cell writes, warnings and any refusal, without committing.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Not to overwrite someone</td><td class="wrapc">Set <code>Batch.base</code> to the model revision you read and <code>Batch.expects</code> to what you read. A change underneath you returns <code>Refusal::Conflict</code>.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>A permission level</td><td class="wrapc"><code>SkinHost::connect(origin, policy)</code>. The policy is fixed at connection and held at the host: <code>Look</code> and <code>Propose</code> connections get <code>PolicyRefused</code> on <code>commit</code>; <code>ApplyThenReview</code> commits are marked <code>unreviewed</code>.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>To propose model changes</td><td class="wrapc"><code>Proposal</code> of units with dependencies, subset preview, and <code>Operation::Decide</code>.</td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>A record of what you did</td><td class="wrapc">The trail, kept in the workbook's view part and switchable off (owner decision 14).</td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>To see the page as a person does</td><td class="wrapc"><code>window.__dnaProbe()</code> on the preview page; <code>data-command</code> and <code>data-dnacalc</code> attributes on the shell's controls.</td><td><span class="st preview">Preview</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Proposal and Decide</h3>
+  <p>The default policy for an agent is <code>Propose</code>: it may not commit. It sends a proposal made of units, each a batch with the units it needs. The person ticks a subset and sees the writes for exactly that subset. <code>Decide</code> checks every accepted unit against its <code>base</code> and <code>expects</code> together and refuses all of them if any is stale. Each accepted unit becomes its own <code>Origin::Agent</code> history entry in one group, so <kbd>Ctrl+Z</kbd> takes back one unit at a time. An agent connection cannot change macro security, load an add-in, install an extension, or save over a file.</p>
+
+  <h3>A worked example</h3>
+  <p>The brief: <em>"Turn Loan.xlsx into a planner: inputs for loan, rate and years; show the payment and the schedule."</em></p>
+  <ol class="steps">
+    <li><h4>Look, do not invent</h4><p>Ask <code>InputCandidates { scope }</code> for the cells the workbook itself marks as inputs, and <code>Structure { scope }</code> for its tables and formula runs. The payment formula already exists in <code>Loan!B4</code>. A page holds no formulas, so there is nothing to duplicate.</p></li>
+    <li><h4>Write the page</h4><p>Produce <code>loan-planner.dnapage.json</code> (in <code>docs/guide/skinning/examples/</code>): three <code>input</code> parts, one <code>value</code>, one <code>data-frame</code>, each with a <code>Bound { anchor, address }</code>.</p></li>
+    <li><h4>Validate against the workbook</h4><p><code>dnacalc skin validate loan-planner.dnapage.json --workbook Loan.xlsx --json</code>. Each anchor must already be in the workbook's view part (a <code>PresentationChange::Bind</code> puts it there) and must resolve to the same source as its address. One that does not comes back as <code>&lt;address&gt;: Source missing</code>. Fix the page; do not move the binding to a nearby cell.</p></li>
+    <li><h4>Hand it over</h4><p>Offer the page as a presentation change. If you also want a defined name added, that is a separate model proposal, previewed on its own.</p></li>
+    <li><h4>Check what the person sees</h4><p>On the page, <code>__dnaProbe()</code> returns the selection, the visible cells with provenance, the draft and the stamp. This is real output from the published preview:</p>
+<pre>{ <span class="k">"active"</span>: [<span class="n">0</span>,<span class="n">0</span>,<span class="n">4</span>,<span class="n">2</span>],
+  <span class="k">"cells"</span>: [ { <span class="k">"at"</span>: [<span class="n">0</span>,<span class="n">0</span>,<span class="n">1</span>,<span class="n">1</span>], <span class="k">"input"</span>: <span class="s">"Loan"</span>, <span class="k">"text"</span>: <span class="s">"Loan"</span>,
+               <span class="k">"shown"</span>: { <span class="k">"provenance"</span>: <span class="s">"Literal"</span>, <span class="k">"value"</span>: { <span class="k">"Text"</span>: [<span class="n">76</span>,<span class="n">111</span>,<span class="n">97</span>,<span class="n">110</span>] } }, <span class="k">"spill"</span>: <span class="n">null</span>, <span class="k">"style"</span>: <span class="n">0</span> }, … ],
+  <span class="k">"formula"</span>: <span class="s">"=PMT(B2/12,B3*12,-B1)"</span>, <span class="k">"notice"</span>: <span class="s">""</span>,
+  <span class="k">"stamp"</span>: { <span class="k">"calc"</span>: …, <span class="k">"model"</span>: …, <span class="k">"view"</span>: <span class="n">0</span>, <span class="k">"workbook"</span>: <span class="n">1</span> } }</pre>
+    <p>Compare <code>stamp.model</code> before and after a looks-only change. If it moved, you changed the model.</p></li>
+  </ol>
+  <div class="note teal">If you are adding a view rather than a skin, the test to copy is <code>apps/dna-shell/tests/session.rs</code>: it joins a view's commands, the keymap and the <code>Session</code> to the real <code>calc-skin-host</code> by packets, with no browser. Test commands and watches that way before drawing a pixel.</div>
+</section>
+
+<!-- ============================ 10 ============================ -->
+<section class="s" id="guarded">
+  <div class="sh"><span class="num"><i></i><b>10</b></span></div>
+  <h2>Guarded execution and skins</h2>
+  <p class="lead">Macros and add-ins are code; skins and pages are not. The two meet in a few well-marked places.</p>
+  <p>DNA Calc runs code at one of three levels: <b>Off</b>, <b>Guarded</b> and <b>Unguarded</b>. Guarded is possible because DNA Calc owns the interpreters for VBA and embedded JavaScript, so it constructs their authority: a Guarded macro has no ambient reach, and every outside effect is a call on something the host handed over. Native add-ins (XLL, COM) cannot be mediated in process, so under Guarded they are not loaded. The full design is in <code>docs/design/GUARDED_EXECUTION.md</code>.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Where they meet</th><th>How</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>One selection</td><td class="wrapc">A macro's <code>Range.Select</code> moves the same selection every view shows. The host reports the move with its cause, <code>SelectionCause::Macro { procedure }</code>, so a late echo of the person's own cursor cannot undo it.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>One history</td><td class="wrapc"><code>Origin::Macro { run, procedure }</code> entries sit in the same history as view edits. Grouping a whole run into one entry is the first-release design.</td><td><span class="st build">In build</span></td></tr>
+      <tr><td>Screen updating</td><td class="wrapc">While <code>ScreenUpdating = False</code>, the host sends no frames; views repaint when it returns.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Capabilities</td><td class="wrapc">A view learns what the host can run from <code>Capabilities.supported</code> (<code>Vba</code>, <code>NativeAddins</code>, <code>ComRtd</code>) and never branches on the platform.</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Running a macro from a page</td><td class="wrapc">An action button names a macro; it runs under the workbook's level, with the first outside reach asked as a typed question rather than a blanket "enable macros".</td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>A macro asking for a view</td><td class="wrapc"><code>Application.Run "DnaCalc.View.Switch", "notebook"</code>: late-bound, so the same workbook still compiles and runs in Excel. Applied when the run yields; it creates no undo step.</td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>Previewing a macro</td><td class="wrapc">A Guarded run without grants has no outside effects, so it can run on a fork and show its writes in the same <code>Preview.writes</code> terms as an agent's proposal. Apply adopts the fork; it does not run the macro again.</td><td><span class="st designed">Designed</span></td></tr>
+    </tbody>
+  </table></div>
+  <p>Two grants that never imply each other: trusting an add-in to calculate does not let it draw, and trusting an extension to draw does not let it register a function or reach the engine.</p>
+</section>
+
+<!-- ============================ 11 ============================ -->
+<section class="s" id="more">
+  <div class="sh"><span class="num"><i></i><b>11</b></span></div>
+  <h2>Scale, platforms, testing, accessibility</h2>
+
+  <h3>Budgets and big workbooks</h3>
+  <p>Every query takes a <code>Budget { cells, nodes, edges, bytes, millis }</code>. A view never mounts blind: the shell asks for a <code>Census</code> (counts taken without calculating) and calls <code>View::fit</code>. A view that cannot show a workbook honestly says so before it draws, with at least a reason and commands that lead somewhere useful.</p>
+  <div class="cols">
+    <div class="card k-green"><h4>Whole</h4><p>The view shows the workbook as it is. Classic always answers this.</p></div>
+    <div class="card k-amber"><h4>Simplified</h4><p>"Showing <em>shown</em> of <em>total</em>", with the explanation. The Stage carries the note.</p></div>
+    <div class="card k-red"><h4>Declined</h4><p>The view does not mount. The shell shows the reason and the ways forward, each a command.</p></div>
+  </div>
+  <p>The grid watches one 36 by 18 page of cells at a time, as binary tiles. The Inspector's instruments ask with a budget of 800,000 cells and 8 seconds and report <code>Coverage::Partial</code> when they stop early. Calculation runs in slices (<code>SkinHost::advance</code>), so a long recalculation does not block typing. Latency targets (first viewport under 1 s, key echo under 50 ms, view switch under 150 ms) are design targets to be measured as benchmarks, not claims.</p>
+
+  <h3>Web and desktop from one code base</h3>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>Browser</th><th>Windows desktop</th><th>Tests</th></tr></thead>
+    <tbody>
+      <tr><td><b>Page</b></td><td colspan="2">the same wasm bundle, built from the same crates</td><td>the runtime directly, no browser</td></tr>
+      <tr><td><b>Host</b></td><td>a Web Worker running <code>calc-skin-host</code> compiled to wasm</td><td>the native process</td><td>in-process</td></tr>
+      <tr><td><b>Carrier</b></td><td><code>postMessage</code> with transferable buffers <span class="st preview">Preview</span></td><td>WebView2 shared buffers <span class="st build">In build</span></td><td><code>calc_skin::InProcess</code> <span class="st built">Built</span></td></tr>
+      <tr><td><b>Native add-ins</b></td><td><code>NotAvailableHere</code>, with a route to the desktop</td><td>XLL, COM, .xlam</td><td>portable providers</td></tr>
+    </tbody>
+  </table></div>
+  <p>The in-process carrier uses the same JSON control encoding as the remote ones, so a test exercises the wire representation, not a shortcut. A fourth carrier, a loopback socket for <code>dnacalc serve</code>, is designed for this wire; today <code>serve</code> carries the established page's protocol.</p>
+
+  <h3>Testing a skin or a view</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Check</th><th>What it covers</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td><code>dnacalc skin validate</code></td><td>schema, open tokens, the theme's contrast pairs, reserved and overlapping keys, sequences, page parts; with <code>--workbook</code>, every binding</td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>apps/dna-shell/tests/session.rs</code></td><td>30 tests joining commands, keymap and session to the real host by packets</td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>crates/calc-skin-host/tests/workbook.rs</code></td><td>24 tests of queries, watches, preview, commit, history and policy on the port</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Browser smoke cases for the preview page</td><td>32 cases in <code>apps/dna-calc-preview/tests/smoke/cases.rs</code>, driven through <code>__dnaProbe()</code></td><td><span class="st built">Built</span></td></tr>
+      <tr><td><code>cargo xtask app smoke --skin &lt;manifest&gt;</code></td><td>mount a skin headless, take light, dark and high-contrast screenshots, assert the model did not change</td><td><span class="st designed">Designed</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Accessibility</h3>
+  <p>The contrast law is enforced where skins are loaded, so a skin cannot produce unreadable text. Colour is never the only cue: provenance is a word as well as a tint ("Saved value", "Previous calculation"), and the state badges in this guide follow the same rule, solid for built and dashed for designed. Pages are flow layouts with real form controls, labels, table captions and <code>role="alert"</code> on errors, so they reflow at high zoom. The Strip is a <code>role="status"</code> region. The key that leaves any state, <kbd>Esc</kbd>, and the way back to Classic cannot be taken away by a skin.</p>
+</section>
+
+<!-- ============================ 12 ============================ -->
+<section class="s" id="state">
+  <div class="sh"><span class="num"><i></i><b>12</b></span></div>
+  <h2>Built today, and what is next</h2>
+  <p class="lead">One table, so nothing in this guide reads as more finished than it is. Sizes are lines of Rust, tests included, counted in the repository at <span class="mono">d002a3c9b</span>.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Piece</th><th>Where</th><th>Size</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>The contract</td><td><code>crates/calc-skin</code></td><td>3,903</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Level-1 serving</td><td><code>crates/calc-skin-host</code></td><td>5,809</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Level 0</td><td><code>crates/calc-formula-host</code>, <code>calc-formula-kernel</code></td><td>7,411 + 1,699</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Client runtime</td><td><code>apps/dna-skin-runtime</code></td><td>2,676</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Kit and page renderer</td><td><code>apps/dna-kit</code></td><td>1,648</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Shell</td><td><code>apps/dna-shell</code></td><td>1,975</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Strand tokens and contrast</td><td><code>apps/dna-strand</code></td><td>1,390</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Formula Explorer, skin 0</td><td><code>apps/dna-view-explorer</code> · dnacalc.com/onecalc/</td><td>999</td><td><span class="st preview">Preview</span></td></tr>
+      <tr><td>Classic (thin: draw, select, edit, undo)</td><td><code>apps/dna-view-classic</code>, <code>dna-grid</code> · dnacalc.com/app/preview/</td><td>221 + 354</td><td><span class="st preview">Preview</span></td></tr>
+      <tr><td>Classic in full: Excel's gestures, dialogs, key-tip tree</td><td>milestone 3</td><td></td><td><span class="st build">In build</span></td></tr>
+      <tr><td>Inspector</td><td><code>apps/dna-view-inspector</code></td><td>2,490</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Notebook</td><td><code>apps/dna-view-notebook</code></td><td>1,709</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>App and Forms maker</td><td><code>apps/dna-view-app</code></td><td>1,163</td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Model map</td><td>milestone 7</td><td></td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>Skin and page schemas, validator, CLI</td><td><code>calc-skin</code>, <code>dna-skin-runtime::skin</code>, <code>dnacalc skin validate</code></td><td></td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Applying a skin in the running application; Try-On and Keep</td><td>milestone 6</td><td></td><td><span class="st build">In build</span></td></tr>
+      <tr><td>Model changes: cell entry, bound entry, clear, paste, formula rewrite</td><td>6 <code>ModelChange</code> variants</td><td></td><td><span class="st built">Built</span></td></tr>
+      <tr><td>Model changes: the rest of Excel's vocabulary (formats, structure, tables, objects)</td><td>through the contract; the established page has them on its own wire</td><td></td><td><span class="st build">In build</span></td></tr>
+      <tr><td>Preview with recalculated effects</td><td><code>PreviewDepth::WithEffects</code> · <code>dc-zh096</code></td><td></td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>Agent proposals, Decide, the trail</td><td>milestone 6</td><td></td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>Signed extensions</td><td>milestone 8</td><td></td><td><span class="st designed">Designed</span></td></tr>
+      <tr><td>The switch: the new page replaces the established one</td><td>milestone 3, one commit</td><td></td><td><span class="st designed">Designed</span></td></tr>
+    </tbody>
+  </table></div>
+  <p>The established DNA Calc page at <a href="https://dnacalc.com/app/">dnacalc.com/app/</a> stays in service until the switch. The new page is published beside it, which is why this guide can show real screens of a design that is still being filled in.</p>
+
+  <h3>Read further</h3>
+  <ul>
+    <li><code>docs/design/front-end/SKIN_ARCHITECTURE.md</code>: the full architecture, every decision and everything not taken. Section 20 records the core decisions the code now follows.</li>
+    <li><code>docs/design/front-end/book/12-customisation-and-skin-api.md</code>: Design Book part XII, the customisation scenes U01 to U05.</li>
+    <li><code>docs/design/GUARDED_EXECUTION.md</code>: Off, Guarded, Unguarded.</li>
+    <li><code>docs/plan/STRAND.md</code> and <code>apps/dna-strand</code>: the design language; where they differ, the crate wins.</li>
+    <li><code>crates/calc-skin/src/</code>: the contract itself. It is short enough to read.</li>
+  </ul>
+</section>
+
+<footer class="end">DNA Calc Skinning Guide · written 2026-11-27 against repository commit d002a3c9b · screenshots from dnacalc.com the same day · bead dc-5tycr. Diagrams are drawn for this guide; code excerpts are from the files named beneath them, some with lines joined for width.</footer>
+
+</main>
+</div>
+</div>
+<script>
+(function(){
+  var links=[].slice.call(document.querySelectorAll('.rail a'));
+  if(!('IntersectionObserver' in window)||!links.length)return;
+  var byId={};links.forEach(function(a){byId[a.getAttribute('href').slice(1)]=a;});
+  var seen={};
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){seen[e.target.id]=e.isIntersecting;});
+    var on=null;Object.keys(byId).forEach(function(id){if(seen[id]&&!on)on=id;});
+    if(!on)return;
+    links.forEach(function(a){a.classList.toggle('on',a===byId[on]);});
+    var a=byId[on],ol=a.closest('ol');
+    if(ol&&ol.scrollWidth>ol.clientWidth){ol.scrollLeft=a.offsetLeft-ol.clientWidth/2+a.offsetWidth/2;}
+  },{rootMargin:'-20% 0px -65% 0px'});
+  Object.keys(byId).forEach(function(id){var s=document.getElementById(id);if(s)io.observe(s);});
+})();
+</script>

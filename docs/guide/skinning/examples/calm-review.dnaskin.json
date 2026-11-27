@@ -1,0 +1,115 @@
+{
+  "schema": "dna.skin/1",
+  "id": "calm-review",
+  "name": "Calm Review",
+  "extends": "dna:default",
+  "level": "workbook",
+  "theme": {
+    "base": "cockpit-dark",
+    "density": "working",
+    "overrides": {
+      "ink.secondary": "#A4B8C2",
+      "ink-3": "#A4B8C2",
+      "surface.panel": "#22343C",
+      "formula.font.size": "15.5px"
+    }
+  },
+  "shell": {
+    "deck": "compact",
+    "panels": {
+      "right": [
+        {
+          "id": "inspector.trace",
+          "width_px": 320
+        },
+        "audit-rail"
+      ]
+    },
+    "strip_pins": [
+      {
+        "address": "Loan!B4",
+        "label": "Payment"
+      }
+    ]
+  },
+  "keymap": {
+    "profile": "excel-365-win-en-us",
+    "bindings": [
+      {
+        "when": "view:classic && mode:ready",
+        "chord": "Ctrl+Shift+E",
+        "command": "grid.edit-cell"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "id": "skin.clear-and-next",
+      "label": "Clear and move down",
+      "steps": [
+        [
+          "grid.clear-contents",
+          null
+        ],
+        [
+          "grid.move-down",
+          null
+        ]
+      ]
+    }
+  ],
+  "views": {
+    "classic": {
+      "provenance_tints": true
+    },
+    "notebook": {
+      "layout": "down"
+    }
+  },
+  "pages": {
+    "audit-rail": {
+      "schema": "dna.page/1",
+      "title": "Audit",
+      "input": "live",
+      "root": {
+        "kind": "stack",
+        "children": [
+          {
+            "kind": "section",
+            "title": "Assumptions",
+            "children": [
+              {
+                "kind": "part",
+                "id": "rate",
+                "component": "input",
+                "bind": {
+                  "value": {
+                    "anchor": "00000000-0000-0000-0000-0000000000a2",
+                    "address": "Loan!B2"
+                  }
+                },
+                "props": {
+                  "label": "Rate"
+                }
+              }
+            ]
+          },
+          {
+            "kind": "part",
+            "id": "payment",
+            "component": "value",
+            "bind": {
+              "value": {
+                "anchor": "00000000-0000-0000-0000-0000000000a4",
+                "address": "Loan!B4"
+              }
+            },
+            "props": {
+              "label": "Monthly payment"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
