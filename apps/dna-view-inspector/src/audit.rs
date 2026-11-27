@@ -113,7 +113,7 @@ fn issues(session: Session) -> impl IntoView {
     let issues = session.following_with_budget::<query::IssuesIn>(crate::INSTRUMENT_BUDGET);
     view! {
         <div class="dna-inspector-card">
-            <h2>"Worksheet errors"</h2>
+            <h2>"Current worksheet errors"</h2>
             {move || {
                 let data = result(issues.at(Some(query::IssuesIn { scope: SourceRef::Workbook })), "")
                     .and_then(|answer| Ok((evidence(answer.body)?, coverage(answer.coverage))));
@@ -300,7 +300,7 @@ pub(crate) fn calculation(session: Session) -> impl IntoView {
             }}
             {button(session, "calc.calculate", "Calculate workbook")}
         </div>
-        <div class="dna-inspector-card"><h2>"Dependency waves"</h2><p>"Waiting for a host dependency-wave query."</p></div>
+        {dependency_waves(session)}
         <div class="dna-inspector-card"><h2>"Value changes"</h2><p>"Value differences are unavailable."</p></div>
         <div class="dna-inspector-card"><h2>"DNA Calc's calculation order"</h2><p>"Not observed"</p></div>
     }
@@ -309,6 +309,7 @@ pub(crate) fn calculation(session: Session) -> impl IntoView {
 pub(crate) fn sources(session: Session) -> impl IntoView {
     let sources = session.following::<query::SourceInventory>();
     view! {
+        {crate::live::recording(session)}
         <div class="dna-inspector-card"><h2>"Live sources"</h2>
             {move || match result(sources.at(Some(query::SourceInventory)), "") {
                 Ok(answer) => {
@@ -316,9 +317,14 @@ pub(crate) fn sources(session: Session) -> impl IntoView {
                     view! {
                         <p>{format!("{} RTD topics · {} linked workbooks · {} volatile cells", sources.topics.len(), sources.links.len(), sources.volatile_cells.len())}</p>
                         {coverage(answer.coverage).map(status)}
-                        <ul>{sources.topics.into_iter().map(|topic| view! {
-                            <li><strong>{topic.progid}</strong>" " {topic.strings.join(" / ")}" · " {topic.last.value.display()}
-                                <small>{format!("Lease {} · sequence {}", topic.lease, topic.sequence)}</small></li>
+                        <ul>{sources.topics.into_iter().map(|topic| {
+                            let watch = crate::live::topic_button(session, &topic);
+                            view! {
+                                <li><strong>{topic.progid}</strong>" " {topic.strings.join(" / ")}" · " {topic.last.value.display()}
+                                    <small>{format!("Lease {} · sequence {}", topic.lease, topic.sequence)}</small>
+                                    {watch}
+                                </li>
+                            }
                         }).collect_view()}</ul>
                         <ul>{sources.links.into_iter().map(|link| view! {
                             <li>{link.file_name.unwrap_or_else(|| format!("External link {}", link.index))}
@@ -331,4 +337,72 @@ pub(crate) fn sources(session: Session) -> impl IntoView {
             }}
         </div>
     }
+}
+
+fn dependency_waves(session: Session) -> impl IntoView {
+    let watch = session.following::<query::Deps>();
+    view! {
+        <div class="dna-inspector-card">
+            <h2>"Dependency waves"</h2>
+            {move || {
+                let source = session.active().map(crate::cell_source);
+                let graph = result(watch.at(source.map(|of| query::Deps {
+                    of, dir: DependencyDirection::Precedents, depth: 5, group: DependencyGrouping::Reference,
+                })), "Select a cell to inspect.")
+                    .and_then(|answer| Ok((evidence(answer.body)?, coverage(answer.coverage))));
+                let (graph, limit) = match graph {
+                    Ok(graph) => graph,
+                    Err(message) => return status(message),
+                };
+                if graph.nodes.len() > 200 || graph.edges.len() > 400 {
+                    return status("The selected cell's graph exceeds 200 references or 400 edges.".into());
+                }
+                let (waves, held) = frontiers(&graph);
+                view! {
+                    <p>"Derived from up to five levels of precedents"</p>
+                    {limit.map(status)}
+                    <ol>{waves.into_iter().map(|wave| view! {
+                        <li>
+                            <details>
+                                <summary>{format!("{} references", wave.len())}</summary>
+                                <ul>{wave.into_iter().map(|node| view! {
+                                    <li>{target_label(session, &graph.nodes[node])}</li>
+                                }).collect_view()}</ul>
+                            </details>
+                        </li>
+                    }).collect_view()}</ol>
+                    {(held > 0).then(|| view! { <p>{format!("{held} references in or downstream of a cycle in this graph.")}</p> })}
+                }.into_any()
+            }}
+        </div>
+    }
+}
+
+fn frontiers(graph: &Dependencies) -> (Vec<Vec<usize>>, usize) {
+    let count = graph.nodes.len();
+    let mut reads = vec![0; count];
+    let mut readers = vec![Vec::new(); count];
+    for edge in &graph.edges {
+        reads[edge.from] += 1;
+        readers[edge.to].push(edge.from);
+    }
+    let mut ready: Vec<_> = (0..count).filter(|&node| reads[node] == 0).collect();
+    let mut waves = Vec::new();
+    let mut reached = 0;
+    while !ready.is_empty() {
+        let mut next = Vec::new();
+        ready.sort_unstable();
+        for &predecessor in &ready {
+            for &reader in &readers[predecessor] {
+                reads[reader] -= 1;
+                if reads[reader] == 0 {
+                    next.push(reader);
+                }
+            }
+        }
+        reached += ready.len();
+        waves.push(ready);
+        ready = next;
+    }
+    (waves, count - reached)
 }

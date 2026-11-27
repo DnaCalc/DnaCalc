@@ -196,12 +196,12 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
             &["D"],
             |state, _| {
                 let snapshot = state.snapshot()?;
-                let id = state.current(&snapshot)?.id;
+                let item = (snapshot.part.stamp.workbook, state.current(&snapshot)?.id);
                 let armed = state
                     .workspace
-                    .try_update_value(|workspace| workspace.delete_armed.replace(id))
+                    .try_update_value(|workspace| workspace.delete_armed.replace(item))
                     .flatten();
-                if armed == Some(id) {
+                if armed == Some(item) {
                     state.delete()
                 } else {
                     Ok(())

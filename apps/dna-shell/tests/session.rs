@@ -468,3 +468,30 @@ fn notebook_run_all_gives_each_draft_its_own_undo_step() {
     page.settle();
     assert_eq!((page.shown(a1), page.shown(b1)), ("".into(), "".into()));
 }
+
+/// Native-only: saves and reopens a notebook through the real workbook service.
+#[test]
+fn notebook_delete_prefix_does_not_carry_into_a_reopened_workbook() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.link").unwrap();
+    page.settle();
+    let bytes = page.host.with_session(calc_skin::SelectionCause::Open, |workbook| {
+        let mut bytes = Vec::new();
+        workbook
+            .save(&calc_host::SavePolicy::default(), &mut bytes)
+            .unwrap();
+        bytes
+    });
+
+    assert!(page.press("d", Focus::Stage));
+    session.open("Reopened notebook.xlsx".into(), bytes);
+    page.settle();
+    let reopened = session.stamp().unwrap();
+
+    assert!(page.press("d", Focus::Stage));
+    assert_eq!(session.stamp().unwrap().view, reopened.view);
+    assert!(page.press("d", Focus::Stage));
+    assert!(session.stamp().unwrap().view > reopened.view);
+}

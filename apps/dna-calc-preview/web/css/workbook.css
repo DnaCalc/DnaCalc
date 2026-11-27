@@ -223,3 +223,20 @@
 .dna-inspector dl { display: grid; grid-template-columns: minmax(5rem, auto) 1fr; column-gap: var(--dna-gap-3); }
 .dna-inspector dt { color: var(--dna-ink-2); }
 .dna-inspector dd { margin: 0; overflow-wrap: anywhere; }
+
+.dna-inspector-pinned p { margin-block-end: 0; }
+.dna-inspector-plot {
+    position: relative;
+    min-height: 6rem;
+    border: 1px solid var(--dna-line);
+    background: var(--dna-paper-2);
+}
+.dna-inspector-plot span {
+    position: absolute;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin: 0;
+    border-radius: 50%;
+    background: var(--dna-accent-ink);
+    transform: translate(-50%, 50%);
+}

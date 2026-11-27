@@ -591,6 +591,23 @@ impl HostSession {
         HostState::open(source, policy, options).map(HostSession::new)
     }
 
+    /// Opens a new session and assigns its file identity before its first calculation.
+    ///
+    /// Rebinding on a file identity change cancels active work. A new session resumes
+    /// the workbook's own calculation mode, including deferral of what-if data tables.
+    pub fn open_named(
+        source: Arc<dyn PackageRead>,
+        policy: &OpenPolicy,
+        options: HostOptions,
+        name: &str,
+    ) -> Result<HostSession, OpenFailure> {
+        let mut session = Self::open(source, policy, options)?;
+        let macro_enabled = session.host.model.definitions().macro_enabled();
+        session.set_file_identity(name, macro_enabled);
+        session.host.calculation_cancelled = false;
+        Ok(session)
+    }
+
     /// Each dispatch and continuation performs at most one step under this budget. Zero is
     /// normalized to one evaluation so a worker never schedules an empty busy loop.
     pub fn set_calculation_budget(&mut self, budget: WorkBudget) {

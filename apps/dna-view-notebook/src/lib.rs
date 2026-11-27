@@ -87,7 +87,7 @@ struct State {
 struct Workspace {
     owner: Option<calc_skin::WorkbookId>,
     copied: Option<CopiedCell>,
-    delete_armed: Option<AnchorId>,
+    delete_armed: Option<(calc_skin::WorkbookId, AnchorId)>,
 }
 
 #[derive(Clone)]

@@ -1295,6 +1295,15 @@ fn opening_an_automatic_workbook_publishes_calculated_spills() {
         Message::WorkbookReply(WorkbookReply::Stamp(_))
     ));
     while host.advance() {}
+    host.with_session(SelectionCause::Open, |session| {
+        assert!(
+            session
+                .intent_log()
+                .iter()
+                .all(|entry| !matches!(entry.intent, calc_host::SkinIntent::Recalculate)),
+            "opening a file preserves its automatic scheduling and does not issue Calculate Now"
+        );
+    });
     let query = query::Rows {
         source: SourceRef::Spill { anchor },
         filter: vec![],

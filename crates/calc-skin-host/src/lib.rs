@@ -820,25 +820,16 @@ impl Connection {
         {
             return Err(Refusal::PolicyRefused);
         }
-        let mut session = calc_host::HostSession::open(
+        let mut session = calc_host::HostSession::open_named(
             std::sync::Arc::new(calc_host::MemorySource::new(bytes)),
             &calc_host::OpenPolicy::default(),
             calc_host::HostOptions::default(),
+            &name,
         )
         .map_err(|error| Refusal::Excel {
             reason: format!("{error:?}"),
         })?;
-        let macro_enabled = session.host().model().definitions().macro_enabled();
-        session.set_file_identity(&name, macro_enabled);
         session.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
-        // Setting the file identity rebinds workbook-dependent formulas. Resume automatic
-        // calculation in slices so the first workbook frame can be followed by live results.
-        if session.calc_mode() != calc_host::CalcMode::Manual {
-            let result = session.dispatch(SkinIntent::Recalculate);
-            if let Some(error) = result.error {
-                return Err(batch::refusal(error));
-            }
-        }
         SkinHost::initial_selection(&mut session);
         let stamp = session.host().skin_stamp();
         let mut state = self.host.borrow_mut();
