@@ -3447,6 +3447,41 @@ fn odd_last_bonds_require_an_in_calendar_ending_coupon() {
     }
 }
 
+/// Excel 20625 counts the ending coupon before carrying the day through accrual periods.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_last_bonds_carry_accrual_day_independently_of_coupon_count() {
+    for (settlement, maturity, interest, frequency, basis, yld, price) in [
+        (
+            44331.0, 44471.0, 44227.0, 4.0, 0.0,
+            0x3fbe_dfd6_d58c_3899, 0x4059_321a_428a_552d,
+        ),
+        (
+            46706.0, 46752.0, 46568.0, 2.0, 1.0,
+            0x3fbf_3d21_68e1_f3ca, 0x4059_11ed_c649_ba87,
+        ),
+        (
+            2958419.0, 2958465.0, 2958281.0, 4.0, 1.0,
+            0x3fbf_3dc6_8581_c8b0, 0x4059_1208_5fea_614c,
+        ),
+    ] {
+        for (function, argument, expected) in
+            [("ODDLYIELD", 100.0, yld), ("ODDLPRICE", 0.1, price)]
+        {
+            exact(
+                dated(
+                    function,
+                    vec![
+                        n(settlement), n(maturity), n(interest), n(0.125),
+                        n(argument), n(100.0), n(frequency), n(basis),
+                    ],
+                ),
+                f64::from_bits(expected),
+            );
+        }
+    }
+}
+
 /// Excel 20625 keeps the clamped day of an annual coupon after February.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

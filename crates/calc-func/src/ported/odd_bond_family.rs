@@ -98,7 +98,7 @@ fn days_in_month(year: i64, month: i64) -> i64 {
     }
 }
 
-fn add_months_clamped(serial: i64, months: i64) -> Option<i64> {
+fn odd_last_coupon_date(serial: i64, months: i64, align_month_end: bool) -> Option<i64> {
     let (year, month, day) = ymd_from_excel_serial(WorkbookDateSystem::System1900, serial as f64)?;
     let month_index = year
         .checked_mul(12)?
@@ -111,9 +111,7 @@ fn add_months_clamped(serial: i64, months: i64) -> Option<i64> {
         return None;
     }
     let target_month = month_index.rem_euclid(12) + 1;
-    // Annual coupons carry the current day into the next year. Once a leap
-    // day has been clamped to February 28 it stays there (Excel 20625).
-    let source_is_month_end = months != 12 && day == days_in_month(year, month);
+    let source_is_month_end = align_month_end && months != 12 && day == days_in_month(year, month);
     let target_day = if source_is_month_end {
         days_in_month(target_year, target_month)
     } else {
@@ -126,6 +124,22 @@ fn add_months_clamped(serial: i64, months: i64) -> Option<i64> {
         target_day,
     )
     .map(|v| v as i64)
+}
+
+fn odd_last_coupon_count(
+    mut coupon: i64,
+    maturity: i64,
+    months: i64,
+) -> Result<i64, OddBondEvalError> {
+    // Excel 20625 aligns the count to the calendar coupon. The accrual walk
+    // carries the day separately and uses maturity for the last coupon's interest.
+    let mut count = 0;
+    while coupon < maturity {
+        coupon = odd_last_coupon_date(coupon, months, true)
+            .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
+        count += 1;
+    }
+    Ok(count)
 }
 
 fn days360_us(start: i64, end: i64) -> Result<f64, OddBondEvalError> {
@@ -624,19 +638,13 @@ pub fn oddlprice_kernel(
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
     let months_per_coupon = 12 / frequency;
-    let mut nc = 0i64;
-    let mut cursor = last_interest;
-    while cursor < maturity {
-        cursor = add_months_clamped(cursor, months_per_coupon)
-            .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
-        nc += 1;
-    }
+    let nc = odd_last_coupon_count(last_interest, maturity, months_per_coupon)?;
     let mut early_coupon = last_interest;
     let mut dcnl = 0.0;
     let mut anl = 0.0;
     let mut dscnl = 0.0;
     for index in 1..=nc {
-        let late_coupon = add_months_clamped(early_coupon, months_per_coupon)
+        let late_coupon = odd_last_coupon_date(early_coupon, months_per_coupon, false)
             .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
         let nl = day_count_non_negative_with_us_hack(early_coupon, late_coupon, basis)?;
         if nl <= 0.0 {
@@ -863,19 +871,13 @@ pub fn oddlyield_kernel(
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
     let months_per_coupon = 12 / frequency;
-    let mut nc = 0i64;
-    let mut cursor = last_interest;
-    while cursor < maturity {
-        cursor = add_months_clamped(cursor, months_per_coupon)
-            .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
-        nc += 1;
-    }
+    let nc = odd_last_coupon_count(last_interest, maturity, months_per_coupon)?;
     let mut early_coupon = last_interest;
     let mut dcnl = 0.0;
     let mut anl = 0.0;
     let mut dscnl = 0.0;
     for index in 1..=nc {
-        let late_coupon = add_months_clamped(early_coupon, months_per_coupon)
+        let late_coupon = odd_last_coupon_date(early_coupon, months_per_coupon, false)
             .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
         let nl = day_count_non_negative_with_us_hack(early_coupon, late_coupon, basis)?;
         if nl <= 0.0 {
