@@ -8,7 +8,7 @@ use calc_skin::{
     address,
 };
 use dna_kit::commands::CommandId;
-use dna_kit::page::{PageInput, PageRenderer};
+use dna_kit::page::{PageAuthor, PageInput, PageRenderer};
 use dna_kit::{
     Invocation, Live, Located, MountedView, Registry, Seam, Session, View, ViewCommand, ViewSpec,
     Watch,
@@ -20,6 +20,8 @@ use std::num::NonZeroU128;
 
 const APP: &str = "app";
 const FORMS: &str = "forms";
+
+mod controls;
 
 pub fn install(registry: &mut Registry) {
     registry.view(Surface::new(APP, "App"));
@@ -137,7 +139,7 @@ impl View for Surface {
                 ),
             ]
         } else {
-            vec![
+            let mut commands = vec![
                 ViewCommand::new(&id, "forms.create", "Create App page", &[], move |_| {
                     state.create()
                 })
@@ -214,7 +216,9 @@ impl View for Surface {
                     },
                 )
                 .when("writable"),
-            ]
+            ];
+            commands.extend(controls::commands(state, &id));
+            commands
         }
     }
 
@@ -766,7 +770,7 @@ fn forms(session: Session, state: State) -> AnyView {
                 {button(session, "view.app", "Run App")}
             </header>
             {move || match page.get() {
-                Ok((document, _)) => {
+                Ok((document, id)) => {
                     let input_mode = match document.input { InputPolicy::Live => "Live", InputPolicy::Batched => "Batched" };
                     view! {
                         <div class="dna-page-tools">
@@ -801,7 +805,14 @@ fn forms(session: Session, state: State) -> AnyView {
                                 <button type="submit" data-command="forms.add-cell">"Add selected cell"</button>
                             </form>
                         </aside>
-                        <PageRenderer session document />
+                        <div class="dna-page-author-layout">
+                            {controls::inspector(session, id, document.clone())}
+                            <PageRenderer session document author=PageAuthor {
+                                document: id,
+                                select_command: controls::SELECT,
+                                selected: controls::is_selected,
+                            } />
+                        </div>
                     }.into_any()
                 }
                 Err(message) => match draft() {

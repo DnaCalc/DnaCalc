@@ -28,6 +28,18 @@
     border-radius: var(--dna-radius-card);
 }
 .dna-page-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--dna-gap-2); }
+.dna-page-author-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: var(--dna-gap-3);
+    align-items: start;
+}
+.dna-page-control { display: grid; gap: var(--dna-gap-1); }
+.dna-page-control-selected {
+    outline: 2px solid var(--dna-amber-ink);
+    outline-offset: 2px;
+    border-radius: var(--dna-radius-card);
+}
 .dna-page-surface :is(button, input) { min-block-size: 36px; max-inline-size: 100%; }
 .dna-page-value { display: grid; }
 .dna-page-value output { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
