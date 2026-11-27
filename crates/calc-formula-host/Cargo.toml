@@ -13,6 +13,7 @@ portability = "portable"
 calc-doc = { path = "../calc-doc" }
 calc-fml = { path = "../calc-fml" }
 calc-formula-kernel = { path = "../calc-formula-kernel" }
+calc-skin = { path = "../calc-skin" }
 calc-func = { path = "../calc-func" }
 calc-macro-security = { path = "../calc-macro-security" }
 calc-vba = { path = "../calc-vba" }

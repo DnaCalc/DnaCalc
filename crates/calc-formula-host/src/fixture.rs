@@ -17,6 +17,7 @@ pub(crate) struct Fixture {
     sheets: Vec<(String, SheetId)>,
     /// Inputs in row-major order: keys order by sheet, then row, then column.
     inputs: BTreeMap<CellKey, InputValue>,
+    pub(crate) local_names: BTreeMap<String, String>,
 }
 
 impl Fixture {
@@ -163,13 +164,21 @@ impl ReferenceCatalog for Fixture {
         None
     }
 
-    // OneCalc carries inputs and user functions, and has no workbook defined names.
     fn defined_name(
         &self,
-        _: &str,
-        _: calc_fml::reference::NameScope,
+        name: &str,
+        scope: calc_fml::reference::NameScope,
     ) -> calc_fml::reference::NameDefinition {
-        calc_fml::reference::NameDefinition::Unknown
+        use calc_fml::reference::{NameDefinition, NameScope};
+        match scope {
+            NameScope::Formula(_) => self
+                .local_names
+                .get(&calc_func::value::fold_defined_name(name))
+                .map_or(NameDefinition::Unknown, |source| {
+                    NameDefinition::Formula(source.clone())
+                }),
+            NameScope::Sheet(_) => NameDefinition::Unknown,
+        }
     }
 
     /// Sheet names match regardless of case, compared by Unicode lowercase; Excel's exact case

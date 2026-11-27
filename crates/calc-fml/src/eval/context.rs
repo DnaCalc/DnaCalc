@@ -144,6 +144,7 @@ pub struct FormulaEvaluationContext<'s> {
     /// The formula is placed in its anchor cell and spills from it (a worksheet cell's formula),
     /// so a range result holding that cell is checked for spill room before it is read.
     pub(super) placed: bool,
+    pub(super) workbookless: bool,
     pub(super) numeric: &'s NumericMode,
     pub(super) reader: &'s mut dyn ReferenceReader,
     pub(super) environment: Option<SemanticEnvironment>,
@@ -175,6 +176,7 @@ impl<'s> FormulaEvaluationContext<'s> {
         Self {
             reference_result: false,
             placed: false,
+            workbookless: false,
             numeric,
             reader,
             environment: environment.map(Into::into),
@@ -210,6 +212,12 @@ impl<'s> FormulaEvaluationContext<'s> {
     /// The formula is a worksheet cell's, placed at its anchor and spilling from it.
     pub fn placed_in_cell(mut self) -> Self {
         self.placed = true;
+        self
+    }
+
+    /// Keeps the internal compilation anchor out of workbook references and host facts.
+    pub fn without_workbook(mut self) -> Self {
+        self.workbookless = true;
         self
     }
 

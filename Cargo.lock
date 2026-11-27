@@ -361,6 +361,7 @@ dependencies = [
  "calc-formula-kernel",
  "calc-func",
  "calc-macro-security",
+ "calc-skin",
  "calc-vba",
  "serde",
  "serde_json",
@@ -402,6 +403,7 @@ dependencies = [
  "calc-doc-model",
  "calc-engine",
  "calc-fml",
+ "calc-formula-kernel",
  "calc-func",
  "calc-object-model",
  "calc-skin",
@@ -1402,7 +1404,7 @@ dependencies = [
  "calc-fml",
  "calc-formula-kernel",
  "calc-func",
- "dna-calc-model",
+ "calc-skin",
  "dna-strand",
  "js-sys",
  "leptos",
@@ -1410,6 +1412,14 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "dna-kit"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "leptos",
 ]
 
 [[package]]
@@ -1422,10 +1432,14 @@ dependencies = [
  "calc-formula-host",
  "calc-func",
  "calc-macro-security",
+ "calc-skin",
  "calc-vba",
  "calc-verdict",
  "cfb",
  "dna-formula-ui",
+ "dna-kit",
+ "dna-shell",
+ "dna-view-explorer",
  "js-sys",
  "leptos",
  "miniz_oxide 0.8.9",
@@ -1458,10 +1472,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "dna-shell"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "dna-kit",
+ "leptos",
+]
+
+[[package]]
+name = "dna-skin-runtime"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "dna-strand"
 version = "0.1.0"
 dependencies = [
  "wasm-bindgen-test",
+]
+
+[[package]]
+name = "dna-view-explorer"
+version = "0.1.0"
+dependencies = [
+ "calc-formula-kernel",
+ "calc-skin",
+ "dna-formula-ui",
+ "dna-kit",
+ "dna-skin-runtime",
+ "leptos",
 ]
 
 [[package]]

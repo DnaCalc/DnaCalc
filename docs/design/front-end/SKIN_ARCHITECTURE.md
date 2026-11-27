@@ -494,11 +494,12 @@ Both proposals chose option (b) of [FRONT_END_IMPLEMENTATION_BRIEF.md](../../pla
    - `Present`: the **read-only formula lens** (structured indentation, LET/LAMBDA visual grouping, human-readable chips with bidirectional span mapping to exact Excel text). Never mutates formulas.
    - `Interpret`: parses view-scoped shorthand into exact Excel formula syntax (for preview in the seam), refusing ambiguous short names.
    - `FormatValue`: pure value-to-text formatting via `calc_func::cell_text_localized`, keeping the underlying `CalcValue` distinct from formatted display text (Pro R-41).
-   - `interpret_entry`: Excel raw-entry parsing (moved down from `calc-host/src/entry.rs` so both levels share one parser).
+   - `interpret_entry`: The shared Excel raw-entry parser returns a neutral typed entry. The workbook host converts it to the CalcDoc model. Explorer local test inputs are formula constants so they can also hold array literals.
 
 2. **`crates/calc-formula-host` (stateful level-0 session, no `calc-engine`):**
    - The existing session, conditional formats, RTD, trace, fixture, file codec, typed grid inputs and session projections live here. Pure display, result formatting and expression-part analysis live in the kernel. RTD topic admission is shared with the workbook host.
    - Owns `CallableTable` (built-ins + XLL/COM/JS add-ins + loaded VBA module UDFs), `ProviderRegistry` (recording preview-safety flags so side-effecting UDFs never fire on keystrokes, Pro R-42), `RtdTopics` ledger, `CalcEnvironment` (date system, locale) and `MacroPolicy`.
+   - The first browser preview (`?skin=0` and formula fragments) uses a formula-only port over the existing evaluator. Named test inputs bind through CalcFml's name catalogue. The evaluator's internal placement anchor is unavailable to cell references, caller facts and workbook facts in this mode.
    - Answers `Evaluate` (single `Trial` with optional `CallerSnapshot` — refusing caller-dependent functions like `ROW()`/`CELL("address")` when `caller: None` with a route to a workbook cell, Pro R-39), `EvaluatePart`, `Trace` (live evaluation tree), formula-bearing `ConditionalFormat`, `Catalogue` (including witness-bank Excel match status), `Providers`, and Explorer `.xlsx` session load/save.
 
 ### 5.2 Level 1: `calc-host` and `calc-skin-host`
@@ -850,6 +851,10 @@ Excel save-route retention (`.xlsx`, `.xlsm` in desktop Excel; explicit loss war
 | **M6: App, Forms maker, Skins & Agents** *(parallel after M2)* | `PageRenderer`, `dna-view-app` (`"app"` + `"forms"`), `Structure` input/output role candidates, `TryOn`/Keep, `Proposal` subset preview & `Decide`, `<trail>` (`D14`), `dnacalc skin validate`, `cargo xtask app smoke --skin`. | `Loan` App (`A01–A03`), `NC07` reader report, `U01–U05` three-line agent App & Classic restyle, and multi-unit `Decide`/undo/conflict tests pass. |
 | **M7: Model map** *(parallel after M4)* | Hierarchical `Structure` levels, `dna-view-map` (200-node LOD, cycle enclosures vs `z⁻¹` delays, `DnaCalc.Clock` controls, port rewiring via `ReplaceReference`). | `Stock` ticked model (`M01–M02`) and `Inherited` scale decline/submap (`M03–M05`) pass. |
 | **M8: Extensions, VBA views & macro runs** | `dna-ext-sdk` Wasm-in-Worker host (porting Live Tree as signed `.dnaext` #1); `Application.Run "DnaCalc.*"` views verbs; `RunMacro` UI + Guarded cards (`G01–G03`); macro run grouping, `OnUndo`, checkpoints & `DocumentOnly` undo experiments (§17.1). | Live Tree runs in worker sandbox; missing-extension card tested; Guarded macro switches view in DNA Calc and runs cleanly under `On Error Resume Next` in Excel. |
+
+---
+
+The preview keeps the 121 existing Explorer smoke cases against the established route and adds a dedicated skin-0 group to exercise the new page. At the standalone switch, the replacement suite must cover the same calculations and file behaviour through named inputs and snapshots. Legacy checks that depend on the scratch worksheet's layout or inferred caller require explicit workbook fixtures.
 
 ---
 

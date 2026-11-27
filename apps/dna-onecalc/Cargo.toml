@@ -24,6 +24,10 @@ portability = "portable"
 [dependencies]
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
+calc-skin = { path = "../../crates/calc-skin" }
+dna-kit = { path = "../dna-kit" }
+dna-shell = { path = "../dna-shell" }
+dna-view-explorer = { path = "../dna-view-explorer" }
 calc-formula-host = { path = "../../crates/calc-formula-host" }
 calc-vba = { path = "../../crates/calc-vba" }
 # The macro security level both applications share (dc-15dk).

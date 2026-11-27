@@ -12,14 +12,14 @@
 use calc_fml::assist::{Completion, Proposal};
 use calc_fml::syntax::{TextSpan, TokenKind, lex};
 
-pub use dna_calc_model::{TextHistory, replace_text};
+pub use calc_skin::editor::{TextHistory, replace_text};
 
 /// Pure completion presentation stored by Calc's model through its open view-state registry.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CompletionState {
     pub popup: Popup,
 }
-impl dna_calc_model::ViewState for CompletionState {}
+impl calc_skin::editor::ViewState for CompletionState {}
 
 /// The completion popup: hidden, or open on a list with one item selected.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

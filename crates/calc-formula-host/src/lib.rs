@@ -12,6 +12,9 @@ pub mod rtd;
 mod session;
 pub mod shown;
 pub mod trace;
+mod trial;
+
+pub use trial::FormulaHost;
 
 use calc_fml::{CalcEnvironment, DateSystem, FormatProfile};
 

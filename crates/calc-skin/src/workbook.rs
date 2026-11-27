@@ -151,6 +151,10 @@ pub enum Capability {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Refusal {
+    RequiresWorkbook {
+        reason: String,
+        route: crate::FormulaLink,
+    },
     NotModelled {
         owner: String,
         what: String,

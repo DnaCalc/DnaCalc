@@ -20,6 +20,7 @@ use crate::grid;
 use crate::{AddinRef, InputValue, ProjectReport, Session};
 use crate::shown::{Authored, Shown};
 pub(crate) use calc_formula_host::environment;
+use calc_skin::{FormulaAnswer, FormulaQuery, Refusal};
 use serde::{Deserialize, Serialize};
 
 /// Bytes as base64 text in a message, so a file crosses the bridge as one JSON string.
@@ -74,6 +75,7 @@ pub mod bytes_as_base64 {
 /// What a surface asks of its session.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    SkinFormula(FormulaQuery),
     /// The formula text, with or without its leading `=`.
     SetFormula {
         text: String,
@@ -307,6 +309,7 @@ pub struct CalculationView {
 /// What a session answers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    SkinFormula(Result<FormulaAnswer, Refusal>),
     /// The request changed the session and has nothing to report.
     Accepted,
     /// The cell a request named, as the session spells it (`Sheet1!B3`).
@@ -366,11 +369,12 @@ pub trait SessionPort {
 #[derive(Debug)]
 pub struct LocalPort {
     session: Session,
+    formula: calc_formula_host::FormulaHost,
 }
 
 impl LocalPort {
     pub fn new(session: Session) -> Self {
-        Self { session }
+        Self { session, formula: Default::default() }
     }
 
     pub fn session(&self) -> &Session {
@@ -551,6 +555,7 @@ impl SessionPort for LocalPort {
     fn send(&mut self, request: Request) -> Reply {
         let session = &mut self.session;
         match request {
+            Request::SkinFormula(query) => Reply::SkinFormula(self.formula.handle(query)),
             Request::SetFormula { text } => {
                 session.set_formula(&text);
                 Reply::Accepted

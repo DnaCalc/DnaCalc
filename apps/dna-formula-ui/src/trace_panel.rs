@@ -6,7 +6,7 @@
 
 use crate::formula_field::FormulaAssist;
 use calc_fml::syntax::TextSpan;
-use dna_calc_model::parts::Trace;
+use calc_skin::parts::Trace;
 use leptos::prelude::*;
 
 /// The trace last listed, the identity it was asked about, and the step shown.

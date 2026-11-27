@@ -195,6 +195,7 @@ pub static APPS: [App; 2] = [
         styles: &[
             "apps/dna-formula-ui/web/css/formula-field.css",
             "apps/dna-onecalc/web/css/surface.css",
+            "apps/dna-kit/web/formula.css",
         ],
         default_out: "target/onecalc-bundle",
         role_attribute: "data-onecalc",
@@ -1327,6 +1328,8 @@ pub enum Action {
     Grid(&'static str, &'static str),
     /// DNA OneCalc: clears the formula field and types this.
     Formula(&'static str),
+    /// Opens the skin-0 route in the same bundled application.
+    FormulaLink(&'static str),
     /// Types these keys into the element, without clearing it.
     Keys(&'static str, &'static str),
     /// Chooses the option with this value in the select element.
@@ -1504,7 +1507,7 @@ pub enum Check {
     Highlighted(&'static str, &'static str),
     /// The element's scroll offset from the top, in whole pixels (`body` is the page).
     ScrollTop(&'static str, i64),
-    /// A JavaScript expression of the page that is true, with what it asserts in words.
+    /// The assertion in words, followed by a JavaScript expression that should be true.
     Js(&'static str, &'static str),
 }
 
@@ -2009,6 +2012,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             let result = session.script(&calc_cases::fixtures::calculation_script())?;
             println!("{} WORKER finite calculation: {result}", app.label);
             Ok(())
+        }
+        Action::FormulaLink(fragment) => {
+            let fragment = serde_json::to_string(fragment).expect("a serializable fragment");
+            let url = session.script(&format!(
+                "const url = new URL(location.href); url.searchParams.set('skin', '0'); url.hash = {fragment}; return url.href;"
+            ))?;
+            start_group(app, session, url.as_str().ok_or("No formula preview URL")?)
         }
         Action::Reload => {
             let url = session

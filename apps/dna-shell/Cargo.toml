@@ -1,0 +1,15 @@
+[package]
+name = "dna-shell"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The shared DNA Calc application frame."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
+dna-kit = { path = "../dna-kit" }

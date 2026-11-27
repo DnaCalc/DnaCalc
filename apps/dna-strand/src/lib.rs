@@ -17,6 +17,7 @@ pub mod contrast;
 pub mod css;
 pub mod geometry;
 pub mod palette;
+mod resolve;
 pub mod theme;
 
 pub use contrast::{SANCTIONED_PAIRS, SanctionedPair, contrast_ratio, relative_luminance};
@@ -26,4 +27,5 @@ pub use geometry::{
     RADIUS_PANEL, REDUCED_MOTION_FLAG,
 };
 pub use palette::Rgb;
+pub use resolve::{ResolvedTheme, ThemeError, resolve};
 pub use theme::{COCKPIT_DARK, COCKPIT_LIGHT, Density, HIGH_CONTRAST, Theme, ThemeTokens};

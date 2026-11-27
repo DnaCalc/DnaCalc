@@ -10,12 +10,7 @@ struct Entry {
     reset: fn() -> Box<dyn Any + Send + Sync>,
     pending_reason: fn(&dyn Any) -> Option<&'static str>,
 }
-pub trait ViewState: Default + Send + Sync + 'static {
-    const SCHEMA: u32 = 1;
-    fn pending_reason(&self) -> Option<&'static str> {
-        None
-    }
-}
+pub use calc_skin::editor::ViewState;
 #[derive(Default)]
 pub struct ViewStateStore {
     entries: BTreeMap<SkinId, Entry>,

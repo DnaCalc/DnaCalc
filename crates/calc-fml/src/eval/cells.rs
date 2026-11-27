@@ -23,6 +23,7 @@ pub(super) enum ReadRefusal {
     /// The reader reported this cell as missing: an input it cannot supply.
     Missing(CellKey),
     Denied(crate::ReadDenial),
+    RequiresWorkbook,
     /// The reader's runs did not cover the area as its contract requires.
     Contract(ReadContractError),
 }
@@ -33,6 +34,10 @@ impl ReadRefusal {
             ReadRefusal::Denied(denial) => EvalFault::NotModelled {
                 construct: denial.construct,
                 owner: denial.owner,
+            },
+            ReadRefusal::RequiresWorkbook => EvalFault::NotModelled {
+                construct: "formula requires a workbook",
+                owner: "dc-iopjy",
             },
             ReadRefusal::Missing(cell) => EvalFault::MissingInput { cell },
             ReadRefusal::Contract(error) => EvalFault::ReadContract(error),
@@ -47,7 +52,7 @@ impl ReadRefusal {
 pub(super) struct SharedReader<'r> {
     reader: RefCell<&'r mut dyn ReferenceReader>,
     host: RefCell<Option<&'r mut dyn HostFacts>>,
-    caller: CellKey,
+    caller: Option<CellKey>,
     environment: Option<CalcEnvironment>,
     request: crate::ReadRequest,
     refusal: Cell<Option<ReadRefusal>>,
@@ -64,11 +69,26 @@ impl<'r> SharedReader<'r> {
         SharedReader {
             reader: RefCell::new(reader),
             host: RefCell::new(host),
-            caller,
+            caller: Some(caller),
             environment,
             request,
             refusal: Cell::new(None),
         }
+    }
+
+    pub(super) fn without_workbook(mut self) -> Self {
+        self.caller = None;
+        self
+    }
+
+    pub(super) fn caller(&self) -> Option<CellKey> {
+        self.caller
+    }
+
+    pub(super) fn workbook_available(&self) -> Result<(), EvalFault> {
+        self.caller
+            .map(|_| ())
+            .ok_or_else(|| ReadRefusal::RequiresWorkbook.fault())
     }
 
     pub(super) fn can_reuse_reads(&self) -> bool {
@@ -332,7 +352,10 @@ impl HostFacts for ReaderHost<'_, '_> {
     }
 
     fn caller(&mut self) -> Option<CellKey> {
-        Some(self.shared.caller)
+        if self.shared.caller.is_none() {
+            self.shared.refusal.set(Some(ReadRefusal::RequiresWorkbook));
+        }
+        self.shared.caller
     }
 
     fn is_external_sheet(&mut self, sheet: SheetId) -> bool {
@@ -406,6 +429,7 @@ impl HostFacts for ReaderHost<'_, '_> {
     }
 
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
+        self.caller()?;
         self.fact(
             crate::FactSubject::Sheet(sheet),
             crate::ReadPurpose::SheetMetadata,
@@ -420,6 +444,7 @@ impl HostFacts for ReaderHost<'_, '_> {
     }
 
     fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
+        self.caller()?;
         self.fact(
             crate::FactSubject::Workbook,
             crate::ReadPurpose::SheetMetadata,
@@ -448,6 +473,9 @@ impl HostFacts for ReaderHost<'_, '_> {
     }
 
     fn sheet_count(&mut self) -> Option<u32> {
+        if self.caller().is_none() {
+            return None;
+        }
         self.fact(
             crate::FactSubject::Workbook,
             crate::ReadPurpose::SheetMetadata,
@@ -472,6 +500,7 @@ impl HostFacts for ReaderHost<'_, '_> {
     }
 
     fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_func::WorkbookFacts>> {
+        self.caller()?;
         self.fact(
             crate::FactSubject::Workbook,
             crate::ReadPurpose::SheetMetadata,

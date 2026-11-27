@@ -27,7 +27,7 @@
 //! calculates it again from the start later in its chain; the two differ only in how often user
 //! functions and volatile functions before the read are entered.
 
-use super::cells::{ReaderCells, ReaderHost, SharedReader};
+use super::cells::{ReadRefusal, ReaderCells, ReaderHost, SharedReader};
 use super::closure::Closure;
 use super::{
     Admission, EvalFrame, EvaluationObserver, EvaluationReport, ExecutedCall,
@@ -538,6 +538,11 @@ fn evaluate_slice(
         environment,
         services.request,
     );
+    let reader = if services.workbookless {
+        reader.without_workbook()
+    } else {
+        reader
+    };
     let random = match services.pass.random.as_mut() {
         Some(source) => Some(SharedRandom {
             source: RefCell::new(&mut **source),
@@ -1096,10 +1101,12 @@ impl Run<'_, '_> {
                         Ok(())
                     }
                     Instruction::Reference(reference) => {
+                        self.reader.workbook_available()?;
                         self.stack.push(instance.reference(*reference));
                         Ok(())
                     }
                     Instruction::Reference3D { first, count } => {
+                        self.reader.workbook_available()?;
                         self.stack.push(instance.reference_3d(*first, *count));
                         Ok(())
                     }
@@ -1732,6 +1739,9 @@ impl Run<'_, '_> {
         if arguments.iter().any(callable) {
             return self
                 .eager_with_callables(target, arguments, synthetic, scratch, child, quantum);
+        }
+        if target.0.spelling() == "INDIRECT" {
+            self.reader.workbook_available()?;
         }
         self.reader.clear_refusal();
         let mut text = self.catalog.map(|catalog| TextBinding {
@@ -2593,6 +2603,9 @@ impl Run<'_, '_> {
         let refusal = self.reader.take_refusal();
         match (&fault, refusal) {
             (FunctionFault::ReferenceUnreadable { .. }, Some(refusal)) => refusal.fault(),
+            (FunctionFault::NotImplemented { .. }, Some(ReadRefusal::RequiresWorkbook)) => {
+                ReadRefusal::RequiresWorkbook.fault()
+            }
             _ => EvalFault::Function(fault),
         }
     }
@@ -5140,7 +5153,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         self.frame.as_ref()
     }
     fn caller(&self) -> Option<CellKey> {
-        Some(self.run.instance.anchor.cell())
+        self.run.reader.caller()
     }
     fn sheet_name(&mut self, sheet: calc_func::value::SheetId) -> Result<String, String> {
         use calc_func::HostFacts;

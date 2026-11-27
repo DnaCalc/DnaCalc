@@ -1011,7 +1011,10 @@ pub struct ProjectReport {
 struct NoWorkbookReads;
 impl calc_vba::events::EventReadContext for NoWorkbookReads {
     fn read_reference(&self, _: &calc_func::value::ReferenceLike) -> Result<CalcValue, String> {
-        Err("cell reads from a workbook event are not modelled in Formula Explorer (dc-0f1k.4)".into())
+        Err(
+            "cell reads from a workbook event are not modelled in Formula Explorer (dc-0f1k.4)"
+                .into(),
+        )
     }
 }
 
@@ -1027,7 +1030,18 @@ impl Session {
     /// [`Session::calculate`] for `formula` in place of the session's own: the same inputs, form,
     /// environment and functions. A part of a formula is evaluated this way (F9, the trace).
     pub fn calculate_text(&mut self, formula: &str) -> Calculation {
-        self.calculate_text_from(formula, self.formula_cell)
+        self.calculate_text_from(formula, self.formula_cell, false)
+    }
+
+    pub(crate) fn set_trial_names(&mut self, names: std::collections::BTreeMap<String, String>) {
+        if self.fixture.local_names != names {
+            self.fixture.local_names = names;
+            self.plans = PlanCache::new();
+        }
+    }
+
+    pub(crate) fn calculate_unplaced(&mut self, formula: &str) -> Calculation {
+        self.calculate_text_from(formula, self.formula_cell, true)
     }
 
     /// [`Session::calculate_text`] for a formula written for the cell `origin` (an A1 address) and
@@ -1035,7 +1049,7 @@ impl Session {
     /// first cell of its range, at each cell of the range: a relative reference moves with it.
     pub fn calculate_relative(&mut self, formula: &str, origin: &str) -> Calculation {
         match self.cell(origin) {
-            Ok(origin) => self.calculate_text_from(formula, origin),
+            Ok(origin) => self.calculate_text_from(formula, origin, false),
             Err(_) => Calculation {
                 result: None,
                 diagnostics: Vec::new(),
@@ -1044,7 +1058,12 @@ impl Session {
         }
     }
 
-    fn calculate_text_from(&mut self, formula: &str, origin: CellKey) -> Calculation {
+    fn calculate_text_from(
+        &mut self,
+        formula: &str,
+        origin: CellKey,
+        workbookless: bool,
+    ) -> Calculation {
         let tree = parse_formula(formula);
         let syntax: Vec<Diagnostic> = tree
             .diagnostics()
@@ -1097,16 +1116,20 @@ impl Session {
         .with_functions(&self.functions)
         .with_reference_handles(&*references)
         .with_function_diagnostics(&mut function_diagnostics)
-        .with_user_function_effects(&mut rtd_effects)
-        // The person's active sheet is the session's one sheet and what they have selected is the
-        // cell they are entering the formula in: what VBA's ActiveSheet and Selection see (Excel
-        // gives a worksheet function the user's sheet and selection, not its caller's; measured,
-        // dc-0f1k.12).
-        .with_user_view(calc_func::UserView {
-            active_sheet: self.formula_cell.sheet(),
-            selection: self.formula_cell,
-            settings: None,
-        });
+        .with_user_function_effects(&mut rtd_effects);
+        services = if workbookless {
+            services.without_workbook()
+        } else {
+            // The person's active sheet is the session's one sheet and what they have selected is the
+            // cell they are entering the formula in: what VBA's ActiveSheet and Selection see (Excel
+            // gives a worksheet function the user's sheet and selection, not its caller's; measured,
+            // dc-0f1k.12).
+            services.with_user_view(calc_func::UserView {
+                active_sheet: self.formula_cell.sheet(),
+                selection: self.formula_cell,
+                settings: None,
+            })
+        };
         if let Some(recording) = &recording {
             services = services
                 .with_external_inputs(&self.rtd.ledger)

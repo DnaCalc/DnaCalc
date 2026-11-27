@@ -25,6 +25,7 @@ calc-doc-model = { path = "../calc-doc-model" }
 calc-engine = { path = "../calc-engine" }
 calc-fml = { path = "../calc-fml" }
 calc-object-model = { path = "../calc-object-model" }
+calc-formula-kernel = { path = "../calc-formula-kernel" }
 calc-skin = { path = "../calc-skin" }
 scoped-tls-hkt = "0.1.5"
 # The SHA-512 password hash a sheetProtection element holds (dc-9b7zd).

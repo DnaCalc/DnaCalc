@@ -1369,6 +1369,50 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         actions: &[Action::Window(1280, 1000)],
         checks: &[Check::Fits],
     },
+    Case {
+        name: "skin 0 opens and calculates an exact formula link without a grid",
+        actions: &[],
+        checks: &[
+            Check::Text("[data-skin0=raw]", "3"),
+            Check::Absent("grid"),
+        ],
+    },
+    Case {
+        name: "skin 0 preserves raw numbers when applying a format",
+        actions: &[
+            Action::Formula("=1/3"),
+            Action::Into("[class=dna-fe-format] input", "0.00"),
+            Action::Click("[data-skin0=evaluate]"),
+        ],
+        checks: &[
+            Check::Text("[data-skin0=raw]", "0.3333333333333333"),
+            Check::Text("[data-skin0=formatted]", "0.33"),
+        ],
+    },
+    Case {
+        name: "skin 0 refuses a workbook-dependent formula without publishing a cell value",
+        actions: &[Action::Formula("=ROW()"), Action::Click("[data-skin0=evaluate]")],
+        checks: &[
+            Check::Absent("[data-skin0=raw]"),
+            Check::Js(
+                "the refusal offers a formula-only workbook handoff",
+                "document.querySelector('[data-skin0=workbook-required] a')?.hash === '#f=%3DROW%28%29'",
+            ),
+        ],
+    },
+    Case {
+        name: "skin 0 uses literal named inputs and presents a bounded array",
+        actions: &[
+            Action::Into("[placeholder=TaxRate]", "Figures"),
+            Action::Into("[placeholder='0.065']", "{1,2;3,4}"),
+            Action::Formula("=Figures*2"),
+            Action::Click("[data-skin0=evaluate]"),
+        ],
+        checks: &[Check::Js(
+            "the named array retains its shape and the last cell is formatted",
+            "document.querySelector('[data-skin0=array] tbody tr:last-child td:last-child span')?.textContent === '8.00'",
+        )],
+    },
 ];
 
 /// Groups whose name ends in `-browser` need the browser's own download (Save writes a file the
@@ -1493,5 +1537,12 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         end: 121,
         core: 0,
         setup: &[],
+    },
+    CaseGroup {
+        name: "skin-0",
+        start: 121,
+        end: ONECALC_CASES.len(),
+        core: 4,
+        setup: &[Action::FormulaLink("#f=%3D1%2B2")],
     },
 ];

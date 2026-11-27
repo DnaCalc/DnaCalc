@@ -1,0 +1,185 @@
+.dna-fe-frame {
+    min-block-size: 100dvh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    color: var(--dna-ink);
+    background: var(--dna-bg);
+    font: 1rem / var(--dna-line-height) system-ui, sans-serif;
+}
+
+.dna-fe-mast,
+.dna-fe-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--dna-gap-3);
+    background: var(--dna-chrome);
+    color: var(--dna-chrome-ink);
+    padding-inline: clamp(16px, 4vw, 48px);
+}
+
+.dna-fe-mast {
+    min-block-size: 54px;
+    font-weight: 650;
+}
+
+.dna-fe-mast-title {
+    border-inline-start: 1px solid currentColor;
+    padding-inline-start: var(--dna-gap-3);
+    font-weight: 450;
+}
+
+.dna-fe-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dna-fe-mark i {
+    display: block;
+    inline-size: 6px;
+    block-size: 6px;
+    border-radius: 50%;
+    background-color: var(--dna-accent);
+}
+
+.dna-fe-mark i + i {
+    inline-size: 17px;
+    border-radius: var(--dna-radius-chip);
+}
+
+.dna-fe-strip {
+    min-block-size: 26px;
+    font-size: 0.8125rem;
+}
+
+.dna-fe-stage {
+    inline-size: min(100%, 1440px);
+    margin-inline: auto;
+    padding: clamp(12px, 4vw, 48px);
+    box-sizing: border-box;
+}
+
+.dna-fe-workbench {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(260px, 3fr);
+    gap: var(--dna-gap-6);
+    align-items: start;
+}
+
+.dna-fe-workbench :is(h1, h2, p) { margin-block: 0 var(--dna-gap-3); }
+.dna-fe-workbench h1 { font-size: clamp(1.4rem, 3.6vw, 2rem); }
+.dna-fe-workbench h2 { font-size: 1rem; }
+
+.dna-fe-section {
+    box-sizing: border-box;
+    background: var(--dna-paper);
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-panel);
+    padding: var(--dna-gap-5);
+    margin-block-end: var(--dna-gap-4);
+}
+
+.dna-fe-editor {
+    background: var(--dna-paper);
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-panel);
+    padding: var(--dna-gap-3);
+}
+
+.dna-fe-actions,
+.dna-fe-format {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dna-gap-3);
+    margin-block: var(--dna-gap-4);
+}
+
+.dna-fe-format label {
+    display: grid;
+    gap: var(--dna-gap-1);
+    color: var(--dna-ink-2);
+    font-size: 0.875rem;
+}
+
+.dna-fe-workbench :is(button, input, select) {
+    color: var(--dna-ink);
+    background: var(--dna-paper);
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-chip);
+    padding: 0.4em 0.65em;
+    font: inherit;
+}
+
+.dna-fe-workbench button { cursor: pointer; }
+.dna-fe-workbench button:hover { background: var(--dna-paper-2); }
+
+.dna-fe-workbench button.dna-fe-primary {
+    background: var(--dna-chrome);
+    color: var(--dna-chrome-ink);
+    font-weight: 650;
+}
+
+.dna-fe-workbench :is(a, input, select, button, textarea):focus-visible {
+    outline: 2px solid var(--dna-accent-ink);
+    outline-offset: 3px;
+}
+
+.dna-fe-workbench a { color: var(--dna-accent-ink); }
+
+.dna-fe-value {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--dna-gap-3);
+    margin: 0;
+}
+
+.dna-fe-value > div { overflow-wrap: anywhere; }
+.dna-fe-value dt, .dna-fe-raw { color: var(--dna-ink-2); font-size: 0.8125rem; }
+.dna-fe-value dd { margin: 0; font: 1rem ui-monospace, monospace; }
+.dna-fe-error { color: var(--dna-red-ink); }
+.dna-fe-provenance { color: var(--dna-ink-2); font-size: 0.875rem; }
+
+.dna-fe-array { max-block-size: 360px; overflow: auto; }
+.dna-fe-array table { border-collapse: collapse; min-inline-size: 100%; }
+.dna-fe-array caption { text-align: start; margin-block: var(--dna-gap-2); }
+.dna-fe-array :is(th, td) {
+    border: 1px solid var(--dna-line);
+    min-inline-size: 2rem;
+    padding: var(--dna-gap-2);
+}
+.dna-fe-array th { background: var(--dna-paper-2); }
+.dna-fe-array td { text-align: end; font-family: ui-monospace, monospace; }
+.dna-fe-raw { display: block; }
+
+.dna-fe-steps { padding-inline-start: var(--dna-gap-5); }
+.dna-fe-steps li { margin-block: var(--dna-gap-2); }
+.dna-fe-steps li span { display: block; color: var(--dna-ink-2); }
+.dna-fe-steps code { overflow-wrap: anywhere; }
+.dna-fe-catalogue {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dna-gap-2);
+    list-style: none;
+    padding: 0;
+}
+
+@media (max-width: 720px) {
+    .dna-fe-workbench { grid-template-columns: minmax(0, 1fr); }
+}
+
+.dna-fe-input-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dna-gap-3);
+    margin-block-end: var(--dna-gap-3);
+}
+
+.dna-fe-input-row label {
+    display: grid;
+    gap: var(--dna-gap-1);
+    color: var(--dna-ink-2);
+    font-size: 0.875rem;
+}
+
+.dna-fe-steps button { text-align: start; }

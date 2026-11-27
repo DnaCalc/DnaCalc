@@ -1,0 +1,18 @@
+[package]
+name = "dna-view-explorer"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The level-zero Formula Explorer workbench."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
+dna-kit = { path = "../dna-kit" }
+dna-formula-ui = { path = "../dna-formula-ui" }
+dna-skin-runtime = { path = "../dna-skin-runtime" }
+calc-formula-kernel = { path = "../../crates/calc-formula-kernel" }

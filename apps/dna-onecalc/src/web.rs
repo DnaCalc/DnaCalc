@@ -6,7 +6,7 @@
 //!
 //! It compiles on every target and runs only in a browser.
 
-use crate::surface;
+use crate::{skin0, surface};
 use dna_formula_ui::web::{Page, start_page};
 
 /// DNA OneCalc's page.
@@ -19,5 +19,11 @@ pub const ONECALC: Page = Page {
 
 /// Starts DNA OneCalc: its surface lives as long as the page.
 pub fn start() {
-    start_page(&ONECALC, |host| std::mem::forget(surface::mount(host)));
+    start_page(&ONECALC, |host| {
+        if let Some(formula) = skin0::fragment(&host) {
+            skin0::mount(host, formula);
+        } else {
+            std::mem::forget(surface::mount(host));
+        }
+    });
 }

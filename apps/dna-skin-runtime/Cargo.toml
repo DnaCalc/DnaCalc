@@ -1,0 +1,16 @@
+[package]
+name = "dna-skin-runtime"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Toolkit-independent request state for DNA Calc views."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"

@@ -171,7 +171,7 @@ pub struct AssistBindings {
     pub history: HistoryBinding,
     pub popup: StateBinding<Popup>,
 }
-struct LocalHistory(RwSignal<dna_calc_model::EditorState>);
+struct LocalHistory(RwSignal<calc_skin::editor::EditorState>);
 impl HistoryStore for LocalHistory {
     fn available(&self, redo: bool) -> bool {
         self.0.with_untracked(|s| s.history.available(redo))
@@ -257,7 +257,7 @@ impl FormulaAssist {
     /// The field's state over `text`, with the caret at the start and the popup hidden.
     pub fn new(text: impl Into<TextBinding>) -> FormulaAssist {
         let text = text.into();
-        let state = RwSignal::new(dna_calc_model::EditorState::default());
+        let state = RwSignal::new(calc_skin::editor::EditorState::default());
         let popup = RwSignal::new(Popup::default());
         Self::new_with_state(
             text,
