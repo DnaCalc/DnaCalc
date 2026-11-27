@@ -582,6 +582,11 @@ pub enum PresentationChange {
         view: Option<ViewId>,
         expect_view_rev: Revision,
     },
+    /// Save the skin declaration in the workbook's authored presentation.
+    KeepSkin {
+        skin: Box<crate::SkinManifest>,
+        expect_view_rev: Revision,
+    },
     Bind {
         anchor: AnchorId,
         source: SourceRef,

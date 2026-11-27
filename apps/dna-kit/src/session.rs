@@ -51,6 +51,7 @@ struct Inner {
     ticks: RefCell<BTreeMap<WatchKey, ArcRwSignal<u64>>>,
     commands: RefCell<CommandTable>,
     keymap: RefCell<Keymap>,
+    skin_workbook: Cell<Option<WorkbookId>>,
     local: RefCell<HashMap<TypeId, Box<dyn Any>>>,
     summary: Cell<Option<Watch<query::Summary>>>,
     initial_view: ViewId,
@@ -113,6 +114,7 @@ impl Session {
                 ticks: RefCell::default(),
                 commands: RefCell::default(),
                 keymap: RefCell::default(),
+                skin_workbook: Cell::new(None),
                 local: RefCell::default(),
                 summary: Cell::new(None),
                 initial_view: view.clone(),
@@ -167,6 +169,11 @@ impl Session {
             changes.watches.iter().filter_map(|key| ticks.get(key).cloned()).collect()
         };
         self.choose_opening_view(&inner);
+        if let Some(workbook) = inner.skin_workbook.get()
+            && self.peek(Client::stamp).map(|stamp| stamp.workbook) != Some(workbook)
+        {
+            self.set_skin_layer(None).expect("the built-in keymap is valid");
+        }
         touched.into_iter().for_each(tick);
         for (moved, signal) in [
             (changes.stamp, self.stamp),
@@ -757,6 +764,8 @@ impl Session {
     /// Replace the manifest's part of the one command table and keymap atomically.
     pub fn set_skin_layer(self, skin: Option<&calc_skin::SkinManifest>) -> Result<usize, String> {
         let inner = self.inner();
+        let workbook = skin.map(|_| self.peek(Client::stamp).map(|stamp| stamp.workbook)
+            .ok_or("Open a workbook to try on a skin")).transpose()?;
         let mut commands = inner.commands.borrow().clone();
         commands.clear_skin_sequences();
         if let Some(skin) = skin {
@@ -782,6 +791,7 @@ impl Session {
         }).len();
         *inner.commands.borrow_mut() = commands;
         *inner.keymap.borrow_mut() = keymap;
+        inner.skin_workbook.set(workbook);
         Ok(departures)
     }
 

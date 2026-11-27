@@ -1060,7 +1060,17 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                         .map_err(|error| invalid(format!("Invalid view declaration: {error}")))?,
                 });
             }
+            meter.check()?;
+            let (skin, skin_issue) = part.skin().map_or((None, None), |stored| {
+                match serde_json::from_str::<calc_skin::SkinManifest>(&stored.body) {
+                    Ok(skin) if skin.id == stored.id => (Some(skin), None),
+                    Ok(_) => (None, Some("The workbook skin ID differs from its declaration".into())),
+                    Err(error) => (None, Some(format!("Unreadable workbook skin · {error}"))),
+                }
+            });
             query::ViewPartOf::encode(&query::ViewPartFacts {
+                skin,
+                skin_issue,
                 opaque: part.is_opaque(),
                 preferred: part.preferred().map(|name| ViewId(name.into())),
                 anchors,

@@ -80,11 +80,19 @@ pub struct ViewDocument {
     pub body: String,
 }
 
+/// A code-free workbook skin declaration in the v1 view part.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ViewSkin {
+    pub id: String,
+    pub body: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ViewPart {
     source: Option<Arc<[u8]>>,
     opaque: bool,
     preferred: Option<String>,
+    skin: Option<ViewSkin>,
     anchors: BTreeMap<AnchorId, ViewAnchor>,
     notes: BTreeMap<NoteId, ViewNote>,
     documents: BTreeMap<DocId, ViewDocument>,
@@ -101,6 +109,7 @@ impl ViewPart {
             source: Some(source.into()),
             opaque: false,
             preferred: None,
+            skin: None,
             anchors: anchors
                 .into_iter()
                 .map(|anchor| (anchor.id, anchor))
@@ -132,6 +141,16 @@ impl ViewPart {
 
     pub fn with_preferred(mut self, view: Option<String>) -> Self {
         self.preferred = view;
+        self
+    }
+
+    /// The code-free skin declaration stored in the v1 custom XML part.
+    pub fn skin(&self) -> Option<&ViewSkin> {
+        self.skin.as_ref()
+    }
+
+    pub fn with_skin(mut self, skin: Option<ViewSkin>) -> Self {
+        self.skin = skin;
         self
     }
 

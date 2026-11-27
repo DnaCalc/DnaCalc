@@ -266,6 +266,11 @@ pub struct ViewPartFacts {
     /// The author's request, subject to the named view's opening criteria.
     #[serde(default)]
     pub preferred: Option<crate::ViewId>,
+    /// A workbook skin is offered to the recipient as a temporary preview.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skin: Option<crate::SkinManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skin_issue: Option<String>,
     pub anchors: Vec<AnchorFacts>,
     #[serde(default)]
     pub documents: Vec<ViewDocumentFacts>,
