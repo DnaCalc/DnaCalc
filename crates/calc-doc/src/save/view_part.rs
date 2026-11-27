@@ -37,6 +37,7 @@ struct Index {
     root: Span,
     digest: Option<String>,
     root_close: usize,
+    prefs: Option<(Span, Option<String>)>,
     anchors: Option<(Span, usize)>,
     known: BTreeMap<AnchorId, StoredAnchor>,
     ids: BTreeSet<AnchorId>,
@@ -96,6 +97,7 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         root,
         digest,
         root_close: root.1,
+        prefs: None,
         anchors: None,
         known: BTreeMap::new(),
         ids: BTreeSet::new(),
@@ -117,7 +119,12 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         let span = read.span();
         match event {
             XmlEvent::Start(el) => {
-                if depth == 1 && is(&el, "anchors") {
+                if depth == 1 && is(&el, "prefs") {
+                    let preferred = el.attribute("preferred").map(str::to_owned);
+                    if index.prefs.replace((span, preferred)).is_some() {
+                        return None;
+                    }
+                } else if depth == 1 && is(&el, "anchors") {
                     if index.anchors.replace((span, span.1)).is_some() {
                         return None;
                     }
@@ -379,6 +386,7 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                 .into_values()
                 .map(|stored| stored.document);
             ViewPart::loaded(xml.bytes().to_vec(), anchors, notes, documents)
+                .with_preferred(index.prefs.and_then(|(_, preferred)| preferred))
         }
         None => ViewPart::opaque(xml.bytes().to_vec()),
     }
@@ -507,6 +515,21 @@ pub(super) fn item(
         new_anchor(anchor, model, &mut new);
     }
     let mut new_sections = Vec::new();
+    let preferred = part.preferred();
+    match (&index.prefs, preferred) {
+        (Some((span, old)), preferred) if old.as_deref() != preferred => {
+            let tag = RawTag::parse(&original[span.0..span.1]);
+            splice.replace(*span, &tag.rebuilt(&[("preferred", preferred)], tag.is_empty()));
+        }
+        (None, Some(preferred)) => {
+            new_sections.extend_from_slice(b"<prefs xmlns=");
+            attribute_value(VIEW_PART_NAMESPACE, &mut new_sections);
+            new_sections.extend_from_slice(b" preferred=");
+            attribute_value(preferred, &mut new_sections);
+            new_sections.extend_from_slice(b"/>");
+        }
+        _ => {}
+    }
     append_section(
         &mut splice,
         original,

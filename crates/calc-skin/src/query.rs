@@ -190,6 +190,9 @@ pub struct SheetCensus {
 pub struct ViewPartFacts {
     /// The part was written by a later version: it is kept byte for byte and not read.
     pub opaque: bool,
+    /// The author's request, subject to the named view's opening criteria.
+    #[serde(default)]
+    pub preferred: Option<crate::ViewId>,
     pub anchors: Vec<AnchorFacts>,
     #[serde(default)]
     pub documents: Vec<ViewDocumentFacts>,

@@ -67,6 +67,7 @@ pub struct ViewDocument {
 pub struct ViewPart {
     source: Option<Arc<[u8]>>,
     opaque: bool,
+    preferred: Option<String>,
     anchors: BTreeMap<AnchorId, ViewAnchor>,
     notes: BTreeMap<NoteId, ViewNote>,
     documents: BTreeMap<DocId, ViewDocument>,
@@ -82,6 +83,7 @@ impl ViewPart {
         Self {
             source: Some(source.into()),
             opaque: false,
+            preferred: None,
             anchors: anchors
                 .into_iter()
                 .map(|anchor| (anchor.id, anchor))
@@ -95,9 +97,7 @@ impl ViewPart {
         Self {
             source: Some(source.into()),
             opaque: true,
-            anchors: BTreeMap::new(),
-            notes: BTreeMap::new(),
-            documents: BTreeMap::new(),
+            ..Self::default()
         }
     }
 
@@ -107,6 +107,15 @@ impl ViewPart {
 
     pub fn source(&self) -> Option<&[u8]> {
         self.source.as_deref()
+    }
+
+    pub fn preferred(&self) -> Option<&str> {
+        self.preferred.as_deref()
+    }
+
+    pub fn with_preferred(mut self, view: Option<String>) -> Self {
+        self.preferred = view;
+        self
     }
 
     pub fn anchor(&self, id: AnchorId) -> Option<&ViewAnchor> {

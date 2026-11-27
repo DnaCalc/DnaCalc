@@ -1,7 +1,7 @@
 //! The App operator and Forms maker author workbooks through the same session and page schema.
 
 use calc_skin::grid::{Key, Sheet};
-use calc_skin::query::{self, ViewDocumentFacts};
+use calc_skin::query::{ViewDocumentFacts, ViewPartFacts};
 use calc_skin::{
     AnchorId, Batch, Bound, Change, Coverage, DocId, InputPolicy, ModelChange, Page, PageNode,
     PageSchema, PresentationChange, Refusal, SourceRef, Stamp, ViewId, address,
@@ -10,7 +10,6 @@ use dna_kit::commands::CommandId;
 use dna_kit::page::{PageInput, PageRenderer};
 use dna_kit::{
     Invocation, Live, Located, MountedView, Registry, Seam, Session, View, ViewCommand, ViewSpec,
-    Watch,
 };
 use leptos::prelude::*;
 use std::cell::Cell;
@@ -52,6 +51,10 @@ impl View for Surface {
 
     fn cell_editor(&self) -> bool {
         false
+    }
+
+    fn can_open_preferred(&self, part: &ViewPartFacts) -> bool {
+        self.id == APP && app_document(part).is_some_and(|doc| decode(doc).is_ok())
     }
 
     fn commands(&self, session: Session) -> Vec<ViewCommand> {
@@ -125,6 +128,14 @@ impl View for Surface {
             vec![
                 ViewCommand::new(&id, "forms.create", "Create App page", &[], move |_| {
                     state.create()
+                })
+                .when("writable"),
+                ViewCommand::new(&id, "forms.prefer-app", "Open this workbook in App", &[], move |_| {
+                    state.prefer_app(true)
+                })
+                .when("writable"),
+                ViewCommand::new(&id, "forms.prefer-classic", "Open this workbook in Classic", &[], move |_| {
+                    state.prefer_app(false)
                 })
                 .when("writable"),
                 ViewCommand::new(
@@ -223,19 +234,15 @@ impl View for Surface {
 #[derive(Clone, Copy)]
 struct State {
     session: Session,
-    part: Watch<query::ViewPartOf>,
 }
 
 impl State {
     fn new(session: Session) -> Self {
-        Self {
-            session,
-            part: session.watch(query::ViewPartOf),
-        }
+        Self { session }
     }
 
     fn snapshot(self) -> Result<(Stamp, Option<ViewDocumentFacts>), String> {
-        if let Live::Ready(answer) = self.session.read(self.part) {
+        if let Live::Ready(answer) = self.session.view_part() {
             if !matches!(answer.coverage, Coverage::Complete) || answer.body.opaque {
                 return Err("The workbook's view declarations are unavailable".into());
             }
@@ -244,11 +251,7 @@ impl State {
             }) {
                 return Err("Reading the current workbook pages…".into());
             }
-            let document = answer
-                .body
-                .documents
-                .into_iter()
-                .find(|doc| doc.sheet.is_none() && doc.view.0 == APP);
+            let document = app_document(&answer.body).cloned();
             Ok((answer.stamp, document))
         } else {
             Err("Reading workbook pages…".into())
@@ -259,6 +262,21 @@ impl State {
         let (_, doc) = self.snapshot()?;
         let doc = doc.ok_or_else(|| "No App is defined yet".to_owned())?;
         Ok((decode(&doc)?, doc.id))
+    }
+
+    fn prefer_app(self, preferred: bool) -> Result<(), String> {
+        let (stamp, doc) = self.snapshot()?;
+        if preferred {
+            decode(&doc.ok_or_else(|| "Create an App page first".to_owned())?)?;
+        }
+        self.submit(
+            stamp,
+            if preferred { "Open in App" } else { "Open in Classic" },
+            vec![PresentationChange::PreferView {
+                view: preferred.then(|| ViewId(APP.into())),
+                expect_view_rev: stamp.view,
+            }],
+        )
     }
 
     fn create(self) -> Result<(), String> {
@@ -324,7 +342,7 @@ impl State {
             sheet: Sheet(at.0, at.1),
             areas: vec![calc_skin::grid::Area(at, at)],
         };
-        let Live::Ready(part) = self.session.read(self.part) else {
+        let Live::Ready(part) = self.session.view_part() else {
             return Err("Reading source anchors…".into());
         };
         let mut part_ids = Vec::new();
@@ -436,6 +454,10 @@ impl State {
             });
         Ok(())
     }
+}
+
+fn app_document(part: &ViewPartFacts) -> Option<&ViewDocumentFacts> {
+    part.documents.iter().find(|doc| doc.sheet.is_none() && doc.view.0 == APP)
 }
 
 fn decode(doc: &ViewDocumentFacts) -> Result<Page, String> {
@@ -609,6 +631,15 @@ fn forms(session: Session, state: State) -> AnyView {
                             </form>
                             <p>{input_mode}</p>
                             {button(session, "forms.toggle-input", "Switch input mode")}
+                            {move || {
+                                let prefer_app = matches!(session.view_part(), Live::Ready(answer)
+                                    if answer.body.preferred.as_ref().is_some_and(|view| view.0 == APP));
+                                if prefer_app {
+                                    button(session, "forms.prefer-classic", "Open this workbook in Classic")
+                                } else {
+                                    button(session, "forms.prefer-app", "Open this workbook in App")
+                                }
+                            }}
                         </div>
                         <aside class="dna-page-card">
                             <h2>"Add a worksheet cell"</h2>

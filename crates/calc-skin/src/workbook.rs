@@ -469,6 +469,10 @@ pub enum PresentationChange {
     RemoveDoc {
         doc: DocId,
     },
+    PreferView {
+        view: Option<ViewId>,
+        expect_view_rev: Revision,
+    },
     Bind {
         anchor: AnchorId,
         source: SourceRef,

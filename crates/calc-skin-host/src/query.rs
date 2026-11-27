@@ -909,6 +909,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             }
             query::ViewPartOf::encode(&query::ViewPartFacts {
                 opaque: part.is_opaque(),
+                preferred: part.preferred().map(|name| ViewId(name.into())),
                 anchors,
                 documents,
             })?
