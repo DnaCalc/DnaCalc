@@ -50,9 +50,32 @@ pub fn operate(
         FormulaOperation::Provider(_) => {
             return Err(Refusal::NotAvailableHere {
                 capability: Capability::NativeAddins,
-                route: Some("https://dnacalc.com/downloads/".into()),
+                route: Some(calc_skin::site::SitePage::Download.url()),
             });
         }
     }
     Ok(FormulaAnswer::Providers(providers(session)))
+}
+
+#[cfg(test)]
+mod site_route_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_native_add_in_refusal_routes_to_the_download_page_the_site_builds() {
+        let mut session = Session::new("Sheet1").expect("a session");
+        let refusal = operate(
+            &mut session,
+            FormulaOperation::Provider(ProviderOperation::ChooseNative),
+        )
+        .expect_err("native providers are refused here");
+        assert_eq!(
+            refusal,
+            Refusal::NotAvailableHere {
+                capability: Capability::NativeAddins,
+                route: Some("https://dnacalc.com/download/".into()),
+            }
+        );
+    }
 }

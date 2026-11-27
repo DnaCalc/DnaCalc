@@ -1,0 +1,35 @@
+<article>
+  <p class="site-kicker">Automation</p>
+  <h1>Your macros and add-ins come with the workbook</h1>
+  <p class="site-lede">A real Excel model is formulas plus the VBA and add-ins around them. DNA Calc runs a workbook's VBA project with its own VBA runtime, CalcVBA, and loads native XLL add-ins on Windows.</p>
+  <h2>Three macro levels where Excel has two</h2>
+  <p>Excel asks one question about a macro workbook: enable or not. DNA Calc has a level between.</p>
+  <div class="site-table"><table>
+    <thead><tr><th scope="col">Level</th><th scope="col">What happens</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Off</th><td>The default. The workbook opens with its project held. You enable it per file.</td></tr>
+      <tr><th scope="row">Guarded</th><td>The project runs, and calls to dangerous operating-system services are refused.</td></tr>
+      <tr><th scope="row">Unguarded</th><td>The project runs with full access, as Excel's enabled macros do.</td></tr>
+    </tbody>
+  </table></div>
+  <p>From a script the level is pinned for one run:</p>
+  <pre><code>dnacalc run book.xlsm --macro Module1.MyFunction --arg 4 --macro-level guarded</code></pre>
+  <h2>What has been measured</h2>
+  <div class="site-table"><table>
+    <thead><tr><th scope="col">Route</th><th scope="col">Matched Excel</th></tr></thead>
+    <tbody>
+      <tr><td>Native XLL functions in Formula Explorer (Windows x64)</td><td>350 of 350 recorded cases</td></tr>
+      <tr><td>xlOil utilities and SQL sample</td><td>12 of 12</td></tr>
+      <tr><td>Simple VBA functions, as .xlam and as .xlsm</td><td>109 of 109 each</td></tr>
+      <tr><td>DNA examples, as .xlam / .xlsm</td><td>22 of 22 / 23 of 23</td></tr>
+    </tbody>
+  </table></div>
+  <p class="site-note">Windows x64 cross-build, second run, 2026-11-11/12. The figures cover these recorded sets, and each project's current counts are on the <a href="/developers/vba/">VBA</a> and <a href="/developers/addins/">add-in</a> guides.</p>
+  <h2>What is there and not yet measured here</h2>
+  <ul>
+    <li>One Excel object model serves VBA, COM clients and Office.js add-ins. The COM projection and the Office.js host are in the source. This site reports no figures for them yet.</li>
+    <li>XLL and COM add-ins need Windows x64. In the browser and on Linux they are reported as not available on that host. See <a href="/platforms/">Platforms</a>.</li>
+    <li>Third-party VBA projects are recorded with their mismatches, refusals and missing Excel answers in the <a href="/developers/vba/">VBA corpus table</a>.</li>
+  </ul>
+  <p><a href="/developers/vba/">VBA guide</a> · <a href="/developers/addins/">Add-in guide</a> · <a href="/articles/calcvba-variant/">How CalcVBA stores Automation values</a></p>
+</article>

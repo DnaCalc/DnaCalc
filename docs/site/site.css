@@ -44,6 +44,8 @@ body.site { margin:0; background:var(--dna-bg); color:var(--dna-ink); font:1rem/
 .site a.site-card:hover, .site-grid a.card:hover { border-color:var(--dna-accent) }
 .site-card b, .site-grid a.card b { display:block; font-size:1.1rem; color:var(--dna-accent-ink); margin-bottom:.35rem }
 .site-card span, .site-grid a.card span { display:block; color:var(--dna-ink-2); font-size:.91rem }
+.site-card .site-status { display:inline-block; margin-top:.7rem; padding:.1rem .5rem; border:1px dashed var(--dna-line); border-radius:var(--dna-radius-chip); font:600 .7rem/1.6 var(--site-mono); letter-spacing:.06em; text-transform:uppercase }
+.site-card .site-status-live { border-style:solid; border-color:var(--dna-accent); color:var(--dna-accent-ink) }
 .site .exhibits h2 { font:650 .8rem/1.5 var(--site-mono); text-transform:uppercase; letter-spacing:.1em; margin:1.5rem 0 .55rem }
 .site-grid a.card { padding:1rem; background:var(--dna-paper); border:1px solid var(--dna-line); border-radius:var(--dna-radius-card) }
 .site-grid a.card:is(.card-amber,.card-blue,.card-violet) { border-top:2px solid var(--dna-accent) }

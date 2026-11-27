@@ -1,0 +1,29 @@
+<article>
+  <p class="site-kicker">The views</p>
+  <h1>One workbook, five views</h1>
+  <p class="site-lede">A spreadsheet grid shows every cell and hides the model. DNA Calc keeps the grid and adds four other ways to read the same workbook. The Classic grid is live as a preview. The other four are designed and being built, and this page says which is which.</p>
+  <div class="site-actions"><a class="site-button" href="/app/preview/">Open the Classic preview</a><a href="/app/">Open the current browser app →</a></div>
+  <h2>What each view is for</h2>
+  <div class="site-table"><table>
+    <thead><tr><th scope="col">View</th><th scope="col">Who it is for</th><th scope="col">Today</th></tr></thead>
+    <tbody>
+      <tr id="classic"><th scope="row">Classic</th><td>Anyone who edits at speed. Excel's grid, formula bar and keyboard. See the <a href="/help/classic-grid/">Classic Grid guide</a>.</td><td>The <a href="/app/">browser app</a> has the established grid. The <a href="/app/preview/">preview</a> is the new grid: draw, select, edit and undo.</td></tr>
+      <tr id="inspector"><th scope="row">Inspector</th><td>A reviewer. Trace a result to its precedents, group errors by the cell that caused them, watch what a recalculation changed.</td><td>Designed. Not yet built.</td></tr>
+      <tr id="notebook"><th scope="row">Notebook</th><td>An analyst or teacher. Formulas in reading order, each with its value, table or chart beneath it, with Jupyter's keys. Every formula in the notebook is a real workbook cell.</td><td>Designed. Not yet built.</td></tr>
+      <tr id="map"><th scope="row">Model map</th><td>An engineer. Sheets, tables and named cells as boxes; references as counted wires; circular references shown as loops.</td><td>Designed. Not yet built.</td></tr>
+      <tr id="app"><th scope="row">App</th><td>The person who uses the model. Validated inputs and results as a form, declared as data in the file.</td><td>Designed. Not yet built.</td></tr>
+      <tr id="explorer"><th scope="row">Formula Explorer</th><td>Anyone with one formula to understand. A tool beside the views; it needs no workbook.</td><td><a href="/onecalc/">Live in the browser.</a></td></tr>
+    </tbody>
+  </table></div>
+  <p class="site-note">The four views in build follow milestones M4 to M7 of the <a href="https://github.com/DnaCalc/DnaCalc/blob/master/docs/design/front-end/SKIN_ARCHITECTURE.md">skin architecture</a>. This page changes when a view is published.</p>
+  <h2>The rules every view follows</h2>
+  <p>These are the design rules the views are built to.</p>
+  <ul>
+    <li><b>The file stays Excel.</b> Every edit made in any view is an ordinary Excel edit: a cell entry, a name, a format. No view adds a calculation feature that Excel lacks.</li>
+    <li><b>One selection and one undo.</b> The views share the workbook's selection and its history. Ctrl+Z undoes the latest step whichever view made it.</li>
+    <li><b>Layout is kept apart from the model.</b> What a view adds (a notebook's order, a map's layout, an App's pages) is stored in one separate XML part of the workbook, never in cells, formulas or hidden names.</li>
+    <li><b>A file carries no code for the views.</b> Layouts, pages and themes are data. Opening a workbook runs nothing from them.</li>
+    <li><b>A change is shown before it is made.</b> An edit from outside the grid names the cells it will write, or says that it changes presentation only.</li>
+  </ul>
+  <p><a href="/onecalc/">Try Formula Explorer</a> · <a href="/platforms/">Where DNA Calc runs</a></p>
+</article>

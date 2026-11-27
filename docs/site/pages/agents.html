@@ -1,0 +1,23 @@
+<article>
+  <p class="site-kicker">Agents</p>
+  <h1>Built so an agent can check its own work</h1>
+  <p class="site-lede">An agent that edits a spreadsheet needs three things: a way to read the model, a way to run it, and an honest answer when something is not supported. DNA Calc gives the same answers to an agent as to a person.</p>
+  <h2>What an agent can use today</h2>
+  <ul>
+    <li><b>Run a workbook.</b> <code>dnacalc recalc</code>, <code>get</code>, <code>set</code> and <code>diff</code> write one JSON object with <code>--json</code>, and the exit status says whether every formula cell matched. See the <a href="/engine/">engine</a>.</li>
+    <li><b>Typed refusals.</b> A formula the engine does not model returns a refusal that names what is missing. It is never a silent wrong number, and it is counted as a failure.</li>
+    <li><b>Provenance on every value.</b> A cell read back says whether it was calculated by this engine or read from the file.</li>
+    <li><b>Readable documentation.</b> <a href="/llms.txt"><code>/llms.txt</code></a> indexes this site, and guides and articles have Markdown editions. The Handbook has a <a href="https://handbook.dnacalc.com/api/index.json">JSON record</a> for each function, with its behaviour and evidence.</li>
+    <li><b>Links that carry a formula.</b> {{explore:=XLOOKUP(3,{1,2,3},{"a","b","c"})}} opens that formula in Formula Explorer. The formula travels after the <code>#</code> and is not sent to a server.</li>
+    <li><b>An open repository.</b> The source is MIT-licensed, and <a href="https://github.com/DnaCalc/DnaCalc/blob/master/AGENTS.md"><code>AGENTS.md</code></a> states the working rules, the checks and the honesty rules that agents and people follow in it.</li>
+  </ul>
+  <h2>Designed, not yet built</h2>
+  <p>The view architecture gives an agent two separate lanes, so that a change to how a workbook looks can never change what it calculates.</p>
+  <ul>
+    <li><b>Looks.</b> A theme, a layout or an App page is JSON data. It is validated, tried on, and kept or discarded. Accepting it changes no cell.</li>
+    <li><b>Model.</b> An agent proposes cell changes as units. A person sees the exact cells each unit writes, accepts some or all, and undoes them one at a time.</li>
+    <li><b>A trail in the file.</b> What an agent proposed and what was accepted is recorded in the workbook's view part, and can be turned off.</li>
+  </ul>
+  <p class="site-note">These follow milestone M6 of the <a href="https://github.com/DnaCalc/DnaCalc/blob/master/docs/design/front-end/SKIN_ARCHITECTURE.md">skin architecture</a>. This page changes when they are published.</p>
+  <p><a href="/developers/">Developer guides</a> · <a href="/status/">Measurements</a></p>
+</article>

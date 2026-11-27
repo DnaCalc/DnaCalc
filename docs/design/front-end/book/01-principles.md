@@ -28,6 +28,31 @@ To keep this specification focused on user experience, behavioural contracts, an
 
 Owner Ruling #8 retires the provisional `dnacalc.com` hero headline `"A spreadsheet for your Excel workbooks."` `[FRAMING-0173]`. That line was tautological—every spreadsheet is for workbooks—and concealed everything distinctive about DNA Calc: bit-exact Rust engineering, five persona views over one file, headless CLI and library embedding, VBA and native `.xll` hosting, browser/Windows/Linux reach, and safe agentic customisation `[FRAMING-0165, FRAMING-0173]`.
 
+### 1.2.0 The hook as tested and shipped (`dc-t2ihk`, 2026-11-27)
+
+The selection in 1.2.1 was tested and replaced. The home page H1 is:
+
+> **Excel workbooks, without Excel. Every mismatch counted and published.**
+
+The test: the six hooks below (the book's five plus the retired tagline's nearest successor) were put, blind, to three independent first-time readers (a financial modeller, a Linux/CI developer, a sceptical technical reader). Each said what they expected from each headline, was then given the true state of the product, and ranked the headlines and named any over-promise.
+
+| Hook | Ranks (modeller, developer, sceptic) | Finding |
+|---|---|---|
+| `Excel to the last bit. Five ways to see your model.` | 5, 4, 4 | All three called both halves false today: one view and Formula Explorer are live, and 432 of 506 bank functions match on every row. "Model" read as finance jargon. |
+| `Excel workbooks, without Excel. Checked to the last bit.` | 2, 1, 1 | The first sentence was the only one every reader understood at once. "Checked to the last bit" reads as a result, not a method. |
+| `Excel under the hood. Modern on the surface.` | 4, 6, 5 | Read as a skin over Excel that needs Excel. |
+| `Your workbook, the same answers as Excel. We publish every difference.` | 1, 2, 2 | The admission of differences earned trust; "the same answers" overstates. |
+| `The open-source Excel engine, with views built for humans and agents.` | 3, 3, 3 | Read as a library; "views" and "agents" are mostly unbuilt. |
+| `Open your Excel workbooks anywhere. Same formulas, same macros, same answers.` | 6, 5, 6 | "Anywhere" and "same macros" are false. |
+
+The shipped H1 joins the two things that won: what the product is ("Excel workbooks, without Excel") and why to believe it (the misses are counted and published). The measured counts sit in the lede directly under it, generated from the same sources as `/status/`. "To the last bit" stays as the stated aim on `/engine/` and in the last-bit articles, where the numbers stand beside it.
+
+`Five ways to see your model` is not lost: it is the heading for `/views/` and the home page's views section from the day all five views are published (milestones M4 to M7, `dc-r67d5`). Until then that section is headed `One workbook, five views` and every view carries its state (`Preview live`, `In build`).
+
+The pillars are five pages, one per story the owner named: `/views/` (the UI), `/automation/`, `/engine/`, `/platforms/` and `/agents/`. Each states what works today and labels what is designed and not built. The app links to them through one table, `calc_skin::site::SitePage`; the content pack fails when a page in that table is not built. The site links to the app through the same `FormulaLink` codec the app reads (`{{explore:FORMULA}}` in a page source).
+
+Where 1.2.1 to 1.2.3 below differ from this subsection, this subsection holds. The capabilities 1.2.2 and 1.2.3 name that are not built (`dnacalc skin validate`, `HelpId`s, `dnacalc://`, the shared cast workbooks, the tabbed hero stage) are not claimed on the site.
+
 ### 1.2.1 Six Candidate Hooks Evaluated
 
 | # | Candidate Headline | Strength | Why Taken or Not Taken |

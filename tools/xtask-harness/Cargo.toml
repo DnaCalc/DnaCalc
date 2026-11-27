@@ -29,6 +29,8 @@ calc-host-vba = { path = "../../crates/calc-host-vba" }
 # DNACALC_TRUST_ALL_MACROS=1 trusts every workbook file's project beside the manifest (dc-15dk).
 calc-macro-security = { path = "../../crates/calc-macro-security" }
 calc-verdict = { path = "../calc-verdict" }
+# The site pages the applications link to (`calc_skin::site`); the content pack checks each is built.
+calc-skin = { path = "../../crates/calc-skin" }
 # The token stylesheet the app bundles start with (`cargo xtask app bundle`, dc-xib).
 dna-strand = { path = "../../apps/dna-strand" }
 # `cargo xtask witness judge --bank full` reads the evidence repository's gzip blobs in place with

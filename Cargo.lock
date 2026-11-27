@@ -4176,6 +4176,7 @@ dependencies = [
  "calc-macro-security",
  "calc-oracle-excel",
  "calc-platform-desktop",
+ "calc-skin",
  "calc-verdict",
  "calc-xll-abi",
  "calc-xll-host",

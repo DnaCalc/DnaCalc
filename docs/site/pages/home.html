@@ -1,10 +1,10 @@
 <section class="site-hero" aria-labelledby="home-heading">
   <div class="site-copy">
-    <p class="site-kicker">Windows desktop preview</p>
-    <h1 id="home-heading">A spreadsheet for your Excel workbooks.</h1>
-    <p class="site-lede">Open and recalculate workbooks with DNA Calc. The Windows preview includes tested VBA worksheet functions and native add-in examples.</p>
-    <div class="site-actions"><a class="site-button" href="/download/">Preview downloads</a><a href="/desktop/">Explore DNA Calc for Windows →</a></div>
-    <p class="site-note">Built in Rust. Open source under the MIT licence.</p>
+    <p class="site-kicker">Open source · Rust · MIT · plain .xlsx and .xlsm files</p>
+    <h1 id="home-heading">Excel workbooks, without Excel. Every mismatch counted and published.</h1>
+    <p class="site-lede">DNA Calc opens Excel workbooks and calculates them with its own engine: in a browser tab, from the Linux command line and in a Windows desktop preview. {{proof}}</p>
+    <div class="site-actions"><a class="site-button" href="/app/">Open a workbook in your browser</a><a href="/onecalc/">Try one formula →</a><a href="/status/">Read the measurements →</a></div>
+    <p class="site-note">Calculation runs in WebAssembly in your browser. The page opens the files you select and saves through browser downloads.</p>
   </div>
   <div class="site-sheet" aria-label="Example worksheet showing net sales">
     <div class="site-sheet-title"><span>Sales worksheet</span><span>D5</span></div>
@@ -21,22 +21,38 @@
     <pre>=SUM(D2:D4)</pre>
   </div>
 </section>
-<section class="site-section" aria-labelledby="choose-heading">
-  <h2 id="choose-heading">Choose how to run DNA Calc</h2>
+<section class="site-section" aria-labelledby="views-heading">
+  <h2 id="views-heading">One workbook, five views</h2>
+  <p class="site-lede">The file stays an ordinary Excel workbook. A view is a way to read it and work on it. The Classic grid is live as a preview; four more are designed and being built.</p>
   <div class="site-grid">
-    <a class="site-card" href="/desktop/"><b>Windows desktop</b><span>Open Excel workbooks and see which VBA and add-in routes have been measured.</span></a>
-    <a class="site-card" href="/web/"><b>In the browser</b><span>Open a sample workbook in the WebAssembly build.</span></a>
-    <a class="site-card" href="/developers/engine/"><b>Linux runner</b><span>Recalculate or compare formula cells from the command line.</span></a>
+    <a class="site-card" href="/app/preview/"><b>Classic</b><span>Excel's grid and Excel's keys.</span><span class="site-status site-status-live">Preview live</span></a>
+    <a class="site-card" href="/views/#inspector"><b>Inspector</b><span>Trace a number to its sources and an error to its root.</span><span class="site-status">In build</span></a>
+    <a class="site-card" href="/views/#notebook"><b>Notebook</b><span>Formulas as a chain, each with its result beneath it.</span><span class="site-status">In build</span></a>
+    <a class="site-card" href="/views/#map"><b>Model map</b><span>The model as boxes and wires drawn from its references.</span><span class="site-status">In build</span></a>
+    <a class="site-card" href="/views/#app"><b>App</b><span>Inputs and results as a form for the people who use the model.</span><span class="site-status">In build</span></a>
+    <a class="site-card" href="/onecalc/"><b>Formula Explorer</b><span>One formula, its inputs and its steps.</span><span class="site-status site-status-live">Live</span></a>
+  </div>
+  <p><a href="/views/">What each view is for, and what works today →</a></p>
+</section>
+<section class="site-section" aria-labelledby="pillars-heading">
+  <h2 id="pillars-heading">More than a grid</h2>
+  <div class="site-grid">
+    <a class="site-card" href="/automation/"><b>Automation</b><span>Run a workbook's VBA at three security levels and load native XLL add-ins on Windows.</span></a>
+    <a class="site-card" href="/engine/"><b>Engine</b><span>Recalculate and compare workbooks from a script, with every refusal counted as a failure.</span></a>
+    <a class="site-card" href="/platforms/"><b>Platforms</b><span>One code base for the browser, Linux and Windows, with a plain list of what each host can do.</span></a>
+    <a class="site-card" href="/agents/"><b>Agents</b><span>Machine-readable pages, JSON output and typed refusals, so an agent can check its own work.</span></a>
   </div>
 </section>
 <section class="site-section" aria-labelledby="live-heading">
   <h2 id="live-heading">Try an Excel formula</h2>
   <p class="site-lede">Change the formula or its inputs and inspect the answer in the live Formula Explorer.</p>
   {{live}}
+  <p class="site-note">A link can carry a formula. The formula stays in the part of the address after <code>#</code>, which a browser does not send to a server. Open {{explore:=PMT(6.5%/12,360,-250000)}}, {{explore:=LET(x,SEQUENCE(5),SUM(x*x))}} or {{explore:=NORM.S.INV(0.975)}} in Formula Explorer.</p>
 </section>
 <section class="site-section" aria-labelledby="evidence-heading">
   <h2 id="evidence-heading">Compared with Excel</h2>
   {{metrics}}
+  <p>Every formula cell is in the denominator. A mismatch, a refusal and a missing answer each count as a failure. A value read from the file is never counted as calculated.</p>
   <p><a href="/status/">Read the measurements and build history →</a></p>
 </section>
 <section class="site-section exhibits" aria-labelledby="exhibits-heading">

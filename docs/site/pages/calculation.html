@@ -1,0 +1,21 @@
+<article>
+  <p class="site-kicker">Engine</p>
+  <h1>Excel's answers, reproduced and measured</h1>
+  <p class="site-lede">The engine is a Rust re-implementation of Excel's calculation. Its aim is Excel's answer to the last bit, and it is measured against answers recorded from Excel.</p>
+  {{metrics}}
+  <h2>How the counting works</h2>
+  <ul>
+    <li><b>Workbook corpus.</b> Each workbook was calculated and saved by Excel. The engine recalculates it and each formula cell is compared with Excel's saved value.</li>
+    <li><b>Function bank.</b> Each row is one function call with its arguments and Excel's answer, compared as bits. {{bank_clean}}</li>
+    <li><b>A refusal is a failure.</b> What the engine does not model returns a typed refusal that names the missing piece. It counts against the pass rate.</li>
+    <li><b>A saved value is never a pass.</b> Only a value the engine calculated counts as calculated.</li>
+  </ul>
+  <p>The hard cases have their own write-ups: <a href="/articles/last-bit-pmt/">PMT</a>, <a href="/articles/last-bit-gamma/">the gamma family</a>, <a href="/articles/last-bit-normsinv/">NORM.S.INV</a>, <a href="/articles/last-bit-linest/">LINEST</a> and <a href="/articles/last-bit-number-text/">number to text</a>.</p>
+  <h2>Use it from a script</h2>
+  <p>The Linux x86-64 runner recalculates a workbook, compares it with the values Excel saved, and reads or edits cells. <code>--json</code> writes one JSON object.</p>
+  {{runner}}
+  <p>For <code>diff</code>, exit status 0 means every formula cell matched. The runner and its JSON are experimental; the <a href="/developers/engine/">engine guide</a> pins a build and documents the output.</p>
+  <h2>Use it from Rust</h2>
+  <p>The crates are in the repository and are not yet published to crates.io. <code>calc-host</code> is a workbook session, <code>calc-fml</code> parses formulas and <code>calc-func</code> calls one function. The <a href="/developers/engine/">engine guide</a> links a doctest for each.</p>
+  <p><a href="/status/">Measurements and build history</a> · <a href="https://handbook.dnacalc.com/catalogue/index.html">Handbook of Excel Functions</a> · <a href="/fun/function-bank.html">Function Bank</a></p>
+</article>

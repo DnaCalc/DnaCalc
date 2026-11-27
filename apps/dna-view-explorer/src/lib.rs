@@ -4,6 +4,7 @@ mod providers;
 mod tools;
 
 use calc_formula_kernel::assist;
+use calc_skin::site::SitePage;
 use calc_skin::{
     ArrayPosition, CalcGeneration, ConditionalRule, FormulaAnswer, FormulaLink, FormulaQuery,
     Provenance, ProviderCatalog, ProviderRequirement, Refusal, Shown, TestInput, Trial, TrialValue,
@@ -341,6 +342,12 @@ impl FormulaView for Explorer {
                         {assist.help()}
                     </section>
                     <providers::Providers port catalogue=provider_catalogue changed=Callback::new(move |()| edited())/>
+                    <nav class="dna-fe-section" aria-label="DNA Calc website" data-skin0="site-links">
+                        <a href=SitePage::Explorer.url()>"About Formula Explorer"</a>" · "
+                        <a href=SitePage::Status.url()>"How results are checked against Excel"</a>" · "
+                        <a href=calc_skin::site::HANDBOOK>"Handbook of Excel Functions"</a>" · "
+                        <a href=SitePage::Download.url()>"Windows app with native add-ins"</a>
+                    </nav>
                 </aside>
             </div>
         }.into_any()
@@ -357,7 +364,7 @@ fn answer_view(
         Live::Loading => view! { <p>"Calculating…"</p> }.into_any(),
         Live::Outdated => view! { <p>"Evaluate to refresh."</p> }.into_any(),
         Live::Refused(Refusal::RequiresWorkbook { reason, route }) => {
-            let href = format!("https://dnacalc.com/app/{}", route.fragment());
+            let href = format!("{}{}", SitePage::App.url(), route.fragment());
             view! {
                 <div class="dna-fe-error" data-skin0="workbook-required">
                     <p>{reason.clone()}</p>

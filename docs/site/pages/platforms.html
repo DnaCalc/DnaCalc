@@ -1,0 +1,22 @@
+<article>
+  <p class="site-kicker">Platforms</p>
+  <h1>The browser, Linux and Windows from one code base</h1>
+  <p class="site-lede">The engine and the page are the same Rust code on every host. What differs is what the host can load, and DNA Calc says so instead of failing quietly.</p>
+  <div class="site-table"><table>
+    <thead><tr><th scope="col"></th><th scope="col">Browser</th><th scope="col">Linux</th><th scope="col">Windows desktop</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">How it runs</th><td>WebAssembly in a tab</td><td><code>dnacalc</code>, a static x86-64 executable</td><td>A desktop application on WebView2</td></tr>
+      <tr><th scope="row">Open, recalculate, save</th><td>Yes. Files come from the file picker and save as downloads.</td><td>Yes, from the command line, or in a browser with <code>dnacalc serve</code>.</td><td>Yes</td></tr>
+      <tr><th scope="row">Workbook VBA</th><td>Yes. Macros start Off.</td><td>Yes. Off unless <code>--macro-level</code> is given.</td><td>Yes</td></tr>
+      <tr><th scope="row">Native XLL and COM add-ins</th><td>No</td><td>No</td><td>Yes, x64</td></tr>
+      <tr><th scope="row">Get it</th><td><a href="/app/">Open the app</a></td><td><a href="/download/">Package names</a>; not yet published</td><td><a href="/download/">Package names</a>; not yet published</td></tr>
+    </tbody>
+  </table></div>
+  <p class="site-note">There is no macOS build. Printing and some drawing objects are in progress on every host.</p>
+  <h2>In the browser</h2>
+  <p>Calculation runs in your browser. The site's content security policy lets its pages connect only to this site. <a href="/web/">More about the browser app →</a></p>
+  <h2>On Linux</h2>
+  <p><code>dnacalc serve</code> carries the workbook page inside the executable, binds to 127.0.0.1 and prints a private address to open in Firefox or Chromium. <a href="/developers/engine/">The runner's commands →</a></p>
+  <h2>On Windows</h2>
+  <p>The desktop preview adds the hosts that need Windows: native XLL add-ins, COM, and .xlam add-ins loaded from the Add-ins panel. <a href="/desktop/">More about DNA Calc for Windows →</a></p>
+</article>

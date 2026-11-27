@@ -46,7 +46,7 @@ impl Index {
 
     pub(super) fn write(&self, dir: &Path) -> Result<(), String> {
         let mut index = format!(
-            "{TITLE}\n\n> DNA Calc is a spreadsheet for Excel workbooks, with a Formula Explorer for individual formulas and developer tools for workbooks, VBA and add-ins.\n"
+            "{TITLE}\n\n> DNA Calc opens and calculates Excel workbooks without Excel, in the browser, on Linux and on Windows, and publishes how its results compare with Excel. It has a Formula Explorer for individual formulas and developer tools for workbooks, VBA and add-ins.\n"
         );
         for (name, entries) in SECTIONS.into_iter().zip(&self.sections) {
             let _ = writeln!(index, "\n## {name}\n");

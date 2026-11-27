@@ -106,12 +106,14 @@ const SAMPLE: &str = "crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx";
 
 const NAV: &[(&str, &str)] = &[
     ("/", "Home"),
-    ("/desktop/", "DNA Calc"),
+    ("/views/", "Views"),
+    ("/automation/", "Automation"),
+    ("/engine/", "Engine"),
+    ("/platforms/", "Platforms"),
+    ("/agents/", "Agents"),
     ("/onecalc/", "Formula Explorer"),
-    ("/web/", "In the browser"),
     ("/developers/", "Developers"),
     ("/handbook/", "Handbook"),
-    ("/play/", "Playground"),
     ("/blog/", "Blog"),
     ("/download/", "Download"),
 ];
@@ -124,7 +126,52 @@ type Page = (
 );
 
 const PAGES_BY_ROUTE: &[Page] = &[
-    ("", "home", "Excel workbooks on Windows", None),
+    ("", "home", "Excel workbooks, without Excel", None),
+    (
+        "views/",
+        "views",
+        "One workbook, five views",
+        Some((
+            Section::Products,
+            "What each view is for and which are live: the Classic grid preview and Formula Explorer today.",
+        )),
+    ),
+    (
+        "automation/",
+        "automation",
+        "Automation",
+        Some((
+            Section::Products,
+            "Run workbook VBA at the Off, Guarded or Unguarded level and load native XLL add-ins on Windows x64.",
+        )),
+    ),
+    (
+        "engine/",
+        "calculation",
+        "Engine",
+        Some((
+            Section::Products,
+            "How results are measured against Excel, and how to recalculate a workbook from a script or from Rust.",
+        )),
+    ),
+    (
+        "platforms/",
+        "platforms",
+        "Platforms",
+        Some((
+            Section::Products,
+            "What the browser, Linux and Windows hosts can each open, run and load.",
+        )),
+    ),
+    (
+        "agents/",
+        "agents",
+        "Agents",
+        Some((
+            Section::Products,
+            "What an agent can read, run and check today, and the proposal and skin lanes that are designed.",
+        )),
+    ),
     (
         "desktop/",
         "desktop",
@@ -274,8 +321,8 @@ impl Layout<'_> {
 <nav class="site-nav" aria-label="Main navigation">{links}</nav>
 </div></header>
 <main class="site-main" id="main">{contents}</main>
-<footer class="site-footer"><div class="site-footer-inner"><span>DNA Calc · Excel workbook calculation</span>
-<a href="/about/">About</a><a href="/licence/">Licence</a><a href="/status/">Status</a><a href="/build.json">Build record</a>
+<footer class="site-footer"><div class="site-footer-inner"><span>DNA Calc · Excel workbooks, without Excel</span>
+<a href="/desktop/">Windows</a><a href="/web/">Browser</a><a href="/play/">Playground</a><a href="/about/">About</a><a href="/licence/">Licence</a><a href="/status/">Status</a><a href="/build.json">Build record</a>
 </div></footer>
 </body>
 </html>
@@ -346,8 +393,26 @@ pub(super) fn build(
         format!(r#"<p><a href="{url}">Open the public browser app</a></p>"#)
     };
     let layout = Layout { prefix, explorer };
-    let workbook = corpus_metric(root)?;
-    let bank = bank_metric(root)?;
+    let corpus = corpus_counts(root)?;
+    let (bank_counts, bank_functions, bank_clean) = bank_counts(root)?;
+    let proof = proof(&corpus, &bank_counts);
+    let bank_clean = format!(
+        "{} of the {} functions in the bank match on every row.",
+        number(bank_clean),
+        number(bank_functions)
+    );
+    let workbook = metric(
+        "Workbook corpus",
+        corpus.matched,
+        corpus.total,
+        &corpus.evidence,
+    )?;
+    let bank = metric(
+        "Function bank",
+        bank_counts.matched,
+        bank_counts.total,
+        &bank_counts.evidence,
+    )?;
     let metrics = format!(r#"<div class="site-metrics">{workbook}{bank}</div>"#);
     let cards = build_fun(root, output, prefix)?;
     let mut index = Index::default();
@@ -363,6 +428,8 @@ pub(super) fn build(
         for (key, value) in [
             ("live", live.as_str()),
             ("metrics", &metrics),
+            ("proof", &proof),
+            ("bank_clean", &bank_clean),
             ("bank", &bank),
             ("cards", &cards),
             ("vba", &vba),
@@ -375,6 +442,7 @@ pub(super) fn build(
         ] {
             contents = contents.replace(&format!("{{{{{key}}}}}"), value);
         }
+        contents = explore_links(contents).map_err(|e| format!("{filename}: {e}"))?;
         if contents.contains("{{") {
             return Err(format!("{filename}: unresolved site placeholder"));
         }
@@ -739,7 +807,13 @@ fn metric(title: &str, matched: u64, total: u64, evidence: &str) -> Result<Strin
     ))
 }
 
-fn corpus_metric(root: &Path) -> Result<String, String> {
+struct Measured {
+    matched: u64,
+    total: u64,
+    evidence: String,
+}
+
+fn corpus_counts(root: &Path) -> Result<Measured, String> {
     let plan = source(root, RELEASES)?;
     let baseline = plan
         .lines()
@@ -765,15 +839,15 @@ fn corpus_metric(root: &Path) -> Result<String, String> {
             .parse::<u64>()
             .map_err(|e| format!("oracle corpus count: {e}"))
     };
-    metric(
-        "Workbook corpus",
-        numeric(matched)?,
-        numeric(total)?,
-        &evidence,
-    )
+    Ok(Measured {
+        matched: numeric(matched)?,
+        total: numeric(total)?,
+        evidence,
+    })
 }
 
-fn bank_metric(root: &Path) -> Result<String, String> {
+/// The full bank's totals, its function count and how many functions match on every row.
+fn bank_counts(root: &Path) -> Result<(Measured, u64, u64), String> {
     let table = source(root, WITNESS)?;
     let mut rows = table
         .lines()
@@ -787,6 +861,7 @@ fn bank_metric(root: &Path) -> Result<String, String> {
     };
     let [bank, rows_col, matched_col] = [col("bank")?, col("rows")?, col("matched")?];
     let mut functions = 0;
+    let mut clean = 0;
     let mut total = 0;
     let mut matched = 0;
     for row in rows.filter(|row| row.get(bank).copied() == Some("full")) {
@@ -796,6 +871,7 @@ fn bank_metric(root: &Path) -> Result<String, String> {
                 .ok_or_else(|| format!("{WITNESS}: invalid full-bank row {row:?}"))
         };
         functions += 1;
+        clean += u64::from(count(rows_col)? == count(matched_col)?);
         total += count(rows_col)?;
         matched += count(matched_col)?;
     }
@@ -804,7 +880,47 @@ fn bank_metric(root: &Path) -> Result<String, String> {
         "{functions} functions · {} · witness-status.tsv",
         origin.trim()
     );
-    metric("Function bank", matched, total, &evidence)
+    Ok((
+        Measured {
+            matched,
+            total,
+            evidence,
+        },
+        functions,
+        clean,
+    ))
+}
+
+/// The home page's one sentence of proof, from the same counts as the Status page.
+fn proof(corpus: &Measured, bank: &Measured) -> String {
+    format!(
+        r#"Measured against Excel today: {} of {} workbook formula cells and {} of {} recorded function answers match. <a href="/status/">The rest are counted as failures.</a>"#,
+        number(corpus.matched),
+        number(corpus.total),
+        number(bank.matched),
+        number(bank.total)
+    )
+}
+
+/// `{{explore:FORMULA}}` becomes a link that opens the formula in Formula Explorer, encoded by
+/// the same `FormulaLink` the application reads.
+fn explore_links(mut contents: String) -> Result<String, String> {
+    const OPEN: &str = "{{explore:";
+    while let Some(start) = contents.find(OPEN) {
+        let end = contents[start..]
+            .find(")}}")
+            .map(|at| start + at + 1)
+            .ok_or("unclosed {{explore:}} placeholder")?;
+        let formula = &contents[start + OPEN.len()..end];
+        let link = format!(
+            r#"<a href="{}{}"><code>{}</code></a>"#,
+            calc_skin::site::SitePage::Explorer.route(),
+            calc_skin::FormulaLink(formula.to_owned()).fragment(),
+            escape(formula)
+        );
+        contents.replace_range(start..end + 2, &link);
+    }
+    Ok(contents)
 }
 
 fn hash_name(function: &str) -> String {
@@ -964,6 +1080,36 @@ fn runner_commands(root: &Path) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    /// Native-only: xtask-harness is a native package.
+    #[test]
+    fn every_site_page_an_application_links_to_is_built() {
+        for page in calc_skin::site::SitePage::ALL {
+            let route = page.route();
+            let built = PAGES_BY_ROUTE
+                .iter()
+                .any(|(built, ..)| format!("/{built}") == route)
+                || ["/app/", "/help/classic-grid/"].contains(&route);
+            assert!(built, "{route} is linked from an application and not built");
+        }
+    }
+
+    /// Native-only: xtask-harness is a native package.
+    #[test]
+    fn an_explore_placeholder_becomes_the_link_formula_explorer_reads() {
+        let html = explore_links("Open {{explore:=SUM({1,2},3)}} now".to_owned()).unwrap();
+        assert_eq!(
+            html,
+            r#"Open <a href="/onecalc/#f=%3DSUM%28%7B1%2C2%7D%2C3%29"><code>=SUM({1,2},3)</code></a> now"#
+        );
+        let href = html.split('"').nth(1).unwrap();
+        let fragment = &href[href.find('#').unwrap()..];
+        assert_eq!(
+            calc_skin::FormulaLink::from_fragment(fragment),
+            Some(calc_skin::FormulaLink("=SUM({1,2},3)".into()))
+        );
+        assert!(explore_links("{{explore:=SUM(1".to_owned()).is_err());
+    }
+
     /// Native-only: builds site content from the checkout into a temporary directory.
     #[test]
     fn preview_renders_the_articles_grid_guide_and_video_drafts() {
@@ -1002,6 +1148,17 @@ mod tests {
                 assert!(status.contains(r#"href="/articles/last-bit-gamma/""#));
                 let explorer = source(&dir, "onecalc/index.html")?;
                 assert!(explorer.contains(r#"<body class="site" data-onecalc-standalone>"#));
+                let home = source(&dir, "index.html")?;
+                assert!(home.contains(
+                    "Excel workbooks, without Excel. Every mismatch counted and published."
+                ));
+                assert!(home.contains("recorded function answers match."));
+                assert!(home.contains(r#"href="/onecalc/#f=%3DNORM.S.INV%280.975%29""#));
+                for pillar in ["views", "automation", "engine", "platforms", "agents"] {
+                    assert!(home.contains(&format!(r#"href="/{pillar}/""#)), "{pillar}");
+                    let page = source(&dir, &format!("{pillar}/index.html"))?;
+                    assert!(page.contains(r#"aria-current="page""#), "{pillar}");
+                }
                 let status_page = source(&dir, "status/index.html")?;
                 assert!(status_page.contains("<h2>Per-function fuzz coverage</h2>"));
                 assert!(status_page.contains("crates/calc-func/fuzz-status.tsv"));
@@ -1105,16 +1262,18 @@ mod tests {
     /// Native-only: writes a temporary fuzz-status.tsv and checks /status fuzz rendering.
     #[test]
     fn status_fuzz_section_renders_per_function_coverage_from_fuzz_status_tsv() {
-        let base = std::env::temp_dir().join(format!(
-            "dnacalc-site-fuzz-status-{}",
-            std::process::id()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("dnacalc-site-fuzz-status-{}", std::process::id()));
         let _ = fs::remove_dir_all(&base);
         let tsv_path = base.join(FUZZ_STATUS);
         fs::create_dir_all(tsv_path.parent().unwrap()).unwrap();
 
         // Empty table renders honest zero-state summary.
-        fs::write(&tsv_path, format!("{}\n", crate::fuzz::coverage::FUZZ_STATUS_HEADER)).unwrap();
+        fs::write(
+            &tsv_path,
+            format!("{}\n", crate::fuzz::coverage::FUZZ_STATUS_HEADER),
+        )
+        .unwrap();
         let empty_html = fuzz_section(&base).unwrap();
         assert!(empty_html.contains("0 functions swept"));
         assert!(empty_html.contains("0 cases swept"));
@@ -1156,7 +1315,9 @@ mod tests {
         let html = fuzz_section(&base).unwrap();
         assert!(html.contains("Fuzz sweeps"));
         assert!(html.contains("1,650 of 1,700 matched · 50 failed"));
-        assert!(html.contains("2 functions · 16 frontiers · 3 open clusters · last sweep 2026-11-24"));
+        assert!(
+            html.contains("2 functions · 16 frontiers · 3 open clusters · last sweep 2026-11-24")
+        );
         assert!(html.contains(r#"href="/fun/function-bank.html#IRR">IRR</a>"#));
         assert!(html.contains(r#"href="/fun/function-bank.html#NORM-S-INV">NORM.S.INV</a>"#));
         assert!(html.contains("<td>1,200</td><td>1,150</td><td>50</td><td>5</td><td>7 / 8</td><td>12</td><td>3</td><td>2026-11-24</td>"));
@@ -1200,10 +1361,7 @@ mod tests {
             root: Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
             members: Vec::new(),
         };
-        let dir = std::env::temp_dir().join(format!(
-            "site-irr-transcript-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("site-irr-transcript-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let result = (|| {
             build(
@@ -1243,11 +1401,9 @@ mod tests {
             let overlay = source(&dir, "articles/last-bit-irr-transcript/overlay.js")?;
             assert!(overlay.contains("window.OVERLAY"));
 
-            let data: Value = serde_json::from_str(&source(
-                &dir,
-                "articles/last-bit-irr-transcript/data.json",
-            )?)
-            .map_err(|e| format!("data.json: {e}"))?;
+            let data: Value =
+                serde_json::from_str(&source(&dir, "articles/last-bit-irr-transcript/data.json")?)
+                    .map_err(|e| format!("data.json: {e}"))?;
             assert!(data["steps"].as_array().is_some_and(|s| !s.is_empty()));
 
             let review: Value = serde_json::from_str(&source(
