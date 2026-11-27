@@ -11,6 +11,8 @@ use dna_kit::{InputMode, Live, Session, ViewCommand};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
+mod trace;
+
 const PAGE_ROWS: u32 = 36;
 const PAGE_COLUMNS: u32 = 18;
 const LAST_ROW: u32 = 1_048_576;
@@ -215,7 +217,7 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         })
         .when("mode:ready && writable")
     };
-    vec![
+    let mut commands = vec![
         moves("grid.move-down", "Move down", &["ArrowDown"], 1, 0),
         moves("grid.move-up", "Move up", &["ArrowUp"], -1, 0),
         moves("grid.move-left", "Move left", &["ArrowLeft"], 0, -1),
@@ -311,7 +313,9 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
-    ]
+    ];
+    commands.extend(trace::commands(view, session));
+    commands
 }
 
 pub fn mount(session: Session) -> impl IntoView {
@@ -325,6 +329,7 @@ pub fn picker(session: Session) -> impl IntoView {
 
 fn worksheet(session: Session, editable: bool) -> impl IntoView {
     let focus = NodeRef::<leptos::html::Div>::new();
+    let content = NodeRef::<leptos::html::Div>::new();
     let active = Memo::new(move |_| session.active());
     let page = Memo::new(move |_| active.get().map(page_of));
     let cells = session.following::<query::Cells>();
@@ -337,6 +342,7 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
             on:pointerup=move |_| dragging.set(None)
             on:pointercancel=move |_| dragging.set(None)
         >
+            <div class="dna-sheet-content" node_ref=content>
             {move || {
                 let area = page.get();
                 let window = cells.at(area.map(|area| query::Cells { interest: Interest::Area(area) }));
@@ -445,6 +451,8 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                     </table>
                 }.into_any()
             }}
+            {editable.then(|| trace::layer(session, content, page))}
+            </div>
         </div>
     }
 }

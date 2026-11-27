@@ -85,6 +85,34 @@
     outline: none;
 }
 .dna-sheet table { table-layout: fixed; border-spacing: 0; border-collapse: separate; user-select: none; }
+.dna-sheet-content { position: relative; inline-size: max-content; min-inline-size: 100%; }
+.dna-sheet-traces { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.dna-sheet-trace-arrow {
+    position: absolute;
+    height: 2px;
+    color: var(--dna-petrol-500, var(--dna-accent-ink));
+    background: currentColor;
+    transform-origin: left center;
+    pointer-events: auto;
+}
+.dna-sheet-trace-arrow::before, .dna-sheet-trace-arrow::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.dna-sheet-trace-arrow::before {
+    left: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.dna-sheet-trace-arrow::after {
+    right: 0;
+    border-block: 4px solid transparent;
+    border-left: 8px solid currentColor;
+}
 .dna-sheet td, .dna-sheet th {
     box-sizing: border-box;
     min-width: 3rem;
