@@ -532,6 +532,7 @@ pub enum NameChange {
     Define { name: String, formula: String },
     DefineFunction { name: String, formula: String },
     Rename { name: String, to: String },
+    SetFormula { name: String, formula: String },
     Remove { name: String },
 }
 

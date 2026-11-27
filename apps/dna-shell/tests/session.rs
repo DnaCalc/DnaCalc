@@ -344,6 +344,81 @@ fn classic_fill_down_and_right_translate_formulas_as_separate_undo_steps() {
     assert_eq!(page.shown(page.at(4, 3)), "");
 }
 
+/// Native-only: drives the Classic name manager through the real workbook service.
+#[test]
+fn classic_name_manager_versions_and_undoes_defined_names() {
+    use calc_skin::{InventoryItem, InventoryKind, NameChange, NameScope};
+    use dna_kit::commands::CommandId;
+
+    let page = Page::open();
+    let session = page.session;
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    let before = session.stamp().unwrap();
+    assert!(page.press("Ctrl+F3", Focus::Stage));
+    assert_eq!(session.stamp(), Some(before));
+    let names = session.watch(query::Inventory { kinds: vec![InventoryKind::Names] });
+    page.settle();
+    let change = |base, change| {
+        session.run(&dna_kit::Invocation {
+            command: CommandId::new("classic.change-name"),
+            args: serde_json::json!((base, NameScope::Workbook, change)),
+        }).unwrap();
+        page.settle();
+    };
+    let formula = |wanted: &str| {
+        let Live::Ready(answer) = session.read(names) else {
+            panic!("the name inventory did not arrive");
+        };
+        answer.body.into_iter().find_map(|item| match item {
+            InventoryItem::Name { scope: NameScope::Workbook, name, formula, hidden: false }
+                if name == wanted => Some(formula),
+            _ => None,
+        })
+    };
+    change(before.model, NameChange::Define { name: "Rate".into(), formula: "=5".into() });
+    assert_eq!(formula("Rate").as_deref(), Some("=5"));
+    let created = session.stamp().unwrap().model;
+    let update = NameChange::SetFormula { name: "Rate".into(), formula: "=7".into() };
+    change(before.model, update.clone());
+    assert_eq!(session.stamp().unwrap().model, created);
+    assert_eq!(formula("Rate").as_deref(), Some("=5"));
+    assert_eq!(formula("TaxRate"), None);
+
+    change(created, update);
+    assert_eq!(formula("Rate").as_deref(), Some("=7"));
+    change(session.stamp().unwrap().model, NameChange::Rename { name: "Rate".into(), to: "TaxRate".into() });
+    assert_eq!(formula("TaxRate").as_deref(), Some("=7"));
+    assert_eq!(formula("Rate"), None);
+    change(session.stamp().unwrap().model, NameChange::Remove { name: "TaxRate".into() });
+    assert_eq!(formula("TaxRate"), None);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(formula("TaxRate").as_deref(), Some("=7"));
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert!(page.press("Escape", Focus::ActionField));
+}
+
+/// Native-only: follows Classic's auditing commands through the workbook shell.
+#[test]
+fn classic_trace_keys_do_not_edit_the_sheet_or_move_its_selection() {
+    let page = Page::open();
+    let session = page.session;
+    session.begin_edit(page.at(2, 2), Some("=A1*2".into()));
+    session.commit_edit();
+    page.settle();
+    let stamp = session.stamp().unwrap();
+    for key in ["F10", "m", "p"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(session.last_refusal().is_none(), "{}", session.notice());
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    for key in ["F10", "m", "a", "a"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(session.last_refusal().is_none(), "{}", session.notice());
+    assert_eq!(session.stamp().unwrap().model, stamp.model);
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {

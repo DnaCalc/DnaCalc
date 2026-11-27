@@ -102,6 +102,9 @@ pub(crate) fn prepare(
             let node = require(name.as_str())?;
             (Some(node), to, Some(node.definition().formula.clone()))
         }
+        NameChange::SetFormula { name, formula } => {
+            (Some(require(name.as_str())?), name, Some(formula.clone()))
+        }
         NameChange::Remove { name } => (Some(require(name.as_str())?), name, None),
     };
     let used = matches!(change, NameChange::Remove { .. })
