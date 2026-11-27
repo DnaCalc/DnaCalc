@@ -744,9 +744,25 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                     }
                 })
                 .collect();
+            let mut documents = Vec::new();
+            for doc in part.documents() {
+                meter.check()?;
+                documents.push(query::ViewDocumentFacts {
+                    id: doc.id,
+                    view: ViewId(doc.view.clone()),
+                    sheet: doc
+                        .sheet
+                        .and_then(|key| host.model().sheet_by_key(key))
+                        .map(|sheet| Sheet::of(sheet.id())),
+                    schema: doc.schema,
+                    body: serde_json::from_str(&doc.body)
+                        .map_err(|error| invalid(format!("Invalid view declaration: {error}")))?,
+                });
+            }
             query::ViewPartOf::encode(&query::ViewPartFacts {
                 opaque: part.is_opaque(),
                 anchors,
+                documents,
             })?
         }
         WorkbookQuery::Notes { anchor } => {

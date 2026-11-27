@@ -438,6 +438,11 @@ pub enum PresentationChange {
         schema: u32,
         body: Value,
     },
+    PatchDoc {
+        doc: DocId,
+        expect_view_rev: Revision,
+        body: Value,
+    },
     RemoveDoc {
         doc: DocId,
     },

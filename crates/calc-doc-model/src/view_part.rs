@@ -1,6 +1,7 @@
 //! Authored view metadata. Sheet identities are mapped to stable keys by the package codec.
 
-use calc_syntax::{AnchorId, NoteId};
+use crate::SheetKey;
+use calc_syntax::{AnchorId, DocId, NoteId};
 use calc_value::GridArea;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -52,12 +53,23 @@ pub struct ViewNote {
     pub text: String,
 }
 
+/// A declaration in the v1 view part. Coordinates belong in anchors, not in the JSON body.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ViewDocument {
+    pub id: DocId,
+    pub view: String,
+    pub sheet: Option<SheetKey>,
+    pub schema: u32,
+    pub body: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ViewPart {
     source: Option<Arc<[u8]>>,
     opaque: bool,
     anchors: BTreeMap<AnchorId, ViewAnchor>,
     notes: BTreeMap<NoteId, ViewNote>,
+    documents: BTreeMap<DocId, ViewDocument>,
 }
 
 impl ViewPart {
@@ -65,6 +77,7 @@ impl ViewPart {
         source: Vec<u8>,
         anchors: impl IntoIterator<Item = ViewAnchor>,
         notes: impl IntoIterator<Item = ViewNote>,
+        documents: impl IntoIterator<Item = ViewDocument>,
     ) -> Self {
         Self {
             source: Some(source.into()),
@@ -74,6 +87,7 @@ impl ViewPart {
                 .map(|anchor| (anchor.id, anchor))
                 .collect(),
             notes: notes.into_iter().map(|note| (note.id, note)).collect(),
+            documents: documents.into_iter().map(|doc| (doc.id, doc)).collect(),
         }
     }
 
@@ -83,6 +97,7 @@ impl ViewPart {
             opaque: true,
             anchors: BTreeMap::new(),
             notes: BTreeMap::new(),
+            documents: BTreeMap::new(),
         }
     }
 
@@ -127,6 +142,24 @@ impl ViewPart {
 
     pub fn without_note(mut self, id: NoteId) -> Self {
         self.notes.remove(&id);
+        self
+    }
+
+    pub fn document(&self, id: DocId) -> Option<&ViewDocument> {
+        self.documents.get(&id)
+    }
+
+    pub fn documents(&self) -> impl Iterator<Item = &ViewDocument> {
+        self.documents.values()
+    }
+
+    pub fn with_document(mut self, doc: ViewDocument) -> Self {
+        self.documents.insert(doc.id, doc);
+        self
+    }
+
+    pub fn without_document(mut self, id: DocId) -> Self {
+        self.documents.remove(&id);
         self
     }
 

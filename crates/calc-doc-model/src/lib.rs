@@ -82,7 +82,7 @@ pub use conditional::ConditionalRuleSource;
 pub use filter::{AutoFilter, CALENDAR_PERIODS, FilterCriteria, FilterOperator, FilterPredicate};
 mod formula_block;
 mod input;
-pub use calc_syntax::{AnchorId, FormulaForm, NoteId, SemanticTemplateKey, TemplatePlacement};
+pub use calc_syntax::{AnchorId, DocId, FormulaForm, NoteId, SemanticTemplateKey, TemplatePlacement};
 pub use formula_block::{
     FormulaBlock, FormulaBlockId, FormulaMembership, FormulaSaveMode, FormulaSourceStats,
     FormulaTemplateSource,
@@ -91,7 +91,7 @@ mod name_table;
 pub use name_table::{NameNode, NameOrigin, NameTable};
 mod layout;
 mod view_part;
-pub use view_part::{VIEW_PART_NAMESPACE, ViewAnchor, ViewNote, ViewPart};
+pub use view_part::{VIEW_PART_NAMESPACE, ViewAnchor, ViewDocument, ViewNote, ViewPart};
 pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts, OutlineGroup};
 mod op;
 mod revision;

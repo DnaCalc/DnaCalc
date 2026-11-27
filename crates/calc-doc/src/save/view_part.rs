@@ -6,8 +6,8 @@ use crate::load::address;
 use crate::xml::{XmlElement, XmlEvent, XmlPart};
 use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{
-    AnchorId, CellInput, ModelRoot, NoteId, SheetKey, VIEW_PART_NAMESPACE, ViewAnchor, ViewNote,
-    ViewPart,
+    AnchorId, CellInput, DocId, ModelRoot, NoteId, SheetKey, VIEW_PART_NAMESPACE, ViewAnchor,
+    ViewDocument, ViewNote, ViewPart,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,6 +27,12 @@ struct StoredNote {
     whole: Span,
 }
 
+struct StoredDocument {
+    document: ViewDocument,
+    start: Span,
+    whole: Span,
+}
+
 struct Index {
     root: Span,
     digest: Option<String>,
@@ -37,6 +43,9 @@ struct Index {
     notes: Option<(Span, usize)>,
     known_notes: BTreeMap<NoteId, StoredNote>,
     note_ids: BTreeSet<NoteId>,
+    declarations: Option<(Span, usize)>,
+    known_documents: BTreeMap<DocId, StoredDocument>,
+    document_ids: BTreeSet<DocId>,
 }
 
 fn is(element: &XmlElement, local: &str) -> bool {
@@ -93,12 +102,17 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         notes: None,
         known_notes: BTreeMap::new(),
         note_ids: BTreeSet::new(),
+        declarations: None,
+        known_documents: BTreeMap::new(),
+        document_ids: BTreeSet::new(),
     };
     let mut depth = 1;
     let mut in_anchors = false;
     let mut in_notes = false;
     let mut pending = None;
     let mut pending_note: Option<StoredNote> = None;
+    let mut in_declarations = false;
+    let mut pending_document: Option<StoredDocument> = None;
     while let Some(event) = read.next_event().ok()? {
         let span = read.span();
         match event {
@@ -143,6 +157,24 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                                     whole: span,
                                 });
                     }
+                } else if depth == 1 && is(&el, "decls") {
+                    if index.declarations.replace((span, span.1)).is_some() {
+                        return None;
+                    }
+                    in_declarations = true;
+                } else if depth == 2 && in_declarations && is(&el, "decl") {
+                    if let Some(id) = el.attribute("id").and_then(|id| id.parse().ok()) {
+                        if !index.document_ids.insert(id) {
+                            return None;
+                        }
+                        pending_document = parse_document(&el, id).map(|document| StoredDocument {
+                            document,
+                            start: span,
+                            whole: span,
+                        });
+                    }
+                } else if depth >= 3 && in_declarations {
+                    pending_document = None;
                 } else if depth >= 3 && in_notes {
                     // Retain richer note elements from future writers as source.
                     pending_note = None;
@@ -168,6 +200,16 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                         index.known_notes.insert(stored.note.id, stored);
                     }
                 }
+                if depth == 2
+                    && let Some(mut stored) = pending_document.take()
+                {
+                    stored.whole.1 = span.1;
+                    index.known_documents.insert(stored.document.id, stored);
+                }
+                if depth == 1 && in_declarations {
+                    index.declarations.as_mut().unwrap().1 = span.0;
+                    in_declarations = false;
+                }
                 if depth == 1 && in_notes {
                     index.notes.as_mut().unwrap().1 = span.0;
                     in_notes = false;
@@ -184,10 +226,27 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                 if let Some(note) = pending_note.as_mut() {
                     note.note.text.push_str(&text);
                 }
+                if let Some(document) = pending_document.as_mut() {
+                    document.document.body.push_str(&text);
+                }
             }
         }
     }
     Some(index)
+}
+
+fn parse_document(el: &XmlElement, id: DocId) -> Option<ViewDocument> {
+    Some(ViewDocument {
+        id,
+        view: el.attribute("view")?.to_owned(),
+        sheet: el
+            .attribute("sheet_key")
+            .map(|key| key.parse().map(SheetKey::new))
+            .transpose()
+            .ok()?,
+        schema: el.attribute("schema")?.parse().ok()?,
+        body: String::new(),
+    })
 }
 
 fn sized(digest: &mut Sha256, bytes: &[u8]) {
@@ -315,7 +374,11 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                 }
             });
             let notes = index.known_notes.into_values().map(|stored| stored.note);
-            ViewPart::loaded(xml.bytes().to_vec(), anchors, notes)
+            let documents = index
+                .known_documents
+                .into_values()
+                .map(|stored| stored.document);
+            ViewPart::loaded(xml.bytes().to_vec(), anchors, notes, documents)
         }
         None => ViewPart::opaque(xml.bytes().to_vec()),
     }
@@ -363,7 +426,7 @@ fn new_anchor(anchor: &ViewAnchor, model: &ModelRoot, out: &mut Vec<u8>) {
 }
 
 /// Inserts into a container which may have been written with a self-closing start tag.
-fn insert(splice: &mut Splice<'_>, source: &[u8], start: Span, close: usize, body: &[u8]) {
+fn insert(splice: &mut PartEdits, source: &[u8], start: Span, close: usize, body: &[u8]) {
     let tag = RawTag::parse(&source[start.0..start.1]);
     if tag.is_empty() {
         let mut open = tag.rebuilt(&[], false);
@@ -395,7 +458,7 @@ pub(super) fn item(
         part: VIEW_PART_NAMESPACE.to_owned(),
         detail: "the retained view part is not editable".into(),
     })?;
-    let mut splice = Splice::new(original);
+    let mut splice = PartEdits::default();
     let digest = model_digest(model);
     let root = RawTag::parse(&original[index.root.0..index.root.1]);
     if !root.is_empty() {
@@ -500,6 +563,7 @@ pub(super) fn item(
         index.notes,
         &new,
     );
+    write_documents(part, &index, original, &mut splice, &mut new_sections)?;
     if root.is_empty() {
         let mut open = root.rebuilt(&[("model", Some(&digest))], new_sections.is_empty());
         if !new_sections.is_empty() {
@@ -520,12 +584,12 @@ pub(super) fn item(
     }
     Ok(Some(crate::CustomXmlItem {
         namespace: VIEW_PART_NAMESPACE.to_owned(),
-        content: splice.finish(),
+        content: splice.finish(original),
     }))
 }
 
 fn append_section(
-    splice: &mut Splice<'_>,
+    splice: &mut PartEdits,
     original: &[u8],
     sections: &mut Vec<u8>,
     name: &str,
@@ -541,5 +605,100 @@ fn append_section(
         sections.extend_from_slice(format!("<{name} xmlns=\"{VIEW_PART_NAMESPACE}\">").as_bytes());
         sections.extend_from_slice(new);
         sections.extend_from_slice(format!("</{name}>").as_bytes());
+    }
+}
+
+fn write_documents(
+    part: &ViewPart,
+    index: &Index,
+    original: &[u8],
+    edits: &mut PartEdits,
+    new_sections: &mut Vec<u8>,
+) -> Result<(), super::SaveRefusal> {
+    for stored in index.known_documents.values() {
+        let Some(document) = part.document(stored.document.id) else {
+            edits.replace(stored.whole, &[]);
+            continue;
+        };
+        if document != &stored.document {
+            let tag = RawTag::parse(&original[stored.start.0..stored.start.1]);
+            let sheet = document.sheet.map(|sheet| sheet.get().to_string());
+            let mut bytes = tag.rebuilt(
+                &[
+                    ("view", Some(&document.view)),
+                    ("schema", Some(&document.schema.to_string())),
+                    ("sheet_key", sheet.as_deref()),
+                ],
+                false,
+            );
+            document_text(document, tag.qualified_name(), &mut bytes);
+            edits.replace(stored.whole, &bytes);
+        }
+    }
+    let mut new = Vec::new();
+    for document in part
+        .documents()
+        .filter(|doc| !index.known_documents.contains_key(&doc.id))
+    {
+        if index.document_ids.contains(&document.id) {
+            return Err(super::SaveRefusal::InvalidPart {
+                part: VIEW_PART_NAMESPACE.to_owned(),
+                detail: format!("a retained declaration already uses {}", document.id),
+            });
+        }
+        let sheet = document.sheet.map(|sheet| sheet.get().to_string());
+        new.extend_from_slice(b"<decl xmlns=");
+        attribute_value(VIEW_PART_NAMESPACE, &mut new);
+        for (key, value) in [
+            ("id", Some(document.id.to_string())),
+            ("view", Some(document.view.clone())),
+            ("schema", Some(document.schema.to_string())),
+            ("sheet_key", sheet),
+        ] {
+            if let Some(value) = value {
+                new.push(b' ');
+                new.extend_from_slice(key.as_bytes());
+                new.push(b'=');
+                attribute_value(&value, &mut new);
+            }
+        }
+        new.push(b'>');
+        document_text(document, b"decl", &mut new);
+    }
+    append_section(
+        edits,
+        original,
+        new_sections,
+        "decls",
+        index.declarations,
+        &new,
+    );
+    Ok(())
+}
+
+fn document_text(document: &ViewDocument, tag: &[u8], out: &mut Vec<u8>) {
+    out.extend_from_slice(quick_xml::escape::escape(&document.body).as_bytes());
+    out.extend_from_slice(b"</");
+    out.extend_from_slice(tag);
+    out.push(b'>');
+}
+
+/// A file can place its recognized sections in any order. Splice in source order after
+/// collecting the replacements, leaving unknown attributes and neighboring elements intact.
+#[derive(Default)]
+struct PartEdits(Vec<(Span, Vec<u8>)>);
+
+impl PartEdits {
+    fn replace(&mut self, span: Span, bytes: &[u8]) {
+        self.0.push((span, bytes.to_vec()));
+    }
+
+    fn finish(mut self, source: &[u8]) -> Vec<u8> {
+        self.0.sort_by_key(|(span, _)| *span);
+        let mut splice = Splice::new(source);
+        for (span, bytes) in self.0 {
+            splice.replace(span, &bytes);
+        }
+        splice.finish()
     }
 }
