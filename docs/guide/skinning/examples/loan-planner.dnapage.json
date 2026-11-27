@@ -1,0 +1,93 @@
+{
+  "schema": "dna.page/1",
+  "title": "Loan planner",
+  "input": "live",
+  "root": {
+    "kind": "grid",
+    "columns": 2,
+    "children": [
+      {
+        "kind": "section",
+        "title": "Assumptions",
+        "children": [
+          {
+            "kind": "part",
+            "id": "principal",
+            "component": "input",
+            "bind": {
+              "value": {
+                "anchor": "00000000-0000-0000-0000-0000000000a1",
+                "address": "Loan!B1"
+              }
+            },
+            "props": {
+              "label": "Loan"
+            }
+          },
+          {
+            "kind": "part",
+            "id": "rate",
+            "component": "input",
+            "bind": {
+              "value": {
+                "anchor": "00000000-0000-0000-0000-0000000000a2",
+                "address": "Loan!B2"
+              }
+            },
+            "props": {
+              "label": "Rate"
+            }
+          },
+          {
+            "kind": "part",
+            "id": "years",
+            "component": "input",
+            "bind": {
+              "value": {
+                "anchor": "00000000-0000-0000-0000-0000000000a3",
+                "address": "Loan!B3"
+              }
+            },
+            "props": {
+              "label": "Years"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "section",
+        "title": "Repayment",
+        "children": [
+          {
+            "kind": "part",
+            "id": "payment",
+            "component": "value",
+            "bind": {
+              "value": {
+                "anchor": "00000000-0000-0000-0000-0000000000a4",
+                "address": "Loan!B4"
+              }
+            },
+            "props": {
+              "label": "Monthly payment"
+            }
+          },
+          {
+            "kind": "part",
+            "id": "schedule",
+            "component": "data-frame",
+            "bind": {
+              "rows": {
+                "anchor": "00000000-0000-0000-0000-0000000000a5",
+                "address": "Loan!A9:D20"
+              }
+            },
+            "props": {
+              "label": "Schedule"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

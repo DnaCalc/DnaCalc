@@ -1,0 +1,366 @@
+<title>DNA Calc Skinning Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Recursive:wght,MONO@400..800,0..1&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root{
+  --bg:#EDF1F2; --paper:#FFFFFF; --paper-2:#F4F7F8; --ink:#1B2A30; --ink-2:#3F545D; --ink-3:#5B717B;
+  --line:#CFDADD; --line-soft:#E2E9EB;
+  --chrome:#193F49; --chrome-2:#12303A; --chrome-ink:#EDF1F2; --chrome-ink-2:#B4CBD1;
+  --teal:#318995; --teal-ink:#1B5F6B; --teal-soft:#DCEEF0; --cyan:#3DB6CF;
+  --amber:#FFB301; --amber-ink:#8A5A00; --amber-soft:#FFF1CC; --on-amber:#12303A;
+  --green:#3F8B76; --green-ink:#2E6E5B; --green-soft:#DDEFE8; --sage:#71A08A;
+  --signal:#FF8001; --signal-ink:#A35400; --signal-soft:#FFE8D1;
+  --red:#D02A23; --red-ink:#D02A23; --red-soft:#FBE3E1;
+  --code-bg:#12303A; --code-ink:#E4ECEE; --code-dim:#9DB6BD; --code-key:#6FD0E3; --code-str:#9ED8C2; --code-num:#FFCF5C;
+  --shadow:0 1px 0 rgba(18,48,58,.06),0 8px 24px rgba(18,48,58,.08);
+  --sans:"Recursive","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"Recursive","Cascadia Code",Consolas,ui-monospace,monospace;
+  --serif:"Source Serif 4",Charter,Georgia,serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1C22; --paper:#1A262B; --paper-2:#22343C; --ink:#E4ECEE; --ink-2:#A4B8C2; --ink-3:#93AAB3;
+    --line:#344A52; --line-soft:#283A41;
+    --chrome:#12303A; --chrome-2:#0A171C; --chrome-ink:#EDF1F2; --chrome-ink-2:#A9C2C9;
+    --teal:#318995; --teal-ink:#4FC0D8; --teal-soft:#17373E; --cyan:#3DB6CF;
+    --amber:#FFB301; --amber-ink:#FFD04D; --amber-soft:#3A3014; --on-amber:#12303A;
+    --green:#3F8B76; --green-ink:#74C7AB; --green-soft:#17332C; --sage:#71A08A;
+    --signal:#FF8001; --signal-ink:#F0A35C; --signal-soft:#3A2814;
+    --red:#D02A23; --red-ink:#E4625C; --red-soft:#3B1D1B;
+    --code-bg:#0A171C; --code-ink:#E4ECEE; --code-dim:#8FA9B1; --code-key:#6FD0E3; --code-str:#9ED8C2; --code-num:#FFCF5C;
+    --shadow:0 1px 0 rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1C22; --paper:#1A262B; --paper-2:#22343C; --ink:#E4ECEE; --ink-2:#A4B8C2; --ink-3:#93AAB3;
+  --line:#344A52; --line-soft:#283A41;
+  --chrome:#12303A; --chrome-2:#0A171C; --chrome-ink:#EDF1F2; --chrome-ink-2:#A9C2C9;
+  --teal:#318995; --teal-ink:#4FC0D8; --teal-soft:#17373E; --cyan:#3DB6CF;
+  --amber:#FFB301; --amber-ink:#FFD04D; --amber-soft:#3A3014; --on-amber:#12303A;
+  --green:#3F8B76; --green-ink:#74C7AB; --green-soft:#17332C; --sage:#71A08A;
+  --signal:#FF8001; --signal-ink:#F0A35C; --signal-soft:#3A2814;
+  --red:#D02A23; --red-ink:#E4625C; --red-soft:#3B1D1B;
+  --code-bg:#0A171C; --code-ink:#E4ECEE; --code-dim:#8FA9B1; --code-key:#6FD0E3; --code-str:#9ED8C2; --code-num:#FFCF5C;
+  --shadow:0 1px 0 rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;overflow-x:hidden}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1240px;margin:0 auto}
+a{color:var(--teal-ink);text-underline-offset:2px}
+code,kbd,pre,.mono{font-family:var(--mono);font-variation-settings:"MONO" 1}
+code{font-size:.9em;background:var(--paper-2);border:1px solid var(--line-soft);border-radius:5px;padding:.05em .3em;overflow-wrap:anywhere}
+kbd{font-size:.82em;background:var(--paper);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:.05em .4em;white-space:nowrap}
+h1,h2,h3,h4{font-weight:750;line-height:1.15;text-wrap:balance;margin:0}
+p{margin:.7em 0}
+/* hero */
+.hero{background:var(--chrome);color:var(--chrome-ink);border-radius:0 0 14px 14px;margin:0 0 22px;padding:26px 22px 0;overflow:hidden;position:relative}
+.hero .eyebrow{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+.hero h1{font-size:clamp(34px,6.2vw,62px);font-weight:800;letter-spacing:-.02em;margin:.25em 0 .2em}
+.hero h1 em{font-style:normal;color:var(--amber)}
+.hero .lede{font-size:clamp(16px,2.1vw,20px);color:var(--chrome-ink-2);max-width:46em;margin:0 0 16px}
+.hero .lede strong{color:var(--chrome-ink);font-weight:650}
+.mark{display:inline-flex;gap:5px;align-items:center;vertical-align:middle;margin-right:8px}
+.mark i{display:block;height:10px;border-radius:5px;background:var(--cyan)}
+.mark i:first-child{width:10px}.mark i:last-child{width:26px;background:var(--teal)}
+.hero-facts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 18px;padding:0;list-style:none}
+.hero-facts li{border:1px solid rgba(237,241,242,.22);border-radius:9px;padding:6px 10px;font-size:13.5px;color:var(--chrome-ink-2)}
+.hero-facts b{color:var(--chrome-ink);font-weight:650}
+.strand{display:block;width:100%;height:auto;margin-top:6px}
+/* layout */
+.layout{display:grid;grid-template-columns:216px minmax(0,1fr);gap:28px;align-items:start}
+.rail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 8px;box-shadow:var(--shadow)}
+.rail h2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);padding:2px 10px 8px;font-weight:650}
+.rail ol{list-style:none;margin:0;padding:0;counter-reset:r}
+.rail a{display:flex;gap:8px;align-items:baseline;padding:5px 10px;border-radius:9px;color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.3;border-left:3px solid transparent}
+.rail a .n{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:11px;color:var(--ink-3);min-width:1.6em}
+.rail a:hover{background:var(--paper-2);color:var(--ink)}
+.rail a.on{background:var(--amber-soft);color:var(--ink);border-left-color:var(--amber);font-weight:650}
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:12px}
+  .rail{position:sticky;top:0;z-index:5;max-height:none;border-radius:0 0 9px 9px;padding:6px;margin:0 -4px}
+  .rail h2{display:none}
+  .rail ol{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}
+  .rail a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent;padding:5px 8px}
+  .rail a.on{border-bottom-color:var(--amber)}
+}
+main{min-width:0}
+section.s{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px clamp(14px,3vw,30px) 26px;margin:0 0 22px;box-shadow:var(--shadow);scroll-margin-top:60px}
+.sh{display:flex;gap:12px;align-items:center;margin:0 0 6px}
+.sh .num{display:inline-flex;align-items:center;gap:5px;flex:none}
+.sh .num i{display:block;height:14px;border-radius:7px}
+.sh .num i:first-child{width:14px;background:var(--amber)}
+.sh .num b{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:13px;background:var(--teal);color:#fff;border-radius:7px;padding:0 9px;line-height:14px;height:14px;display:block;font-weight:700;font-size:11px;letter-spacing:.06em}
+section.s>h2,.sh+h2{font-size:clamp(24px,3.4vw,34px);letter-spacing:-.01em;margin:2px 0 8px}
+h3{font-size:19px;margin:26px 0 6px}
+h4{font-size:15px;margin:16px 0 4px;color:var(--ink-2)}
+.lead{font-size:18px;color:var(--ink-2);max-width:44em}
+.prose{font-family:var(--serif);font-size:17px;line-height:1.6;max-width:42em}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:14px 0}
+.cols.four{grid-template-columns:repeat(auto-fit,minmax(196px,1fr))}
+.card{background:var(--paper-2);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.card h4{margin:0 0 4px;color:var(--ink);font-size:15.5px}
+.card p{margin:.3em 0 0;font-size:14.5px;color:var(--ink-2)}
+.card.k-teal{border-top:4px solid var(--teal)}.card.k-amber{border-top:4px solid var(--amber)}
+.card.k-green{border-top:4px solid var(--green)}.card.k-signal{border-top:4px solid var(--signal)}
+.card.k-red{border-top:4px solid var(--red)}.card.k-cyan{border-top:4px solid var(--cyan)}
+/* state badges: solid = in the repository, dashed = not yet (Strand's line-style channel) */
+.st{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:5px;padding:1px 7px;white-space:nowrap;vertical-align:middle;border:1.5px solid}
+.st::before{content:"";width:7px;height:7px;border-radius:2px;background:currentColor}
+.st.built{color:var(--green-ink);background:var(--green-soft);border-color:var(--green)}
+.st.preview{color:var(--teal-ink);background:var(--teal-soft);border-color:var(--teal)}
+.st.build{color:var(--amber-ink);background:var(--amber-soft);border-color:var(--amber)}
+.st.designed{color:var(--ink-3);background:transparent;border-style:dashed;border-color:var(--ink-3)}
+.st.designed::before{background:transparent;border:1.5px dashed currentColor;width:6px;height:6px}
+.legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin:10px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--paper-2);font-size:13.5px;color:var(--ink-2)}
+.legend span.i{display:inline-flex;gap:6px;align-items:center}
+/* figures */
+.fig{margin:16px 0;border:1px solid var(--line);border-radius:9px;background:var(--paper-2);overflow:hidden}
+.fig .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fig svg{display:block;width:100%;height:auto}
+.fig .w720{min-width:720px}.fig .w860{min-width:860px}.fig .w640{min-width:640px}.fig .w560{min-width:560px}
+.fig figcaption,.cap{font-size:13.5px;color:var(--ink-3);padding:8px 12px;border-top:1px solid var(--line);background:var(--paper)}
+figure{margin:0}
+svg text{font-family:var(--sans);font-size:12.5px}
+svg .m{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:11.5px}
+svg .xs{font-size:10px}svg .b{font-weight:700}svg .big{font-size:15px;font-weight:750}svg .sm{font-size:11px}
+svg .ink{fill:var(--ink)}svg .ink2{fill:var(--ink-2)}svg .ink3{fill:var(--ink-3)}
+svg .cink{fill:var(--chrome-ink)}svg .cink2{fill:var(--chrome-ink-2)}svg .onamber{fill:var(--on-amber)}svg .white{fill:#fff}
+svg .tealink{fill:var(--teal-ink)}svg .amberink{fill:var(--amber-ink)}svg .greenink{fill:var(--green-ink)}svg .signalink{fill:var(--signal-ink)}svg .redink{fill:var(--red-ink)}
+svg .fchrome{fill:var(--chrome)}svg .fchrome2{fill:var(--chrome-2)}svg .fpaper{fill:var(--paper)}svg .fpaper2{fill:var(--paper-2)}svg .fbg{fill:var(--bg)}
+svg .fteal{fill:var(--teal)}svg .fcyan{fill:var(--cyan)}svg .famber{fill:var(--amber)}svg .fgreen{fill:var(--green)}svg .fsage{fill:var(--sage)}svg .fsignal{fill:var(--signal)}svg .fred{fill:var(--red)}
+svg .ftealsoft{fill:var(--teal-soft)}svg .fambersoft{fill:var(--amber-soft)}svg .fgreensoft{fill:var(--green-soft)}svg .fsignalsoft{fill:var(--signal-soft)}
+svg .sline{stroke:var(--line)}svg .sink3{stroke:var(--ink-3)}svg .steal{stroke:var(--teal)}svg .samber{stroke:var(--amber)}svg .sgreen{stroke:var(--green)}svg .ssignal{stroke:var(--signal)}svg .scyan{stroke:var(--cyan)}svg .sink{stroke:var(--ink)}
+svg g>path,svg line{fill:none}
+svg .dash{stroke-dasharray:6 4}svg .dot{stroke-dasharray:2 4}
+svg .w2{stroke-width:2}svg .w15{stroke-width:1.5}svg .w3{stroke-width:3}
+/* code */
+pre{margin:14px 0;background:var(--code-bg);color:var(--code-ink);border-radius:9px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5;tab-size:4}
+pre .c{color:var(--code-dim)}pre .k{color:var(--code-key)}pre .s{color:var(--code-str)}pre .n{color:var(--code-num)}
+pre .pin{display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:1.5em;border-radius:50%;background:var(--amber);color:var(--on-amber);font-weight:800;font-size:11px;margin-left:.6em;position:static;transform:none}
+.src{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:12px;color:var(--ink-3);margin:-8px 0 14px}
+/* tables */
+.tw{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:9px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;background:var(--paper)}
+th,td{text-align:left;vertical-align:top;padding:8px 12px;border-bottom:1px solid var(--line-soft)}
+th{background:var(--paper-2);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+td.wrapc code{white-space:normal}
+/* anatomy */
+.shot{position:relative}
+.shot img{display:block;width:100%;height:auto}
+.pin{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:var(--amber);color:var(--on-amber);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(18,48,58,.55),0 2px 6px rgba(0,0,0,.4);font-family:var(--mono)}
+ol.calls{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:8px 16px;counter-reset:c}
+ol.calls li{counter-increment:c;position:relative;padding:2px 0 2px 34px;font-size:14.5px;color:var(--ink-2)}
+ol.calls li::before{content:counter(c);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--amber);color:var(--on-amber);font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+ol.calls b{color:var(--ink)}
+/* can / cannot */
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:14px 0}
+.two>div{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--paper)}
+.two h4{margin:0;padding:9px 14px;font-size:14px;letter-spacing:.06em;text-transform:uppercase}
+.two .can h4{background:var(--green-soft);color:var(--green-ink);border-bottom:2px solid var(--green)}
+.two .cannot h4{background:var(--red-soft);color:var(--red-ink);border-bottom:2px solid var(--red)}
+.two ul{list-style:none;margin:0;padding:6px 14px 10px}
+.two li{padding:7px 0 7px 26px;border-bottom:1px solid var(--line-soft);position:relative;font-size:14.5px}
+.two li:last-child{border-bottom:0}
+.two li::before{position:absolute;left:0;top:7px;font-weight:800;font-family:var(--mono)}
+.two .can li::before{content:"+";color:var(--green-ink)}
+.two .cannot li::before{content:"×";color:var(--red-ink)}
+.two li small{display:block;color:var(--ink-3);font-size:13px}
+.steps{counter-reset:st;list-style:none;margin:14px 0;padding:0}
+.steps>li{counter-increment:st;position:relative;padding:0 0 18px 46px;border-left:2px solid var(--line);margin-left:16px}
+.steps>li:last-child{border-left-color:transparent}
+.steps>li::before{content:counter(st);position:absolute;left:-17px;top:-2px;width:32px;height:32px;border-radius:9px;background:var(--chrome);color:var(--chrome-ink);font-weight:800;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+.steps h4{margin:0 0 2px;color:var(--ink);font-size:16.5px}
+.note{border-left:4px solid var(--amber);background:var(--amber-soft);border-radius:0 9px 9px 0;padding:10px 14px;margin:14px 0;font-size:14.5px;color:var(--ink)}
+.note.teal{border-left-color:var(--teal);background:var(--teal-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;padding:0;list-style:none}
+.chips li{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:12.5px;border:1px solid var(--line);background:var(--paper-2);border-radius:5px;padding:2px 8px;color:var(--ink-2)}
+.chips li.t{border-color:var(--teal);color:var(--teal-ink)}
+.chips li.x{border-style:dashed;color:var(--ink-3)}
+.sw{display:inline-block;width:.9em;height:.9em;border-radius:3px;vertical-align:-.1em;margin-right:.3em;border:1px solid var(--line)}
+footer.end{color:var(--ink-3);font-size:13.5px;padding:6px 4px 40px}
+@media print{.rail{display:none}.layout{display:block}section.s{box-shadow:none;break-inside:auto}}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow"><span class="mark"><i></i><i></i></span>DNA Calc · Guide · 2026-11-27</div>
+  <h1>The Skinning <em>Guide</em></h1>
+  <p class="lede">A DNA Calc workbook is an Excel workbook. What you see around it is replaceable: <strong>views</strong> are compiled engines, <strong>skins</strong> are data, <strong>pages</strong> are component trees, and <strong>one contract</strong> sits underneath them all. This guide shows how that is built, how it reaches the calculation engine, and how to make a skin of your own.</p>
+  <ul class="hero-facts">
+    <li><b>For</b> the owner, new users, and coding agents</li>
+    <li><b>Checked against</b> the repository at <span class="mono">d002a3c9b</span></li>
+    <li><b>Every feature</b> carries its real state</li>
+  </ul>
+  <svg class="strand" viewBox="0 0 1200 64" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <g>
+      <rect x="0" y="6" width="150" height="14" rx="7" class="fteal"/><rect x="158" y="6" width="14" height="14" rx="7" class="fcyan"/><rect x="180" y="6" width="90" height="14" rx="7" class="fsage"/><rect x="278" y="6" width="210" height="14" rx="7" class="fteal"/><rect x="496" y="6" width="14" height="14" rx="7" class="famber"/><rect x="518" y="6" width="120" height="14" rx="7" class="fcyan"/><rect x="646" y="6" width="60" height="14" rx="7" class="fgreen"/><rect x="714" y="6" width="180" height="14" rx="7" class="fteal"/><rect x="902" y="6" width="14" height="14" rx="7" class="fsignal"/><rect x="924" y="6" width="130" height="14" rx="7" class="fsage"/><rect x="1062" y="6" width="138" height="14" rx="7" class="fteal"/>
+      <rect x="0" y="28" width="14" height="14" rx="7" class="fcyan"/><rect x="22" y="28" width="200" height="14" rx="7" class="fchrome2"/><rect x="230" y="28" width="70" height="14" rx="7" class="fteal"/><rect x="308" y="28" width="14" height="14" rx="7" class="fcyan"/><rect x="330" y="28" width="260" height="14" rx="7" class="fchrome2"/><rect x="598" y="28" width="110" height="14" rx="7" class="fteal"/><rect x="716" y="28" width="14" height="14" rx="7" class="famber"/><rect x="738" y="28" width="230" height="14" rx="7" class="fchrome2"/><rect x="976" y="28" width="80" height="14" rx="7" class="fcyan"/><rect x="1064" y="28" width="136" height="14" rx="7" class="fchrome2"/>
+      <rect x="0" y="50" width="330" height="14" rx="7" class="fchrome2"/><rect x="338" y="50" width="14" height="14" rx="7" class="fteal"/><rect x="360" y="50" width="420" height="14" rx="7" class="fchrome2"/><rect x="788" y="50" width="14" height="14" rx="7" class="fcyan"/><rect x="810" y="50" width="390" height="14" rx="7" class="fchrome2"/>
+    </g>
+  </svg>
+</header>
+
+<div class="layout">
+<nav class="rail" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#idea"><span class="n">01</span>The idea in one picture</a></li>
+    <li><a href="#philosophy"><span class="n">02</span>Philosophy</a></li>
+    <li><a href="#stack"><span class="n">03</span>The stack, end to end</a></li>
+    <li><a href="#interface"><span class="n">04</span>The skin interface</a></li>
+    <li><a href="#anatomy"><span class="n">05</span>Anatomy of a screen</a></li>
+    <li><a href="#skin"><span class="n">06</span>What a skin is</a></li>
+    <li><a href="#make"><span class="n">07</span>Make a skin</a></li>
+    <li><a href="#limits"><span class="n">08</span>Can and cannot</a></li>
+    <li><a href="#agents"><span class="n">09</span>For coding agents</a></li>
+    <li><a href="#guarded"><span class="n">10</span>Guarded execution</a></li>
+    <li><a href="#more"><span class="n">11</span>Scale, platforms, testing</a></li>
+    <li><a href="#state"><span class="n">12</span>Built today</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================ 01 ============================ -->
+<section class="s" id="idea">
+  <div class="sh"><span class="num"><i></i><b>01</b></span></div>
+  <h2>The idea in one picture</h2>
+  <p class="lead">There is one workbook, one selection and one undo history. Everything on screen is a way of looking at them.</p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w860">
+    <svg viewBox="0 0 900 520" role="img" aria-label="Views, skins and pages sit on one contract over one workbook, one selection and one history">
+      <!-- skins layer -->
+      <rect x="20" y="14" width="860" height="150" rx="14" class="fpaper scyan dash w15"/>
+      <text x="36" y="36" class="b tealink">SKIN · dna.skin/1 · JSON data</text>
+      <text x="36" y="53" class="ink3 sm">theme overrides · density · shell layout · key bindings · per-view settings · panel pages · command sequences</text>
+      <!-- views -->
+      <g>
+        <rect x="36" y="66" width="108" height="84" rx="9" class="fteal"/><text x="90" y="100" text-anchor="middle" class="white b">Classic</text><text x="90" y="118" text-anchor="middle" class="white sm">the Excel grid</text>
+        <rect x="152" y="66" width="108" height="84" rx="9" class="fteal"/><text x="206" y="100" text-anchor="middle" class="white b">Inspector</text><text x="206" y="118" text-anchor="middle" class="white sm">audit instruments</text>
+        <rect x="268" y="66" width="108" height="84" rx="9" class="fteal"/><text x="322" y="100" text-anchor="middle" class="white b">Notebook</text><text x="322" y="118" text-anchor="middle" class="white sm">formula chain</text>
+        <rect x="384" y="66" width="108" height="84" rx="9" class="fpaper2 steal dash w2"/><text x="438" y="100" text-anchor="middle" class="tealink b">Model map</text><text x="438" y="118" text-anchor="middle" class="ink3 sm">designed</text>
+        <rect x="500" y="66" width="108" height="84" rx="9" class="fteal"/><text x="554" y="100" text-anchor="middle" class="white b">App</text><text x="554" y="118" text-anchor="middle" class="white sm">a face for users</text>
+        <line x1="622" y1="70" x2="622" y2="146" class="sline w2"/>
+        <rect x="636" y="66" width="112" height="84" rx="9" class="fchrome"/><text x="692" y="96" text-anchor="middle" class="cink b">Formula</text><text x="692" y="111" text-anchor="middle" class="cink b">Explorer</text><text x="692" y="130" text-anchor="middle" class="cink2 sm">tool · skin 0</text>
+        <rect x="756" y="66" width="108" height="84" rx="9" class="fchrome"/><text x="810" y="100" text-anchor="middle" class="cink b">Forms maker</text><text x="810" y="118" text-anchor="middle" class="cink2 sm">tool · makes pages</text>
+      </g>
+      <text x="450" y="186" text-anchor="middle" class="ink2 b">VIEWS and TOOLS · compiled Rust crates implementing <tspan class="m">View</tspan> / <tspan class="m">FormulaView</tspan></text>
+      <!-- pages -->
+      <g>
+        <rect x="20" y="204" width="860" height="86" rx="14" class="fpaper sline w15"/>
+        <text x="36" y="226" class="b amberink">PAGE · dna.page/1 · a tree of bound components</text>
+        <g class="sink3 w15"><path d="M70 246 v10 M70 256 h-28 v10 M70 256 h28 v10 M98 266 v0"/></g>
+        <rect x="58" y="236" width="24" height="12" rx="4" class="famber"/><rect x="30" y="266" width="24" height="12" rx="4" class="fteal"/><rect x="86" y="266" width="24" height="12" rx="4" class="fteal"/>
+        <text x="130" y="250" class="ink2">Stack · Row · Grid · Section · Tabs · Part</text>
+        <text x="130" y="270" class="ink3 sm">a Part binds a component's slots to workbook cells</text>
+        <g>
+          <rect x="470" y="238" width="92" height="38" rx="9" class="fambersoft samber w15"/><text x="516" y="262" text-anchor="middle" class="ink sm b">App pages</text>
+          <rect x="570" y="238" width="92" height="38" rx="9" class="fambersoft samber w15"/><text x="616" y="262" text-anchor="middle" class="ink sm b">skin panels</text>
+          <rect x="670" y="238" width="98" height="38" rx="9" class="fpaper2 samber dash w15"/><text x="719" y="257" text-anchor="middle" class="ink sm b">notebook</text><text x="719" y="270" text-anchor="middle" class="ink3 sm">controls</text>
+          <rect x="776" y="238" width="92" height="38" rx="9" class="fpaper2 samber dash w15"/><text x="822" y="257" text-anchor="middle" class="ink sm b">Inspector</text><text x="822" y="270" text-anchor="middle" class="ink3 sm">bench</text>
+        </g>
+      </g>
+      <!-- contract -->
+      <rect x="20" y="308" width="860" height="62" rx="14" class="famber"/>
+      <text x="40" y="334" class="onamber big">ONE CONTRACT · crates/calc-skin</text>
+      <text x="40" y="354" class="onamber m">Target · Selection · Stamp · Shown&lt;T&gt; · Query · Batch · Preview · Frame · HistoryEntry · Refusal</text>
+      <g class="sink3 w15"><path d="M150 370 v22 M450 370 v22 M750 370 v22"/></g>
+      <!-- the ones -->
+      <rect x="20" y="392" width="860" height="112" rx="14" class="fchrome"/>
+      <rect x="40" y="410" width="250" height="76" rx="9" class="fchrome2"/><text x="56" y="436" class="cink big">One workbook</text><text x="56" y="456" class="cink2 sm">Excel's own parts, plus one view part</text><text x="56" y="472" class="cink2 m">ModelRoot · urn:dnacalc:views:v1</text>
+      <rect x="325" y="410" width="250" height="76" rx="9" class="fchrome2"/><text x="341" y="436" class="cink big">One selection</text><text x="341" y="456" class="cink2 sm">the same one VBA and COM see</text><text x="341" y="472" class="cink2 m">HostSession · Selection</text>
+      <rect x="610" y="410" width="250" height="76" rx="9" class="fchrome2"/><text x="626" y="436" class="cink big">One history</text><text x="626" y="456" class="cink2 sm">cell edits and layout edits together</text><text x="626" y="472" class="cink2 m">History · HistoryEntry</text>
+    </svg>
+    </div></div>
+    <figcaption>Solid blocks are in the repository. Dashed outlines are designed and not yet built. A view switch changes which engine draws; it never changes the workbook, the selection or the history.</figcaption>
+  </figure>
+
+  <div class="cols four">
+    <div class="card k-teal"><h4>A view is a compiled engine</h4><p>A Rust crate that implements <code>View</code>. It is given a <code>Session</code> and nothing else: no shell type, no carrier, no other view. Classic, Inspector, Notebook and App exist; Model map is designed.</p></div>
+    <div class="card k-cyan"><h4>A skin is data</h4><p>A <code>dna.skin/1</code> JSON manifest. It restyles and rearranges the views that exist. It cannot add behaviour, because it holds no code.</p></div>
+    <div class="card k-amber"><h4>A page is a component tree</h4><p>A <code>dna.page/1</code> flow layout of standard components, each bound to workbook cells. One grammar, one renderer.</p></div>
+    <div class="card k-green"><h4>One contract underneath</h4><p><code>calc-skin</code> is the only thing page code and host code share. It reaches no engine, no file codec and no UI toolkit.</p></div>
+  </div>
+
+  <div class="legend" aria-label="State labels used in this guide">
+    <span class="i"><span class="st built">Built</span> in the repository, compiled and tested</span>
+    <span class="i"><span class="st preview">Preview</span> built and published at dnacalc.com</span>
+    <span class="i"><span class="st build">In build</span> partly in the repository</span>
+    <span class="i"><span class="st designed">Designed</span> specified, no code yet</span>
+  </div>
+</section>
+
+<!-- ============================ 02 ============================ -->
+<section class="s" id="philosophy">
+  <div class="sh"><span class="num"><i></i><b>02</b></span></div>
+  <h2>Philosophy</h2>
+  <p class="lead">Four rules shape every type in the contract. A skin author meets all four within the first hour.</p>
+
+  <div class="cols">
+    <div class="card k-teal">
+      <h4>No more than Excel</h4>
+      <p>The engine calculates what Excel calculates and nothing else. A view may show a workbook in a new way; it may not give it a new meaning. Every change to the model is an operation Excel itself can express. A notebook cell is a worksheet cell. A map box is a named cell on a visible sheet.</p>
+    </div>
+    <div class="card k-amber">
+      <h4>Honesty about state</h4>
+      <p>No value crosses the contract without saying where it came from. <code>Shown&lt;T&gt;</code> carries a <code>Provenance</code>; every answer carries a <code>Coverage</code>; every query takes a <code>Budget</code>. A component cannot draw a stale number as a fresh one, because the type does not let it lose the difference.</p>
+    </div>
+    <div class="card k-green">
+      <h4>Model edits and presentation edits are different things</h4>
+      <p>Moving a panel is not editing a spreadsheet. The contract keeps two revisions, <code>Stamp.model</code> and <code>Stamp.view</code>. A presentation change never advances the model revision, and the preview tells you which kind you are about to make before you make it.</p>
+    </div>
+    <div class="card k-red">
+      <h4>No code in files</h4>
+      <p>A workbook carries declarations: anchors, view documents, notes. Skins and pages are JSON with no scripts, no expressions, no HTML and no URLs. Opening a file runs nothing and fetches nothing.</p>
+    </div>
+  </div>
+
+  <h3>Honesty, as types</h3>
+  <p>These are the actual definitions in <code>crates/calc-skin/src/workbook.rs</code>. Seven provenances, two coverages, three kinds of evidence.</p>
+<pre><span class="k">pub struct</span> Shown&lt;T&gt; { <span class="k">pub</span> value: T, <span class="k">pub</span> provenance: Provenance }
+
+<span class="k">pub enum</span> Provenance {
+    Empty,
+    Literal,
+    Calculated { calc: CalcGeneration },
+    AsSaved,                                   <span class="c">// from the file; this engine has not calculated it</span>
+    External { source: String, observed_at: Option&lt;u64&gt; },
+    Stale    { since: Revision, cause: StaleCause },
+    Refused  { owner: String, reason: String }, <span class="c">// typed not-modelled refusal naming its owner</span>
+}
+
+<span class="k">pub enum</span> Coverage { Complete, Partial { done: u64, total: Option&lt;u64&gt;, why: PartialWhy } }
+<span class="k">pub struct</span> Answer&lt;T&gt; { <span class="k">pub</span> stamp: Stamp, <span class="k">pub</span> coverage: Coverage, <span class="k">pub</span> body: T }
+
+<span class="k">pub enum</span> Evidence&lt;T&gt; {                        <span class="c">// what ran is never confused with what is inferred</span>
+    Observed    { observer: String, at: Stamp, body: T },
+    Derived     { from: Derivation, at: Stamp, body: T },
+    Unavailable { reason: String },
+}</pre>
+  <p class="src">crates/calc-skin/src/workbook.rs <span class="st built">Built</span></p>
+
+  <figure class="fig">
+    <div class="scroll"><div class="w720">
+    <svg viewBox="0 0 760 106" role="img" aria-label="The seven provenances a shown value can have">
+      <text x="14" y="22" class="ink2 b">One cell, seven honest answers</text>
+      <g>
+        <rect x="14" y="36" width="98" height="58" rx="9" class="fpaper sline w15"/><text x="63" y="60" text-anchor="middle" class="ink3 m"> </text><text x="63" y="82" text-anchor="middle" class="ink3 sm">Empty</text>
+        <rect x="120" y="36" width="98" height="58" rx="9" class="fpaper sline w15"/><text x="169" y="62" text-anchor="middle" class="ink m b">0.065</text><text x="169" y="82" text-anchor="middle" class="ink3 sm">Literal</text>
+        <rect x="226" y="36" width="98" height="58" rx="9" class="fgreensoft sgreen w15"/><text x="275" y="62" text-anchor="middle" class="greenink m b">1580.17</text><text x="275" y="82" text-anchor="middle" class="ink3 sm">Calculated</text>
+        <rect x="332" y="36" width="98" height="58" rx="9" class="fpaper sink3 dash w15"/><text x="381" y="62" text-anchor="middle" class="ink2 m b">1580.17</text><text x="381" y="82" text-anchor="middle" class="ink3 sm">AsSaved</text>
+        <rect x="438" y="36" width="98" height="58" rx="9" class="fsignalsoft ssignal w15"/><text x="487" y="62" text-anchor="middle" class="signalink m b">18.42</text><text x="487" y="82" text-anchor="middle" class="ink3 sm">External</text>
+        <rect x="544" y="36" width="98" height="58" rx="9" class="fambersoft samber dash w15"/><text x="593" y="62" text-anchor="middle" class="amberink m b">1580.17</text><text x="593" y="82" text-anchor="middle" class="ink3 sm">Stale</text>
+        <rect x="650" y="36" width="98" height="58" rx="9" class="fpaper sink3 dot w2"/><text x="699" y="62" text-anchor="middle" class="ink3 m b">not run</text><text x="699" y="82" text-anchor="middle" class="ink3 sm">Refused</text>
+      </g>
+    </svg>
+    </div></div>
+    <figcaption>An Excel error such as <code>#REF!</code> is a value and travels inside <code>T</code>. A missing capability is a provenance or a <code>Refusal</code>, never a made-up error code. Page components say what they draw: "Saved value", "Previous calculation", "Calculation refused".</figcaption>
+  </figure>
+</section>

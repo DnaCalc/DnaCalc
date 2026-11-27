@@ -118,6 +118,8 @@ struct Item {
     id: AnchorId,
     #[serde(flatten)]
     kind: Kind,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    owned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     lane_columns: Option<u32>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -156,10 +158,15 @@ impl Item {
         Self {
             id,
             kind,
+            owned: false,
             lane_columns: None,
             folded: false,
             line_numbers: false,
         }
+    }
+
+    fn owns_cell(&self) -> bool {
+        self.owned || self.lane_columns.is_some()
     }
 }
 

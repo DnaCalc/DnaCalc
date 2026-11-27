@@ -318,6 +318,10 @@ pub(crate) fn prepare(
     let mut areas = Vec::new();
     let mut paste_areas = Vec::new();
     let mut presentation = Vec::new();
+    let mut warnings = Vec::new();
+    let removes_anchor = request.changes.iter().any(|change| {
+        matches!(change, Change::Presentation(PresentationChange::RemoveAnchor { .. }))
+    });
     for change in &request.changes {
         match change {
             Change::Model(change) => match change {
@@ -373,6 +377,13 @@ pub(crate) fn prepare(
                     for target in targets {
                         let area = grid_area(*target)?;
                         editability(&state.session, area, false)?;
+                        if removes_anchor && warnings.is_empty() {
+                            let host = state.session.host();
+                            let reads = host.spill_area(area.first()).unwrap_or(area);
+                            if host.dependency_readers(reads).any(|at| !area.contains(at)) {
+                                warnings.push("Other formulas read the cells being cleared.".into());
+                            }
+                        }
                         edits.push(CellEdit::Clear { area });
                         areas.push(area);
                     }
@@ -566,7 +577,7 @@ pub(crate) fn prepare(
         writes,
         properties,
         presentation,
-        warnings: Vec::new(),
+        warnings,
         refusal: None,
     };
     Ok(Prepared { edits, preview })
