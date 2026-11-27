@@ -17,6 +17,22 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
         })
     };
     vec![
+        command("notebook.inserter", "Open or close block inserter", &["/"], |state, _| {
+            let book = state.session.stamp().map(|stamp| stamp.workbook);
+            state.inserter.update(|current| *current = if *current == book { None } else { book });
+            Ok(())
+        }).when("mode:notebook-command && writable"),
+        command("notebook.add-control", "Add linked input", &[], |state, action| {
+            let (label, address, control) = argument(action)?;
+            blocks::add_control(state, label, address, control)
+        }).when("mode:notebook-command && writable"),
+        command("notebook.set-control", "Change linked input", &[], |state, action| {
+            let (id, value) = argument(action)?;
+            blocks::enter(state, id, value)
+        }).when("mode:notebook-command && writable"),
+        command("notebook.add-chart", "Add linked chart", &[], |state, action| {
+            blocks::add_chart(state, argument(action)?)
+        }).when("mode:notebook-command && writable"),
         command(
             "notebook.move-obstruction",
             "Review spill obstruction move",
@@ -546,7 +562,7 @@ impl State {
         self.submit(&snapshot, &chain, changes, "Keep workbook structure draft")
     }
 
-    fn add(
+    pub(super) fn add(
         self,
         snapshot: &Snapshot,
         kind: Kind,

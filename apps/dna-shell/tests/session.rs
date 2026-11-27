@@ -1493,6 +1493,64 @@ fn notebook_f4_cycles_the_current_formula_reference_without_running() {
     assert_eq!(session.stamp(), Some(before));
 }
 
+/// Native-only: tests inline controls through the Notebook command table and workbook history.
+#[test]
+fn notebook_control_updates_the_formula_with_one_live_workbook_edit() {
+    use calc_skin::query::ViewPartOf;
+    let page = Page::open();
+    let session = page.session;
+    let input = page.at(3, 2);
+    let result = page.at(2, 10);
+    let enter = |at, text: &str| {
+        session.select_cell(at);
+        page.settle();
+        session.edit_text(text.into());
+        session.commit_edit();
+        page.settle();
+    };
+    enter(input, "Pending");
+    enter(result, r#"=IF(B3="Pending",3,5)"#);
+    assert_eq!(page.shown(result), "3");
+    session.command("view.notebook").unwrap();
+    let part = session.watch(ViewPartOf);
+    page.settle();
+    let before = session.stamp().unwrap();
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation { command: dna_kit::commands::CommandId::new(command), args }).unwrap();
+        page.settle();
+    };
+    run("notebook.add-control", serde_json::json!(["Status", "Sheet1!B3", {
+        "type": "choice", "options": ["Pending", "Paid"],
+    }]));
+    let linked = session.stamp().unwrap();
+    assert_eq!(before.model, linked.model);
+    assert!(before.view < linked.view);
+    let Live::Ready(saved) = session.read(part) else { panic!("Notebook block not saved"); };
+    let anchor = saved.body.anchors[0].id;
+    run("notebook.set-control", serde_json::json!([anchor, "Paid"]));
+    assert_eq!(page.shown(input), "Paid");
+    assert_eq!(page.shown(result), "5");
+    assert_eq!(session.stamp().unwrap().view, linked.view);
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(input), "Pending");
+    assert_eq!(page.shown(result), "3");
+}
+
+/// Native-only: verifies the block inserter shortcut belongs to Notebook command mode.
+#[test]
+fn notebook_block_inserter_uses_the_notebook_command_map() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    page.settle();
+    let before = session.stamp().unwrap();
+    assert!(page.press("/", Focus::Stage));
+    assert_eq!(session.stamp(), Some(before));
+    assert!(page.press("/", Focus::Stage));
+    assert_eq!(session.stamp(), Some(before));
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {

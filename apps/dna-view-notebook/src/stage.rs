@@ -17,6 +17,7 @@ pub(super) fn mount(state: State) -> impl IntoView {
         <section class="dna-notebook" data-dnacalc="notebook" aria-label="Notebook" tabindex="0">
             {super::author::mount(state)}
             {super::names::lambda_form(state)}
+            {super::blocks::inserter(state)}
             {move || match declaration.get() {
                 Err(message) => view! { <p role="status">{message}</p> }.into_any(),
                 Ok(None) => first_visit(state).into_any(),
@@ -26,6 +27,7 @@ pub(super) fn mount(state: State) -> impl IntoView {
                         {button(state.session, "notebook.new-formula", "New formula")}
                         {button(state.session, "notebook.new-function", "New function")}
                         {button(state.session, "notebook.prose-below", "Add Markdown")}
+                        {button(state.session, "notebook.inserter", "Insert block")}
                         {button(state.session, "notebook.layout", "Vertical / Pipeline")}
                         <Show when=move || { state.session.held_edits() > 0 }>
                             {button(state.session, "notebook.run-all", "Run all held drafts")}
@@ -57,6 +59,7 @@ fn first_visit(state: State) -> impl IntoView {
                 {button(state.session, "notebook.blank", "Blank notebook")}
                 {button(state.session, "notebook.new-formula", "New formula")}
                 {button(state.session, "notebook.new-function", "New function")}
+                {button(state.session, "notebook.inserter", "Insert block")}
             </div>
             {move || {
                 let requested = state.draft.get().is_some_and(|book| state.session.stamp().is_some_and(|stamp| stamp.workbook == book));
@@ -104,12 +107,15 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
     let serial = id.to_string();
     view! {
         <article class="dna-notebook-cell" class:dna-notebook-selected=selected
-            role="listitem" aria-current=move || selected().to_string() data-notebook-cell=serial>
+            role="listitem" aria-current=move || selected().to_string() data-notebook-cell=serial
+            data-notebook-output-name=move || item.get().and_then(|item| item.output_name)>
             <header>
                 <button type="button" data-command="notebook.focus"
                     on:click=move |_| invoke(state.session, "notebook.focus", id)>
                     {move || match item.get().map(|item| item.kind) {
                         Some(Kind::Prose { .. }) => "Markdown",
+                        Some(Kind::Control { .. }) => "Input",
+                        Some(Kind::Chart { .. }) => "Chart",
                         Some(Kind::Table { .. }) => "Table",
                         Some(Kind::Function { .. }) => "Function",
                         _ => "Formula",
@@ -133,6 +139,10 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                 Some(Item { kind: Kind::Prose { markdown }, .. }) => prose(state, id, markdown).into_any(),
                 Some(Item { kind: Kind::Function { name, .. }, .. }) =>
                     super::names::live_function(state.session, name).into_any(),
+                Some(Item { kind: Kind::Control { label, address, control }, .. }) =>
+                    super::blocks::input(state.session, id, label, address, control).into_any(),
+                Some(Item { kind: Kind::Chart { address, requires }, .. }) =>
+                    super::blocks::chart(state, id, address, requires).into_any(),
                 Some(Item { kind: Kind::CodeSlot, .. }) => view! {
                     <button type="button" data-command="notebook.edit" on:click=move |_| {
                         invoke(state.session, "notebook.focus", id);
@@ -407,18 +417,7 @@ fn prose(state: State, id: AnchorId, markdown: String) -> impl IntoView {
 }
 
 fn chips(session: Session, text: &str) -> Vec<AnyView> {
-    let mut remaining = text;
-    let mut parts = Vec::new();
-    while let Some((prefix, candidate)) = remaining.split_once("{=") {
-        let Some((reference, rest)) = candidate.split_once('}') else {
-            break;
-        };
-        parts.push(prefix.to_owned().into_any());
-        parts.push(chip(session, reference.trim().to_owned()).into_any());
-        remaining = rest;
-    }
-    parts.push(remaining.to_owned().into_any());
-    parts
+    dna_kit::page::live_values(text, |address| chip(session, address).into_any())
 }
 
 fn chip(session: Session, address: String) -> impl IntoView {

@@ -12,22 +12,28 @@ pub(super) fn prose(
     text: &str,
     bindings: &BTreeMap<String, Bound>,
 ) -> impl IntoView + use<> {
+    let pieces = live_values(text, |name| {
+        bindings.get(&name).map_or_else(super::missing, |bound| {
+            chip(session, name, bound.clone()).into_any()
+        })
+    });
+    view! { <p class="dna-page-prose">{pieces}</p> }
+}
+
+/// Split a prose line into text and the view's live-value chips.
+pub fn live_values(text: &str, mut value: impl FnMut(String) -> AnyView) -> Vec<AnyView> {
     let mut pieces = Vec::new();
     let mut rest = text;
     while let Some((before, after)) = rest.split_once("{=") {
         let Some((key, tail)) = after.split_once('}') else {
             break;
         };
-        pieces.push(view! { <span>{before.to_owned()}</span> }.into_any());
-        let key = key.trim();
-        let value = bindings.get(key).map_or_else(super::missing, |bound| {
-            chip(session, key.to_owned(), bound.clone()).into_any()
-        });
-        pieces.push(value);
+        pieces.push(before.to_owned().into_any());
+        pieces.push(value(key.trim().to_owned()));
         rest = tail;
     }
-    pieces.push(view! { <span>{rest.to_owned()}</span> }.into_any());
-    view! { <p class="dna-page-prose">{pieces}</p> }
+    pieces.push(rest.to_owned().into_any());
+    pieces
 }
 
 fn chip(session: Session, label: String, bound: Bound) -> impl IntoView {

@@ -11,6 +11,7 @@ use calc_skin::{
 use leptos::prelude::*;
 
 mod reader;
+pub use reader::live_values;
 
 #[derive(Clone, Copy)]
 pub struct PageInput {
@@ -286,6 +287,54 @@ fn chart_image(session: Session, object: SourceRef, comparison: Option<Bound>) -
     }).into_any()
 }
 
+/// Render the workbook chart that both identities of a saved binding designate.
+pub fn bound_chart(session: Session, bound: Bound) -> impl IntoView {
+    let resolved = resolve_bound(session, bound);
+    move || match resolved.get() {
+        Live::Ready(source) => chart_image(session, source, None),
+        Live::Refused(_) => missing(),
+        _ => view! { <p aria-busy="true">"Reading chart…"</p> }.into_any(),
+    }
+}
+
+/// The current entry and write permission for a view's control of one bound cell.
+pub fn bound_input(
+    session: Session,
+    bound: Bound,
+    label: String,
+    control: impl Fn(Memo<String>, Signal<bool>) -> AnyView + 'static,
+) -> impl IntoView {
+    let resolved = resolve_bound(session, bound);
+    let control = StoredValue::new_local(control);
+    move || match resolved.get() {
+        Live::Ready(source) => {
+            let Some(at) = single_cell(&source) else {
+                return missing();
+            };
+            let read = first_cell(session, source);
+            let value = Memo::new(move |_| read.get().map(|cell| cell.input).unwrap_or_default());
+            let can_write = Signal::derive(writable_literal(session, at, read));
+            let input = control.with_value(|control| control(value, can_write));
+            let label = label.clone();
+            let control_name = label.clone();
+            view! {
+                <label class="dna-page-card" data-page-control=control_name><strong>{label}</strong>{input}</label>
+            }.into_any()
+        }
+        Live::Refused(_) => missing(),
+        _ => view! { <p aria-busy="true">"Reading input…"</p> }.into_any(),
+    }
+}
+
+fn writable_literal(session: Session, at: Key, read: Memo<Option<WorkbookCell>>) -> impl Fn() -> bool + Copy + 'static {
+    let rules = session.following::<query::Rules>();
+    move || {
+        matches!(rules.at(Some(query::Rules { at })),
+            Live::Ready(answer) if answer.coverage == Coverage::Complete && answer.body.refusal.is_none())
+            && read.get().is_some_and(|cell| !cell.input.starts_with('='))
+    }
+}
+
 fn comparison(session: Session, bound: Bound) -> impl IntoView {
     let values = session.following::<query::NumericComparisonOf>();
     let query = query::NumericComparisonOf { bound };
@@ -375,12 +424,7 @@ fn scalar(
         }
         .into_any();
     };
-    let rules = session.following::<query::Rules>();
-    let can_write = move || {
-        matches!(rules.at(Some(query::Rules { at })),
-            Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete) && answer.body.refusal.is_none())
-            && read.get().is_some_and(|cell| !cell.input.starts_with('='))
-    };
+    let can_write = writable_literal(session, at, read);
     let bound = StoredValue::new(bound);
     let focused = RwSignal::new(false);
     view! {
