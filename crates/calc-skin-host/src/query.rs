@@ -22,7 +22,7 @@ pub(crate) fn capabilities(state: &State) -> Capabilities {
     }
 }
 
-fn chart_image(
+pub(crate) fn chart_image(
     state: &State,
     object: &SourceRef,
     bound: Option<&Bound>,
@@ -310,6 +310,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::Notes { .. } => presentation,
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
         WorkbookQuery::ResolveBound { .. } => authored || presentation,
+        WorkbookQuery::ConsistentBindings { .. } => authored || presentation || recalculated || rtd_changed,
         WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
         WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
@@ -455,6 +456,17 @@ impl QueryWork {
             .map_err(|error| Refusal::Transport(error.to_string()))?
             .len() as u64;
         self.check()
+    }
+
+    pub(crate) fn remaining(&mut self) -> Result<Budget, Refusal> {
+        self.check()?;
+        Ok(Budget {
+            cells: self.limit.cells - self.counts.cells,
+            nodes: self.limit.nodes - self.counts.nodes,
+            edges: self.limit.edges - self.counts.edges,
+            bytes: self.limit.bytes - self.counts.bytes,
+            millis: self.limit.millis - self.counts.millis,
+        })
     }
 
     pub(crate) fn work(&mut self, cells: u64, nodes: u64, edges: u64) -> Result<(), Refusal> {
@@ -1052,6 +1064,11 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             query::Resolve::encode(&source)?
         }
         WorkbookQuery::ResolveBound { bound } => query::ResolveBound::encode(&bound_source(state, bound)?)?,
+        WorkbookQuery::ConsistentBindings { reads } => {
+            let (snapshot, completeness) = crate::snapshot::capture(state, reads, budget)?;
+            coverage = completeness;
+            query::ConsistentBindings::encode(&snapshot)?
+        }
         WorkbookQuery::PrintPlan { source } => {
             let areas = source_areas(state, source)?;
             let sheet = areas

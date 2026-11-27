@@ -13,7 +13,7 @@ use calc_skin::{
 };
 use std::collections::BTreeSet;
 
-const MAX_WINDOW_ROWS: u32 = 200;
+pub(crate) const MAX_WINDOW_ROWS: u32 = 200;
 const MAX_KEYS: usize = 32;
 const ALTERNATIVE: &str =
     "Choose fewer sort or filter columns, a smaller source, or a smaller row window";

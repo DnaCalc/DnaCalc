@@ -11,6 +11,7 @@ mod placement;
 mod publication;
 mod query;
 mod rows;
+mod snapshot;
 mod structure;
 mod survey;
 
@@ -858,9 +859,21 @@ impl WorkbookPort for Connection {
         let rtd_changed = local.last_rtd != rtd;
         let baseline_changed = local.last_baseline != state.baseline_revision;
         for (&watch, slot) in &mut local.watches {
+            let completed_snapshot = matches!(slot.query, WorkbookQuery::ConsistentBindings { .. })
+                && !state.session.has_unfinished_calculation()
+                && slot.answer.as_ref().is_some_and(|result| matches!(
+                    result,
+                    Ok(answer) if matches!(answer.coverage, Coverage::Partial {
+                        why: PartialWhy::Pending, ..
+                    })
+                ));
             if slot.answer.is_some()
+                && !completed_snapshot
                 && !(baseline_changed && matches!(
-                    slot.query, WorkbookQuery::NumericComparison { .. } | WorkbookQuery::ChartImage { comparison: Some(_), .. }
+                    slot.query,
+                    WorkbookQuery::NumericComparison { .. }
+                        | WorkbookQuery::ChartImage { comparison: Some(_), .. }
+                        | WorkbookQuery::ConsistentBindings { .. }
                 ))
                 && !query::invalidated(
                     &state,

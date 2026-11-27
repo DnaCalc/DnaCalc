@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use calc_skin::Bound;
+use calc_skin::{BindingKind, BindingSnapshot, BindingValue, Bound};
 use leptos::prelude::*;
 
 use crate::{Live, Session};
@@ -11,10 +11,20 @@ pub(super) fn prose(
     session: Session,
     text: &str,
     bindings: &BTreeMap<String, Bound>,
+    snapshot: Option<StoredValue<BindingSnapshot>>,
 ) -> impl IntoView + use<> {
     let pieces = live_values(text, |name| {
         bindings.get(&name).map_or_else(super::missing, |bound| {
-            chip(session, name, bound.clone()).into_any()
+            if let Some(snapshot) = snapshot {
+                snapshot.with_value(|snapshot| match snapshot.get(bound, BindingKind::Value) {
+                    Some(BindingValue::Cell(cell)) => view! {
+                        <span class="dna-page-live-value">{super::shown_value(cell.clone(), Some(name))}</span>
+                    }.into_any(),
+                    _ => super::missing(),
+                })
+            } else {
+                chip(session, name, bound.clone()).into_any()
+            }
         })
     });
     view! { <p class="dna-page-prose">{pieces}</p> }

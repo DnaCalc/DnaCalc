@@ -303,6 +303,9 @@ pub enum WorkbookQuery {
     ResolveBound {
         bound: Bound,
     },
+    ConsistentBindings {
+        reads: Vec<crate::BindingRead>,
+    },
     PrintPlan {
         source: SourceRef,
     },
