@@ -1104,3 +1104,35 @@ fn anchored_note_uses_one_undo_entry_and_round_trips_as_presentation() {
         .unwrap();
     assert!(read(&reopened_connection).is_empty());
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_view_part_answer_decodes_to_its_query_type() {
+    use calc_skin::query::{AnchorFacts, Query, ViewPartOf};
+
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = Key(sheet.0, sheet.1, 3, 2);
+    let anchor = AnchorId(NonZeroU128::new(7).unwrap());
+    connection
+        .commit(batch(
+            1,
+            vec![Change::Presentation(PresentationChange::Bind {
+                anchor,
+                source: target(at),
+            })],
+        ))
+        .unwrap();
+    let part = ViewPartOf::decode(connection.ask(ViewPartOf.request(), BUDGET).unwrap())
+        .unwrap()
+        .body;
+    assert!(!part.opaque);
+    assert_eq!(
+        part.anchors,
+        vec![AnchorFacts {
+            id: anchor,
+            source: Some(target(at)),
+            area: Some(Area(at, at)),
+        }]
+    );
+}

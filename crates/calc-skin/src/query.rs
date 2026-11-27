@@ -122,6 +122,12 @@ query!(
     /// Authored notes, optionally limited to a single anchor.
     NotesOf { anchor: Option<crate::AnchorId> } => Vec<crate::AnchoredNote>, |q: &NotesOf| WorkbookQuery::Notes { anchor: q.anchor });
 query!(
+    /// The workbook's view part: whether this build can read it, and where each anchor is now.
+    ViewPartOf => ViewPartFacts, |_: &ViewPartOf| WorkbookQuery::ViewPart);
+query!(
+    /// The pages a source prints on.
+    PrintPlanOf { source: SourceRef } => crate::print::PrintPlan, |q: &PrintPlanOf| WorkbookQuery::PrintPlan { source: q.source.clone() });
+query!(
     /// The one history: what Ctrl+Z and Ctrl+Y will do next, newest first.
     History => HistoryList, |_: &History| WorkbookQuery::History);
 query!(
@@ -143,6 +149,22 @@ pub struct SheetCensus {
     pub used: Option<Area>,
     /// Current errors by Excel spelling. Saved, stale and refused results are excluded.
     pub errors: std::collections::BTreeMap<String, u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ViewPartFacts {
+    /// The part was written by a later version: it is kept byte for byte and not read.
+    pub opaque: bool,
+    pub anchors: Vec<AnchorFacts>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnchorFacts {
+    pub id: crate::AnchorId,
+    /// What the anchor is bound to now; `None` when its source no longer exists.
+    pub source: Option<SourceRef>,
+    /// The first area of that source, when it is on a sheet.
+    pub area: Option<Area>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

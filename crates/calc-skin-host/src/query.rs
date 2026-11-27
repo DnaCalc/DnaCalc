@@ -9,7 +9,7 @@ use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::Query;
 use calc_skin::*;
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::BTreeSet;
 
 const MAX_QUERY_CELLS: u64 = 65_536;
@@ -272,10 +272,6 @@ pub(crate) fn footprint(state: &State, query: &WorkbookQuery) -> Option<GridArea
         }
         _ => None,
     }
-}
-
-fn encode(value: impl Serialize) -> Result<Value, Refusal> {
-    serde_json::to_value(value).map_err(|error| Refusal::Transport(error.to_string()))
 }
 
 /// Admission and checkpoints for queries that scan beyond the returned window.
@@ -585,7 +581,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         meter.check()?;
     }
     let body = match query {
-        WorkbookQuery::Summary => encode(WorkbookSummary {
+        WorkbookQuery::Summary => query::Summary::encode(&WorkbookSummary {
             name: host
                 .model()
                 .definitions()
@@ -654,7 +650,9 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 body: contributions::contributions(state, *at, &mut meter)?,
             })?
         }
-        WorkbookQuery::Cells { interest } => encode(project_window(state, interest, budget)?)?,
+        WorkbookQuery::Cells { interest } => {
+            query::Cells::encode(&project_window(state, interest, budget)?)?
+        }
         WorkbookQuery::Rows {
             source,
             filter,
@@ -730,15 +728,26 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         })?,
         WorkbookQuery::ViewPart => {
             let part = host.model().view_part();
-            let anchors = part.anchors().map(|anchor| {
-                json!({
-                    "id": anchor.id,
-                    "source": anchor_source(state, anchor.id).ok(),
-                    "area": anchor_source(state, anchor.id).ok().and_then(|source| source_areas(state, &source).ok())
-                        .and_then(|areas| areas.first().copied()).map(Area::of),
+            let anchors = part
+                .anchors()
+                .map(|anchor| {
+                    let source = anchor_source(state, anchor.id).ok();
+                    let area = source
+                        .as_ref()
+                        .and_then(|source| source_areas(state, source).ok())
+                        .and_then(|areas| areas.first().copied())
+                        .map(Area::of);
+                    query::AnchorFacts {
+                        id: anchor.id,
+                        source,
+                        area,
+                    }
                 })
-            }).collect::<Vec<_>>();
-            json!({ "opaque": part.is_opaque(), "anchors": anchors })
+                .collect();
+            query::ViewPartOf::encode(&query::ViewPartFacts {
+                opaque: part.is_opaque(),
+                anchors,
+            })?
         }
         WorkbookQuery::Notes { anchor } => {
             let part = host.model().view_part();
@@ -773,7 +782,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::Resolve { address } => {
             let source = SourceRef::parse(address, Notation::A1, &address_book(state))
                 .map_err(|error| invalid(format!("Cannot resolve the address ({error:?})")))?;
-            encode(source)?
+            query::Resolve::encode(&source)?
         }
         WorkbookQuery::PrintPlan { source } => {
             let areas = source_areas(state, source)?;
@@ -790,7 +799,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             let geometry = calc_host::print_plan::print_geometry(host, sheet);
             let plan = calc_host::print_plan::print_plan(host, sheet, &geometry, (0, 0))
                 .map_err(|reason| Refusal::Excel { reason })?;
-            encode(plan)?
+            query::PrintPlanOf::encode(&plan)?
         }
     };
     let bytes = serde_json::to_vec(&body)
@@ -814,7 +823,7 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
     let size = geometry.as_ref();
     let view = host.sheet_view(id);
     let panes = host.model().definitions().frozen_panes(id);
-    encode(WorksheetGeometry {
+    query::Geometry::encode(&WorksheetGeometry {
         rows: size
             .into_iter()
             .flat_map(|g| g.rows.iter())
