@@ -420,6 +420,8 @@ impl Keymap {
             "Esc", "Ctrl+Z", "Ctrl+Y", "F4", "Ctrl+Enter", "Alt+Q", "Ctrl+Alt+1", "Alt+Shift+1"
         ];
         let reserved: Vec<_> = RESERVED.iter().map(|key| Chord::parse(key).expect("built-in chord")).collect();
+        let flash_fill = Chord::parse("Ctrl+E").expect("built-in chord");
+        let classic_ready = When::parse("view:classic && mode:ready").expect("built-in context");
         let mut errors = Vec::new();
         let mut parsed: Vec<Binding> = Vec::new();
         for binding in bindings {
@@ -435,7 +437,10 @@ impl Keymap {
                 (Ok(chord), Ok(_)) if reserved.contains(&chord) => {
                     errors.push(KeymapError::Protected(chord));
                 }
-                (Ok(chord), Ok(when)) if parsed.iter().any(|other| other.chord == chord && other.when.overlaps(&when)) => {
+                (Ok(chord), Ok(when))
+                    if (chord == flash_fill && when.overlaps(&classic_ready))
+                        || parsed.iter().any(|other| other.chord == chord && other.when.overlaps(&when)) =>
+                {
                     errors.push(KeymapError::Collision(chord));
                 }
                 (Ok(chord), Ok(when)) => {
@@ -475,6 +480,16 @@ impl Keymap {
             .iter()
             .enumerate()
             .filter(|(_, b)| b.layer >= from && b.chord == *chord && b.when.holds(context))
+            .filter(|(_, b)| {
+                from > Layer::Skin
+                    || b.layer != Layer::View
+                    || !self.bindings.iter().any(|skin| {
+                        skin.layer == Layer::Skin
+                            && skin.command == b.command
+                            && skin.chord != b.chord
+                            && skin.when.holds(context)
+                    })
+            })
             // The first layer in the order wins; within a layer the latest binding.
             .min_by_key(|(index, b)| (b.layer, std::cmp::Reverse(*index)))
             .map(|(_, b)| b)
@@ -503,10 +518,16 @@ impl Keymap {
         let mut chords: Vec<Chord> = self
             .bindings
             .iter()
-            .filter(|b| b.layer == Layer::Skin && b.when.holds(context))
-            .filter(|skin| {
-                self.lookup(&skin.chord, context, Layer::View)
-                    .is_some_and(|profile| profile.command != skin.command)
+            .filter(|binding| binding.layer == Layer::View && binding.when.holds(context))
+            .filter(|binding| {
+                let chord = &binding.chord;
+                let original = self
+                    .lookup(chord, context, Layer::View)
+                    .map(|binding| &binding.command);
+                let active = self
+                    .lookup(chord, context, Layer::Skin)
+                    .map(|binding| &binding.command);
+                original != active
             })
             .map(|b| b.chord.clone())
             .collect();
@@ -570,32 +591,40 @@ impl CommandTable {
     }
 
     /// Registers a skin's named sequence. It runs its steps in order and stops at the first that
-    /// refuses. Every step must already be registered.
+    /// refuses. Dispatch each step through the direct command route to check availability
+    /// after the effects of the preceding steps.
     pub fn register_sequence(
         &mut self,
         id: &str,
         label: &str,
         steps: Vec<Invocation>,
+        dispatch: impl Fn(&Invocation) -> Result<(), String> + 'static,
     ) -> Result<(), CommandError> {
-        if let Some(step) = steps.iter().find(|s| !self.commands.contains_key(&s.command)) {
+        let id = CommandId::from(id);
+        if !id.as_str().starts_with("skin.") || self.commands.contains_key(&id) {
+            return Err(CommandError::Refused(format!("Invalid or duplicate skin command {id}")));
+        }
+        if let Some(step) = steps.iter().find(|step| {
+            step.command.as_str().starts_with("skin.")
+                || step.command.as_str().starts_with("studio.")
+                || !self.commands.contains_key(&step.command)
+        }) {
             return Err(CommandError::Unknown(step.command.clone()));
         }
-        let handlers: Vec<(Invocation, Handler)> = steps
-            .into_iter()
-            .map(|step| {
-                let handler = self.commands[&step.command].1.clone();
-                (step, handler)
-            })
-            .collect();
         self.register(
             CommandSpec {
-                id: CommandId::from(id),
+                id,
                 label: Cow::Owned(label.to_owned()),
                 enabled: When::ALWAYS,
             },
-            move |_| handlers.iter().try_for_each(|(step, run)| run(step)),
+            move |_| steps.iter().try_for_each(&dispatch),
         );
         Ok(())
+    }
+
+    /// Clear the manifest's commands before replacing the skin layer.
+    pub fn clear_skin_sequences(&mut self) {
+        self.commands.retain(|id, _| !id.as_str().starts_with("skin."));
     }
 
     pub fn spec(&self, id: &CommandId) -> Option<&CommandSpec> {
@@ -911,15 +940,18 @@ mod tests {
             Err(CommandError::Refused("refused".into()))
         );
 
+        let builtins = commands.clone();
+        let sequence_context = classic.clone();
         commands
             .register_sequence(
                 "skin.tidy",
                 "Tidy",
                 vec![Invocation::of(NEXT_ISSUE), Invocation::of(UNDO)],
+                move |step| builtins.run(step, &sequence_context).map_err(|err| format!("{err:?}")),
             )
             .unwrap();
         assert_eq!(
-            commands.register_sequence("skin.bad", "Bad", vec![Invocation::of("nope".into())]),
+            commands.register_sequence("skin.bad", "Bad", vec![Invocation::of("nope".into())], |_| Ok(())),
             Err(CommandError::Unknown("nope".into()))
         );
         log.borrow_mut().clear();
