@@ -453,6 +453,11 @@ class Batcher:
         merged = {}
         for item in items:
             g = item.group
+            if protocol.is_vba_group(g):
+                batch.slices.append(Slice(item, len(batch.groups), 0))
+                batch.groups.append(g)
+                batch.pieces.add(item.piece)
+                continue
             key = shape_key(g)
             entry = merged.get(key)
             if entry is None:

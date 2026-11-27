@@ -69,8 +69,8 @@ into a cell (a number, date, time, percentage or currency takes the number forma
 **Probe templates (dc-erfm3, the route to use).** A VBA case does not carry VBA source. It names a template from the
 catalogue `tools/excel-service/vba-probes/catalogue.json` and gives typed parameters: `{"template", "params", "sheets",
 "calls", "readback", "event_log"}` with no `modules`. Each template's module files (`vba-probes/*.bas`) are
-reviewed once by the coordinator and pinned by SHA-256 in the catalogue; `policy.py` and the worker (`VbaTemplates.cs`,
-files embedded in the build) refuse a file that differs from its pin and build the .xlsm from the pinned text and the
+reviewed once by the coordinator and pinned by SHA-256 in the catalogue. The worker (`VbaTemplates.cs`,
+files embedded in the build) refuses a file that differs from its pin and builds the .xlsm from the pinned text and the
 parameters only. Parameter types: `sheet` (a case sheet's name), `address` (one A1 cell), `text` (1..255 printable ASCII
 characters, not starting with `=`, `+`, `-` or `@`; rendered as one quoted VBA string), `long` (an integer) and
 `enum:a|b` (a listed word). Every `{{name}}` in a template is a declared parameter and every parameter must be given; a
@@ -81,8 +81,13 @@ free-source `modules` shape below is no longer accepted on the wire (dc-45ndr): 
 refused. It describes the expanded form the validators check. The approval digest binds the template name, its parameters and the
 pinned module and layout hashes as well as the expansion. Approvals stay frozen.
 
-A **VBA case** (function `_VBA`, token `V`) occupies one position at offset 0 in one request frame. Its value contains
-`sheets` with typed number, text, boolean, error and blank cells, and the following fields. Formula cells and the `names` request field are refused. The worker prints formulas and defined names from the template’s pinned layout. No workbook travels with the case: the
+A **VBA case** (function `_VBA`, token `V`) occupies one position in one request frame, encoded as `"o": 0` or `"i": [0]`.
+The worker's decoder validates the group and case fields and rejects unknown fields. The broker invokes
+`excel-worker --check-vba-policy` on its staged worker executable before queueing the case. The client uses the same
+check when the local worker is available. `TOUCHSTONE_VBA_POLICY_WORKER` selects the local executable.
+The case value contains `sheets` with typed number, text, boolean, error and blank cells, and the following fields.
+The worker prints formulas and defined names from the template’s pinned layout and refuses request formula cells or
+the `names` field. No workbook travels with the case: the
 worker writes the source-only .xlsm itself from the checked `sheets` and `modules` (the sheet names, the `ThisWorkbook`
 and `Sheet<N>` document modules, one project stream per module), so no uploaded compound file or compressed stream is
 parsed. A case that carries a `workbook` field is refused.
@@ -94,8 +99,8 @@ parsed. A case that carries a `workbook` field is refused.
 | `readback`, `event_log` | Ordered lists of `Sheet!A1` addresses. The probe's VBA writes event records to the requested cells. |
 
 The broker sends one case per batch to the designated isolation slot. Echo, serial mode, primers, add-ins, and sweep
-are unavailable on this route. The worker checks probe source against one positive grammar (`vba-probe-policy.json`, read by
-`policy.py`/`vba_grammar.py` and by `VbaPolicy.cs`/`VbaGrammar.cs`): only the listed statement forms, expressions, built-in
+are unavailable on this route. The worker checks probe source against the grammar in `VbaGrammar.cs`
+and `vba-probe-policy.json`: only the listed statement forms, expressions, built-in
 functions and member chains of `ThisWorkbook`, its sheets and ranges, `Scripting.Dictionary`, `VBScript.RegExp` and `Err` are
 accepted, and everything else is refused. A cell written through `.Value` or `.Value2` must be data: a number, a boolean, a
 string literal that does not start with `=`, `+`, `-` or `@`, a case argument (text arguments may not start with those
@@ -109,7 +114,8 @@ Reordering JSON object keys preserves the digest. Approvals remain frozen.
 
 The worker opens the workbook read-only without updating links, applies the layout, calculates it, and enables events
 for the `Application.Run` calls. It reads the requested cells and closes the workbook without saving.
-Answer letter `v` carries `{"calls": [...], "sheet_state": [...], "event_log": [...]}`. Each readback is
+Answer letter `v` carries `{"calls": [...], "sheet_state": [...], "event_log": [...], "case_sha256": "…"}`.
+The digest identifies the worker's typed case. Each readback is
 `{"at", "ty", "v"}`, and each call is `{"return": {"ty", "v"}}` or `{"err": {"number", "description"}}`.
 A probe using a VBA error handler can return `Array("Touchstone.Vba.Err", CLng(Err.Number), Err.Description)` to
 report those exact values. A COM invocation failure uses the service's worker error path. Workbook-local

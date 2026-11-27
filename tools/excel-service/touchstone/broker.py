@@ -187,7 +187,8 @@ class V1Conn:
 
 class Request:
     __slots__ = ("pieces", "last_seq", "priority", "echo", "serial", "t_first", "calls", "done_sent",
-                 "cache_bytes", "envs", "touched", "client", "primer", "addins", "source", "excel_errors", "deadline_kills")
+                 "cache_bytes", "envs", "touched", "client", "primer", "addins", "source", "excel_errors", "deadline_kills",
+                 "vba_checking")
 
     def __init__(self):
         self.pieces, self.last_seq = {}, None
@@ -204,6 +205,7 @@ class Request:
         self.source = {}
         self.excel_errors = 0
         self.deadline_kills = 0
+        self.vba_checking = None
 
 
 class Slot:
@@ -242,6 +244,7 @@ class Broker:
         self.requests = {}
         self.slots = []
         self.executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="engine")
+        self.vba_decode = asyncio.Semaphore(1)
         self.batch_no = 0
         self.stopping = False
         self.cache_bytes = 0
@@ -357,6 +360,8 @@ class Broker:
 
     async def start_pool(self):
         self.worker_exe = getattr(self.options, "worker_command", None) or self.stage_worker()
+        if not getattr(self.options, "worker_command", None) and hasattr(self.admission, "vba_worker"):
+            self.admission.vba_worker = self.worker_exe
         self.cpu = await self.loop.run_in_executor(self.executor, self.cpu_name)
         count = self.options.workers
         for i in range(count):
@@ -487,7 +492,7 @@ class Broker:
                     break
                 conn.last_rx = time.monotonic()
                 for kind, body in reader.feed(data):
-                    self.on_frame(conn, kind, body)
+                    await self.on_frame(conn, kind, body)
         except (ConnectionError, OSError, ValueError):
             pass
         finally:
@@ -495,7 +500,7 @@ class Broker:
             if conn in self.conns:
                 self.conns.remove(conn)
 
-    def on_frame(self, conn, kind, body):
+    async def on_frame(self, conn, kind, body):
         if kind == protocol.HELLO:
             if getattr(conn, "token", None) is not None and body.get("token") != conn.token:
                 conn.send(protocol.ERROR, {"code": "auth"}, True)
@@ -509,7 +514,7 @@ class Broker:
             conn.send(protocol.HELLO, {"v": protocol.VERSION, "server": self.machine,
                                        "sweep": True, "envs": {k: v["env"] for k, v in self.envs.known.items()}}, True)
         elif kind == protocol.SUBMIT:
-            self.on_submit(conn, body)
+            await self.on_submit(conn, body)
         elif kind == protocol.PING:
             conn.send(protocol.PONG, body, True)
         elif kind == protocol.PONG:
@@ -522,7 +527,7 @@ class Broker:
         elif kind == protocol.CANCEL:
             pass
 
-    def on_submit(self, conn, body):
+    async def on_submit(self, conn, body):
         rid, seq = body["id"], body["seq"]
         key = (conn.origin, rid)
         deadline_poison = self.poisoned_deadlines.get(key)
@@ -535,6 +540,9 @@ class Broker:
                                                  "detail": self.poison_detail(key)}, body.get("c")), True)
             return
         req = self.requests.get(key)
+        if req is not None and req.vba_checking is not None:
+            await req.vba_checking.wait()
+            return await self.on_submit(conn, body)
         if req is None:
             req = self.requests[key] = Request()
             req.client = body.get("c")
@@ -575,8 +583,9 @@ class Broker:
                 self.maybe_done(key, req)
             return
         groups = body["groups"]
+        vba = any(protocol.is_vba_group(g) for g in [*groups, *req.primer])
         try:
-            if any(protocol.is_vba_group(g) for g in [*groups, *req.primer]):
+            if vba:
                 if (seq != 0 or body.get("last") is not True or req.pieces or req.primer or req.addins
                         or req.echo or req.serial or req.priority == "sweep" or len(groups) != 1):
                     raise ValueError("VBA requires one case in one frame without echo, serial mode, add-ins, primers or sweep")
@@ -584,13 +593,23 @@ class Broker:
                     raise ValueError("no VBA isolation worker is available")
             if req.priority == "sweep" and (req.addins or req.primer):
                 raise ValueError("sweep requests cannot use add-ins or primers")
-            for group in [*groups, *(req.primer if seq == 0 else [])]:
-                self.admission.check(group)
+            if vba:
+                req.vba_checking = asyncio.Event()
+                try:
+                    async with self.vba_decode:
+                        await asyncio.get_running_loop().run_in_executor(self.executor, self.admission.check, groups[0])
+                finally:
+                    req.vba_checking.set()
+                    req.vba_checking = None
+            else:
+                for group in [*groups, *(req.primer if seq == 0 else [])]:
+                    self.admission.check(group)
         except ValueError as error:
             self.counters["refused"] += 1
-            self.waits.add("refused-kind", origin=conn.origin, function=groups[0]["f"] if groups else None,
+            function = protocol.VBA_FUNCTION if vba else groups[0]["f"] if groups else None
+            self.waits.add("refused-kind", origin=conn.origin, function=function,
                            seconds=0.0, detail=str(error)[:200])
-            piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority)
+            piece = batcher.Piece(conn, rid, seq, [] if vba else groups, bool(body.get("last")), req.priority)
             piece.done, piece.fail = True, ("refused", str(error))
             req.pieces[seq] = piece
             conn.send(protocol.ERROR, self.tag({"id": rid, "seq": seq, "code": "refused", "detail": str(error)}, req.client), True)
@@ -1083,9 +1102,8 @@ class Broker:
         "excel-deadline" with its own list and budget; only an Excel fault counts as a crash."""
         reason = "excel-deadline" if deadline_kill else "excel-crashed"
         group = batch.groups[0]
-        args = list(group["v"])
-        # The request already carries the workbook. Keep it in the diagnostic, out of the bounded answer frame.
-        answer_args = [{"procedures": [call["procedure"] for call in args[0]["calls"]]}] if protocol.is_vba_group(group) else args
+        # A VBA payload is only for the worker. The broker reports the failure without reading its contents.
+        answer_args = [] if protocol.is_vba_group(group) else list(group["v"])
         value = {"reason": reason, "function": group["f"], "k": group["k"], "args": answer_args,
                  "detail": str(detail or "")[:200], "worker": slot.name}
         for key in ("x", "spill"):
@@ -1099,7 +1117,7 @@ class Broker:
             if self.crash_counts[f] >= 2:
                 self.batcher.isolate.add(f)
             self.save_isolated()
-        record = {"utc": logs.utc().isoformat(timespec="seconds"), "function": f, "k": group["k"], "args": args,
+        record = {"utc": logs.utc().isoformat(timespec="seconds"), "function": f, "k": group["k"], "args": answer_args,
                   "worker": slot.name, "batch": number, "detail": value["detail"],
                   "id": batch.slices[0].item.piece.rid, "origin": batch.slices[0].item.piece.source}
         for key in ("x", "spill"):
@@ -1324,7 +1342,9 @@ class Broker:
             for s in range(0, item.n, FRAME_CALLS):
                 e = min(item.n, s + FRAME_CALLS)
                 fg = {"ty": ag["ty"][sl.offset + s:sl.offset + e], "v": ag["v"][sl.offset + s:sl.offset + e]}
-                if "o" in g:
+                if protocol.is_vba_group(g):
+                    fg["o"] = 0
+                elif "o" in g:
                     fg["o"] = g["o"] + s
                 else:
                     fg["i"] = g["i"][s:e]
@@ -1476,7 +1496,7 @@ class Broker:
         conn = V1Conn(reply, done.set)
         conn.source = {"transport": "file", "host": self.machine, "client": "v1-file"}
         for frame in frames:
-            self.on_submit(conn, frame)
+            await self.on_submit(conn, frame)
         try:
             await asyncio.wait_for(done.wait(), 900)
         except asyncio.TimeoutError:

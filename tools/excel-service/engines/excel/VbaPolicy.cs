@@ -7,9 +7,8 @@ namespace Touchstone.Excel;
 sealed class RefusedVbaException(string message) : Exception(message);
 
 /// <summary>
-/// Checks an authored VBA case before it can be handed to Excel: the probe source against the positive grammar
-/// (VbaGrammar), the layout, the calls and the readback addresses. Same checks, in the same order, as
-/// tools/excel-service/policy.py (_check_vba_case); both read vba-probe-policy.json.
+/// Decodes the VBA wire case and constructs the workbook input. The worker's offline check and
+/// Excel's execution route use this decoder.
 /// </summary>
 static class VbaPolicy
 {
@@ -41,18 +40,22 @@ static class VbaPolicy
             || group.Keys.Any(k => k is not ("f" or "k" or "n" or "v" or "o" or "i"))
             || values[0] is not Dictionary<string, object> probe)
             throw new RefusedVbaException("a VBA group contains one VBA case");
+        bool offset = group.TryGetValue("o", out var o);
+        bool indexed = group.TryGetValue("i", out var i);
+        if (offset == indexed || (offset ? o is not 0L : i is not List<object> { Count: 1 } positions || positions[0] is not 0L))
+            throw new RefusedVbaException("VBA position must be o: 0 or i: [0]");
         return (group, probe);
     }
 
     /// <summary>Offline test seam (--check-vba-expanded, --build-vba-expanded): checks a case that carries modules, so the grammar
     /// can be exercised with mutated sources. The Excel route (CheckGroup) never calls it and refuses such a case.</summary>
-    public static Dictionary<string, object> CheckExpandedGroup(object value)
+    public static VbaCase CheckExpandedGroup(object value)
     {
         var (group, probe) = Shape(value);
-        return CheckExpanded(group, probe);
+        return VbaCase.FromChecked(CheckExpanded(group, probe));
     }
 
-    public static Dictionary<string, object> CheckGroup(object value)
+    public static VbaCase CheckGroup(object value)
     {
         var (group, probe) = Shape(value);
         // Only a reviewed catalogue template with typed parameters reaches Excel; free module source is refused (dc-45ndr).
@@ -66,7 +69,7 @@ static class VbaPolicy
         expanded["template"] = template;
         expanded["params"] = probe["params"];
         expanded["pins"] = VbaTemplates.Pins(template);
-        return expanded;
+        return VbaCase.FromChecked(expanded);
     }
 
     /// <summary>The checks every expanded case passes. The wire reaches it only through a template expansion.</summary>
@@ -215,8 +218,8 @@ static class VbaPolicy
     }
 
     // Covers the modules, layout, calls and readback; the worker builds the package from the modules.
-    public static string CaseDigest(Dictionary<string, object> probe) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(Json.Write(Ordered(probe))))).ToLowerInvariant();
+    public static string CaseDigest(VbaCase probe) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(Json.Write(Ordered(probe.Evidence()))))).ToLowerInvariant();
 
     static object Ordered(object value) => value switch
     {
@@ -227,7 +230,7 @@ static class VbaPolicy
     };
 
     /// <summary>Refuses a case whose digest has no approval file (when an approvals folder is given).</summary>
-    public static void CheckApproval(Dictionary<string, object> probe, string approvals)
+    public static void CheckApproval(VbaCase probe, string approvals)
     {
         if (approvals != null && !File.Exists(Path.Combine(approvals, CaseDigest(probe) + ".approved")))
             throw new RefusedVbaException("unapproved VBA case: the source, inputs and layout require a local approval");
