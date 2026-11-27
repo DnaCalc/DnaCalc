@@ -72,6 +72,11 @@ query!(
     /// Authored workbook records. An empty kind list includes every supported kind.
     Inventory { kinds: Vec<InventoryKind> } => Vec<InventoryItem>, |q: &Inventory| WorkbookQuery::Inventory { kinds: q.kinds.clone() });
 query!(
+    /// The authored definition and declared parameters of one scoped name.
+    DefinedName { scope: crate::NameScope, name: String } => crate::DefinedNameFacts,
+    |q: &DefinedName| WorkbookQuery::DefinedName { scope: q.scope.clone(), name: q.name.clone() }
+);
+query!(
     /// Tables and inferred formula runs in the current model.
     StructureOf { scope: SourceRef } => Evidence<Structure>, |q: &StructureOf| WorkbookQuery::Structure { scope: q.scope.clone() });
 query!(

@@ -288,6 +288,41 @@ fn rows_filter_and_sort_the_whole_source_before_windowing() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn notebook_workbook_lambda_has_a_typed_definition_and_signature() {
+    let (host, _) = workbook();
+    let port = port(&host);
+    let summary = query::Summary::decode(port.ask(query::Summary.request(), BUDGET).unwrap()).unwrap();
+    let definition = query::DefinedName {
+        scope: NameScope::Workbook,
+        name: "DoubleIt".into(),
+    };
+    let declare = |id, formula: &str| {
+        let mut edit = batch(id, vec![Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::DefineFunction {
+                name: "DoubleIt".into(),
+                formula: formula.into(),
+            },
+        })]);
+        edit.base = Some(summary.stamp.model);
+        edit
+    };
+    let invoked = declare(1, "=LAMBDA(amount,amount*2)(21)");
+    assert!(port.preview(&invoked, PreviewDepth::WritesOnly).unwrap().refusal.is_some());
+    let authored = declare(2, "=LAMBDA(amount,amount*2)");
+    let preview = port.preview(&authored, PreviewDepth::WritesOnly).unwrap();
+    assert_eq!(preview.kind(), Some(ChangeKind::Model));
+    assert!(port.ask(definition.request(), BUDGET).is_err());
+    port.commit(authored).unwrap();
+
+    let answer = query::DefinedName::decode(port.ask(definition.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.definition.name, "DoubleIt");
+    assert_eq!(answer.body.definition.formula, "=LAMBDA(amount,amount*2)");
+    assert_eq!(answer.body.parameters, Some(vec!["amount".into()]));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn new_sheet_placement_is_typed_and_does_not_create_the_sheet() {
     let (host, original) = workbook();
     let port = port(&host);

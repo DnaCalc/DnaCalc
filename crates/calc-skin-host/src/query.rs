@@ -277,6 +277,7 @@ pub(crate) fn invalidated(
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
         }
         WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
+        WorkbookQuery::DefinedName { .. } => authored,
         WorkbookQuery::Structure { scope } => {
             (authored && scope_touched())
                 || (recalculated && matches!(scope, SourceRef::Spill { .. }))
@@ -738,6 +739,10 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         }
         WorkbookQuery::Inventory { kinds } => {
             query::Inventory::encode(&inventory::inventory(host, kinds, &mut meter)?)?
+        }
+        WorkbookQuery::DefinedName { scope, name } => {
+            meter.work(0, 1, 0)?;
+            query::DefinedName::encode(&crate::names::facts(host, scope, name)?)?
         }
         WorkbookQuery::Structure { scope } => query::StructureOf::encode(&Evidence::Derived {
             from: Derivation::Structure,

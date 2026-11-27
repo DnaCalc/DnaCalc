@@ -46,6 +46,12 @@ fn a1(at: Key) -> String {
 
 fn model_property_text(diff: ModelPropertyDiff) -> String {
     match diff {
+        ModelPropertyDiff::DefinedName { before, after, .. } => {
+            let label = |name: Option<calc_skin::DefinedNameText>| {
+                name.map_or_else(|| "—".into(), |entry| format!("{} {}", entry.name, entry.formula))
+            };
+            format!("Defined name · {} → {}", label(before), label(after))
+        }
         ModelPropertyDiff::WorksheetInserted { name, .. } => format!("Add worksheet {name}"),
         ModelPropertyDiff::CellFormat { at, before, after } => {
             let style =

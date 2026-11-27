@@ -52,6 +52,36 @@ pub struct NameEdit {
 }
 use calc_engine::valid_defined_name as valid_name;
 
+/// Returns the declared parameters of a formula whose value is a direct LAMBDA.
+pub fn lambda_parameters(formula: &str) -> Option<Vec<String>> {
+    use calc_fml::syntax::{SyntaxChild, SyntaxKind};
+    let shown = calc_fml::assist::display_formula(formula);
+    let parsed = calc_fml::parse_formula(&shown);
+    if !parsed.diagnostics().is_empty() {
+        return None;
+    }
+    let mut expression = parsed.expression()?;
+    while expression.kind() == SyntaxKind::GroupingExpr {
+        expression = expression.child_nodes().next()?;
+    }
+    let [SyntaxChild::Token(callee), SyntaxChild::Node(arguments)] = expression.children() else {
+        return None;
+    };
+    if expression.kind() != SyntaxKind::CallExpr || !callee.text().eq_ignore_ascii_case("LAMBDA") {
+        return None;
+    }
+    let arguments: Vec<_> = arguments.child_nodes().collect();
+    let (_, parameters) = arguments.split_last()?;
+    parameters.iter().map(|parameter| {
+        if let [SyntaxChild::Token(name)] = parameter.children()
+            && parameter.kind() == SyntaxKind::IdentifierExpr
+        {
+            return Some(name.text().to_owned());
+        }
+        None
+    }).collect()
+}
+
 /// Authored name bodies use the existing file-form converter. Name results are
 /// reference-or-value, so retain explicit intersection rather than choosing a
 /// cell's inferred legacy form. Imported/restored definitions keep their source.

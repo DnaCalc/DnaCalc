@@ -270,6 +270,7 @@ pub enum WorkbookQuery {
         kind: PlacementKind,
         shape: Option<PlacementShape>,
     },
+    DefinedName { scope: crate::NameScope, name: String },
     Geometry {
         sheet: Sheet,
     },
@@ -440,6 +441,7 @@ pub enum Change {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ModelChange {
+    Name { scope: crate::NameScope, change: NameChange },
     /// Create a worksheet at the identity returned by NewSheetPlacement at this model revision.
     InsertWorksheet {
         name: String,
@@ -480,6 +482,14 @@ pub enum ModelChange {
         new_text: String,
         extent: Area,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NameChange {
+    Define { name: String, formula: String },
+    DefineFunction { name: String, formula: String },
+    Rename { name: String, to: String },
+    Remove { name: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -566,6 +576,11 @@ pub enum ModelProperty {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPropertyDiff {
+    DefinedName {
+        scope: crate::NameScope,
+        before: Option<DefinedNameText>,
+        after: Option<DefinedNameText>,
+    },
     WorksheetInserted { sheet: Sheet, name: String },
     CellFormat {
         at: Key,
@@ -573,6 +588,18 @@ pub enum ModelPropertyDiff {
         after: Option<u32>,
     },
     Scope { source: SourceRef, property: ModelProperty },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DefinedNameText {
+    pub name: String,
+    pub formula: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DefinedNameFacts {
+    pub definition: DefinedNameText,
+    pub parameters: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

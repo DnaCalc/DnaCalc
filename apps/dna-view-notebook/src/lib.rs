@@ -2,6 +2,7 @@
 
 mod author;
 mod commands;
+mod names;
 mod stage;
 
 use calc_skin::grid::{Area, Key, Sheet};
@@ -81,6 +82,7 @@ struct State {
     structure: Following<query::StructureOf>,
     author: author::Authoring,
     prose_editor: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
+    function_form: RwSignal<Option<calc_skin::WorkbookId>>,
     tree: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
     rows: RwSignal<BTreeMap<(calc_skin::WorkbookId, AnchorId), RowControls>>,
 }
@@ -121,6 +123,8 @@ struct Item {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     owned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    output_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     lane_columns: Option<u32>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     folded: bool,
@@ -132,6 +136,7 @@ struct Item {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum Kind {
     Formula,
+    Function { name: String, #[serde(default)] owns_name: bool },
     Table { name: Option<String> },
     Prose { markdown: String },
 }
@@ -159,6 +164,7 @@ impl Item {
             id,
             kind,
             owned: false,
+            output_name: None,
             lane_columns: None,
             folded: false,
             line_numbers: false,
@@ -187,6 +193,7 @@ impl State {
             structure: session.following(),
             author: author::Authoring::new(session),
             prose_editor: RwSignal::new(None),
+            function_form: RwSignal::new(None),
             tree: RwSignal::new(None),
             rows: RwSignal::new(BTreeMap::new()),
         }

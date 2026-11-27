@@ -1337,6 +1337,11 @@ impl HostSession {
         self.prepare_entries(at, text, &[GridArea::cell(at)])
     }
 
+    /// Prepare a Name Manager change for inclusion in a workbook transaction.
+    pub fn prepare_name_edit(&self, edit: crate::NameEdit) -> Result<Vec<CellEdit>, IntentError> {
+        crate::names::prepare(&self.host, edit).map_err(IntentError::Workbook)
+    }
+
     /// Plan a worksheet insertion without assigning its identity or changing the workbook.
     pub fn prepare_worksheet_insert(
         &self,
@@ -1390,6 +1395,8 @@ impl HostSession {
                     | CellEdit::Validations { .. }
                     | CellEdit::ReviewNotes { .. }
                     | CellEdit::ReviewLinks { .. }
+                    | CellEdit::SetName { .. }
+                    | CellEdit::RestoreNames(_)
                     | CellEdit::AxisFormat(_)
                     | CellEdit::Charts { .. }
                     | CellEdit::Shapes { .. }
