@@ -1,6 +1,7 @@
 //! Level-one serving of the authoritative CalcHost workbook through the skin contract.
 
 mod batch;
+mod comparison;
 mod contributions;
 mod dependencies;
 mod inventory;
@@ -81,6 +82,8 @@ struct State {
     calculation_changes: Option<CalculationChanges>,
     read_only: bool,
     opened_at: Stamp,
+    baseline: Option<comparison::Baseline>,
+    baseline_revision: u64,
 }
 
 impl State {
@@ -303,6 +306,8 @@ impl SkinHost {
                 calculation_changes: None,
                 read_only,
                 opened_at,
+                baseline: None,
+                baseline_revision: 0,
             })),
         }
     }
@@ -335,6 +340,7 @@ impl SkinHost {
                 last_stamp: None,
                 last_selection: 0,
                 last_rtd: 0,
+                last_baseline: 0,
                 next_watch: 1,
                 next_publication: 1,
                 awaiting_tiles: None,
@@ -388,6 +394,7 @@ struct Local {
     last_stamp: Option<Stamp>,
     last_selection: u64,
     last_rtd: u64,
+    last_baseline: u64,
     next_watch: u64,
     next_publication: u64,
     awaiting_tiles: Option<u64>,
@@ -711,6 +718,17 @@ impl WorkbookPort for Connection {
         let mut state = self.host.borrow_mut();
         let before = state.stamp();
         let intent = match operation {
+            Operation::PinBaseline { expected, bounds, budget } => {
+                if expected != before {
+                    return Err(Refusal::StaleSelection);
+                }
+                if !matches!(self.origin, Origin::User { .. }) {
+                    return Err(invalid("A workbook user can pin a baseline"));
+                }
+                state.baseline = Some(comparison::Baseline::capture(&state, &bounds, budget)?);
+                state.baseline_revision += 1;
+                return Ok(before);
+            }
             Operation::Undo => {
                 self.check_write(&state)?;
                 SkinIntent::Undo
@@ -787,8 +805,12 @@ impl WorkbookPort for Connection {
         let selection_changed = local.last_selection != state.selection_seq;
         let rtd = state.session.host().rtd_revision();
         let rtd_changed = local.last_rtd != rtd;
+        let baseline_changed = local.last_baseline != state.baseline_revision;
         for (&watch, slot) in &mut local.watches {
             if slot.answer.is_some()
+                && !(baseline_changed && matches!(
+                    slot.query, WorkbookQuery::NumericComparison { .. } | WorkbookQuery::ChartImage { comparison: Some(_), .. }
+                ))
                 && !query::invalidated(
                     &state,
                     &slot.query,
@@ -842,6 +864,7 @@ impl WorkbookPort for Connection {
         local.last_stamp = Some(stamp);
         local.last_selection = state.selection_seq;
         local.last_rtd = rtd;
+        local.last_baseline = state.baseline_revision;
         if updates.is_empty() && events.is_empty() && prior == Some(stamp) {
             return Ok(None);
         }
@@ -969,6 +992,7 @@ impl Connection {
         state.touches.clear();
         state.calc_touches.clear();
         state.calculation_changes = None;
+        state.baseline = None;
         state.update_selection(SelectionCause::Open);
         self.local.borrow_mut().copied = None;
         Ok(stamp)

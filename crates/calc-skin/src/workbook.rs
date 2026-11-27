@@ -234,7 +234,10 @@ pub enum WorkbookQuery {
     },
     ChartImage {
         object: SourceRef,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        comparison: Option<Bound>,
     },
+    NumericComparison { bound: Bound },
     Sources,
     Deps {
         of: SourceRef,
@@ -463,6 +466,8 @@ pub enum ModelChange {
         scenario: crate::ScenarioRef,
         inputs: Vec<Bound>,
     },
+    /// Restore the exact authored literals from the open workbook to the chosen bound inputs.
+    ResetInputs { inputs: Vec<Bound> },
     ClearContents {
         areas: Vec<Area>,
     },
@@ -682,6 +687,8 @@ pub enum Operation {
     Calculate { scope: SourceRef },
     CancelCalculation,
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
+    /// Pin the current publication for these page bindings without editing the workbook.
+    PinBaseline { expected: Stamp, bounds: Vec<Bound>, budget: Budget },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

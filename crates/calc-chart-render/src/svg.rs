@@ -153,6 +153,49 @@ fn text_colour(svg: String, chart: &ChartView) -> String {
 
 /// The chart's markup, `width` by `height` pixels.
 pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
+    render_chart(chart, width, height, None)
+}
+
+/// Overlay matching line series from a pinned publication on the active chart's axes.
+pub fn chart_comparison_svg(
+    chart: &ChartView,
+    baseline: &ChartView,
+    width: f64,
+    height: f64,
+) -> Option<String> {
+    let [active] = chart.plots.as_slice() else { return None; };
+    let [previous] = baseline.plots.as_slice() else { return None; };
+    if active.kind != ChartKind::Line
+        || previous.kind != ChartKind::Line
+        || active.stacked
+        || previous.stacked
+        || active.percent
+        || previous.percent
+        || active.series.is_empty()
+        || active.series.len() != previous.series.len()
+        || active.series.iter().zip(&previous.series).any(|(active, old)| {
+            active.cached || old.cached || active.categories != old.categories
+                || active.values.len() != old.values.len()
+        })
+    {
+        return None;
+    }
+    let mark = active.series.len();
+    let overlays: Vec<_> = active.series.iter().zip(&previous.series).map(|(active, old)| {
+        let mut series = old.clone();
+        series.color.clone_from(&active.color);
+        series.error_bars.clear();
+        series.trendlines.clear();
+        series.labels = None;
+        series.value_labels.clear();
+        series
+    }).collect();
+    let mut combined = chart.clone();
+    combined.plots[0].series.extend(overlays);
+    Some(render_chart(&combined, width, height, Some(mark)))
+}
+
+fn render_chart(chart: &ChartView, width: f64, height: f64, baseline: Option<usize>) -> String {
     let mut svg = String::new();
     let text_pixels = font_pixels(chart);
     let family = chart
@@ -267,6 +310,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             .plots
             .iter()
             .flat_map(|p| &p.series)
+            .take(baseline.unwrap_or(usize::MAX))
             .map(|s| (s.name.clone(), s.color.clone()))
             .collect()
     };
@@ -449,7 +493,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
                 for i in order {
                     let p = &chart.plots[i];
                     let _ = write!(svg, "<g data-plot=\"{i}\">");
-                    category_marks(&mut svg, chart, p, area, Some(layouts[i]));
+                    category_marks(&mut svg, chart, p, area, Some(layouts[i]), None);
                     svg.push_str("</g>");
                 }
             }
@@ -470,7 +514,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             ChartKind::Treemap => treemap_marks(&mut svg, chart, plot, area),
             ChartKind::Sunburst => sunburst_marks(&mut svg, chart, plot, area),
             ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area | ChartKind::Stock => {
-                category_marks(&mut svg, chart, plot, area, None);
+                category_marks(&mut svg, chart, plot, area, None, baseline);
             }
             ChartKind::Other(kind) if kind.starts_with("cx:") => {
                 let _ = write!(
@@ -757,6 +801,7 @@ fn category_marks(
     plot: &PlotView,
     area: Area,
     layout: Option<CategoryLayout>,
+    baseline: Option<usize>,
 ) {
     let horizontal = plot.kind == ChartKind::Bar;
     let count = layout.map_or_else(
@@ -771,6 +816,7 @@ fn category_marks(
         |l| l.count,
     );
     let offset = layout.map_or(0, |l| l.offset);
+    let active_series = &plot.series[..baseline.unwrap_or(plot.series.len())];
     let scale = match calc_host::chart::category_scale(chart, plot) {
         Ok(scale) => scale,
         Err(message) => {
@@ -1049,9 +1095,15 @@ fn category_marks(
                     }
                     let _ = write!(
                         shapes,
-                        "<path d=\"{d}\" fill=\"none\" stroke=\"#{}\" stroke-width=\"2.25\" stroke-linejoin=\"round\" data-series=\"{i}\"/>",
-                        series.color
+                        "<path d=\"{d}\" fill=\"none\" stroke=\"#{}\" stroke-width=\"2.25\" stroke-linejoin=\"round\" data-series=\"{i}\"{stroke}/>",
+                        series.color,
+                        stroke = if baseline.is_some_and(|start| i >= start) {
+                            " data-dnacalc=\"chart-baseline\" stroke-dasharray=\"1 5\" stroke-linecap=\"round\""
+                        } else { "" },
                     );
+                }
+                if baseline.is_some_and(|start| i >= start) {
+                    continue;
                 }
                 for (&(j, v), (x, y)) in points.iter().zip(&tops) {
                     let _ = write!(
@@ -1138,7 +1190,7 @@ fn category_marks(
     // each column's middle; a stacked plot's are not drawn.
     if matches!(plot.kind, ChartKind::Line | ChartKind::Area) && !horizontal {
         for j in 0..count {
-            let values: Vec<f64> = plot.series.iter().filter_map(|s| s.values.get(j).copied().flatten()).filter(|v| scale.position(*v).is_some()).collect();
+            let values: Vec<f64> = active_series.iter().filter_map(|s| s.values.get(j).copied().flatten()).filter(|v| scale.position(*v).is_some()).collect();
             let x = middle_of(j);
             if plot.high_low_lines && plot.kind == ChartKind::Line && values.len() >= 2 {
                 let (low, high) = values.iter().fold((f64::MAX, f64::MIN), |(a, b), v| (a.min(*v), b.max(*v)));
@@ -1153,8 +1205,8 @@ fn category_marks(
     }
     if !plot.stacked && matches!(plot.kind, ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area) {
         let group = band / 2.5;
-        let width = group / plot.series.len().max(1) as f64;
-        for (i, series) in plot.series.iter().enumerate() {
+        let width = group / active_series.len().max(1) as f64;
+        for (i, series) in active_series.iter().enumerate() {
             for bars in series.error_bars.iter().filter(|b| b.direction.as_deref() != Some("x")) {
                 for (j, extent) in error_extents(bars, &series.values).into_iter().enumerate() {
                     let Some((low, high, _)) = extent else { continue };
@@ -1177,7 +1229,7 @@ fn category_marks(
     if matches!(plot.kind, ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area) && count > 0 {
         let step = if count > 1 { middle_of(1) - middle_of(0) } else { 0.0 };
         let at_x = |x: f64| middle_of(0) + (x - 1.0) * step;
-        for (i, series) in plot.series.iter().enumerate() {
+        for (i, series) in active_series.iter().enumerate() {
             let xy: Vec<(f64, f64)> = series.values.iter().enumerate().filter_map(|(j, v)| v.map(|v| ((j + 1) as f64, v))).collect();
             for (t, colour) in &series.trendlines {
                 let Some(points) = trendline_points(t, &xy, 1.0, count as f64) else { continue };
@@ -2658,6 +2710,10 @@ mod tests {
             2,
             "Zero and negative points break the path: {line}"
         );
+        let chart = &book.host().charts(sheet).0[0];
+        let overlay = chart_comparison_svg(chart, chart, 600., 350.).unwrap();
+        assert!(overlay.contains("data-dnacalc=\"chart-baseline\" stroke-dasharray=\"1 5\""));
+        assert_eq!(overlay.matches("data-dnacalc=\"chart-mark\"").count(), 4);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
