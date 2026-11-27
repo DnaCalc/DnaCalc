@@ -2859,3 +2859,86 @@ fn trying_on_a_keymap_is_reversible_and_preserves_workbook_stamps() {
     assert!(session.edit().is_some());
     assert_eq!(session.stamp(), before);
 }
+
+/// Native-only: saves and reopens a kept skin through the same workbook service as the UI.
+#[test]
+fn keeping_a_skin_for_file_is_one_undoable_presentation_change() {
+    const FUTURE: &str = r#"<skin id="later" schema="2" extra="keep"><future/></skin>"#;
+    let page = Page::open();
+    let session = page.session;
+    let namespace = "urn:dnacalc:views:v1";
+    let package = calc_doc::write_session(&calc_doc::SessionFile {
+        sheet: "Review".into(),
+        formula: None,
+        constants: Vec::new(),
+        custom: Some(calc_doc::CustomXmlItem {
+            namespace: namespace.into(),
+            content: format!(
+                r#"<dnaViews xmlns="{namespace}" version="1"><skins>{FUTURE}</skins></dnaViews>"#,
+            )
+            .into_bytes(),
+        }),
+        date_1904: false,
+        cached: None,
+        vba: None,
+        look: None,
+    })
+    .unwrap();
+    session.open("Review.xlsx".into(), package);
+    page.settle();
+    let before = session.stamp().unwrap();
+    let manifest = serde_json::json!({
+        "schema": "dna.skin/1",
+        "id": "review",
+        "name": "Review & notes",
+        "theme": { "base": "cockpit-dark", "density": "working" },
+        "keymap": {
+            "profile": "excel-365-win-en-us",
+            "bindings": [{ "when": "view:classic && mode:ready", "chord": "Ctrl+Shift+E", "command": "grid.edit-cell" }]
+        }
+    });
+    session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("studio.try-on"),
+        args: manifest,
+    }).unwrap();
+    page.settle();
+    assert_eq!(session.stamp(), Some(before));
+    session.command("studio.keep-file").unwrap();
+    page.settle();
+    let kept = session.stamp().unwrap();
+    assert_eq!(kept.model, before.model);
+    assert!(kept.view > before.view);
+    let saved = page.host.with_session(calc_skin::SelectionCause::Open, |workbook| {
+        let mut bytes = Vec::new();
+        workbook.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+        bytes
+    });
+    let document =
+        calc_doc::open(Arc::new(MemorySource::new(saved.clone())), &OpenPolicy::default()).unwrap();
+    let xml = document
+        .package()
+        .parts()
+        .iter()
+        .filter(|part| part.name().starts_with("customXml/"))
+        .map(|part| document.package().read_part(part.name()).unwrap())
+        .find(|bytes| bytes.windows(b"<dnaViews".len()).any(|bytes| bytes == b"<dnaViews"))
+        .expect("the saved view part");
+    let xml = String::from_utf8(xml).unwrap();
+    assert!(xml.contains(FUTURE));
+    assert!(xml.contains(r#"id="review">"#));
+
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    let Live::Ready(undone) = session.view_part() else { panic!("no view part") };
+    assert!(undone.body.skin.is_none());
+
+    session.open("Review.xlsx".into(), saved);
+    page.settle();
+    let Live::Ready(reopened) = session.view_part() else { panic!("no view part") };
+    let skin = reopened.body.skin.expect("kept skin");
+    assert_eq!(skin.name, "Review & notes");
+    assert_eq!(skin.theme.base, "cockpit-dark");
+    assert!(!page.press("Ctrl+Shift+e", Focus::Stage));
+    assert!(page.press("F2", Focus::Stage));
+}

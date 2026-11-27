@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SkinManifest {
     pub schema: SkinSchema,
     pub id: String,
@@ -89,7 +89,7 @@ pub struct KeyBinding {
     pub command: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandSequence {
     pub id: String,
     pub label: String,
@@ -122,7 +122,7 @@ pub enum InputPolicy {
     Batched,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Page {
     pub schema: PageSchema,
     pub title: String,
@@ -131,7 +131,7 @@ pub struct Page {
     pub root: PageNode,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum PageNode {
     #[serde(alias = "Stack")]
@@ -163,7 +163,7 @@ pub enum PageNode {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PageTab {
     pub label: String,
     pub body: PageNode,
