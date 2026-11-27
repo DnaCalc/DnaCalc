@@ -15,7 +15,7 @@ fn single_range(session: Session) -> Result<Area, String> {
     Err("Select one rectangular range of worksheet cells.".into())
 }
 
-pub(crate) fn commands(view: &ViewId, session: Session) -> [ViewCommand; 3] {
+pub(crate) fn commands(view: &ViewId, session: Session) -> [ViewCommand; 4] {
     let copied = StoredValue::new(None::<(WorkbookId, u64)>);
     let paste = |id, label, chords: &[&'static str], contents| {
         ViewCommand::new(view, id, label, chords, move |_| {
@@ -79,6 +79,12 @@ pub(crate) fn commands(view: &ViewId, session: Session) -> [ViewCommand; 3] {
             "Paste Formulas",
             &[],
             PasteContents::Formulas,
+        ),
+        paste(
+            "classic.paste-transpose",
+            "Paste Transpose",
+            &[],
+            PasteContents::AllTransposed,
         ),
     ]
 }

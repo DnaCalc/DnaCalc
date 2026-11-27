@@ -460,7 +460,7 @@ pub fn dispatch_slice(
     }
 }
 
-/// Prepare the cell/view subset of a transaction and release the engine reservation on return.
+/// Prepare a transaction and release the engine reservation on return.
 pub(crate) fn preview_slice(
     host: &mut HostState,
     edits: &[CellEdit],

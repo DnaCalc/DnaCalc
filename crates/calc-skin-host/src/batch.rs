@@ -1,8 +1,8 @@
 use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
-use calc_doc_model::ViewAnchor;
+use calc_doc_model::{ModelRoot, ViewAnchor};
 use calc_host::value::{CellKey, GridArea};
 use calc_host::{
-    CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, prepare_paste,
+    CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, prepare_paste_oriented,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
@@ -78,6 +78,83 @@ pub(crate) fn rules(session: &HostSession, at: CellKey) -> Result<(), Refusal> {
 pub(crate) struct Prepared {
     pub edits: Vec<CellEdit>,
     pub preview: Preview,
+}
+
+fn paste_properties(
+    before: &ModelRoot,
+    after: &ModelRoot,
+    areas: &[GridArea],
+    edits: &[CellEdit],
+) -> Vec<ModelPropertyDiff> {
+    let mut properties = Vec::new();
+    let before = before.definitions();
+    let after = after.definitions();
+    let formats: BTreeSet<_> = edits
+        .iter()
+        .filter_map(|edit| match edit {
+            CellEdit::SetFormat { at, .. } => Some(*at),
+            _ => None,
+        })
+        .collect();
+    for at in formats {
+        let old = before.cell_format(at);
+        let new = after.cell_format(at);
+        if old != new {
+            properties.push(ModelPropertyDiff::CellFormat {
+                at: Key::of(at),
+                before: old,
+                after: new,
+            });
+        }
+    }
+    if before.styles() != after.styles() {
+        properties.push(ModelPropertyDiff::Scope {
+            source: SourceRef::Workbook,
+            property: ModelProperty::StyleTable,
+        });
+    }
+    let sheets: BTreeSet<_> = areas.iter().map(|area| area.sheet()).collect();
+    for sheet in sheets {
+        let changes = [
+            (ModelProperty::MergedCells, before.merges(sheet) != after.merges(sheet)),
+            (
+                ModelProperty::ConditionalFormatting,
+                before.conditional_rules(sheet) != after.conditional_rules(sheet),
+            ),
+            (ModelProperty::DataValidation, before.validations(sheet) != after.validations(sheet)),
+            (ModelProperty::Notes, before.review_notes(sheet) != after.review_notes(sheet)),
+            (ModelProperty::Hyperlinks, before.review_links(sheet) != after.review_links(sheet)),
+        ];
+        for (property, changed) in changes {
+            if changed {
+                properties.push(ModelPropertyDiff::Scope {
+                    source: SourceRef::Sheet(Sheet::of(sheet)),
+                    property,
+                });
+            }
+        }
+    }
+    for &area in areas {
+        if before.arrays_meeting(area).ne(after.arrays_meeting(area)) {
+            properties.push(ModelPropertyDiff::Scope {
+                source: source_area(area),
+                property: ModelProperty::ArrayFormulas,
+            });
+        }
+        let old_text = before.text_sources()
+            .range(area.first()..=area.last())
+            .filter(|(at, _)| area.contains(**at));
+        let new_text = after.text_sources()
+            .range(area.first()..=area.last())
+            .filter(|(at, _)| area.contains(**at));
+        if old_text.ne(new_text) {
+            properties.push(ModelPropertyDiff::Scope {
+                source: source_area(area),
+                property: ModelProperty::RichText,
+            });
+        }
+    }
+    properties
 }
 
 fn require_formula(
@@ -186,6 +263,7 @@ pub(crate) fn prepare(
     let mut part = (**before.view_part()).clone();
     let mut edits = Vec::new();
     let mut areas = Vec::new();
+    let mut paste_areas = Vec::new();
     let mut presentation = Vec::new();
     for change in &request.changes {
         match change {
@@ -259,13 +337,14 @@ pub(crate) fn prepare(
                     let copied = copied
                         .filter(|copied| (copied.workbook, copied.id) == (base.workbook, *copy))
                         .ok_or_else(|| invalid("Copy worksheet cells again before pasting."))?;
-                    let mode = match contents {
-                        PasteContents::Values => PasteMode::Values,
-                        PasteContents::Formulas => PasteMode::Formulas,
+                    let (mode, transpose) = match contents {
+                        PasteContents::Values => (PasteMode::Values, false),
+                        PasteContents::Formulas => (PasteMode::Formulas, false),
+                        PasteContents::AllTransposed => (PasteMode::All, true),
                     };
                     let host = state.session.host();
                     let excel = |reason| Refusal::Excel { reason };
-                    let plan = prepare_paste(
+                    let plan = prepare_paste_oriented(
                         host,
                         PasteSource::Snapshot {
                             snapshot: &copied.snapshot,
@@ -273,9 +352,14 @@ pub(crate) fn prepare(
                         },
                         grid_area(*to)?,
                         mode,
+                        transpose,
                     )
                     .map_err(excel)?;
-                    areas.push(plan.target());
+                    let target = plan.target();
+                    areas.push(target);
+                    if !paste_areas.contains(&target) {
+                        paste_areas.push(target);
+                    }
                     edits.extend(plan.into_edits(host).map_err(excel)?);
                 }
             },
@@ -396,8 +480,12 @@ pub(crate) fn prepare(
         edits.push(CellEdit::View(Arc::new(part)));
     }
     let mut writes = Vec::new();
+    let mut properties = Vec::new();
     if !edits.is_empty() {
         let after = state.session.preview_edits(&edits).map_err(refusal)?;
+        if !paste_areas.is_empty() {
+            properties = paste_properties(&before, &after, &paste_areas, &edits);
+        }
         let mut changed = BTreeSet::new();
         for area in areas {
             for root in [&before, &after] {
@@ -421,6 +509,7 @@ pub(crate) fn prepare(
     let preview = Preview {
         base,
         writes,
+        properties,
         presentation,
         warnings: Vec::new(),
         refusal: None,

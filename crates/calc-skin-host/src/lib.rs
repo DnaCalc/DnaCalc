@@ -20,7 +20,7 @@ use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::FormulaResultChange;
 use calc_skin::*;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 
 const TOUCH_HISTORY: usize = 100;
@@ -553,6 +553,7 @@ impl WorkbookPort for Connection {
                 Err(refusal) => Preview {
                     base,
                     writes: Vec::new(),
+                    properties: Vec::new(),
                     presentation: Vec::new(),
                     warnings: Vec::new(),
                     refusal: Some(refusal),
@@ -593,10 +594,32 @@ impl WorkbookPort for Connection {
                     return Ok(before);
                 };
                 let mut targets = Vec::new();
+                let mut cells_touched = BTreeSet::new();
                 for write in &prepared.preview.writes {
+                    cells_touched.insert(write.at);
                     targets.push(Target::Source(batch::source_area(GridArea::cell(cell(
                         write.at,
                     )?))));
+                }
+                let mut formatted = Vec::new();
+                let mut scope_changed = false;
+                for property in &prepared.preview.properties {
+                    match property {
+                        ModelPropertyDiff::CellFormat { at, .. } => {
+                            let area = GridArea::cell(cell(*at)?);
+                            formatted.push(area);
+                            if cells_touched.insert(*at) {
+                                targets.push(Target::Source(batch::source_area(area)));
+                            }
+                        }
+                        ModelPropertyDiff::Scope { source, .. } => {
+                            scope_changed = true;
+                            let target = Target::Source(source.clone());
+                            if !targets.contains(&target) {
+                                targets.push(target);
+                            }
+                        }
+                    }
                 }
                 for change in &prepared.preview.presentation {
                     let anchor = match change {
@@ -637,7 +660,7 @@ impl WorkbookPort for Connection {
                     origin: self.origin.clone(),
                     kind,
                     targets,
-                    cells_touched: prepared.preview.writes.len() as u64,
+                    cells_touched: cells_touched.len() as u64,
                     reversibility: Reversibility::Reversible,
                     group: None,
                     unreviewed: self.policy == WritePolicy::ApplyThenReview,
@@ -651,13 +674,15 @@ impl WorkbookPort for Connection {
                     .as_ref()
                     .map_or_else(Vec::new, |commit| commit.pending().to_vec());
                 state.record_calculation(before, receipt.recalc.as_ref());
-                state.record_touch(
-                    before,
-                    receipt
-                        .committed
-                        .map(|commit| commit.input_writes().to_vec()),
-                    pending,
-                );
+                let touched = if scope_changed {
+                    None
+                } else {
+                    receipt.committed.map(|commit| {
+                        formatted.extend_from_slice(commit.input_writes());
+                        formatted
+                    })
+                };
+                state.record_touch(before, touched, pending);
                 if &state.selection != state.session.selection() {
                     state.update_selection(SelectionCause::History);
                 }

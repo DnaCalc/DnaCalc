@@ -467,6 +467,7 @@ pub enum ModelChange {
 pub enum PasteContents {
     Values,
     Formulas,
+    AllTransposed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -529,10 +530,34 @@ pub struct ModelWriteDiff {
     pub after: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelProperty {
+    StyleTable,
+    ArrayFormulas,
+    MergedCells,
+    ConditionalFormatting,
+    DataValidation,
+    Notes,
+    Hyperlinks,
+    RichText,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelPropertyDiff {
+    CellFormat {
+        at: Key,
+        before: Option<u32>,
+        after: Option<u32>,
+    },
+    Scope { source: SourceRef, property: ModelProperty },
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Preview {
     pub base: Stamp,
     pub writes: Vec<ModelWriteDiff>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub properties: Vec<ModelPropertyDiff>,
     pub presentation: Vec<PresentationChange>,
     pub warnings: Vec<String>,
     pub refusal: Option<Refusal>,
@@ -540,7 +565,8 @@ pub struct Preview {
 
 impl Preview {
     pub fn kind(&self) -> Option<ChangeKind> {
-        match (self.writes.is_empty(), self.presentation.is_empty()) {
+        let model_empty = self.writes.is_empty() && self.properties.is_empty();
+        match (model_empty, self.presentation.is_empty()) {
             (false, false) => Some(ChangeKind::Both),
             (false, true) => Some(ChangeKind::Model),
             (true, false) => Some(ChangeKind::Presentation),

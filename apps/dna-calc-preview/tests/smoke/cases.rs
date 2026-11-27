@@ -607,6 +607,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             ),
         ],
     },
+    Case {
+        name: "Classic Home Paste Transpose rotates a row into a column",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "7"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "7")),
+            Action::Click("[data-cell=B1]"),
+            Action::Into("formula-bar", "8"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "8")),
+            Action::Click("[data-cell=A1]"),
+            Action::Keys("grid", "\u{e008}\u{e014}\u{e000}"),
+            Action::Keys("grid", "\u{e009}c\u{e000}"),
+            Action::Wait(Check::TextContains("strip", "Copied worksheet cells")),
+            Action::Click("[data-cell=D3]"),
+            Action::Keys("grid", "\u{e03a}hvt"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=D3]", "7"),
+            Check::Text("[data-cell=D4]", "8"),
+            Check::Text("[data-cell=E3]", ""),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -690,6 +714,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-clipboard-focus",
         start: 30,
+        end: 31,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-transpose",
+        start: 31,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],
