@@ -13,6 +13,7 @@ portability = "portable"
 calc-host = { path = "../calc-host" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-formula-kernel = { path = "../calc-formula-kernel" }
+calc-formula-host = { path = "../calc-formula-host" }
 calc-func = { path = "../calc-func" }
 calc-skin = { path = "../calc-skin" }
 serde = "=1.0.229"

@@ -165,10 +165,17 @@ impl DockSide {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct DockSpec {
     pub command: &'static str,
     pub label: &'static str,
     pub mount: fn(Session, DockSide) -> AnyView,
+}
+
+/// A dockable tool that is available independently of the view on stage.
+pub struct ToolSpec {
+    pub dock: DockSpec,
+    pub commands: fn(Session) -> Vec<ViewCommand>,
 }
 
 pub trait View: 'static {
@@ -233,5 +240,17 @@ impl crate::Registry {
             }
             session.install(view.commands(session));
         }
+        for tool in &self.tools {
+            session.install((tool.commands)(session));
+        }
+    }
+
+    pub fn tool(&mut self, tool: ToolSpec) {
+        self.tools.push(tool);
+    }
+
+    pub fn docks(&self) -> impl Iterator<Item = DockSpec> + '_ {
+        self.views.iter().filter_map(|view| view.dock())
+            .chain(self.tools.iter().map(|tool| tool.dock))
     }
 }

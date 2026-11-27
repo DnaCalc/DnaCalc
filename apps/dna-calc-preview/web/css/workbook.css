@@ -150,6 +150,23 @@
 }
 .dna-book-work { display: flex; min-width: 0; min-height: 0; }
 .dna-book-dock-right { min-height: 0; display: flex; }
+.dna-explorer-dock {
+    box-sizing: border-box;
+    width: min(36rem, 46vw);
+    min-height: 0;
+    overflow: auto;
+    border-inline-start: 1px solid var(--dna-line);
+}
+.dna-explorer-dock > header {
+    display: flex;
+    align-items: center;
+    gap: var(--dna-gap-2);
+    padding: var(--dna-gap-2);
+    background: var(--dna-paper-2);
+}
+.dna-explorer-dock > header button { margin-inline-start: auto; }
+.dna-explorer-dock .dna-fe-workbench { grid-template-columns: minmax(0, 1fr); }
+.dna-explorer-dock > [role=status] { padding-inline: var(--dna-gap-2); }
 .dna-book-dock-bottom { grid-column: 1 / -1; }
 .dna-book-dock-right .dna-inspector-dock {
     box-sizing: border-box;

@@ -15,6 +15,7 @@ dna-kit = { path = "../dna-kit" }
 dna-shell = { path = "../dna-shell" }
 dna-skin-runtime = { path = "../dna-skin-runtime" }
 dna-view-classic = { path = "../dna-view-classic" }
+dna-view-explorer = { path = "../dna-view-explorer" }
 dna-view-inspector = { path = "../dna-view-inspector" }
 dna-view-notebook = { path = "../dna-view-notebook" }
 dna-view-app = { path = "../dna-view-app" }

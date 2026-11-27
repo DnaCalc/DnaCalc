@@ -2,6 +2,8 @@
 
 mod providers;
 mod tools;
+mod workbook;
+pub use workbook::install_docked;
 
 use calc_formula_kernel::assist;
 use calc_skin::site::SitePage;
@@ -258,6 +260,10 @@ impl FormulaView for Explorer {
                     <div class="dna-fe-actions">
                         <button type="button" class="dna-fe-primary" data-skin0="evaluate"
                                 on:click=move |_| submit(false)>"Evaluate"</button>
+                        {context.apply.map(|apply| view! {
+                            <button type="button" data-command="explorer.apply"
+                                on:click=move |_| apply.run(formula.get_untracked())>"Apply to cell"</button>
+                        })}
                         <kbd>"Ctrl+Enter"</kbd>
                         <a href=move || FormulaLink(formula.get()).fragment()>"Formula link"</a>
                     </div>

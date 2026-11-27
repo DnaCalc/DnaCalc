@@ -16,9 +16,9 @@ use crate::Live;
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::{self, Query};
 use calc_skin::{
-    Answer, Batch, Budget, Change, Envelope, Frame, Message, ModelChange, Operation, Packet,
-    Preview, PreviewDepth, Refusal, Revision, Selection, SourceRef, Stamp, Target, WatchId,
-    WorkbookId, WorkbookReply, WorkbookRequest,
+    Answer, Batch, Budget, Change, Envelope, FormulaAnswer, FormulaOperation, FormulaQuery,
+    FormulaReply, Frame, Message, ModelChange, Operation, Packet, Preview, PreviewDepth, Refusal,
+    Revision, Selection, SourceRef, Stamp, Target, WatchId, WorkbookId, WorkbookReply, WorkbookRequest,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
@@ -126,6 +126,7 @@ enum Pending {
     Run { notice: Option<String> },
     Resolve,
     Navigate,
+    Formula(FormulaReply),
 }
 
 struct Slot {
@@ -149,12 +150,26 @@ pub struct Client {
     seam: Option<(Seam, Batch, Submission)>,
     notice: String,
     last_refusal: Option<Refusal>,
+    formula_replies: Vec<(FormulaReply, Result<FormulaAnswer, Refusal>)>,
 }
 
 impl Client {
     /// The packets to send, in order. The carrier calls this after every call into the client.
     pub fn take_outbox(&mut self) -> Vec<Packet> {
         self.outbox.drain(..).collect()
+    }
+
+    pub fn ask_formula(&mut self, query: FormulaQuery, complete: FormulaReply) {
+        self.send(WorkbookRequest::FormulaQuery(query), None, Pending::Formula(complete));
+    }
+
+    pub fn operate_formula(&mut self, operation: FormulaOperation, complete: FormulaReply) {
+        self.send(WorkbookRequest::FormulaOperation(operation), None, Pending::Formula(complete));
+    }
+
+    /// Run completions outside the client's borrow so a formula tool can send another request.
+    pub fn take_formula_replies(&mut self) -> Vec<(FormulaReply, Result<FormulaAnswer, Refusal>)> {
+        std::mem::take(&mut self.formula_replies)
     }
 
     pub fn stamp(&self) -> Option<Stamp> {
@@ -641,6 +656,14 @@ impl Client {
 
     fn reply(&mut self, pending: Pending, result: Result<WorkbookReply, Refusal>) -> Changes {
         match (pending, result) {
+            (Pending::Formula(complete), result) => {
+                let result = result.and_then(|reply| match reply {
+                    WorkbookReply::Formula(answer) => Ok(answer),
+                    _ => Err(Refusal::Transport("Expected a formula reply".into())),
+                });
+                self.formula_replies.push((complete, result));
+                Changes::default()
+            }
             (Pending::Quiet, _) => Changes::default(),
             (Pending::Watch(key), Ok(WorkbookReply::Watching(id))) => {
                 if self.orphans.remove(&key) {

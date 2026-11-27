@@ -284,6 +284,7 @@ impl SkinHost {
             host: self.state.clone(),
             origin,
             policy,
+            formula: RefCell::default(),
             local: RefCell::new(Local {
                 journal: CommandJournal::new(128, 1024 * 1024),
                 watches: BTreeMap::new(),
@@ -353,10 +354,22 @@ pub struct Connection {
     host: Rc<RefCell<State>>,
     origin: Origin,
     policy: WritePolicy,
+    formula: RefCell<Option<calc_formula_host::FormulaHost>>,
     local: RefCell<Local>,
 }
 
 impl Connection {
+    fn formula_request(
+        &self,
+        request: impl FnOnce(&mut calc_formula_host::FormulaHost) -> Result<FormulaAnswer, Refusal>,
+    ) -> Result<WorkbookReply, Refusal> {
+        if !matches!(self.origin, Origin::User { .. }) {
+            return Err(Refusal::PolicyRefused);
+        }
+        let mut host = self.formula.borrow_mut();
+        request(host.get_or_insert_with(Default::default)).map(WorkbookReply::Formula)
+    }
+
     fn check_write(&self, state: &State) -> Result<(), Refusal> {
         if state.read_only {
             Err(Refusal::ReadOnly)
@@ -894,6 +907,10 @@ impl Connection {
             }
             WorkbookRequest::Commit(batch) => WorkbookReply::Stamp(self.commit(batch)?),
             WorkbookRequest::Run(operation) => WorkbookReply::Stamp(self.run(operation)?),
+            WorkbookRequest::FormulaQuery(query) => self.formula_request(|host| host.handle(query))?,
+            WorkbookRequest::FormulaOperation(operation) => {
+                self.formula_request(|host| host.operate(operation))?
+            }
         })
     }
 }
