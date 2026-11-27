@@ -732,6 +732,8 @@ pub enum Operation {
     Calculate { scope: SourceRef },
     CancelCalculation,
     ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
+    /// Freeze the leading bands before the confirmed active cell, or unfreeze the sheet.
+    ToggleFreezePanes { workbook: WorkbookId, at: Key },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
     /// Pin the current publication for these page bindings without editing the workbook.
     PinBaseline { expected: Stamp, bounds: Vec<Bound>, budget: Budget },

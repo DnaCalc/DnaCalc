@@ -68,7 +68,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     command("M A A", "Remove All Arrows", "grid.clear-traces"),
     command("M V", "Evaluate Formula", "explorer.dock"),
     group("W F", "Freeze Panes"),
-    pending("W F F", "Freeze Panes"),
+    command("W F F", "Freeze Panes", "grid.freeze-panes"),
     group("W V", "Show"),
     command("W V G", "Gridlines", "grid.toggle-gridlines"),
     pending("W L", "Normal View"),

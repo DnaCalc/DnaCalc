@@ -798,6 +798,28 @@ impl WorkbookPort for Connection {
                 state.session.toggle_gridlines(sheet.id()).map_err(batch::refusal)?;
                 return Ok(state.stamp());
             }
+            Operation::ToggleFreezePanes { workbook, at } => {
+                self.check_write(&state)?;
+                let at = cell(at)?;
+                if workbook != before.workbook || state.selection.active != Some(at) {
+                    return Err(Refusal::StaleSelection);
+                }
+                let sheet = at.sheet();
+                let view = state.session.host().sheet_view(sheet)
+                    .ok_or_else(|| invalid("The worksheet is unavailable"))?;
+                let (rows, columns) = if view.frozen.is_some() {
+                    (0, 0)
+                } else {
+                    if view.top_left.is_some_and(|origin| origin != (1, 1)) {
+                        return Err(unavailable("dc-s2xup", "Freezing panes from an offset worksheet origin"));
+                    }
+                    if (at.row(), at.column()) == (1, 1) {
+                        return Err(unavailable("dc-s2xup", "Freezing at the first cell using the window midpoint"));
+                    }
+                    (at.row() - 1, at.column() - 1)
+                };
+                SkinIntent::Command(calc_host::WorkbookCommand::FreezePanes { sheet, rows, columns })
+            }
             Operation::CopyCells { workbook, copy, from } => {
                 if workbook != before.workbook {
                     return Err(Refusal::StaleSelection);

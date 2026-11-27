@@ -236,6 +236,46 @@ fn classic_help_keeps_the_active_cell_and_workbook_revision() {
     assert_eq!(session.stamp().unwrap().model, before);
 }
 
+/// Native-only: runs the confirmed selection and worksheet view through CalcHost and saves a scratch XLSX.
+#[test]
+fn classic_freeze_panes_key_tip_persists_and_toggles() {
+    let page = Page::open();
+    let session = page.session;
+    let active = page.at(4, 3);
+    session.select_cell(active);
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    page.settle();
+
+    for key in ["F10", "w", "f", "f"] {
+        assert!(page.press(key, Focus::Stage));
+    }
+    assert!(
+        matches!(session.read(geometry), Live::Ready(answer)
+            if (answer.body.frozen_rows, answer.body.frozen_columns) == (3, 2)),
+        "the key path must freeze the rows above C4 and columns to its left"
+    );
+    assert_eq!(session.active(), Some(active));
+
+    let bytes = page.host.with_session(SelectionCause::Open, |book| {
+        let mut bytes = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+        bytes
+    });
+    session.open("Frozen.xlsx".into(), bytes);
+    page.settle();
+    let Key(sheet, generation, _, _) = session.active().unwrap();
+    let geometry = session.watch(query::Geometry { sheet: Sheet(sheet, generation) });
+    page.settle();
+    assert!(matches!(session.read(geometry), Live::Ready(answer)
+        if (answer.body.frozen_rows, answer.body.frozen_columns) == (3, 2)));
+
+    for key in ["F10", "w", "f", "f"] {
+        assert!(page.press(key, Focus::Stage));
+    }
+    assert!(matches!(session.read(geometry), Live::Ready(answer)
+        if (answer.body.frozen_rows, answer.body.frozen_columns) == (0, 0)));
+}
+
 /// Native-only: drives the Classic command through CalcHost and round-trips a scratch XLSX.
 #[test]
 fn classic_gridlines_key_tip_persists_as_a_worksheet_view() {
