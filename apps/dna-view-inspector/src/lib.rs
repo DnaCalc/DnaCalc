@@ -1,6 +1,7 @@
 //! Audit instruments over the workbook session. The bench and dock use the same components.
 
 mod audit;
+mod live;
 mod notes;
 mod trace;
 
@@ -86,6 +87,7 @@ struct State {
     trace_window: RwSignal<Option<trace::TraceWindow>>,
     details: RwSignal<bool>,
     notes: RwSignal<bool>,
+    recording: RwSignal<live::Recording>,
 }
 
 pub fn install(registry: &mut Registry) {
@@ -182,6 +184,7 @@ impl View for Inspector {
         ]);
         commands.extend(trace_commands(session));
         commands.extend(notes::commands(session));
+        commands.extend(live::commands(session));
         commands
     }
 
@@ -247,6 +250,7 @@ fn bench(session: Session, docked: bool) -> impl IntoView {
                 <div class="dna-inspector-actions">
                     {button(session, "inspector.details", "Details")}
                     {button(session, "inspector.notes", "Notes")}
+                    {button(session, "inspector.pin-signal", "Pin cell")}
                     {docked.then(|| view! {
                         {button(session, "inspector.enlarge", "Enlarge")}
                         {button(session, "inspector.dock-side", "Move panel")}
@@ -256,6 +260,7 @@ fn bench(session: Session, docked: bool) -> impl IntoView {
             </header>
             <nav class="dna-inspector-tabs" aria-label="Inspector instruments">{selectors}</nav>
             <section class="dna-inspector-instrument" data-inspector-tab=move || state.instrument.get().label()>
+                {live::pinned(session)}
                 <Show when=move || state.details.get()>{notes::details(session)}</Show>
                 <Show when=move || state.notes.get()>{notes::mount(session)}</Show>
                 {move || state.instrument.get().mount(session)}

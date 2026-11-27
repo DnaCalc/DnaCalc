@@ -70,6 +70,12 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
                 "[data-inspector='trace-result']",
                 "128450",
             )),
+            Action::Click("[data-command='inspector.dock-side']"),
+            Action::Wait(Check::Rendered("[data-inspector-dock='bottom']", true)),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='trace-result']",
+                "128450",
+            )),
             Action::Click("[data-command='inspector.enlarge']"),
         ],
         checks: &[
@@ -200,6 +206,77 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Value("formula-bar", "=SUM(Revenue.Window)"),
         ],
     },
+    Case {
+        name: "Live records the selected cell across view switches",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "5"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "5")),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Click("[data-command='inspector.live']"),
+            Action::Click("[data-command='inspector.record']"),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='recording-last']",
+                "Last 5",
+            )),
+            Action::Click("[data-command='view.classic']"),
+            Action::Into("formula-bar", "9"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "9")),
+            Action::Click("[data-command='view.inspector']"),
+        ],
+        checks: &[
+            Check::TextContains("[data-inspector='recording-last']", "Last 9"),
+            Check::TextContains("[data-inspector='recording-count']", "2 observed"),
+        ],
+    },
+    Case {
+        name: "Live pauses, replays and clears without changing the workbook",
+        actions: &[
+            Action::Click("[data-command='inspector.pause-capture']"),
+            Action::Click("[data-command='view.classic']"),
+            Action::Into("formula-bar", "12"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "12")),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='recording-last']",
+                "Last 9",
+            )),
+            Action::Keys("[aria-label='Replay sample']", "\u{e011}"),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='recording-last']",
+                "Last 5",
+            )),
+            Action::Wait(Check::Value("formula-bar", "12")),
+            Action::Click("[data-command='inspector.clear-capture']"),
+        ],
+        checks: &[
+            Check::Absent("[data-inspector='recording-last']"),
+            Check::TextContains("[data-inspector='recording-count']", "0 observed"),
+            Check::Value("formula-bar", "12"),
+        ],
+    },
+    Case {
+        name: "Calculation shows dependency waves separately from execution observation",
+        actions: &[
+            Action::Click("[data-command='view.classic']"),
+            Action::Into("formula-bar", "=B1"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Value("formula-bar", "=B1")),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Click("[data-command='inspector.calculation']"),
+        ],
+        checks: &[
+            Check::Count("[data-inspector-tab='Calculation'] ol > li", 2),
+            Check::TextContains(
+                "[data-inspector-tab='Calculation']",
+                "Derived from up to five levels of precedents",
+            ),
+            Check::TextContains("[data-inspector-tab='Calculation']", "Not observed"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -222,6 +299,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         start: 7,
         end: 9,
         core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "live",
+        start: 9,
+        end: 12,
+        core: 3,
         setup: &[],
     },
 ];
