@@ -301,7 +301,9 @@ pub(crate) fn invalidated(
                     .cell()
                     .is_none_or(|at| intersects(&[GridArea::cell(at)], false))
         }
-        WorkbookQuery::ExpressionTree { .. } | WorkbookQuery::TrialFor { .. } => {
+        WorkbookQuery::ExpressionTree { .. }
+        | WorkbookQuery::TrialFor { .. }
+        | WorkbookQuery::EvaluateDraftPart { .. } => {
             authored || recalculated || rtd_changed
         }
         WorkbookQuery::Geometry { .. } => authored || presentation,
@@ -311,12 +313,14 @@ pub(crate) fn invalidated(
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
         WorkbookQuery::ResolveBound { .. } => authored || presentation,
         WorkbookQuery::ConsistentBindings { .. } => authored || presentation || recalculated || rtd_changed,
+        WorkbookQuery::BoundInput { .. } => authored || presentation || recalculated,
         WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
         WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
         }
         WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
         WorkbookQuery::DefinedName { .. } => authored,
+        WorkbookQuery::FormulaNames { .. } => authored,
         WorkbookQuery::SpillBlockers { .. } => authored || recalculated,
         WorkbookQuery::Structure { scope } => {
             (authored && scope_touched())
@@ -755,6 +759,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::Sources => Some("Increase the source inventory budget"),
         WorkbookQuery::Contributions { .. } => Some("Increase the contribution scan budget"),
         WorkbookQuery::TrialFor { .. } => Some("Choose a formula that reads fewer cells"),
+        WorkbookQuery::FormulaNames { .. } => Some("Choose fewer formula cells"),
         _ => None,
     };
     let mut meter = QueryWork::scan(
@@ -797,6 +802,26 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::DefinedName { scope, name } => {
             meter.work(0, 1, 0)?;
             query::DefinedName::encode(&crate::names::facts(host, scope, name)?)?
+        }
+        WorkbookQuery::FormulaNames { cells } => {
+            let mut entries = Vec::new();
+            for at in cells {
+                meter.work(0, 1, 0)?;
+                if let Some((text, names)) = host.formula_name_sources(cell(*at)?) {
+                    let mut links = Vec::new();
+                    for (span, id) in names {
+                        meter.work(0, 0, 1)?;
+                        if let Some(source) = crate::names::stable_source(host, id) {
+                            links.push(query::FormulaNameLink { start: span.start, end: span.end(), source });
+                        }
+                    }
+                    links.sort_by_key(|link| (link.start, link.end));
+                    if !links.is_empty() {
+                        entries.push(query::FormulaNamesOf { at: *at, text, links });
+                    }
+                }
+            }
+            query::FormulaNames::encode(&entries)?
         }
         WorkbookQuery::SpillBlockers { anchor } => {
             let anchor = cell(*anchor)?;
@@ -942,6 +967,20 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             query::ExpressionTree::encode(&evidence)?
         }
         WorkbookQuery::TrialFor { at } => query::TrialFor::encode(&trial_for(state, *at, budget)?)?,
+        WorkbookQuery::EvaluateDraftPart { at, formula, start, len } => {
+            let at = cell(*at)?;
+            checked_sheet(host, Sheet::of(at.sheet()))?;
+            if host.calculation_state() != 0 {
+                return Err(invalid("Wait for calculation before evaluating the formula selection."));
+            }
+            if !formula.starts_with('=') || formula.encode_utf16().count() > 8192 {
+                return Err(invalid("Select part of an Excel formula of at most 8192 UTF-16 units."));
+            }
+            let mut evaluator = WorkbookExpression { host, at, meter: &mut meter };
+            let result = calc_formula_kernel::parts::evaluate_part(&mut evaluator, formula, *start, *len);
+            meter.check()?;
+            query::EvaluateDraftPart::encode(&result.map_err(invalid)?)?
+        }
         WorkbookQuery::Rules { at } => {
             let at = cell(*at)?;
             checked_sheet(host, Sheet::of(at.sheet()))?;
@@ -1069,6 +1108,17 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             coverage = completeness;
             query::ConsistentBindings::encode(&snapshot)?
         }
+        WorkbookQuery::BoundInput { bound } => {
+            let at = bound_cell(state, bound)?;
+            let cell = host.model().cell(at);
+            let input = entry_text(cell);
+            let is_formula = matches!(cell, Some(calc_doc_model::CellInput::Formula(_)));
+            let writable = !state.read_only && !is_formula && batch::rules(&state.session, at).is_ok();
+            query::BoundInput::encode(&query::BoundInputFacts {
+                input: if is_formula { calc_formula_kernel::display::formula(&input) } else { input },
+                writable,
+            })?
+        }
         WorkbookQuery::PrintPlan { source } => {
             let areas = source_areas(state, source)?;
             let sheet = areas
@@ -1137,6 +1187,26 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
     })
 }
 
+struct WorkbookExpression<'a> {
+    host: &'a HostState,
+    at: CellKey,
+    meter: &'a mut QueryWork,
+}
+
+impl calc_formula_kernel::parts::PartEvaluator for WorkbookExpression<'_> {
+    fn calculate(&mut self, text: &str) -> Result<CalcValue, String> {
+        self.meter
+            .check()
+            .map_err(|_| "Expression inspection exceeded its budget.".to_string())?;
+        self.host
+            .evaluate_formula_text(text.strip_prefix('=').unwrap_or(text), self.at)
+    }
+
+    fn profile(&self) -> Option<calc_host::FormatProfile> {
+        self.host.options().locale.clone()
+    }
+}
+
 fn expression_tree(
     host: &HostState,
     at: CellKey,
@@ -1153,25 +1223,7 @@ fn expression_tree(
             reason: "This cell has no formula.".into(),
         });
     };
-    struct Evaluator<'a> {
-        host: &'a HostState,
-        at: CellKey,
-        meter: &'a mut QueryWork,
-    }
-    impl calc_formula_kernel::parts::PartEvaluator for Evaluator<'_> {
-        fn calculate(&mut self, text: &str) -> Result<CalcValue, String> {
-            self.meter
-                .check()
-                .map_err(|_| "Expression inspection exceeded its budget.".to_string())?;
-            self.host
-                .evaluate_formula_text(text.strip_prefix('=').unwrap_or(text), self.at)
-        }
-
-        fn profile(&self) -> Option<calc_host::FormatProfile> {
-            self.host.options().locale.clone()
-        }
-    }
-    let mut evaluator = Evaluator { host, at, meter };
+    let mut evaluator = WorkbookExpression { host, at, meter };
     let formula = calc_formula_kernel::display::formula(&entry_text(Some(input)));
     let body = calc_formula_kernel::parts::trace(&mut evaluator, &formula);
     meter.check()?;

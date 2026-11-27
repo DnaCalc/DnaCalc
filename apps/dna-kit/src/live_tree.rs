@@ -2,11 +2,18 @@
 
 use crate::{Live, Session};
 use calc_skin::grid::Key;
-use calc_skin::{Evidence, query};
+use calc_skin::{Budget, Evidence, query};
+use dna_skin_runtime::client::PAGE_BUDGET;
 use leptos::prelude::*;
 
+/// Bounds expression queries that may read the same workbook range for several bindings.
+pub const EXPRESSION_BUDGET: Budget = Budget {
+    millis: 2_000,
+    ..PAGE_BUDGET
+};
+
 pub fn live_tree(session: Session, at: Key) -> impl IntoView {
-    let tree = session.following::<query::ExpressionTree>();
+    let tree = session.following_with_budget::<query::ExpressionTree>(EXPRESSION_BUDGET);
     view! {
         <section class="dna-live-tree" aria-label="Expression structure">
             <h3>"Expression structure"</h3>

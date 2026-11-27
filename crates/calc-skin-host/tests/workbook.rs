@@ -62,6 +62,117 @@ fn target(at: Key) -> SourceRef {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn evaluate_draft_part_uses_workbook_values_without_replacing_the_formula() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let source = Key(sheet.0, sheet.1, 1, 1);
+    let caller = Key(sheet.0, sheet.1, 1, 2);
+    connection.commit(batch(1, vec![enter(source, "3"), enter(caller, "=A1+1")])).unwrap();
+    while host.advance() {}
+    let formula = "=LET(amount,A1*2,amount+10)";
+    let start = formula.find("amount+10").unwrap();
+    let original = connection.ask(query::Formula { at: caller }.request(), BUDGET).unwrap();
+    let request = query::EvaluateDraftPart { at: caller, formula: formula.into(), start, len: 9 };
+    let answer = query::EvaluateDraftPart::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.literal, "16");
+    assert_eq!(answer.stamp, original.stamp);
+    assert_eq!(connection.ask(query::Formula { at: caller }.request(), BUDGET).unwrap(), original);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linked_input_reads_value_and_write_authority_together() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = Key(sheet.0, sheet.1, 1, 1);
+    let anchor = AnchorId(NonZeroU128::new(10).unwrap());
+    connection.commit(batch(1, vec![
+        enter(at, "3"),
+        Change::Presentation(PresentationChange::Bind { anchor, source: target(at) }),
+    ])).unwrap();
+    let read = |address| {
+        let request = query::BoundInput { bound: Bound { anchor, address: String::from(address) } };
+        query::BoundInput::decode(connection.ask(request.request(), BUDGET)?)
+    };
+    let result = read("Sheet1!A1").unwrap();
+    assert_eq!(result.body.input, "3");
+    assert!(result.body.writable);
+    assert!(read("Sheet1!B1").is_err());
+    connection.commit(batch(2, vec![enter(at, "=1+2")])).unwrap();
+    let result = read("Sheet1!A1").unwrap();
+    assert_eq!(result.body.input, "=1+2");
+    assert!(!result.body.writable);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn defined_name_facts_project_the_bound_cells_and_spill_anchor() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let anchor = Key(sheet.0, sheet.1, 10, 1);
+    let stamp = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let mut edit = batch(1, vec![
+        enter(anchor, "=SEQUENCE(3,2)"),
+        Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::Define { name: "outputRows".into(), formula: "=Sheet1!$A$10#".into() },
+        }),
+        Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::Define { name: "outputCell".into(), formula: "=Sheet1!$A$10".into() },
+        }),
+        Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::Define { name: "calculatedScalar".into(), formula: "=$A$10+1".into() },
+        }),
+    ]);
+    edit.base = Some(stamp.model);
+    connection.commit(edit).unwrap();
+    while host.advance() {}
+    for (name, expected) in [
+        ("outputRows", Some(SourceRef::Spill { anchor })),
+        ("outputCell", Some(target(anchor))),
+        ("calculatedScalar", None),
+    ] {
+        let query = query::DefinedName { scope: NameScope::Workbook, name: name.into() };
+        let answer = connection.ask(query.request(), BUDGET).unwrap();
+        assert_eq!(query::DefinedName::decode(answer).unwrap().body.source, expected, "{name}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn formula_name_links_respect_utf16_spans_and_lexical_shadowing() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let anchor = Key(sheet.0, sheet.1, 10, 1);
+    let linked = Key(sheet.0, sheet.1, 2, 5);
+    let local = Key(sheet.0, sheet.1, 3, 5);
+    let stamp = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let mut edit = batch(1, vec![
+        enter(anchor, "=SEQUENCE(3,2)"),
+        enter(linked, "=LET(emoji,\"🙂\",SUM(outputRows)+LEN(emoji))"),
+        enter(local, "=LET(outputRows,4,outputRows+1)"),
+        Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::Define { name: "outputRows".into(), formula: "=Sheet1!$A$10#".into() },
+        }),
+    ]);
+    edit.base = Some(stamp.model);
+    connection.commit(edit).unwrap();
+    while host.advance() {}
+    let request = query::FormulaNames { cells: vec![linked, local] };
+    let answer = query::FormulaNames::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    let [entry] = answer.body.as_slice() else { panic!("expected one linked formula") };
+    assert_eq!(entry.at, linked);
+    let [link] = entry.links.as_slice() else { panic!("expected one workbook name link") };
+    let encoded = entry.text.encode_utf16().collect::<Vec<_>>();
+    assert_eq!(String::from_utf16(&encoded[link.start..link.end]).unwrap(), "outputRows");
+    assert_eq!(link.source, SourceRef::Spill { anchor });
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn page_inputs_require_both_binding_identities_and_preserve_formulas() {
     let (host, sheet) = workbook();
     let connection = port(&host);

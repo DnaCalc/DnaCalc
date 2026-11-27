@@ -38,9 +38,11 @@ pub(super) fn fixture(name: &str) -> Result<Vec<u8>, String> {
 
 type BuildResult = Result<(Vec<u8>, usize), Box<dyn std::error::Error>>;
 
-const FIXTURES: [(&str, fn() -> BuildResult); 5] = [
+const FIXTURES: [(&str, fn() -> BuildResult); 7] = [
     ("Budget", budget),
     ("Sales", sales),
+    ("SalesNotebook", sales_notebook),
+    ("SalesBlocked", sales_blocked),
     ("Loan", loan),
     ("Stock", stock),
     ("Inherited", inherited),
@@ -235,7 +237,11 @@ fn budget() -> BuildResult {
 }
 
 fn sales() -> BuildResult {
-    let mut w = Fixture::new(&["Orders", "Report", "Pivot"])?;
+    sales_workbook(&["Orders", "Report", "Pivot"], r#"RTD("DnaCalc.Clock",,"LARK")"#)?.finish()
+}
+
+fn sales_workbook(sheets: &[&str], price: &str) -> Result<Fixture, Box<dyn std::error::Error>> {
+    let mut w = Fixture::new(sheets)?;
     let headers = [
         "Order", "Customer", "Region", "Status", "Owner", "Date", "Amount",
     ];
@@ -314,8 +320,157 @@ fn sales() -> BuildResult {
         r#"XLOOKUP("SO10482",Orders[Order],Orders[Customer])"#,
     );
     w.spill(1, 12, 1, r#"FILTER(Orders,Orders[Status]="Pending")"#);
-    w.formula(1, 2, 5, r#"RTD("DnaCalc.Clock",,"LARK")"#);
+    w.formula(1, 2, 5, price);
+    Ok(w)
+}
+
+fn sales_notebook() -> BuildResult {
+    sales_analysis(false)
+}
+
+fn sales_blocked() -> BuildResult {
+    sales_analysis(true)
+}
+
+fn sales_analysis(blocked: bool) -> BuildResult {
+    const REPORT: usize = 1;
+    const ANALYSIS: usize = 3;
+    let mut w = sales_workbook(
+        &["Orders", "Report", "Pivot", "Analysis"],
+        r#"RTD("DnaCalc.Price",,"LARK","last")"#,
+    )?;
+    for (row, label) in [(2, "Region"), (3, "Status"), (4, "First day"), (5, "Last day"), (6, "Held units")] {
+        w.text(ANALYSIS, row, 1, label);
+    }
+    w.text(ANALYSIS, 2, 2, if blocked { "West" } else { "All" });
+    w.text(ANALYSIS, 3, 2, "Pending");
+    for (row, number) in [(4, 1.), (5, 28.), (6, 40.)] {
+        w.number(ANALYSIS, row, 2, number);
+    }
+    let define = |name: &str, formula: &str| WorkbookOp::SetNameFormula {
+        name: name.into(),
+        scope: NameScope::Workbook,
+        formula: Some(formula.into()),
+    };
+    if blocked {
+        w.formula(ANALYSIS, 16, 1, r#""Review with Sam""#);
+        w.edits.push(define("reviewNote", "Analysis!$A$16"));
+        w.text(ANALYSIS, 10, 25, "Reserved");
+    } else {
+        w.text(ANALYSIS, 10, 25, "Review with Sam");
+    }
+    let spill = [
+        (1, 7, "scopeOrders", "$A$10", r#"_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2="All"))*((Orders[Status]=$B$3)+($B$3="All"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))"#),
+        (10, 2, "byRegion", "$J$10", "IF(ISERROR($A$10),$A$10,_xlfn.GROUPBY(_xlfn.CHOOSECOLS(scopeOrders,3),_xlfn.CHOOSECOLS(scopeOrders,7),_xleta.SUM,0,0,1))"),
+        (13, 2, "byMonth", "$M$10", r#"IF(ISERROR($A$10),$A$10,_xlfn.PIVOTBY(_xlfn.CHOOSECOLS(scopeOrders,3),TEXT(_xlfn.CHOOSECOLS(scopeOrders,6),"yyyy-mm"),_xlfn.CHOOSECOLS(scopeOrders,7),_xleta.SUM,0,0,1,0,1))"#),
+        (17, 2, "rankedOrders", "$Q$10", "IF(ISERROR($J$10),$J$10,_xlfn.SORTBY(byRegion,_xlfn.CHOOSECOLS(byRegion,2),-1,_xlfn.CHOOSECOLS(byRegion,1),1))"),
+        (21, 2, "chartData", "$U$10", "IF(ISERROR($Q$10),$Q$10,rankedOrders)"),
+    ];
+    let mut part = calc_doc::model::ViewPart::default();
+    let mut cells = Vec::new();
+    for (row, label, control) in [
+        (2, "Region", serde_json::json!({"type":"choice", "options":["All","East","North","South","West"]})),
+        (3, "Status", serde_json::json!({"type":"choice", "options":["Pending","Paid","All"]})),
+        (4, "First November day", serde_json::json!({"type":"integer", "min":1, "max":28})),
+        (5, "Last November day", serde_json::json!({"type":"integer", "min":1, "max":28})),
+    ] {
+        let anchor = AnchorId(NonZeroU128::new(cells.len() as u128 + 1).unwrap());
+        part = part.with_anchor(calc_doc::model::ViewAnchor::cells(anchor, GridArea::cell(w.at(ANALYSIS, row, 2))));
+        cells.push(serde_json::json!({"id":anchor, "kind":"control", "label":label, "address":format!("Analysis!B{row}"), "control":control}));
+    }
+    let mut chart_data = None;
+    for (column, width, name, address, formula) in spill {
+        let anchor = AnchorId(NonZeroU128::new(cells.len() as u128 + 1).unwrap());
+        if name == "chartData" { chart_data = Some(anchor); }
+        w.spill(ANALYSIS, 10, column, formula);
+        w.edits.push(define(name, &format!("_xlfn.ANCHORARRAY(Analysis!{address})")));
+        part = part.with_anchor(calc_doc::model::ViewAnchor::spill(anchor, w.at(ANALYSIS, 10, column)));
+        cells.push(serde_json::json!({"id": anchor, "kind": "formula", "owned": true, "lane_columns": width, "output_name": name}));
+    }
+    w.formula(ANALYSIS, 2, 10, "IF(ISERROR($A$10),$A$10,_xlfn.LET(items,scopeOrders,amounts,_xlfn.CHOOSECOLS(items,7),SUM(amounts)))");
+    w.formula(ANALYSIS, 5, 10, "Report!E2*$B$6");
+    for (sheet, row, column, name, address) in [
+        (ANALYSIS, 2, 10, "scopeTotal", "Analysis!$J$2"),
+        (REPORT, 2, 5, "latestPrice", "Report!$E$2"),
+        (ANALYSIS, 5, 10, "positionValue", "Analysis!$J$5"),
+    ] {
+        let anchor = AnchorId(NonZeroU128::new(cells.len() as u128 + 1).unwrap());
+        w.edits.push(define(name, address));
+        let area = GridArea::cell(w.at(sheet, row, column));
+        part = part.with_anchor(calc_doc::model::ViewAnchor::cells(anchor, area));
+        cells.push(serde_json::json!({"id": anchor, "kind": "formula", "owned": sheet == ANALYSIS, "output_name": name}));
+    }
+    w.edits.push(define("Chart.Region", "Analysis!$U$10:INDEX(Analysis!$U:$U,9+ROWS(rankedOrders))"));
+    w.edits.push(define("Chart.Amount", "Analysis!$V$10:INDEX(Analysis!$V:$V,9+ROWS(rankedOrders))"));
+    let sheet = w.at(ANALYSIS, 1, 1).sheet();
+    let chart_part = w.workbook.available_part_name("charts/dnaChart", "xml", &[]);
+    w.edits.push(WorkbookOp::SetCharts { sheet, charts: vec![sales_chart(chart_part)] });
+    let chart = AnchorId(NonZeroU128::new(cells.len() as u128 + 1).unwrap());
+    let location = w.model().sheets()[ANALYSIS].key();
+    part = part.with_anchor(calc_doc::model::ViewAnchor::object(chart, location, "SalesByRegion".into()));
+    cells.push(serde_json::json!({
+        "id": chart, "kind": "chart", "address": "obj:Analysis/SalesByRegion",
+        "requires": chart_data,
+    }));
+    let prose = AnchorId(NonZeroU128::new(cells.len() as u128 + 1).unwrap());
+    cells.push(serde_json::json!({"id": prose, "kind": "prose", "markdown": "### Sales in scope\nAmount: {=scopeTotal}"}));
+    let document = calc_doc::model::ViewDocument {
+        id: DocId(NonZeroU128::new(1).unwrap()),
+        view: "notebook".into(),
+        sheet: None,
+        schema: 1,
+        body: serde_json::to_string(&serde_json::json!({"layout": "vertical", "cells": cells}))?,
+    };
+    w.edits.push(WorkbookOp::EditView(Arc::new(part.with_document(document))));
     w.finish()
+}
+
+fn sales_chart(part: String) -> calc_doc::model::Chart {
+    use calc_doc::model::{Chart, ChartAnchor, ChartAxis, ChartData, ChartPlot, ChartSeries, DrawingPoint};
+    let axis = |id, cross_axis, kind: &str, position: &str| ChartAxis {
+        id,
+        cross_axis: Some(cross_axis),
+        kind: kind.into(),
+        position: Some(position.into()),
+        ..ChartAxis::default()
+    };
+    let data = |formula: &str, numeric| ChartData { formula: Some(formula.into()), numeric, ..ChartData::default() };
+    Chart {
+        part,
+        name: "SalesByRegion".into(),
+        anchor: ChartAnchor::TwoCell {
+            from: DrawingPoint { column: 23, row: 2, ..DrawingPoint::default() },
+            to: DrawingPoint { column: 31, row: 17, ..DrawingPoint::default() },
+        },
+        edit_as: None,
+        drawing_id: None,
+        lang: None,
+        unique_next: 3,
+        title: Some("Sales by region".into()),
+        title_formula: None,
+        auto_title_deleted: false,
+        legend: None,
+        plots: vec![ChartPlot {
+            kind: "barChart".into(),
+            bar_direction: Some("bar".into()),
+            grouping: Some("clustered".into()),
+            series: vec![ChartSeries {
+                categories: Some(data("Chart.Region", false)),
+                values: Some(data("Chart.Amount", true)),
+                ..ChartSeries::default()
+            }],
+            axis_ids: vec![1, 2],
+            ..ChartPlot::default()
+        }],
+        axes: vec![axis(1, 2, "catAx", "l"), axis(2, 1, "valAx", "b")],
+        text_style: Default::default(),
+        area_fill: None,
+        plot_fill: None,
+        area_border: Default::default(),
+        plot_border: Default::default(),
+        element_text_complex: Default::default(),
+        element_text: Default::default(),
+    }
 }
 
 fn stop_rule(row: u32, kind: &str, op: &str, min: &str, max: Option<&str>) -> Validation {
@@ -549,6 +704,183 @@ mod tests {
     };
     use calc_skin_host::SkinHost;
     use std::sync::Arc;
+
+    #[test]
+    fn sales_notebook_recalculates_the_full_chain_and_preserves_the_blocked_layout() {
+        use calc_skin::query::{Cells, Query, Rows};
+        use calc_skin::{Interest, Operation, RawValue, SpillExtent};
+
+        for (fixture, blocked) in [("SalesNotebook", false), ("SalesBlocked", true)] {
+            let bytes = super::fixture(fixture).unwrap();
+            let session = HostSession::open(
+                Arc::new(MemorySource::new(bytes)),
+                &OpenPolicy::default(),
+                HostOptions {
+                    locale: calc_fml::FormatProfile::for_culture("en-US"),
+                    ..HostOptions::default()
+                },
+            ).unwrap();
+            let sheet = Sheet::of(session.host().sheets()[3].id());
+            let at = |row, column| Key(sheet.0, sheet.1, row, column);
+            let host = SkinHost::new(session);
+            while host.advance() {}
+            let port = host.connect(Origin::User { view: ViewId("notebook".into()) }, WritePolicy::Commit);
+            let budget = Budget {
+                cells: 100_000, nodes: 25_000, edges: 500, bytes: 1024 * 1024, millis: 5000,
+            };
+            let cell = |at| {
+                let query = Cells { interest: Interest::Area(Area(at, at)) };
+                Cells::decode(port.ask(query.request(), budget).unwrap()).unwrap()
+                    .body.cells.into_iter().next().unwrap_or_else(|| panic!("expected a current cell at {at:?}"))
+            };
+            let rows = |anchor| {
+                let query = Rows {
+                    source: SourceRef::Spill { anchor },
+                    filter: vec![],
+                    sort: vec![],
+                    window: RowWindow { offset: 0, limit: 20 },
+                };
+                Rows::decode(port.ask(query.request(), budget).unwrap()).unwrap().body
+            };
+            let number = |value: f64| RawValue::Number { bits: value.to_bits() };
+            let text = |value: &str| RawValue::Text(value.encode_utf16().collect());
+            let enter = |key, at, value: &str| {
+                port.commit(Batch {
+                    id: format!("{key}"),
+                    workbook: None,
+                    base: None,
+                    expects: vec![],
+                    selection_seq: None,
+                    label: None,
+                    changes: vec![Change::Model(ModelChange::Enter { at, text: value.into() })],
+                }).unwrap();
+                while host.advance() {}
+            };
+            let anchor = at(10, 1);
+            let total = at(2, 10);
+            if blocked {
+                assert_eq!(cell(total).shown.value, number(4_200.0));
+                enter(1, at(2, 2), "All");
+                assert_eq!(cell(anchor).spill, Some(SpillExtent::Blocked(Area(anchor, at(4156, 7)))));
+                for at in [anchor, at(10, 10), at(10, 13), at(10, 17), at(10, 21), total] {
+                    assert_eq!(cell(at).shown.value, RawValue::Error("#SPILL!".into()));
+                }
+                let stamp = port.ask(WorkbookQuery::Summary, budget).unwrap().stamp;
+                let cut = Batch {
+                    id: "2".into(), workbook: Some(stamp.workbook), base: Some(stamp.model),
+                    expects: vec![SourceRef::Workbook], selection_seq: None, label: None,
+                    changes: vec![Change::Model(ModelChange::MoveSpillCell {
+                        anchor, from: at(16, 1), to: at(12, 25), expected: stamp,
+                    })],
+                };
+                let occupied = Batch {
+                    id: "3".into(),
+                    changes: vec![Change::Model(ModelChange::MoveSpillCell {
+                        anchor, from: at(16, 1), to: at(10, 25), expected: stamp,
+                    })],
+                    ..cut.clone()
+                };
+                assert!(port.preview(&occupied, calc_skin::PreviewDepth::WritesOnly).unwrap().refusal.is_some());
+                assert_eq!(cell(anchor).shown.value, RawValue::Error("#SPILL!".into()));
+                assert_eq!(port.preview(&cut, calc_skin::PreviewDepth::WritesOnly).unwrap().writes.len(), 2);
+                port.commit(cut).unwrap();
+                while host.advance() {}
+                assert_eq!(rows(anchor).matched_rows, 4147);
+                assert_eq!(cell(total).shown.value, number(4_667_700.0));
+                port.run(Operation::Undo).unwrap();
+                while host.advance() {}
+                assert_eq!(cell(total).shown.value, RawValue::Error("#SPILL!".into()));
+            } else {
+                let chart = || {
+                    let query = calc_skin::query::ChartImageOf {
+                        object: SourceRef::Object { sheet, name: "SalesByRegion".into() },
+                        comparison: None,
+                    };
+                    let result = calc_skin::query::ChartImageOf::decode(port.ask(query.request(), budget).expect("the chart is reloadable")).unwrap();
+                    assert!(!result.body.uses_saved_values, "the workbook chart can resolve its named sources");
+                    assert_eq!(result.body.label, "Sales by region");
+                    result.body.data_url
+                };
+                let pending_chart = chart();
+                let pending = rows(anchor);
+                assert_eq!(pending.matched_rows, 4147);
+                assert_eq!(pending.columns, 7);
+                assert_eq!(pending.rows.len(), 20);
+                assert_eq!(cell(total).shown.value, number(4_667_700.0));
+                assert_eq!(cell(at(10, 14)).shown.value, text("2026-11"));
+                assert_eq!(rows(at(10, 13)).matched_rows, 3);
+                enter(1, at(3, 2), "Paid");
+                assert_eq!(rows(anchor).matched_rows, 20853);
+                assert_ne!(chart(), pending_chart);
+                assert_eq!(cell(total).shown.value, number(23_440_150.0));
+                assert_eq!(cell(at(10, 17)).shown.value, text("South"));
+                assert_eq!(cell(at(10, 18)).shown.value, number(9_326_075.0));
+                enter(2, at(3, 2), "No matching status");
+                for at in [anchor, at(10, 10), at(10, 13), at(10, 17), at(10, 21), total] {
+                    assert_eq!(cell(at).shown.value, RawValue::Error("#CALC!".into()));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sales_notebook_renames_a_spill_with_an_ordinary_table() {
+        use calc_skin::query::{Cells, DefinedName, ExpressionTree, Formula, Query, ViewPartOf};
+        use calc_skin::{Change, Evidence, Interest, ModelChange, NameChange, NameScope as SkinNameScope, RawValue};
+        let bytes = super::fixture("SalesNotebook").unwrap();
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(bytes)),
+            &OpenPolicy::default(),
+            HostOptions {
+                locale: calc_fml::FormatProfile::for_culture("en-US"),
+                ..HostOptions::default()
+            },
+        ).unwrap();
+        let sheet = Sheet::of(session.host().sheets()[3].id());
+        let host = SkinHost::new(session);
+        while host.advance() {}
+        let port = host.connect(Origin::User { view: ViewId("notebook".into()) }, WritePolicy::Commit);
+        let budget = Budget { cells: 1024, nodes: 1024, edges: 128, bytes: 1024*1024, millis: 100 };
+        let stamp = port.ask(WorkbookQuery::Summary, budget).unwrap().stamp;
+        let at = Key(sheet.0, sheet.1, 2, 10);
+        let view = ViewPartOf::decode(port.ask(ViewPartOf.request(), budget).unwrap()).unwrap();
+        assert_eq!(
+            view.body.anchors.iter().find(|anchor| anchor.id.0.get() == 10).and_then(|anchor| anchor.area),
+            Some(Area(at, at)),
+            "the LET cell's anchor survives Excel file spelling on save and reopen",
+        );
+        let tree = ExpressionTree { at };
+        let trace_budget = Budget { millis: 2_000, ..budget };
+        let tree = ExpressionTree::decode(port.ask(tree.request(), trace_budget).unwrap()).unwrap();
+        let Evidence::Derived { body, .. } = tree.body else { panic!("expected the expression tree") };
+        assert!(body.steps.iter().any(|step| step.text == "SUM(amounts)" && step.value == "4667700"));
+        let change = Batch {
+            id: "1".into(),
+            workbook: Some(stamp.workbook),
+            base: Some(stamp.model),
+            expects: vec![SourceRef::Workbook],
+            selection_seq: None,
+            label: None,
+            changes: vec![Change::Model(ModelChange::Name {
+                scope: SkinNameScope::Workbook,
+                change: NameChange::Rename { name: "scopeOrders".into(), to: "scopedOrders".into() },
+            })],
+        };
+        let plan = port.preview(&change, calc_skin::PreviewDepth::WritesOnly).unwrap();
+        assert_eq!(plan.refusal, None, "a plain Orders table carries no unrewritten formulas");
+        port.commit(change).unwrap();
+        while host.advance() {}
+        let by_region = Formula { at: Key(sheet.0, sheet.1, 10, 10) };
+        let answer = Formula::decode(port.ask(by_region.request(), budget).unwrap()).unwrap();
+        assert!(answer.body.input.contains("scopedOrders"));
+        let renamed = DefinedName { scope: SkinNameScope::Workbook, name: "scopedOrders".into() };
+        let definition = DefinedName::decode(port.ask(renamed.request(), budget).unwrap()).unwrap();
+        assert_eq!(definition.body.definition.name, "scopedOrders");
+        let total = Key(sheet.0, sheet.1, 2, 10);
+        let query = Cells { interest: Interest::Area(Area(total, total)) };
+        let answer = Cells::decode(port.ask(query.request(), budget).unwrap()).unwrap();
+        assert_eq!(answer.body.cells[0].shown.value, RawValue::Number { bits: 4_667_700.0_f64.to_bits() });
+    }
 
     fn sales_host() -> (SkinHost, Sheet, Sheet) {
         let (bytes, _) = sales().unwrap();

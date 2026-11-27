@@ -245,9 +245,9 @@ pub(super) fn chart(
     id: AnchorId,
     address: String,
     requires: Option<AnchorId>,
+    cells: Memo<Option<BTreeMap<Key, calc_skin::WorkbookCell>>>,
 ) -> impl IntoView {
     let session = state.session;
-    let cells = session.following::<query::Cells>();
     let bound = Bound {
         anchor: id,
         address,
@@ -261,17 +261,10 @@ pub(super) fn chart(
             else {
                 return view! { <p role="status">"Chart data unavailable"</p> }.into_any();
             };
-            let Live::Ready(answer) = cells.at(Some(query::Cells {
-                interest: calc_skin::Interest::Area(Area(at, at)),
-            })) else {
+            let Some(value) = cells.with(|cells| cells.as_ref().map(|cells| cells.get(&at).cloned())) else {
                 return view! { <p role="status">"Reading chart data…"</p> }.into_any();
             };
-            if !answer
-                .body
-                .cells
-                .into_iter()
-                .find(|cell| cell.at == at)
-                .is_some_and(|cell| {
+            if !value.is_some_and(|cell| {
                     matches!(
                         cell.shown.provenance,
                         calc_skin::Provenance::Calculated { .. } | calc_skin::Provenance::Literal

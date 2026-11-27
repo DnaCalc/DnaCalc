@@ -4,10 +4,11 @@ use super::DetachedFormula;
 use crate::{NotModeled, read::SnapshotCatalog};
 use calc_doc_model::ModelRoot;
 use calc_fml::reference::{
-    BoundName, ExternalBookRef, FormulaAnchor, NameBindingProof, NameDefinition, NameScope,
-    ReferenceCatalog, ReferenceNotation, TableLookup,
+    AxisRef, BoundName, ExternalBookRef, FormulaAnchor, NameBindingProof, NameDefinition, NameScope,
+    ReferenceCatalog, ReferenceNotation, ReferenceShape, SheetTarget, TableLookup, bind_references,
 };
-use calc_value::{CellKey, NameId, SheetId};
+use calc_fml::syntax::{SyntaxChild, SyntaxKind, TokenKind};
+use calc_value::{CellKey, GridArea, NameId, SheetId};
 use std::cell::Cell;
 
 struct SelectedName<'a> {
@@ -100,6 +101,70 @@ impl ReferenceCatalog for SelectedName<'_> {
     }
 }
 impl DetachedFormula {
+    /// The literal range, or spill anchor, named by a stable workbook definition.
+    /// The second field identifies a spill. Relative or calculated targets have no stable area.
+    pub fn stable_name_source(inputs: &ModelRoot, id: NameId) -> Option<(GridArea, bool)> {
+        let catalog = selected_catalog(inputs, id).ok()?;
+        let definition = catalog.selected.definition();
+        if definition.function || definition.vb_procedure || definition.xlm {
+            return None;
+        }
+        let local = match definition.scope {
+            calc_doc_model::NameScope::Workbook => None,
+            calc_doc_model::NameScope::Sheet(sheet) => Some(sheet),
+        };
+        let sheet = local.or_else(|| inputs.sheets().first().map(|entry| entry.id()))?;
+        let anchor = FormulaAnchor::new(CellKey::new(sheet, 1, 1).ok()?);
+        let body = definition.formula.strip_prefix('=').unwrap_or(&definition.formula);
+        let tree = calc_fml::parse_formula(&format!("={body}"));
+        if !tree.diagnostics().is_empty() {
+            return None;
+        }
+        let mut reference = tree.expression()?;
+        while reference.kind() == SyntaxKind::GroupingExpr {
+            reference = reference.child_nodes().next()?;
+        }
+        let spill = match reference.children() {
+            [SyntaxChild::Node(operand), SyntaxChild::Token(operator)]
+                if reference.kind() == SyntaxKind::PostfixExpr && operator.kind() == TokenKind::Hash =>
+            {
+                reference = operand;
+                true
+            }
+            [SyntaxChild::Token(callee), SyntaxChild::Node(arguments)]
+                if reference.kind() == SyntaxKind::CallExpr && callee.text().eq_ignore_ascii_case("_xlfn.ANCHORARRAY") =>
+            {
+                let mut operands = arguments.child_nodes();
+                reference = operands.next()?;
+                if operands.next().is_some() { return None; }
+                true
+            }
+            _ => false,
+        };
+        let sites = bind_references(&tree, ReferenceNotation::A1, anchor, &catalog);
+        let [site] = sites.as_slice() else { return None };
+        if site.span != reference.span() || site.this_row {
+            return None;
+        }
+        let operand = site.binding.as_ref().ok()?;
+        if operand.sheet == SheetTarget::Anchor && local.is_none() {
+            return None;
+        }
+        let absolute = |axis| matches!(axis, AxisRef::Absolute(_));
+        let fixed_cell = |at: calc_fml::reference::CellRef| absolute(at.row) && absolute(at.column);
+        let fixed = match operand.shape {
+            ReferenceShape::Cell(at) => fixed_cell(at),
+            ReferenceShape::Area { first, last } => fixed_cell(first) && fixed_cell(last),
+            ReferenceShape::Rows { first, last } | ReferenceShape::Columns { first, last } =>
+                absolute(first) && absolute(last),
+            ReferenceShape::Deleted => false,
+        };
+        if !fixed || (spill && !matches!(operand.shape, ReferenceShape::Cell(_))) {
+            return None;
+        }
+        operand.instantiate(anchor).ok().map(|area| (area, spill))
+    }
+
     /// Definition/caller-qualified source evidence from the ordinary name compiler.
     /// This compiles only; it runs no user code and creates no evaluation or shared value.
     pub fn analyze_name(

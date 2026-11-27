@@ -1,7 +1,7 @@
 use crate::{State, batch::refusal, invalid, query::checked_sheet};
 use calc_doc_model::{DefinedName, ModelRoot, NameScope as ModelScope};
 use calc_host::{CellEdit, NameEdit};
-use calc_skin::{DefinedNameText, ModelPropertyDiff, NameChange, NameScope, Refusal};
+use calc_skin::{DefinedNameText, ModelPropertyDiff, NameChange, NameScope, Refusal, SourceRef};
 
 pub(crate) struct NamePlan {
     scope: NameScope,
@@ -56,6 +56,17 @@ pub(crate) fn facts(
     Ok(calc_skin::DefinedNameFacts {
         definition,
         parameters,
+        source: stable_source(host, node.id()),
+    })
+}
+
+pub(crate) fn stable_source(host: &calc_host::HostState, id: calc_doc_model::value::NameId) -> Option<SourceRef> {
+    host.stable_name_source(id).map(|(area, spill)| {
+        if spill {
+            SourceRef::Spill { anchor: calc_skin::grid::Key::of(area.first()) }
+        } else {
+            crate::batch::source_area(area)
+        }
     })
 }
 

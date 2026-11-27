@@ -224,6 +224,7 @@ struct Ext {
     focus: RwSignal<Option<TextSpan>>,
     part_status: RwSignal<String>,
     part: StoredValue<Option<PartEvaluator>, LocalStorage>,
+    part_key: RwSignal<bool>,
     part_undo: RwSignal<Option<PartUndo>>,
     point: StoredValue<Option<PointConfig>, LocalStorage>,
     pointing: RwSignal<Option<Pointing>>,
@@ -320,6 +321,7 @@ impl FormulaAssist {
                 focus: RwSignal::new(None),
                 part_status: RwSignal::new(String::new()),
                 part: StoredValue::new_local(None),
+                part_key: RwSignal::new(true),
                 part_undo: RwSignal::new(None),
                 point: StoredValue::new_local(None),
                 pointing: RwSignal::new(None),
@@ -498,6 +500,12 @@ impl FormulaAssist {
     pub fn reset(self) {
         self.dismissed.set(None);
         self.popup.set(Popup::Hidden);
+    }
+
+    /// Reopen the suggestions for the current caret after an explicit completion command.
+    pub fn open_completion(self) {
+        self.dismissed.set(None);
+        self.sync_from_field(false);
     }
 
     /// Takes a key the open popup uses (arrows, Enter, Tab, Escape); `true` when it took it.
@@ -743,7 +751,9 @@ impl FormulaAssist {
                         {
                             self.pointing().set(None);
                         }
-                        if ev.key() == "F9" && !ev.ctrl_key() && !ev.alt_key() && !ev.meta_key() {
+                        if self.ext().part_key.get_untracked() && ev.key() == "F9"
+                            && !ev.ctrl_key() && !ev.alt_key() && !ev.meta_key()
+                        {
                             ev.prevent_default();
                             ev.stop_propagation();
                             self.evaluate_selection();
@@ -829,6 +839,11 @@ impl FormulaAssist {
         self.part().set_value(Some(Rc::new(evaluate)));
     }
 
+    /// The owning workbook registers the part-evaluation shortcut in its command table.
+    pub fn use_part_keymap(self) {
+        self.ext().part_key.set(false);
+    }
+
     /// F9: replaces the selected part with its value, selected, and keeps the text before it for
     /// Escape. Without a selection it says to select one.
     pub fn evaluate_selection(self) {
@@ -906,6 +921,11 @@ impl FormulaAssist {
             columns,
             origin: Rc::new(origin),
         }));
+    }
+
+    /// Start keyboard range pointing on a full Excel worksheet.
+    pub fn enable_worksheet_pointing(self, origin: impl Fn() -> (u32, u32) + 'static) {
+        self.enable_point_mode(calc_func::value::MAX_ROWS, calc_func::value::MAX_COLUMNS, origin);
     }
 
     /// The cells (first row, first column, last row, last column) the pointed reference spans.
