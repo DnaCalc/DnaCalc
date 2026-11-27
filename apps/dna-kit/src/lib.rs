@@ -1,5 +1,6 @@
 //! Strand components, the workbook session as signals, and the registration surface for views.
 
+pub mod live_tree;
 pub mod session;
 pub mod view;
 pub use session::{Focus, Following, Session};

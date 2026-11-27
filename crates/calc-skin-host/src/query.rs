@@ -212,6 +212,7 @@ pub(crate) fn invalidated(
                     .cell()
                     .is_none_or(|at| intersects(&[GridArea::cell(at)], false))
         }
+        WorkbookQuery::ExpressionTree { .. } => authored || recalculated || rtd_changed,
         WorkbookQuery::Geometry { .. } | WorkbookQuery::PrintPlan { .. } => authored,
         WorkbookQuery::ViewPart => presentation || recalculated,
         WorkbookQuery::Notes { .. } => presentation,
@@ -696,6 +697,11 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 precedents: precedents.into_iter().map(Area::of).collect(),
             })?
         }
+        WorkbookQuery::ExpressionTree { at } => {
+            let at = cell(*at)?;
+            let evidence = expression_tree(host, at, stamp, &mut meter)?;
+            query::ExpressionTree::encode(&evidence)?
+        }
         WorkbookQuery::Rules { at } => {
             let at = cell(*at)?;
             checked_sheet(host, Sheet::of(at.sheet()))?;
@@ -859,5 +865,50 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
         frozen_rows: panes.map_or(0, |p| p.rows()),
         frozen_columns: panes.map_or(0, |p| p.columns()),
         zoom: view.and_then(|v| v.zoom).unwrap_or(100),
+    })
+}
+
+fn expression_tree(
+    host: &HostState,
+    at: CellKey,
+    stamp: Stamp,
+    meter: &mut QueryWork,
+) -> Result<Evidence<calc_skin::parts::Trace>, Refusal> {
+    if host.calculation_state() != 0 {
+        return Ok(Evidence::Unavailable {
+            reason: "The calculation is still pending.".into(),
+        });
+    }
+    let Some(input @ calc_doc_model::CellInput::Formula(_)) = host.model().cell(at) else {
+        return Ok(Evidence::Unavailable {
+            reason: "This cell has no formula.".into(),
+        });
+    };
+    struct Evaluator<'a> {
+        host: &'a HostState,
+        at: CellKey,
+        meter: &'a mut QueryWork,
+    }
+    impl calc_formula_kernel::parts::PartEvaluator for Evaluator<'_> {
+        fn calculate(&mut self, text: &str) -> Result<CalcValue, String> {
+            self.meter
+                .check()
+                .map_err(|_| "Expression inspection exceeded its budget.".to_string())?;
+            self.host
+                .evaluate_formula_text(text.strip_prefix('=').unwrap_or(text), self.at)
+        }
+
+        fn profile(&self) -> Option<calc_host::FormatProfile> {
+            self.host.options().locale.clone()
+        }
+    }
+    let mut evaluator = Evaluator { host, at, meter };
+    let formula = calc_formula_kernel::display::formula(&entry_text(Some(input)));
+    let body = calc_formula_kernel::parts::trace(&mut evaluator, &formula);
+    meter.check()?;
+    Ok(Evidence::Derived {
+        from: Derivation::ExpressionStructure,
+        at: stamp,
+        body,
     })
 }

@@ -1381,6 +1381,8 @@ pub enum Action {
     WritePlainSession(&'static str, &'static str),
     /// Write these bytes into the downloads folder under this name (a file that is no workbook).
     WriteDownload(&'static str, &'static [u8]),
+    /// Generate a Design Book cast workbook in the test session's download folder.
+    WriteCast(&'static str),
     UploadDownload(&'static str),
     UploadDownloadTo(&'static str, &'static str),
     /// Prepare an explicitly manual cache fixture with the existing package-part editor.
@@ -2550,6 +2552,11 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::WriteDownload(name, bytes) => {
             fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
+        }
+        Action::WriteCast(name) => {
+            let bytes = cast::fixture_bytes(name)?;
+            fs::write(session.downloads.join(format!("{name}.xlsx")), bytes)
+                .map_err(|error| error.to_string())
         }
         Action::UploadDownload(name) | Action::UploadDownloadTo(name, _) => {
             // On failure say what the page and the folder show: a file that exists but is not a

@@ -66,6 +66,7 @@ pub struct EditSession {
     pub mode: InputMode,
     workbook: WorkbookId,
     base: Revision,
+    original: String,
 }
 
 /// Where a change stands between the person's intent and the workbook.
@@ -87,6 +88,7 @@ pub struct Changes {
     pub stamp: bool,
     pub selection: bool,
     pub edit: bool,
+    pub committed: bool,
     pub seam: bool,
     pub notice: bool,
 }
@@ -101,6 +103,7 @@ impl Changes {
         self.stamp |= other.stamp;
         self.selection |= other.selection;
         self.edit |= other.edit;
+        self.committed |= other.committed;
         self.seam |= other.seam;
         self.notice |= other.notice;
     }
@@ -135,6 +138,7 @@ pub struct Client {
     /// Watches dropped before the host named them: unwatched the moment it does.
     orphans: BTreeSet<WatchKey>,
     edit: Option<EditSession>,
+    held: BTreeMap<Key, EditSession>,
     seam: Option<(Seam, Batch, bool)>,
     notice: String,
 }
@@ -160,6 +164,21 @@ impl Client {
 
     pub fn edit(&self) -> Option<&EditSession> {
         self.edit.as_ref()
+    }
+
+    pub fn held_edit(&self, at: Key) -> Option<&EditSession> {
+        self.held.get(&at)
+    }
+
+    pub fn held_edits(&self) -> usize {
+        self.held.len()
+    }
+
+    pub fn revert_held(&mut self, at: Key) -> Changes {
+        Changes {
+            edit: self.held.remove(&at).is_some(),
+            ..Changes::default()
+        }
     }
 
     pub fn seam(&self) -> &Seam {
@@ -328,6 +347,7 @@ impl Client {
             text: text.unwrap_or_else(|| current.to_owned()),
             workbook: stamp.workbook,
             base: stamp.model,
+            original: current.to_owned(),
         });
         changes.edit = true;
         changes
@@ -355,6 +375,34 @@ impl Client {
         let mut changes = self.say("");
         changes.edit = self.edit.take().is_some();
         changes.seam = self.seam.take().is_some();
+        changes
+    }
+
+    /// Restore a held draft without rebasing it on changes since it was written.
+    pub fn resume_edit(&mut self, at: Key) -> Changes {
+        if self.busy() {
+            return Changes::default();
+        }
+        let Some(draft) = self.held.remove(&at) else {
+            return Changes::default();
+        };
+        self.edit = Some(draft);
+        Changes { edit: true, ..Changes::default() }
+    }
+
+    /// Return to command mode, retaining unsent text against its original revision.
+    pub fn hold_edit(&mut self) -> Changes {
+        if self.busy() {
+            return Changes::default();
+        }
+        let Some(draft) = self.edit.take() else {
+            return self.cancel();
+        };
+        let mut changes = self.cancel();
+        if draft.text != draft.original {
+            self.held.insert(draft.at, draft);
+        }
+        changes.edit = true;
         changes
     }
 
@@ -539,7 +587,8 @@ impl Client {
             .is_some_and(|(old, new)| old.workbook != new.workbook);
         if another_workbook {
             // Nothing drafted against the old workbook can be applied to the new one.
-            changes.edit = self.edit.take().is_some();
+            changes.edit = self.edit.take().is_some() || !self.held.is_empty();
+            self.held.clear();
             changes.seam = self.seam.take().is_some();
             changes.watches.extend(self.slots.keys().copied());
         } else {
@@ -585,6 +634,7 @@ impl Client {
                 let mut changes = self.say("");
                 changes.seam = true;
                 changes.edit = edit && self.edit.take().is_some();
+                changes.committed = true;
                 changes
             }
             (Pending::Commit { .. }, Err(reason)) => {

@@ -115,6 +115,9 @@ query!(
 query!(
     Formula { at: Key } => FormulaFacts, |q: &Formula| WorkbookQuery::Formula { at: q.at });
 query!(
+    /// A structural view of the authored formula's expressions, in its workbook context.
+    ExpressionTree { at: Key } => Evidence<crate::parts::Trace>, |q: &ExpressionTree| WorkbookQuery::ExpressionTree { at: q.at });
+query!(
     Rules { at: Key } => CellRules, |q: &Rules| WorkbookQuery::Rules { at: q.at });
 query!(
     CalcState => CalcStatus, |_: &CalcState| WorkbookQuery::CalcState);

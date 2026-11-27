@@ -845,7 +845,8 @@ mod tests {
                 "calc-host",
                 "calc-skin-host",
                 "dna-grid",
-                "dna-view-classic"
+                "dna-view-classic",
+                "dna-view-notebook"
             ]
         );
         assert!(!rule("dna-onecalc").direct);

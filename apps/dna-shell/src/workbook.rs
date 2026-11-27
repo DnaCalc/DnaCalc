@@ -131,10 +131,18 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
     ] {
         session.bind(Layer::Safety, when, chord, CommandId::new(command));
     }
-    session.bind(Layer::Editor, editing, "Enter", CommandId::new("edit.commit"));
     session.bind(Layer::Shell, When::ALWAYS, "F9", CommandId::new("calc.calculate"));
     for view in views {
-        let ViewId(name) = view.spec().id;
+        let spec = view.spec();
+        let ViewId(name) = spec.id;
+        if spec.profile != "jupyter" {
+            session.bind(
+                Layer::Editor,
+                editing.clone().and(When::view(&name)),
+                "Enter",
+                CommandId::new("edit.commit"),
+            );
+        }
         let command = CommandId::from(format!("view.{name}").as_str());
         let id = ViewId(name.clone());
         session.register(
@@ -197,7 +205,9 @@ fn focus_of(event: &leptos::ev::KeyboardEvent) -> Focus {
     else {
         return Focus::Stage;
     };
-    if element.get_attribute("data-dnacalc").as_deref() == Some("formula-bar") {
+    if element.get_attribute("data-dnacalc").as_deref() == Some("formula-bar")
+        || element.closest("[data-dna-editor]").ok().flatten().is_some()
+    {
         return Focus::Editor;
     }
     match element.tag_name().as_str() {
@@ -310,7 +320,14 @@ pub fn workbook(
         if was.is_some_and(|was| was != editing) {
             request_animation_frame(move || {
                 if editing {
-                    if let Some(input) = formula_input.get_untracked() {
+                    let inline = stage_node.get_untracked().and_then(|stage| {
+                        stage.query_selector("[data-dna-editor] textarea, textarea[data-dna-editor]").ok().flatten()
+                    }).and_then(|input| input.dyn_into::<leptos::web_sys::HtmlTextAreaElement>().ok());
+                    if let Some(input) = inline {
+                        let _ = input.focus();
+                        let end = input.value().encode_utf16().count() as u32;
+                        let _ = input.set_selection_range(end, end);
+                    } else if let Some(input) = formula_input.get_untracked() {
                         let _ = input.focus();
                         let end = input.value().encode_utf16().count() as u32;
                         let _ = input.set_selection_range(end, end);
@@ -375,6 +392,7 @@ pub fn workbook(
                 <span class="dna-book-fx" aria-hidden="true">"ƒx"</span>
                 <input class="dna-book-formula" aria-label="Formula bar" data-dnacalc="formula-bar" node_ref=formula_input
                     prop:value=move || session.entry()
+                    prop:readOnly=move || session.summary().is_some_and(|book| book.capabilities.read_only)
                     on:input=move |event| session.edit_text(event_target_value(&event))/>
                 {move || session.edit().map(|draft| {
                     view! { <span class="dna-book-seam">{format!("Model change · {}", a1(draft.at))}</span> }
@@ -447,6 +465,11 @@ pub fn workbook(
                 <span data-dnacalc="mode">{move || session.mode().label()}</span>
                 <span>{move || match session.read(calc) { Live::Ready(answer) => answer.body.word(), _ => "" }}</span>
                 <span>{location}</span>
+                <span>{move || match session.held_edits() {
+                    0 => String::new(),
+                    1 => "1 Notebook cell edited, not run".into(),
+                    count => format!("{count} Notebook cells edited, not run"),
+                }}</span>
                 <span>{move || session.notice()}</span>
             </footer>
         </div>

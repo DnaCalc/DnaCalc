@@ -49,6 +49,7 @@ impl Page {
         });
         let mut registry = Registry::default();
         dna_view_classic::install(&mut registry);
+        dna_view_notebook::install(&mut registry);
         dna_shell::workbook::install(&registry, session);
         let page = Self {
             host,
@@ -225,4 +226,117 @@ fn a_reader_runs_again_only_for_what_it_read() {
     page.press("ArrowDown", Focus::Stage);
     assert_eq!(active.get_untracked(), Some(page.at(2, 1)));
     assert!(runs.load(Ordering::Relaxed) > 1);
+}
+
+/// Native-only: drives the real workbook service by packets.
+#[test]
+fn notebook_linking_and_reordering_only_edit_the_view_part() {
+    let page = Page::open();
+    let session = page.session;
+    let a1 = page.at(1, 1);
+    let b1 = page.at(1, 2);
+    session.edit_text("=21*2".into());
+    session.commit_edit();
+    page.settle();
+
+    let before = session.stamp().unwrap();
+    session.command("view.notebook").unwrap();
+    page.settle();
+    assert_eq!(session.stamp(), Some(before));
+    assert_eq!(session.mode(), InputMode::NotebookCommand);
+
+    session.command("notebook.link").unwrap();
+    page.settle();
+    let linked = session.stamp().unwrap();
+    assert_eq!(linked.model, before.model);
+    assert!(linked.view > before.view);
+
+    session.select_cell(b1);
+    page.settle();
+    session.command("notebook.link").unwrap();
+    page.settle();
+    assert!(page.press("Alt+ArrowUp", Focus::Stage));
+    assert!(page.press("Alt+p", Focus::Stage));
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    assert_eq!(page.shown(a1), "42");
+    assert!(page.press("ArrowDown", Focus::Stage));
+    assert_eq!(session.active(), Some(a1));
+    assert!(page.press("d", Focus::Stage));
+    assert!(page.press("d", Focus::Stage));
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    assert_eq!(page.shown(a1), "42", "unlinking preserves the referenced worksheet cell");
+}
+
+/// Native-only: drives the real workbook service by packets.
+#[test]
+fn notebook_escape_holds_the_old_output_until_the_formula_runs() {
+    let page = Page::open();
+    let session = page.session;
+    let a1 = page.at(1, 1);
+    let before = session.stamp().unwrap();
+    session.command("view.notebook").unwrap();
+    session.command("notebook.link").unwrap();
+    page.settle();
+
+    assert!(page.press("Enter", Focus::Stage));
+    assert_eq!(session.mode(), InputMode::Edit);
+    session.edit_text("=6*7".into());
+    assert!(!page.press("Enter", Focus::Editor), "plain Enter belongs to the text editor");
+    assert!(page.press("Escape", Focus::Editor));
+    assert_eq!(session.mode(), InputMode::NotebookCommand);
+    assert_eq!(session.held_edit(a1).unwrap().text, "=6*7");
+    assert_eq!(page.shown(a1), "");
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    assert!(!page.press("q", Focus::Stage));
+    assert!(session.edit().is_none());
+
+    session.command("view.classic").unwrap();
+    page.settle();
+    assert_eq!(session.held_edits(), 1);
+    assert!(page.press("F2", Focus::Stage));
+    assert_eq!(session.entry(), "");
+    assert!(page.press("Escape", Focus::Editor));
+
+    session.command("view.notebook").unwrap();
+    assert!(page.press("Enter", Focus::Stage));
+    assert_eq!(session.entry(), "=6*7");
+    assert!(page.press("Ctrl+Enter", Focus::Editor));
+    assert_eq!(page.shown(a1), "42");
+    assert_eq!(session.held_edits(), 0);
+    assert_eq!(session.mode(), InputMode::NotebookCommand);
+}
+
+
+/// Native-only: drives the real workbook service by packets.
+#[test]
+fn notebook_run_all_gives_each_draft_its_own_undo_step() {
+    let page = Page::open();
+    let session = page.session;
+    let a1 = page.at(1, 1);
+    let b1 = page.at(1, 2);
+    session.command("view.notebook").unwrap();
+
+    for (at, formula) in [(a1, "=20+1"), (b1, "=A1*2")] {
+        session.select_cell(at);
+        page.settle();
+        session.command("notebook.link").unwrap();
+        page.settle();
+        assert!(page.press("Enter", Focus::Stage));
+        session.edit_text(formula.into());
+        assert!(page.press("Escape", Focus::Editor));
+    }
+    assert_eq!(session.held_edits(), 2);
+    assert_eq!((page.shown(a1), page.shown(b1)), ("".into(), "".into()));
+
+    session.command("notebook.run-all").unwrap();
+    page.settle();
+    assert_eq!(session.held_edits(), 0);
+    assert_eq!((page.shown(a1), page.shown(b1)), ("21".into(), "42".into()));
+
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!((page.shown(a1), page.shown(b1)), ("21".into(), "".into()));
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!((page.shown(a1), page.shown(b1)), ("".into(), "".into()));
 }

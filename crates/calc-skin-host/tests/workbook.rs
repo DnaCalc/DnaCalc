@@ -1216,3 +1216,98 @@ fn a_view_document_round_trips_without_editing_the_workbook_model() {
     let reopened_port = port(&reopened);
     assert_eq!(read(&reopened_port).documents[0].body, body);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn expression_structure_reads_live_let_bindings_through_the_workbook() {
+    use calc_skin::query::ExpressionTree;
+
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let at = |column| Key(sheet.0, sheet.1, 1, column);
+    port.commit(batch(
+        1,
+        vec![enter(at(1), "2"), enter(at(2), "=LET(q,A1*3,q+1)")],
+    ))
+    .unwrap();
+    while host.advance() {}
+    let query = ExpressionTree { at: at(2) };
+    let read = || {
+        let answer = ExpressionTree::decode(port.ask(query.request(), BUDGET).unwrap()).unwrap();
+        let Evidence::Derived {
+            from: Derivation::ExpressionStructure,
+            body,
+            ..
+        } = answer.body
+        else {
+            panic!("authoritative LET expression structure is missing");
+        };
+        body.steps
+            .iter()
+            .find(|step| step.text == "q+1")
+            .unwrap_or_else(|| panic!("{body:?}"))
+            .value
+            .clone()
+    };
+    assert_eq!(read(), "7");
+    port.commit(batch(2, vec![enter(at(1), "4")])).unwrap();
+    while host.advance() {}
+    assert_eq!(read(), "13");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn opening_an_automatic_workbook_publishes_calculated_spills() {
+    let (source, sheet) = workbook();
+    let anchor = Key(sheet.0, sheet.1, 1, 1);
+    port(&source)
+        .commit(batch(1, vec![enter(anchor, "=SEQUENCE(3)")]))
+        .unwrap();
+    while source.advance() {}
+    let saved = source.with_session(SelectionCause::Open, |session| {
+        let mut bytes = Vec::new();
+        session
+            .save(&calc_host::SavePolicy::default(), &mut bytes)
+            .unwrap();
+        bytes
+    });
+
+    let (host, _) = workbook();
+    let connection = host.connect(
+        Origin::User {
+            view: ViewId("notebook".into()),
+        },
+        WritePolicy::Commit,
+    );
+    let opened = connection.handle(Packet {
+        envelope: Envelope::new(
+            1,
+            Message::WorkbookRequest(WorkbookRequest::Open {
+                name: "Opened spill.xlsx".into(),
+            }),
+        ),
+        bytes: Some(saved),
+    });
+    assert!(matches!(
+        opened.envelope.message,
+        Message::WorkbookReply(WorkbookReply::Stamp(_))
+    ));
+    while host.advance() {}
+    let query = query::Rows {
+        source: SourceRef::Spill { anchor },
+        filter: vec![],
+        sort: vec![],
+        window: RowWindow {
+            offset: 0,
+            limit: 3,
+        },
+    };
+    let answer = query::Rows::decode(connection.ask(query.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.source_rows, 3);
+    let cell = &answer.body.rows[2].cells[0];
+    assert_eq!(cell.text, "3");
+    assert!(matches!(
+        cell.shown.provenance,
+        Provenance::Calculated { .. }
+    ));
+}

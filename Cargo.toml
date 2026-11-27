@@ -35,6 +35,7 @@ members = [
     "apps/dna-shell",
     "apps/dna-grid",
     "apps/dna-view-classic",
+    "apps/dna-view-notebook",
     "apps/dna-view-explorer",
     "apps/dna-onecalc",
     "apps/dna-calc",

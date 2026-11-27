@@ -1,0 +1,95 @@
+.dna-notebook {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    overflow: auto;
+    padding: var(--dna-gap-4);
+    background: var(--dna-bg);
+}
+
+.dna-notebook-start,
+.dna-notebook-chain:not(.dna-notebook-pipeline) {
+    max-inline-size: 78rem;
+    margin-inline: auto;
+}
+
+.dna-notebook-start {
+    max-inline-size: 52rem;
+    padding: var(--dna-gap-4);
+    border: 1px solid var(--dna-line);
+    background: var(--dna-paper);
+}
+
+.dna-notebook-start h1 { margin-block: 0 var(--dna-gap-2); }
+
+.dna-notebook-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dna-gap-2);
+    margin-block-end: var(--dna-gap-2);
+}
+
+.dna-notebook-chain {
+    display: grid;
+    gap: var(--dna-gap-3);
+}
+
+.dna-notebook-pipeline {
+    grid-auto-flow: column;
+    grid-auto-columns: min(36rem, 90%);
+    align-items: start;
+    overflow-x: auto;
+}
+
+.dna-notebook-cell {
+    min-inline-size: 0;
+    padding: var(--dna-gap-3);
+    border: 1px solid var(--dna-line);
+    border-inline-start: 3px solid var(--dna-line);
+    background: var(--dna-paper);
+    overflow-wrap: anywhere;
+}
+
+.dna-notebook-selected { border-inline-start-color: var(--dna-accent-ink); }
+
+.dna-notebook-cell > header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dna-gap-2);
+    align-items: center;
+    margin-block-end: var(--dna-gap-2);
+}
+
+.dna-notebook-input pre {
+    margin: 0 0 var(--dna-gap-2);
+    padding: var(--dna-gap-2);
+    white-space: pre-wrap;
+    background: var(--dna-paper-2);
+}
+
+.dna-notebook-formula-editor textarea,
+.dna-notebook-prose textarea { inline-size: 100%; }
+
+.dna-notebook-prose {
+    max-inline-size: 68ch;
+    font: 1rem / 1.65 "Source Serif 4", Georgia, serif;
+}
+
+.dna-notebook-prose :is(h1, h2, h3, h4, p) { margin-block: 0 var(--dna-gap-2); }
+
+.dna-notebook-chip { color: var(--dna-accent-ink); font-variant-numeric: tabular-nums; }
+.dna-notebook-draft { color: var(--dna-ink-2); }
+.dna-notebook-error { color: var(--dna-red-ink); }
+
+.dna-notebook-table-scroll { max-block-size: 25rem; overflow: auto; }
+.dna-notebook-table-scroll :is(thead, tfoot) { position: sticky; background: var(--dna-paper-2); }
+.dna-notebook-table-scroll thead { inset-block-start: 0; }
+.dna-notebook-table-scroll tfoot { inset-block-end: 0; }
+.dna-notebook-table-scroll table { border-spacing: 0; text-align: start; }
+.dna-notebook-table-scroll :is(td, th) {
+    padding: var(--dna-gap-1) var(--dna-gap-2);
+    border-block-end: 1px solid var(--dna-line);
+    white-space: nowrap;
+    text-align: start;
+}
+.dna-notebook-value small { margin-inline-start: var(--dna-gap-2); color: var(--dna-ink-2); }

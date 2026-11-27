@@ -129,6 +129,7 @@ pub enum Derivation {
     Contributions,
     Structure,
     FileInventory,
+    ExpressionStructure,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -259,6 +260,9 @@ pub enum WorkbookQuery {
         sheet: Sheet,
     },
     Formula {
+        at: Key,
+    },
+    ExpressionTree {
         at: Key,
     },
     Rules {

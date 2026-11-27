@@ -1,0 +1,18 @@
+[package]
+name = "dna-view-notebook"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The Notebook computation chain over the DNA Calc skin interface."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
+dna-formula-ui = { path = "../dna-formula-ui" }
+dna-kit = { path = "../dna-kit" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"

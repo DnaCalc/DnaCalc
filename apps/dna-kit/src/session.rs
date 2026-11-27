@@ -49,6 +49,8 @@ struct Inner {
     entry: Cell<Option<(Key, Watch<query::Formula>)>>,
     /// A cell whose entry was asked to open before it arrived.
     opening: Cell<Option<Key>>,
+    notebook_profile: RefCell<Option<ViewId>>,
+    after_commit: RefCell<Option<Box<dyn FnOnce()>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -79,6 +81,8 @@ impl Session {
                 summary: Cell::new(None),
                 entry: Cell::new(None),
                 opening: Cell::new(None),
+                notebook_profile: RefCell::new(None),
+                after_commit: RefCell::new(None),
             })),
             stamp: RwSignal::new(0),
             selection: RwSignal::new(0),
@@ -114,6 +118,9 @@ impl Session {
             self.open_entry(&inner, at, &mut changes);
             self.flush(&inner);
         }
+        let continuation = (changes.seam && self.peek(|client| matches!(client.seam(), Seam::Idle)))
+            .then(|| inner.after_commit.borrow_mut().take())
+            .flatten();
         let touched: Vec<ArcRwSignal<u64>> = {
             let ticks = inner.ticks.borrow();
             changes.watches.iter().filter_map(|key| ticks.get(key).cloned()).collect()
@@ -128,6 +135,11 @@ impl Session {
         ] {
             if moved {
                 tick(signal);
+            }
+        }
+        if changes.committed {
+            if let Some(continuation) = continuation {
+                continuation();
             }
         }
     }
@@ -175,7 +187,11 @@ impl Session {
         match entry {
             Live::Ready(answer) => {
                 inner.opening.set(None);
-                let began = client.begin_edit(at, None, &answer.body.input);
+                let began = if self.notebook_profile(&self.view.get_untracked()) && client.held_edit(at).is_some() {
+                    client.resume_edit(at)
+                } else {
+                    client.begin_edit(at, None, &answer.body.input)
+                };
                 changes.edit |= began.edit;
                 changes.selection |= began.selection;
             }
@@ -222,7 +238,51 @@ impl Session {
 
     pub fn mode(self) -> InputMode {
         self.edit.track();
-        self.peek(Client::mode)
+        let view = self.view();
+        self.mode_in(&view)
+    }
+
+    fn mode_in(self, view: &ViewId) -> InputMode {
+        match self.peek(Client::mode) {
+            InputMode::Ready if self.notebook_profile(view) => InputMode::NotebookCommand,
+            mode => mode,
+        }
+    }
+
+    fn notebook_profile(self, view: &ViewId) -> bool {
+        self.inner().notebook_profile.borrow().as_ref() == Some(view)
+    }
+
+    /// A command-mode view keeps an unrun Excel edit when Escape returns to its stage.
+    pub fn enable_notebook_keys(self, view: ViewId) {
+        self.inner().notebook_profile.replace(Some(view));
+    }
+
+    pub fn held_edit(self, at: Key) -> Option<EditSession> {
+        self.edit.track();
+        self.peek(|client| client.held_edit(at).cloned())
+    }
+
+    pub fn held_edits(self) -> usize {
+        self.edit.track();
+        self.peek(Client::held_edits)
+    }
+
+    /// Bring a retained draft back to the shared editor with its original base.
+    pub fn resume_held(self, at: Key) -> bool {
+        if self.edit().is_some() || !matches!(self.seam(), Seam::Idle) || self.held_edit(at).is_none() {
+            return false;
+        }
+        self.update(|client| {
+            let mut changes = client.select_cell(at);
+            changes.edit = client.resume_edit(at).edit;
+            changes
+        });
+        true
+    }
+
+    pub fn revert_held(self, at: Key) {
+        self.update(|client| client.revert_held(at));
     }
 
     pub fn seam(self) -> Seam {
@@ -350,11 +410,24 @@ impl Session {
 
     pub fn cancel(self) {
         self.inner().opening.set(None);
-        self.update(Client::cancel);
+        if self.notebook_profile(&self.view.get_untracked()) {
+            self.update(Client::hold_edit);
+        } else {
+            self.update(Client::cancel);
+        }
     }
 
     pub fn commit_edit(self) {
         self.update(Client::commit_edit);
+    }
+
+    /// Runs a navigation or other follow-up only after the carrier confirms the edit.
+    pub fn commit_edit_then(self, after: impl FnOnce() + 'static) {
+        if !matches!(self.seam(), Seam::Idle) || self.edit().is_none() {
+            return;
+        }
+        self.inner().after_commit.replace(Some(Box::new(after)));
+        self.commit_edit();
     }
 
     /// Sends a change through the seam: preview, then commit when the preview is clean.
@@ -384,7 +457,11 @@ impl Session {
     }
 
     pub fn show(self, view: ViewId) {
-        if self.view.get_untracked() != view {
+        let previous = self.view.get_untracked();
+        if previous != view {
+            if self.notebook_profile(&previous) && self.edit().is_some() && matches!(self.seam(), Seam::Idle) {
+                self.cancel();
+            }
             self.view.set(view);
         }
     }
@@ -393,9 +470,11 @@ impl Session {
 
     pub fn context(self) -> Context {
         let summary = self.inner().summary.get();
+        let view = self.view.get_untracked();
+        let mode = self.mode_in(&view);
         self.peek(|client| Context {
-            view: self.view.get_untracked(),
-            mode: client.mode(),
+            view,
+            mode,
             read_only: summary.is_some_and(|watch| match client.read(watch) {
                 Live::Ready(answer) => answer.body.capabilities.read_only,
                 _ => false,
