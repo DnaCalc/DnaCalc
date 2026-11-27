@@ -86,6 +86,8 @@ struct State {
     opened_at: Stamp,
     baseline: Option<comparison::Baseline>,
     baseline_revision: u64,
+    look: Option<LookOffer>,
+    look_revision: u64,
     clock: Option<Rc<calc_host::ModelClock>>,
 }
 
@@ -311,6 +313,8 @@ impl SkinHost {
                 opened_at,
                 baseline: None,
                 baseline_revision: 0,
+                look: None,
+                look_revision: 0,
                 clock: None,
             })),
         }
@@ -345,6 +349,7 @@ impl SkinHost {
                 last_selection: 0,
                 last_rtd: 0,
                 last_baseline: 0,
+                last_look: self.state.borrow().look_revision,
                 next_watch: 1,
                 next_publication: 1,
                 awaiting_tiles: None,
@@ -423,6 +428,7 @@ struct Local {
     last_selection: u64,
     last_rtd: u64,
     last_baseline: u64,
+    last_look: u64,
     next_watch: u64,
     next_publication: u64,
     awaiting_tiles: Option<u64>,
@@ -758,6 +764,35 @@ impl WorkbookPort for Connection {
         let mut state = self.host.borrow_mut();
         let before = state.stamp();
         let intent = match operation {
+            Operation::TryOn { expected, look } => {
+                let Origin::Agent { agent, proposal } = &self.origin else {
+                    return Err(Refusal::PolicyRefused);
+                };
+                if expected.workbook != before.workbook
+                    || expected.model != before.model
+                    || expected.view != before.view
+                {
+                    return Err(invalid("The workbook changed. Submit the look again."));
+                }
+                match &look {
+                    TryOnPayload::Skin(skin) => {
+                        if skin.level != Level::Workbook {
+                            return Err(invalid("Choose a workbook skin"));
+                        }
+                        for page in skin.pages.values() {
+                            query::verify_page_bindings(&state, page)?;
+                        }
+                    }
+                }
+                state.look_revision += 1;
+                state.look = Some(LookOffer {
+                    at: before,
+                    agent: agent.clone(),
+                    proposal: proposal.clone(),
+                    look,
+                });
+                return Ok(before);
+            }
             Operation::PinBaseline { expected, bounds, budget } => {
                 if expected != before {
                     return Err(Refusal::StaleSelection);
@@ -947,6 +982,14 @@ impl WorkbookPort for Connection {
                 cause,
             });
         }
+        if local.last_look != state.look_revision {
+            local.last_look = state.look_revision;
+            if matches!(self.origin, Origin::User { .. })
+                && let Some(look) = &state.look
+            {
+                events.push(Event::TryOn(look.clone()));
+            }
+        }
         local.last_stamp = Some(stamp);
         local.last_selection = state.selection_seq;
         local.last_rtd = rtd;
@@ -1083,6 +1126,7 @@ impl Connection {
         state.session = session;
         state.clock = clock;
         state.opened_at = stamp;
+        state.look = None;
         state.touches.clear();
         state.calc_touches.clear();
         state.calculation_changes = None;

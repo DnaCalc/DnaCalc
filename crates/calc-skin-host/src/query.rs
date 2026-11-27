@@ -137,6 +137,15 @@ pub(crate) fn anchor_source(state: &State, id: AnchorId) -> Result<SourceRef, Re
     })
 }
 
+pub(crate) fn verify_page_bindings(state: &State, page: &Page) -> Result<(), Refusal> {
+    page.root.try_for_each_part(&mut |_, _, slots| {
+        for bound in slots.values() {
+            bound_source(state, bound)?;
+        }
+        Ok(())
+    })
+}
+
 pub(crate) fn bound_source(state: &State, bound: &Bound) -> Result<SourceRef, Refusal> {
     let mut book = address_book(state);
     // A stored binding cannot take its sheet from the current selection.

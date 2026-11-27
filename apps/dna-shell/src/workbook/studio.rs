@@ -1,7 +1,9 @@
 //! The workbook shell's temporary skin preview and source editor.
 
 use super::command_button;
-use calc_skin::{Batch, Change, Coverage, Level, PresentationChange, SkinManifest, WorkbookId};
+use calc_skin::{
+    Batch, Change, Coverage, Level, PresentationChange, SkinManifest, TryOnPayload, WorkbookId,
+};
 use dna_kit::{Live, Seam, Session, ViewCommand};
 use dna_skin_runtime::skin::{self, Document};
 use leptos::prelude::*;
@@ -9,6 +11,8 @@ use leptos::prelude::*;
 const OPEN: &str = "studio.open";
 const TRY: &str = "studio.try-on";
 const TRY_FILE: &str = "studio.try-file";
+const TRY_AGENT: &str = "studio.try-agent";
+const DISCARD_AGENT: &str = "studio.discard-agent";
 const KEEP_FILE: &str = "studio.keep-file";
 const KEEP_ME: &str = "studio.keep-me";
 const CLEAR_PROFILE: &str = "studio.clear-personal-skin";
@@ -182,6 +186,23 @@ impl Studio {
                 Ok(())
             })
             .when("!editing"),
+            ViewCommand::global(TRY_AGENT, "Try on the agent skin", &[], move |_| {
+                let offer = session
+                    .take_look_offer()
+                    .ok_or("There is no agent skin to try")?;
+                match offer.look {
+                    TryOnPayload::Skin(skin) => {
+                        let source = serde_json::to_string_pretty(&skin)
+                            .map_err(|error| error.to_string())?;
+                        self.preview_source(session, source)
+                    }
+                }
+            })
+            .when("!editing"),
+            ViewCommand::global(DISCARD_AGENT, "Discard the agent skin", &[], move |_| {
+                session.take_look_offer();
+                Ok(())
+            }),
             ViewCommand::global(KEEP_FILE, "Keep skin for file", &[], move |_| {
                 self.keep_file(session)
             })
@@ -330,6 +351,12 @@ impl Studio {
             self.editor.set(false);
             return true;
         }
+        if self.preview.with_untracked(Option::is_none)
+            && untrack(|| session.look_offer().is_some())
+        {
+            let _ = session.command(DISCARD_AGENT);
+            return true;
+        }
         if self.offer.with_untracked(Option::is_some)
             || self.preview.with_untracked(Option::is_some)
         {
@@ -394,6 +421,16 @@ impl Studio {
                         {command_button(session, KEEP_ME, "Keep for me")}
                         {command_button(session, OPEN, "Edit")}
                         {command_button(session, DISCARD, "Discard")}
+                    </aside>
+                }.into_any()
+            } else if let Some(offer) = session.look_offer() {
+                let TryOnPayload::Skin(manifest) = offer.look;
+                view! {
+                    <aside class="dna-skin-banner" data-dnacalc="agent-skin-offer" aria-label="Agent skin">
+                        <strong>{manifest.name}</strong>
+                        <span>{offer.agent}</span>
+                        {command_button(session, TRY_AGENT, "Try on")}
+                        {command_button(session, DISCARD_AGENT, "Discard")}
                     </aside>
                 }.into_any()
             } else if let Some(offer) = self.offer.get() {

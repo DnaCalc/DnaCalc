@@ -766,12 +766,7 @@ pub(crate) fn prepare(
                             return Err(invalid("A workbook skin needs an ID and name"));
                         }
                         for page in skin.pages.values() {
-                            page.root.try_for_each_part(&mut |_, _, slots| {
-                                for bound in slots.values() {
-                                    crate::query::bound_source(state, bound)?;
-                                }
-                                Ok::<_, Refusal>(())
-                            })?;
+                            crate::query::verify_page_bindings(state, page)?;
                         }
                         let body = serde_json::to_string(skin)
                             .map_err(|error| invalid(error.to_string()))?;

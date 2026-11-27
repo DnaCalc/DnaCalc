@@ -737,11 +737,28 @@ pub struct HistoryEntry {
     pub unreviewed: bool,
 }
 
+/// Code-free presentation that an agent can offer for temporary preview.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum TryOnPayload {
+    Skin(Box<crate::SkinManifest>),
+}
+
+/// A look delivered to the workbook operator with its author and source revision.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LookOffer {
+    pub at: Stamp,
+    pub agent: String,
+    pub proposal: String,
+    pub look: TryOnPayload,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Operation {
     Undo,
     Redo,
     Revert(EntryId),
+    /// Offer a declarative appearance to the workbook operator for temporary preview.
+    TryOn { expected: Stamp, look: TryOnPayload },
     Calculate { scope: SourceRef },
     CancelCalculation,
     ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
@@ -765,6 +782,7 @@ pub enum Event {
         cause: SelectionCause,
     },
     History(HistoryEntry),
+    TryOn(LookOffer),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

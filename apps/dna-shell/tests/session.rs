@@ -2982,3 +2982,50 @@ fn keeping_a_skin_for_file_is_one_undoable_presentation_change() {
     assert!(!page.press("Ctrl+Shift+e", Focus::Stage));
     assert!(page.press("F2", Focus::Stage));
 }
+
+/// Native-only: carries an agent offer through the workbook port and the shell command table.
+#[test]
+fn trying_on_an_agent_skin_requires_the_operators_choice() {
+    use calc_skin::{Operation, WorkbookPort};
+
+    let page = Page::open();
+    let session = page.session;
+    let before = session.stamp().unwrap();
+    let agent = page.host.connect(
+        Origin::Agent { agent: "Review assistant".into(), proposal: "review".into() },
+        WritePolicy::Propose,
+    );
+    let skin = serde_json::from_value(serde_json::json!({
+        "schema": "dna.skin/1",
+        "id": "review",
+        "name": "Review",
+        "theme": { "base": "cockpit-dark", "density": "working" },
+        "keymap": {
+            "profile": "excel-365-win-en-us",
+            "bindings": [{
+                "when": "view:classic && mode:ready",
+                "chord": "Ctrl+Shift+E",
+                "command": "grid.edit-cell"
+            }]
+        }
+    })).unwrap();
+    assert_eq!(agent.run(Operation::TryOn {
+        expected: before,
+        look: calc_skin::TryOnPayload::Skin(Box::new(skin)),
+    }).unwrap(), before);
+    page.settle();
+    assert_eq!(session.look_offer().unwrap().agent, "Review assistant");
+    assert!(!page.press("Ctrl+Shift+e", Focus::Stage));
+    assert!(page.press("F2", Focus::Stage));
+    assert!(page.press("Escape", Focus::Editor));
+
+    session.command("studio.try-agent").unwrap();
+    page.settle();
+    assert!(session.look_offer().is_none());
+    assert!(!page.press("F2", Focus::Stage));
+    assert!(page.press("Ctrl+Shift+e", Focus::Stage));
+    assert!(page.press("Escape", Focus::Editor));
+    assert!(page.press("Escape", Focus::Stage));
+    assert!(page.press("F2", Focus::Stage));
+    assert_eq!(session.stamp(), Some(before));
+}
