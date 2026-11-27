@@ -1112,7 +1112,7 @@ impl HostSession {
                     })
             }
             SkinIntent::EnterCell { at, text } => self
-                .prepare_entries(at, &text, &[GridArea::cell(at)])
+                .prepare_cell_entry(at, &text)
                 .and_then(|edits| self.edit(edits, &mut receipt)),
             SkinIntent::EnterCellAndLayout { at, text, layout } => self
                 .prepare_entries(at, &text, &[GridArea::cell(at)])
@@ -1272,6 +1272,24 @@ impl HostSession {
         calculate(&mut self.host);
         self.recalculate(receipt);
         Ok(())
+    }
+
+    /// Interpret one raw cell entry using the session's locale, number format and validation.
+    /// The result can be combined with other edits in one transaction.
+    pub fn prepare_cell_entry(&self, at: CellKey, text: &str) -> Result<Vec<CellEdit>, IntentError> {
+        self.prepare_entries(at, text, &[GridArea::cell(at)])
+    }
+
+    /// Stage cell contents and view-part edits through the same transaction preparation as commit.
+    /// The returned root is for inspection only; the live model, history and calculation stay put.
+    pub fn preview_edits(&mut self, edits: &[CellEdit]) -> Result<Arc<calc_doc_model::ModelRoot>, IntentError> {
+        if edits.iter().any(|edit| {
+            !matches!(edit, CellEdit::Set { .. } | CellEdit::SetArray { .. } | CellEdit::Clear { .. } | CellEdit::View(_))
+        }) {
+            return Err(IntentError::Workbook("Preview supports cell contents and view-part edits".into()));
+        }
+        let edits = self.authored_edits(edits.to_vec());
+        crate::command::preview_slice(&mut self.host, &edits).map_err(IntentError::Command)
     }
 
     fn prepare_entries(

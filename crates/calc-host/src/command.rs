@@ -10,7 +10,7 @@ use calc_doc_model::{
     WorkbookOp,
 };
 use calc_engine::{CalcTick, FormulaNode, InputSeed, NodeChange, PrepareError};
-use std::fmt;
+use std::{convert::Infallible, fmt, ops::ControlFlow};
 use std::sync::Arc;
 
 /// One edit of a cell-editing command.
@@ -454,6 +454,30 @@ pub fn dispatch_slice(
     base: AuthoredRevision,
     edits: &[CellEdit],
 ) -> Result<CommandReceipt, CommandError> {
+    match stage_slice(host, base, edits, |_| ControlFlow::<Infallible>::Continue(()))? {
+        ControlFlow::Continue(receipt) => Ok(receipt),
+        ControlFlow::Break(never) => match never {},
+    }
+}
+
+/// Prepare the cell/view subset of a transaction and release the engine reservation on return.
+pub(crate) fn preview_slice(
+    host: &mut HostState,
+    edits: &[CellEdit],
+) -> Result<Arc<ModelRoot>, CommandError> {
+    let base = host.revision();
+    match stage_slice(host, base, edits, |model| ControlFlow::Break(model.clone()))? {
+        ControlFlow::Break(model) => Ok(model),
+        ControlFlow::Continue(_) => unreachable!("preview stops before installation"),
+    }
+}
+
+fn stage_slice<T>(
+    host: &mut HostState,
+    base: AuthoredRevision,
+    edits: &[CellEdit],
+    prepared: impl FnOnce(&Arc<ModelRoot>) -> ControlFlow<T>,
+) -> Result<ControlFlow<T, CommandReceipt>, CommandError> {
     if edits.is_empty() {
         return Err(CommandError::NoEdits);
     }
@@ -473,8 +497,11 @@ pub fn dispatch_slice(
     // model revision and continues to read the same worksheet data.
     if batch.operations.iter().all(|op| matches!(op, WorkbookOp::EditView(_))) {
         let document = calc_doc::prepare_edit(&host.model, &batch).map_err(CommandError::Document)?;
+        if let ControlFlow::Break(value) = prepared(document.model()) {
+            return Ok(ControlFlow::Break(value));
+        }
         host.install_skin_revision(document.into_model());
-        return Ok(CommandReceipt {
+        return Ok(ControlFlow::Continue(CommandReceipt {
             base,
             revision: base,
             changed_cells: Vec::new(),
@@ -482,7 +509,7 @@ pub fn dispatch_slice(
             input_writes: Vec::new(),
             pending: Vec::new(),
             superseded_recalc: None,
-        });
+        }));
     }
 
     let pivot_change = batch
@@ -1161,6 +1188,10 @@ pub fn dispatch_slice(
         });
     }
 
+    if let ControlFlow::Break(value) = prepared(document.model()) {
+        return Ok(ControlFlow::Break(value));
+    }
+
     let mut changed_cells = Vec::new();
     let mut cleared_areas = Vec::new();
     let mut seeded = 0usize;
@@ -1231,7 +1262,7 @@ pub fn dispatch_slice(
         }
     }
     pending.sort_unstable();
-    Ok(CommandReceipt {
+    Ok(ControlFlow::Continue(CommandReceipt {
         base,
         revision: committed.revision(),
         changed_cells,
@@ -1248,7 +1279,7 @@ pub fn dispatch_slice(
             .collect(),
         pending,
         superseded_recalc,
-    })
+    }))
 }
 
 /// Brings back the revision `earlier` (of this host's lineage) as the next revision

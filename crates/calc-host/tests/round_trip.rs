@@ -31024,3 +31024,36 @@ fn skin_anchor_custom_xml_round_trips_and_keeps_unknown_data() {
     );
     assert!(!part_text(&saved, "xl/workbook.xml").contains("_dna."));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn skin_preview_stages_the_same_writes_as_commit_without_advancing_history() {
+    let mut session = session(&calc_host::blank_package());
+    let sheet = session.host().model().sheets()[0].id();
+    let a1 = CellKey::new(sheet, 1, 1).unwrap();
+    let b1 = CellKey::new(sheet, 1, 2).unwrap();
+    let before = session.host().skin_stamp();
+    let edits = ["21", "=A1*2"]
+        .into_iter()
+        .zip([a1, b1])
+        .flat_map(|(text, at)| session.prepare_cell_entry(at, text).unwrap())
+        .collect::<Vec<_>>();
+
+    let staged = session.preview_edits(&edits).unwrap();
+    assert_eq!(session.host().skin_stamp(), before);
+    assert_eq!(session.history_depth(), (0, 0));
+    assert!(session.host().model().cell(a1).is_none());
+    assert!(session.host().model().cell(b1).is_none());
+    assert_eq!(staged.cell(a1), Some(&CellInput::Number(FiniteNumber::new(21.0).unwrap())));
+    assert!(matches!(staged.cell(b1), Some(CellInput::Formula(_))));
+
+    let receipt = session.dispatch(SkinIntent::Edit { edits });
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(session.history_depth(), (1, 0));
+    for at in [a1, b1] {
+        assert_eq!(session.host().model().cell(at), staged.cell(at));
+    }
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert!(session.host().model().cell(a1).is_none());
+    assert!(session.host().model().cell(b1).is_none());
+}
