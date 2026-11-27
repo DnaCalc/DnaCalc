@@ -5,7 +5,7 @@ use crate::{Live, Session};
 use calc_skin::grid::Key;
 use calc_skin::query;
 use calc_skin::{
-    Bound, Coverage, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
+    Bound, Coverage, DocId, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
 };
 use leptos::prelude::*;
 
@@ -18,43 +18,59 @@ pub struct PageInput {
     pub error: fn(Session, &Bound, Key) -> Option<String>,
 }
 
+/// Selection actions for controls in the authoring surface.
+#[derive(Clone, Copy)]
+pub struct PageAuthor {
+    pub document: DocId,
+    pub select_command: &'static str,
+    pub selected: fn(Session, DocId, &str) -> bool,
+}
+
+#[derive(Clone, Copy)]
+struct PageMode {
+    input: Option<PageInput>,
+    author: Option<PageAuthor>,
+}
+
 /// The same page can be previewed with read-only controls by omitting the input actions.
 #[component]
 pub fn PageRenderer(
     session: Session,
     document: Page,
     #[prop(optional)] input: Option<PageInput>,
+    #[prop(optional)] author: Option<PageAuthor>,
 ) -> impl IntoView {
+    let mode = PageMode { input, author };
     view! {
         <article class="dna-page" data-dnacalc="page">
             <h1>{document.title}</h1>
-            {node(session, document.root, input)}
+            {node(session, document.root, mode)}
         </article>
     }
 }
 
-fn children(session: Session, items: Vec<PageNode>, input: Option<PageInput>) -> Vec<AnyView> {
+fn children(session: Session, items: Vec<PageNode>, mode: PageMode) -> Vec<AnyView> {
     items
         .into_iter()
-        .map(|item| node(session, item, input))
+        .map(|item| node(session, item, mode))
         .collect()
 }
 
-fn node(session: Session, item: PageNode, input: Option<PageInput>) -> AnyView {
+fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
     match item {
         PageNode::Stack { children: items } => view! {
-            <div class="dna-page-stack">{children(session, items, input)}</div>
+            <div class="dna-page-stack">{children(session, items, mode)}</div>
         }.into_any(),
         PageNode::Row { children: items } => view! {
-            <div class="dna-page-row">{children(session, items, input)}</div>
+            <div class="dna-page-row">{children(session, items, mode)}</div>
         }.into_any(),
         PageNode::Grid { columns, children: items } => view! {
-            <div class="dna-page-grid" data-columns=columns.get()>{children(session, items, input)}</div>
+            <div class="dna-page-grid" data-columns=columns.get()>{children(session, items, mode)}</div>
         }.into_any(),
         PageNode::Section { title, folded, children: items } => view! {
             <details class="dna-page-section" open=!folded>
                 <summary>{title}</summary>
-                {children(session, items, input)}
+                {children(session, items, mode)}
             </details>
         }.into_any(),
         PageNode::Tabs { tabs } => {
@@ -62,20 +78,53 @@ fn node(session: Session, item: PageNode, input: Option<PageInput>) -> AnyView {
             tabs.into_iter().enumerate().map(|(index, tab)| view! {
                 <button type="button" aria-expanded=move || (selected.get() == index).to_string()
                     on:click=move |_| selected.set(index)>{tab.label}</button>
-                <div hidden=move || selected.get() != index>{node(session, tab.body, input)}</div>
+                <div hidden=move || selected.get() != index>{node(session, tab.body, mode)}</div>
             }).collect_view().into_any()
         }
         PageNode::Part { id, component, mut bind, props } => {
             let label = props.get("label").and_then(|value| value.as_str()).unwrap_or(&id).to_owned();
-            let slot = match component.as_str() {
-                "value" | "input" => "value",
-                "data-frame" => "rows",
-                _ => return view! { <p class="dna-page-card">{label} " · Component unavailable"</p> }.into_any(),
+            let source = match component.as_str() {
+                "value" | "input" => bind.remove("value"),
+                "data-frame" => bind.remove("rows"),
+                _ => None,
             };
-            let Some(bound) = bind.remove(slot) else { return missing() };
-            part(session, id, label, component, bound, input)
+            let body = match source {
+                Some(bound) => part(session, id.clone(), label.clone(), component.clone(), bound, mode.input),
+                None if matches!(component.as_str(), "value" | "input" | "data-frame") => missing(),
+                None => view! { <p class="dna-page-card">{label.clone()} " · Component unavailable"</p> }.into_any(),
+            };
+            if let Some(author) = mode.author {
+                author_control(session, author, id, label, body)
+            } else {
+                body
+            }
         }
     }
+}
+
+fn author_control(
+    session: Session,
+    author: PageAuthor,
+    id: String,
+    label: String,
+    body: AnyView,
+) -> AnyView {
+    let args = id.clone();
+    let selected = Memo::new(move |_| (author.selected)(session, author.document, &id));
+    view! {
+        <div class="dna-page-control" class:dna-page-control-selected=move || selected.get()>
+            <button type="button" data-command=author.select_command
+                aria-pressed=move || selected.get().to_string()
+                on:click=move |_| {
+                    let _ = session.run(&Invocation {
+                        command: CommandId::new(author.select_command),
+                        args: serde_json::Value::String(args.clone()),
+                    });
+                }>{format!("Select {label}")}</button>
+            {body}
+        </div>
+    }
+    .into_any()
 }
 
 fn missing() -> AnyView {

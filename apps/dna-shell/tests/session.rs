@@ -1313,3 +1313,72 @@ fn forms_and_app_share_the_page_and_history() {
     assert_eq!(page.shown(at), "42");
     assert_eq!(page.shown(page.at(2, 1)), "13");
 }
+/// Native-only: drives authoring commands and history through the real workbook service.
+#[test]
+fn forms_commands_change_control_order_labels_and_sources_without_model_edits() {
+    let page = Page::open();
+    let session = page.session;
+    let run = |command, args| {
+        session
+            .run(&dna_kit::Invocation {
+                command: dna_kit::commands::CommandId::new(command),
+                args,
+            })
+            .unwrap();
+        page.settle();
+        assert_eq!(session.seam(), Seam::Idle);
+        assert_eq!(session.notice(), "");
+    };
+    let controls = || {
+        let Live::Ready(part) = session.view_part() else {
+            panic!("missing view part");
+        };
+        let doc: calc_skin::Page =
+            serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+        let calc_skin::PageNode::Stack { children } = doc.root else {
+            panic!("expected a column");
+        };
+        children
+            .into_iter()
+            .map(|child| {
+                let calc_skin::PageNode::Part {
+                    id, bind, props, ..
+                } = child
+                else {
+                    panic!("expected a control");
+                };
+                (
+                    id,
+                    bind["value"].address.clone(),
+                    props["label"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let nothing = serde_json::Value::Null;
+    let model = session.stamp().unwrap().model;
+    run("view.forms", nothing.clone());
+    run("forms.create", nothing.clone());
+    run("forms.add-cell", serde_json::json!("Rate"));
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    run("forms.add-cell", serde_json::json!("Term"));
+    run("forms.select-part", serde_json::json!("cell-1"));
+    run("forms.move-part-up", nothing.clone());
+    run("forms.label-part", serde_json::json!("Term in months"));
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    run("forms.rebind-part", nothing.clone());
+    assert_eq!(
+        controls(),
+        [
+            ("cell-1".into(), "Sheet1!B2".into(), "Term in months".into()),
+            ("cell-0".into(), "Sheet1!A1".into(), "Rate".into()),
+        ]
+    );
+    run("forms.remove-part", nothing);
+    assert_eq!(controls().len(), 1);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(controls()[0].0, "cell-1");
+    assert_eq!(session.stamp().unwrap().model, model);
+}
