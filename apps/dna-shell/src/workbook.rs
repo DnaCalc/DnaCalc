@@ -7,7 +7,7 @@
 
 use calc_skin::grid::{Key, Sheet};
 use calc_skin::query::{self, Census};
-use calc_skin::{Operation, SourceRef, ViewId, address};
+use calc_skin::{ModelProperty, ModelPropertyDiff, Operation, SourceRef, ViewId, address};
 use dna_kit::commands::{CommandId, CommandSpec, Layer, When};
 use dna_kit::{
     DockSide, Fit, Focus, Invocation, KeyInput, Live, Located, Registry, Seam, Session, View,
@@ -35,6 +35,29 @@ pub struct Chrome {
 
 fn a1(at: Key) -> String {
     format!("{}{}", address::column_letters(at.3), at.2)
+}
+
+fn model_property_text(diff: ModelPropertyDiff) -> String {
+    match diff {
+        ModelPropertyDiff::CellFormat { at, before, after } => {
+            let style =
+                |id: Option<u32>| id.map_or_else(|| "File format".into(), |id| format!("Format {id}"));
+            format!("{} · {} → {}", a1(at), style(before), style(after))
+        }
+        ModelPropertyDiff::Scope { property, .. } => {
+            let label = match property {
+                ModelProperty::StyleTable => "Workbook formats",
+                ModelProperty::ArrayFormulas => "Array formulas",
+                ModelProperty::MergedCells => "Merged cells",
+                ModelProperty::ConditionalFormatting => "Conditional formatting",
+                ModelProperty::DataValidation => "Data validation",
+                ModelProperty::Notes => "Notes",
+                ModelProperty::Hyperlinks => "Hyperlinks",
+                ModelProperty::RichText => "Rich text",
+            };
+            format!("{label} changed")
+        }
+    }
 }
 
 fn spec(id: &'static str, label: &'static str, when: &str) -> CommandSpec {
@@ -444,6 +467,9 @@ pub fn workbook(
                                     <strong>{a1(write.at)}</strong>
                                     <code>{write.before}</code>" → "<code>{write.after}</code>
                                 </span>
+                            }).collect_view()}
+                            {preview.properties.into_iter().map(|property| view! {
+                                <span class="dna-book-review-write">{model_property_text(property)}</span>
                             }).collect_view()}
                             {preview.warnings.join(" · ")}
                             {command_button(session, "edit.apply-review", "Apply")}

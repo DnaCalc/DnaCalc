@@ -230,7 +230,7 @@ fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     assert_eq!(session.mode(), InputMode::KeyTips);
     assert!(!page.press("Tab", Focus::Stage));
     assert_eq!(session.active(), Some(page.at(1, 1)));
-    for key in ["h", "v", "Escape", "v", "t"] {
+    for key in ["h", "o", "Escape", "o", "i"] {
         assert!(page.press(key, Focus::Stage), "{key}");
     }
     assert_eq!(session.mode(), InputMode::Ready);
@@ -330,6 +330,70 @@ fn classic_paste_formulas_translates_references_at_the_destination() {
         assert!(page.press(key, Focus::Stage), "{key}");
     }
     assert_eq!(session.entry(), "=B3+$A$1");
+}
+
+/// Native-only: drives workbook clipboard commands through the real host.
+#[test]
+fn classic_transpose_rotates_entries_and_preserves_formats_on_blank_cells() {
+    use calc_host::value::GridArea;
+    use calc_host::{FormatPatch, WorkbookCommand};
+
+    let page = Page::open();
+    let session = page.session;
+    let format = |at: Key| {
+        page.host.with_session(SelectionCause::Open, |host| {
+            let receipt = host.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+                areas: vec![GridArea::cell(at.cell().unwrap())],
+                patch: FormatPatch {
+                    number_format: Some("0.00".into()),
+                    ..Default::default()
+                },
+            }));
+            assert!(receipt.error.is_none());
+        });
+        page.settle();
+    };
+    let transpose = |to| {
+        assert!(page.press("Ctrl+c", Focus::Stage));
+        session.select_cell(to);
+        page.settle();
+        for key in ["F10", "h", "v", "t"] {
+            assert!(page.press(key, Focus::Stage), "{key}");
+        }
+    };
+    let number_format = |at: Key| {
+        page.host.with_session(SelectionCause::Open, |host| {
+            host.host().number_format(at.cell().unwrap()).map(str::to_owned)
+        })
+    };
+    for (at, text) in [(page.at(1, 1), "7"), (page.at(1, 2), "8")] {
+        session.begin_edit(at, Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    format(page.at(1, 2));
+    assert_eq!(number_format(page.at(1, 2)).as_deref(), Some("0.00"));
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    transpose(page.at(3, 4));
+    assert_eq!(page.shown(page.at(3, 4)), "7");
+    assert_eq!(page.shown(page.at(4, 4)), "8");
+    assert_eq!(number_format(page.at(4, 4)).as_deref(), Some("0.00"));
+    assert_eq!(page.shown(page.at(3, 5)), "");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(3, 4)), "");
+    assert_eq!(page.shown(page.at(4, 4)), "");
+
+    let (source, target) = (page.at(5, 1), page.at(5, 4));
+    format(source);
+    session.select_cell(source);
+    page.settle();
+    transpose(target);
+    assert_eq!(page.shown(target), "");
+    assert_eq!(number_format(target).as_deref(), Some("0.00"));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_ne!(number_format(target).as_deref(), Some("0.00"));
 }
 
 /// Native-only: interleaves a real host edit between a paste preview and its commit.

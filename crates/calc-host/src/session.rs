@@ -1337,13 +1337,29 @@ impl HostSession {
         self.prepare_entries(at, text, &[GridArea::cell(at)])
     }
 
-    /// Stage cell contents and view-part edits through the same transaction preparation as commit.
+    /// Stage cell contents, copyable worksheet properties and view-part edits as for commit.
     /// The returned root is for inspection only; the live model, history and calculation stay put.
     pub fn preview_edits(&mut self, edits: &[CellEdit]) -> Result<Arc<calc_doc_model::ModelRoot>, IntentError> {
         if edits.iter().any(|edit| {
-            !matches!(edit, CellEdit::Set { .. } | CellEdit::SetArray { .. } | CellEdit::Clear { .. } | CellEdit::View(_))
+            !matches!(
+                edit,
+                CellEdit::Set { .. }
+                    | CellEdit::SetArray { .. }
+                    | CellEdit::Clear { .. }
+                    | CellEdit::Styles(_)
+                    | CellEdit::SetFormat { .. }
+                    | CellEdit::TextSources(_)
+                    | CellEdit::Merges { .. }
+                    | CellEdit::ConditionalRules { .. }
+                    | CellEdit::Validations { .. }
+                    | CellEdit::ReviewNotes { .. }
+                    | CellEdit::ReviewLinks { .. }
+                    | CellEdit::View(_)
+            )
         }) {
-            return Err(IntentError::Workbook("Preview supports cell contents and view-part edits".into()));
+            return Err(IntentError::Workbook(
+                "Preview supports cell contents, copyable worksheet properties and view-part edits".into(),
+            ));
         }
         let edits = self.authored_edits(edits.to_vec());
         crate::command::preview_slice(&mut self.host, &edits).map_err(IntentError::Command)
