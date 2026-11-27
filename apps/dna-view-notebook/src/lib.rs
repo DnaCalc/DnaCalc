@@ -3,6 +3,7 @@
 mod author;
 mod commands;
 mod names;
+mod blocks;
 mod spill;
 mod stage;
 
@@ -83,7 +84,9 @@ struct State {
     structure: Following<query::StructureOf>,
     author: author::Authoring,
     prose_editor: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
+    formula_editor: StoredValue<Option<dna_formula_ui::formula_field::FormulaAssist>, LocalStorage>,
     function_form: RwSignal<Option<calc_skin::WorkbookId>>,
+    inserter: RwSignal<Option<calc_skin::WorkbookId>>,
     tree: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
     rows: RwSignal<BTreeMap<(calc_skin::WorkbookId, AnchorId), RowControls>>,
 }
@@ -97,8 +100,9 @@ struct Workspace {
 
 #[derive(Clone)]
 struct CopiedCell {
-    kind: Kind,
+    item: Item,
     binding: Option<SourceRef>,
+    cut: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,6 +140,13 @@ struct Item {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum Kind {
+    Control {
+        label: String,
+        address: String,
+        control: blocks::InputControl,
+    },
+    Chart { address: String, #[serde(default)] requires: Option<AnchorId> },
+    CodeSlot,
     Formula,
     Function { name: String, #[serde(default)] owns_name: bool },
     Table { name: Option<String> },
@@ -194,7 +205,9 @@ impl State {
             structure: session.following(),
             author: author::Authoring::new(session),
             prose_editor: RwSignal::new(None),
+            formula_editor: StoredValue::new_local(None),
             function_form: RwSignal::new(None),
+            inserter: RwSignal::new(None),
             tree: RwSignal::new(None),
             rows: RwSignal::new(BTreeMap::new()),
         }

@@ -1371,6 +1371,224 @@ fn notebook_moving_a_lane_moves_the_spill_and_the_notebook_anchor() {
     ))));
 }
 
+/// Native-only: drives Notebook insert, advance, and commit through the Session keymap.
+#[test]
+fn notebook_jupyter_inserts_code_slots_and_advances_after_a_successful_run() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.blank").unwrap();
+    let part = session.watch(query::ViewPartOf);
+    page.settle();
+    let cells = || {
+        let Live::Ready(snapshot) = session.read(part) else {
+            panic!("Notebook declaration is unavailable");
+        };
+        snapshot.body.documents.into_iter()
+            .find(|doc| doc.view.0 == dna_view_notebook::ID).unwrap()
+            .body["cells"].as_array().unwrap().clone()
+    };
+    assert!(page.press("B", Focus::Stage));
+    page.settle();
+    assert_eq!(cells()[0]["kind"], "code-slot");
+    let empty = session.stamp().unwrap();
+    assert!(page.press("Enter", Focus::Stage));
+    page.settle();
+    let invoke = |command, args| {
+        session.run(&dna_kit::Invocation { command: dna_kit::commands::CommandId::new(command), args })
+            .unwrap();
+        page.settle();
+    };
+    invoke("notebook.author", serde_json::json!("=20+22"));
+    let at = session.active().unwrap();
+    assert_eq!(page.shown(at), "42");
+    assert_eq!(cells().len(), 1);
+    assert_eq!(cells()[0]["kind"], "formula");
+    assert!(session.stamp().unwrap().model > empty.model);
+
+    assert!(page.press("Enter", Focus::Stage));
+    session.edit_text("=1+".into());
+    assert!(page.press("Shift+Enter", Focus::Editor));
+    assert_eq!(cells().len(), 1);
+    assert!(session.edit().is_some());
+    assert_eq!(page.shown(at), "42");
+    session.edit_text("=6*7".into());
+    assert!(page.press("Shift+Enter", Focus::Editor));
+    page.settle();
+    assert_eq!(page.shown(at), "42");
+    assert_eq!(cells()[1]["kind"], "code-slot");
+
+    assert!(page.press("K", Focus::Stage));
+    assert!(page.press("Enter", Focus::Stage));
+    session.edit_text("=6*8".into());
+    assert!(page.press("Alt+Enter", Focus::Editor));
+    page.settle();
+    assert_eq!(page.shown(at), "48");
+    assert_eq!(cells().len(), 3);
+    assert_eq!(cells()[1]["kind"], "code-slot");
+    assert_eq!(cells()[2]["kind"], "code-slot");
+    assert!(page.press("A", Focus::Stage));
+    assert_eq!(cells()[1]["kind"], "code-slot");
+    assert_eq!(cells().len(), 4);
+    assert!(page.press("M", Focus::Stage));
+    assert_eq!(cells()[1]["kind"], "prose");
+    assert!(page.press("Y", Focus::Stage));
+    assert_eq!(cells()[1]["kind"], "code-slot");
+}
+
+/// Native-only: cut and paste the real Notebook declaration and keep its workbook ownership.
+#[test]
+fn notebook_cut_and_paste_keeps_the_owned_cell_and_its_name() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation { command: dna_kit::commands::CommandId::new(command), args })
+            .unwrap();
+        page.settle();
+    };
+    run("notebook.author", serde_json::json!("=6*7"));
+    let at = session.active().unwrap();
+    run("notebook.name-output", serde_json::json!("reportTotal"));
+    assert_eq!(page.shown(at), "42");
+    let part = session.watch(query::ViewPartOf);
+    page.settle();
+    let cells = || {
+        let Live::Ready(answer) = session.read(part) else {
+            panic!("Notebook declaration is unavailable");
+        };
+        answer.body.documents.into_iter()
+            .find(|doc| doc.view.0 == dna_view_notebook::ID).unwrap()
+            .body["cells"].as_array().unwrap().clone()
+    };
+    let before = session.stamp().unwrap();
+    assert_eq!(cells()[0]["owned"], true);
+    assert!(page.press("X", Focus::Stage));
+    assert!(cells().is_empty());
+    assert_eq!(page.shown(at), "42");
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    assert!(page.press("V", Focus::Stage));
+    assert_eq!(cells().len(), 1);
+    assert_eq!(cells()[0]["owned"], true);
+    assert_eq!(cells()[0]["output_name"], "reportTotal");
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    session.command("notebook.delete").unwrap();
+    page.settle();
+    assert!(cells().is_empty());
+    assert_eq!(page.shown(at), "");
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(at), "42");
+    assert_eq!(cells()[0]["output_name"], "reportTotal");
+}
+
+/// Native-only: the Alt+Enter command keeps multiline formula text in the draft.
+#[test]
+fn notebook_alt_enter_inserts_a_line_inside_a_multiline_formula() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("notebook.author"),
+        args: serde_json::json!("=42"),
+    }).unwrap();
+    page.settle();
+    let active = session.active().unwrap();
+    let before = session.stamp().unwrap();
+    assert!(page.press("Enter", Focus::Stage));
+    let formula = "=LET(x,\n6,x*7)";
+    session.edit_text(formula.into());
+    assert!(page.press("Alt+Enter", Focus::Editor));
+    assert_eq!(session.stamp(), Some(before));
+    assert_eq!(session.edit().unwrap().text, format!("{formula}\n"));
+    assert_eq!(page.shown(active), "42");
+}
+
+/// Native-only: F4 uses the shared formula-anchor cycle through the Notebook keymap.
+#[test]
+fn notebook_f4_cycles_the_current_formula_reference_without_running() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("notebook.author"),
+        args: serde_json::json!("=42"),
+    }).unwrap();
+    page.settle();
+    let before = session.stamp().unwrap();
+    assert!(page.press("Enter", Focus::Stage));
+    session.edit_text("=B2".into());
+    for reference in ["=$B$2", "=B$2", "=$B2", "=B2"] {
+        assert!(page.press("F4", Focus::Editor));
+        assert_eq!(session.edit().unwrap().text, reference);
+    }
+    assert_eq!(session.stamp(), Some(before));
+}
+
+/// Native-only: tests inline controls through the Notebook command table and workbook history.
+#[test]
+fn notebook_control_updates_the_formula_with_one_live_workbook_edit() {
+    use calc_skin::query::ViewPartOf;
+    let page = Page::open();
+    let session = page.session;
+    let input = page.at(3, 2);
+    let result = page.at(2, 10);
+    let enter = |at, text: &str| {
+        session.select_cell(at);
+        page.settle();
+        session.edit_text(text.into());
+        session.commit_edit();
+        page.settle();
+    };
+    enter(input, "Pending");
+    enter(result, r#"=IF(B3="Pending",3,5)"#);
+    assert_eq!(page.shown(result), "3");
+    session.command("view.notebook").unwrap();
+    let part = session.watch(ViewPartOf);
+    page.settle();
+    let before = session.stamp().unwrap();
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation { command: dna_kit::commands::CommandId::new(command), args }).unwrap();
+        page.settle();
+    };
+    run("notebook.add-control", serde_json::json!(["Status", "Sheet1!B3", {
+        "type": "choice", "options": ["Pending", "Paid"],
+    }]));
+    let linked = session.stamp().unwrap();
+    assert_eq!(before.model, linked.model);
+    assert!(before.view < linked.view);
+    let Live::Ready(saved) = session.read(part) else { panic!("Notebook block not saved"); };
+    let anchor = saved.body.anchors[0].id;
+    run("notebook.set-control", serde_json::json!([anchor, "Paid"]));
+    assert_eq!(page.shown(input), "Paid");
+    assert_eq!(page.shown(result), "5");
+    assert_eq!(session.stamp().unwrap().view, linked.view);
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(input), "Pending");
+    assert_eq!(page.shown(result), "3");
+}
+
+/// Native-only: verifies the block inserter shortcut belongs to Notebook command mode.
+#[test]
+fn notebook_block_inserter_uses_the_notebook_command_map() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    page.settle();
+    let before = session.stamp().unwrap();
+    assert!(page.press("/", Focus::Stage));
+    assert_eq!(session.stamp(), Some(before));
+    assert!(page.press("/", Focus::Stage));
+    assert_eq!(session.stamp(), Some(before));
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {
