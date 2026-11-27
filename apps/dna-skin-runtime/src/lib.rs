@@ -1,5 +1,7 @@
 //! Formula view state independent of the UI toolkit and the host carrier.
 
+pub mod client;
+pub mod commands;
 pub mod workbook;
 pub mod workbook_tiles;
 

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "Toolkit-independent request state for DNA Calc views."
+description = "The page end of the skin wire: the client, the command table and the keymap, with no UI toolkit."
 
 [package.metadata.dnacalc]
 portability = "portable"

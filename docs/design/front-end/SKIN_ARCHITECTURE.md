@@ -953,6 +953,61 @@ All technical discrepancies between Proposals A and B are resolved above. Only t
 
 ---
 
+## 20. Core decisions after M2 (`dc-wa48e`, lane fbs1, 2026-11-27)
+
+A review of what M0 to M2 landed found the contract (`calc-skin`) and the serving crate
+(`calc-skin-host`) sound, and the page side heading back to a controller: `WorkbookFrame` in
+`dna-shell` owned the frame store, the watches, the draft, the commit flow, the keys and the
+commands; a view received five grid-specific fields; the registry held one function per kind; and
+the page read answers as JSON by field name. A second view could not be written against that
+without widening the shell. These decisions fix the shape. They refine sections 4.6, 4.7, 6.1 and
+6.2 and hold where those differ.
+
+1. **Queries are typed on both sides (`calc_skin::query`).** `WorkbookQuery` and `Answer<Value>`
+   are the wire form only. A view names a query type (`query::History`, `query::CalcState`,
+   `query::Cells { .. }`) and receives its answer type. The host builds every answer body with the
+   same type's `Query::encode`. `json!` bodies and field-name reads are not allowed on either side.
+   A body of the wrong shape decodes to `Refusal::Transport`, never to a default.
+2. **The page's port is asynchronous and lives in one client (`dna_skin_runtime::client::Client`).**
+   `calc_skin::WorkbookPort` is synchronous and stays the host-side and in-process test port. A
+   page cannot block on a Worker, WebView2 or a socket, so the page's end of the wire is the
+   `Client`: a plain state machine with no carrier and no toolkit. It owns the requests in flight,
+   tile assembly, the `FrameStore`, the typed watches, the one edit draft and the one change in
+   progress. A carrier only calls `deliver(packet)` and sends `take_outbox()`. Every call returns
+   `Changes`, so a toolkit binding updates exactly the signals that moved. Carrier glue (pending
+   maps, tile joins) is not written again per application.
+3. **The seam is a state, not a convention.** `Seam` is `Idle`, `Queued` (waiting for the host to
+   confirm the selection the change was made against), `Previewing`, `Review(Preview)` or
+   `Committing`. Every change from every view goes through `Client::submit` or
+   `Client::commit_edit`: preview first, commit when the preview is clean, stop in `Review` when it
+   carries warnings. No view calls `Commit` on the wire itself. A draft survives a refused commit
+   and is dropped only by Esc, by its own commit, or by another workbook arriving.
+4. **One command layer (`dna_skin_runtime::commands`).** Everything a person, a skin, a macro's view
+   request or an agent can ask the page to do is a command with an identity, registered once in a
+   `CommandTable` with the condition under which it can run. A key chord, a Deck button, the command
+   search and a skin's named sequence all end in `CommandTable::run`. A view never handles a key
+   event for a command, and the shell never matches a command by its label.
+5. **One keymap, in the order of section 8.3.** `Keymap::resolve` takes a DOM-free `KeyInput` and a
+   `Context` (view, input mode, read-only) and answers a command, `Text` or `Unbound`. Layers resolve
+   in the order safety, editor, component, skin, view, shell. A skin's bindings are validated as a
+   whole (`set_skin`): an unknown command, a bad chord or condition, or a safety chord refuses the
+   whole layer. `departures` counts the chords where a skin changes what the view's profile does.
+   AltGr with a printable key, and input-method composition, are text and never commands (D12).
+6. **`InputMode` is the runtime's.** `Ready`, `Enter`, `Edit`, `Point`, `Object`, `KeyTips`,
+   `NotebookCommand`. It is derived from the client's draft, shown by the Strip and tested by key
+   conditions. No view keeps its own editing flag.
+7. **The view contract (next commit, `dna_kit::view`).** A view implements `View { spec, fit, mount }`
+   and receives a `ViewCx` holding a `Session` (dna-kit's signal binding over the `Client`) and
+   nothing else. It returns its body, its commands with their profile keys, `locate` and `reveal`.
+   The registry holds views by `ViewId` in switcher order. `dna-shell` is chrome over the same
+   `Session`; `dna-grid` owns its viewport watches (`Cells`, `Geometry`) instead of receiving a
+   window the shell computed. `WorkbookFrame` and `WorkbookContext` are removed in that commit.
+
+What a view crate may depend on is unchanged (section 3.2 rule 6). What changes is that a view now
+needs nothing from the shell to read, select, edit, commit or register a command.
+
+---
+
 ## Appendix A. Pro 19–21 C-needs traced onto `calc-skin`
 
 | Need (Pro 19 `C-1…C-34` + Pro 21 additions) | Met by in this architecture | Milestone |
