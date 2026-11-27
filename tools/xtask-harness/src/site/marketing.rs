@@ -617,7 +617,7 @@ fn markdown_doc(root: &Path, path: &str) -> Result<(String, String), String> {
     Ok((title.replace('`', ""), content))
 }
 
-fn with_site_metadata(page: String, prefix: &str) -> String {
+pub(super) fn with_site_metadata(page: String, prefix: &str) -> String {
     let discovery = llms::DESCRIBED_BY;
     page.replacen(
         "<title>",

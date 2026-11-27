@@ -396,7 +396,8 @@ return (async function () {
     await intent({ CalculateRange: { areas: [area(1, 18, 1, 19)] } });
     require((await scalarDone).calculated === 2, "the save fixture did not calculate its scalar caches");
     await intent({ EnterCell: { at: key(1, 17), text: "5" } });
-    const saved = await command("Save");
+    // Keep the earlier scalar caches when saving the edited input in Manual mode.
+    const saved = await command({ SaveWithContext: { calculate_before_save: false, views: null } });
     require(Object.prototype.toString.call(saved.package_bytes) === "[object ArrayBuffer]" && saved.package_bytes.byteLength > 0,
       "Save did not transfer a package beside its reply");
     const packageBytes = saved.package_bytes.byteLength;

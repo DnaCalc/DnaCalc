@@ -530,6 +530,7 @@ fn pack(
     }
     if let Some(page) = classic_preview {
         let page = app_page(page, &format!("{prefix}/classic-preview"))?;
+        let page = marketing::with_site_metadata(page, &prefix);
         write_nested(&dir.join("app/preview/index.html"), page.as_bytes())?;
     }
     write(&dir.join("LICENSE"), &read(&ws.root.join("LICENSE"))?)?;
