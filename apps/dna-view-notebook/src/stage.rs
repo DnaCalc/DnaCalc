@@ -110,6 +110,9 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                     }}
                 </button>
                 <Show when=move || source.get().is_some()>
+                    <span>{move || {
+                        if item.get().is_some_and(|item| item.owns_cell()) { "Owned" } else { "Referenced" }
+                    }}</span>
                     <button type="button" data-command="notebook.reveal"
                         on:click=move |_| invoke(state.session, "notebook.reveal", id)>
                         {move || address(state.session, source.get().as_ref().and_then(first_cell))}

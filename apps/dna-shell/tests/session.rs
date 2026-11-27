@@ -853,6 +853,82 @@ fn notebook_authors_scalar_and_array_anchors_in_one_history_step_each() {
     assert_eq!(undone.body.anchors.len(), 2);
 }
 
+/// Native-only: drives owned-cell deletion and undo through the workbook service.
+#[test]
+fn notebook_deletes_owned_spill_anchor_and_declaration_together() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    for (command, args) in [
+        ("notebook.author-columns", serde_json::json!(2)),
+        ("notebook.author", serde_json::json!("=SEQUENCE(3,1)")),
+    ] {
+        session
+            .run(&dna_kit::Invocation {
+                command: dna_kit::commands::CommandId::new(command),
+                args,
+            })
+            .unwrap();
+        page.settle();
+    }
+    let anchor = session.active().unwrap();
+    let filled = Key(anchor.0, anchor.1, anchor.2 + 2, anchor.3);
+    assert_eq!(page.shown(filled), "3");
+    let part = session.watch(query::ViewPartOf);
+    page.settle();
+
+    assert!(page.press("d", Focus::Stage));
+    assert!(page.press("d", Focus::Stage));
+    assert_eq!(page.shown(anchor), "");
+    assert_eq!(page.shown(filled), "");
+    let Live::Ready(deleted) = session.read(part) else {
+        panic!("Notebook view part after delete");
+    };
+    assert!(deleted.body.anchors.is_empty());
+
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(filled), "3");
+    let Live::Ready(undone) = session.read(part) else {
+        panic!("Notebook view part after undo");
+    };
+    assert_eq!(undone.body.anchors.len(), 1);
+
+    session.command("view.classic").unwrap();
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    session.edit_text("=A10+1".into());
+    session.commit_edit();
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 2)), "2");
+    session.command("view.notebook").unwrap();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("notebook.focus"),
+            args: serde_json::json!(undone.body.anchors[0].id),
+        })
+        .unwrap();
+    page.settle();
+    session.command("notebook.delete").unwrap();
+    page.settle();
+    let Seam::Review(preview) = session.seam() else {
+        panic!(
+            "Review required when another formula reads the cell: {:?}; {}",
+            session.seam(),
+            session.notice()
+        );
+    };
+    assert_eq!(preview.writes.len(), 1);
+    assert_eq!(preview.writes[0].at, anchor);
+    assert_eq!(page.shown(filled), "3");
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(filled), "");
+    assert_eq!(page.shown(page.at(1, 2)), "1");
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {
