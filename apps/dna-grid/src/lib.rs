@@ -6,7 +6,7 @@
 
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
-use calc_skin::{Batch, Change, Interest, ModelChange, Operation, Provenance, RawValue, Selection, SourceRef, address, query};
+use calc_skin::{Batch, Change, FillDirection, Interest, ModelChange, Operation, Provenance, RawValue, Selection, SourceRef, address, query};
 use dna_kit::{InputMode, Live, Session, ViewCommand};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
@@ -196,6 +196,25 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         .when("!mode:key-tips && !mode:object")
         .in_editor()
     };
+    let fill = |id, label, chord, direction| {
+        ViewCommand::new(view, id, label, &[chord], move |_| {
+            let areas = selected_areas(session);
+            let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
+                return Err("Select one worksheet range to fill.".into());
+            };
+            session.submit(Batch {
+                id: String::new(),
+                workbook: Some(stamp.workbook),
+                base: Some(stamp.model),
+                expects: Vec::new(),
+                selection_seq: None,
+                label: Some(label.into()),
+                changes: vec![Change::Model(ModelChange::FillRange { selected: *selected, direction })],
+            });
+            Ok(())
+        })
+        .when("mode:ready && writable")
+    };
     vec![
         moves("grid.move-down", "Move down", &["ArrowDown"], 1, 0),
         moves("grid.move-up", "Move up", &["ArrowUp"], -1, 0),
@@ -209,6 +228,8 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         extend("grid.extend-up", "Extend up", "Shift+ArrowUp", -1, 0),
         extend("grid.extend-left", "Extend left", "Shift+ArrowLeft", 0, -1),
         extend("grid.extend-right", "Extend right", "Shift+ArrowRight", 0, 1),
+        fill("grid.fill-down", "Fill Down", "Ctrl+D", FillDirection::Down),
+        fill("grid.fill-right", "Fill Right", "Ctrl+R", FillDirection::Right),
         ViewCommand::new(view, "grid.clear-contents", "Clear Contents", &["Delete"], move |_| {
             let areas = selected_areas(session);
             let stamp = session.stamp().filter(|_| !areas.is_empty())
