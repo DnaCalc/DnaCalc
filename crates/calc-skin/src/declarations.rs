@@ -11,6 +11,7 @@ pub struct SkinManifest {
     pub id: String,
     pub name: String,
     pub extends: Option<String>,
+    #[serde(default)]
     pub level: Level,
     pub theme: ThemeSettings,
     #[serde(default)]
@@ -33,10 +34,11 @@ pub enum SkinSchema {
     V1,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Level {
     Formula,
+    #[default]
     Workbook,
 }
 
@@ -52,9 +54,19 @@ pub struct ThemeSettings {
 pub struct ShellSettings {
     pub deck: Option<String>,
     #[serde(default)]
-    pub panels: BTreeMap<String, Vec<String>>,
+    pub panels: BTreeMap<String, Vec<DockPanel>>,
     #[serde(default)]
     pub strip_pins: Vec<StripPin>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DockPanel {
+    Id(String),
+    Sized {
+        id: String,
+        width_px: std::num::NonZeroU16,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,9 +114,10 @@ pub enum PageSchema {
     V1,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum InputPolicy {
+    #[default]
     Live,
     Batched,
 }
@@ -113,6 +126,7 @@ pub enum InputPolicy {
 pub struct Page {
     pub schema: PageSchema,
     pub title: String,
+    #[serde(default)]
     pub input: InputPolicy,
     pub root: PageNode,
 }
@@ -121,13 +135,9 @@ pub struct Page {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum PageNode {
     #[serde(alias = "Stack")]
-    Stack {
-        children: Vec<PageNode>,
-    },
+    Stack { children: Vec<PageNode> },
     #[serde(alias = "Row")]
-    Row {
-        children: Vec<PageNode>,
-    },
+    Row { children: Vec<PageNode> },
     #[serde(alias = "Grid")]
     Grid {
         columns: std::num::NonZeroU8,
@@ -141,9 +151,7 @@ pub enum PageNode {
         children: Vec<PageNode>,
     },
     #[serde(alias = "Tabs")]
-    Tabs {
-        tabs: Vec<PageTab>,
-    },
+    Tabs { tabs: Vec<PageTab> },
     #[serde(alias = "Part")]
     Part {
         id: String,
@@ -159,4 +167,38 @@ pub enum PageNode {
 pub struct PageTab {
     pub label: String,
     pub body: PageNode,
+}
+
+impl PageNode {
+    /// Visit component parts in authored reading order, including all tabs.
+    pub fn try_for_each_part<'a, E>(
+        &'a self,
+        visit: &mut impl FnMut(&'a str, &'a str, &'a BTreeMap<String, Bound>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        match self {
+            Self::Stack { children }
+            | Self::Row { children }
+            | Self::Grid { children, .. }
+            | Self::Section { children, .. } => children
+                .iter()
+                .try_for_each(|part| part.try_for_each_part(visit)),
+            Self::Tabs { tabs } => tabs
+                .iter()
+                .try_for_each(|tab| tab.body.try_for_each_part(visit)),
+            Self::Part {
+                id,
+                component,
+                bind,
+                ..
+            } => visit(id, component, bind),
+        }
+    }
+
+    pub fn for_each_part(&self, visit: &mut impl FnMut(&str, &str, &BTreeMap<String, Bound>)) {
+        let _: Result<(), std::convert::Infallible> =
+            self.try_for_each_part(&mut |id, component, bind| {
+                visit(id, component, bind);
+                Ok(())
+            });
+    }
 }

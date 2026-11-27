@@ -7,7 +7,7 @@ use calc_skin::{
     PageSchema, PresentationChange, Refusal, SourceRef, Stamp, ViewId, address,
 };
 use dna_kit::commands::CommandId;
-use dna_kit::page::{PageInput, PageRenderer, visit_parts};
+use dna_kit::page::{PageInput, PageRenderer};
 use dna_kit::{
     Invocation, Live, Located, MountedView, Registry, Seam, Session, View, ViewCommand, ViewSpec,
     Watch,
@@ -328,7 +328,8 @@ impl State {
             return Err("Reading source anchors…".into());
         };
         let mut part_ids = Vec::new();
-        visit_parts(&page.root, &mut |id, _, _| part_ids.push(id.to_owned()));
+        page.root
+            .for_each_part(&mut |id, _, _| part_ids.push(id.to_owned()));
         let anchor = (1u128..)
             .map(|n| AnchorId(NonZeroU128::new(n).unwrap()))
             .find(|id| part.body.anchors.iter().all(|anchor| anchor.id != *id))
@@ -451,7 +452,7 @@ fn encode(page: &Page) -> Result<serde_json::Value, String> {
 
 fn permits(page: &Page, bound: &Bound) -> bool {
     let mut permitted = false;
-    visit_parts(&page.root, &mut |_, component, bind| {
+    page.root.for_each_part(&mut |_, component, bind| {
         permitted |= component == "input" && bind.get("value") == Some(bound);
     });
     permitted

@@ -8,7 +8,6 @@ use calc_skin::{
     Bound, Coverage, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
 };
 use leptos::prelude::*;
-use std::collections::BTreeMap;
 
 #[derive(Clone, Copy)]
 pub struct PageInput {
@@ -263,23 +262,4 @@ fn schedule(session: Session, source: SourceRef) -> AnyView {
         }}
         </div>
     }.into_any()
-}
-
-/// Visit page parts in authored reading order.
-pub fn visit_parts(node: &PageNode, visit: &mut impl FnMut(&str, &str, &BTreeMap<String, Bound>)) {
-    match node {
-        PageNode::Stack { children }
-        | PageNode::Row { children }
-        | PageNode::Grid { children, .. }
-        | PageNode::Section { children, .. } => {
-            children.iter().for_each(|item| visit_parts(item, visit))
-        }
-        PageNode::Tabs { tabs } => tabs.iter().for_each(|tab| visit_parts(&tab.body, visit)),
-        PageNode::Part {
-            id,
-            component,
-            bind,
-            ..
-        } => visit(id, component, bind),
-    }
 }

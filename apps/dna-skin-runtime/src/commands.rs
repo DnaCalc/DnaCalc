@@ -83,17 +83,18 @@ impl InputMode {
         matches!(self, Self::Enter | Self::Edit | Self::Point)
     }
 
+    const ALL: [Self; 7] = [
+        Self::Ready,
+        Self::Enter,
+        Self::Edit,
+        Self::Point,
+        Self::Object,
+        Self::KeyTips,
+        Self::NotebookCommand,
+    ];
+
     fn parse(key: &str) -> Option<Self> {
-        [
-            Self::Ready,
-            Self::Enter,
-            Self::Edit,
-            Self::Point,
-            Self::Object,
-            Self::KeyTips,
-            Self::NotebookCommand,
-        ]
-        .into_iter()
+        Self::ALL.into_iter()
         .find(|mode| mode.key() == key)
     }
 }
@@ -150,6 +151,25 @@ impl When {
     pub fn and(mut self, other: Self) -> Self {
         self.0.extend(other.0);
         self
+    }
+
+    /// Whether two conditions can hold at the same time in the keymap.
+    fn overlaps(&self, other: &Self) -> bool {
+        // An unmentioned view can have the same truth values only as another unmentioned view.
+        let mut views = vec![ViewId(String::new())];
+        for (_, atom) in self.0.iter().chain(&other.0) {
+            if let Atom::View(view) = atom {
+                views.push(view.clone());
+            }
+        }
+        views.into_iter().any(|view| {
+            InputMode::ALL.into_iter().any(|mode| {
+                [false, true].into_iter().any(|read_only| {
+                    let context = Context { view: view.clone(), mode, read_only };
+                    self.holds(&context) && other.holds(&context)
+                })
+            })
+        })
     }
 
     pub fn holds(&self, context: &Context) -> bool {
@@ -308,6 +328,7 @@ pub enum KeymapError {
     UnknownCommand(String),
     /// A skin tried to bind a safety key.
     Protected(Chord),
+    Collision(Chord),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -368,8 +389,39 @@ impl Keymap {
         bindings: &[KeyBinding],
         commands: &CommandTable,
     ) -> Result<(), Vec<KeymapError>> {
+        let (parsed, mut errors) = Self::parse_skin_bindings(bindings);
+        for source in bindings {
+            if commands.spec(&CommandId::from(source.command.as_str())).is_none() {
+                errors.push(KeymapError::UnknownCommand(source.command.clone()));
+            }
+        }
+        for binding in &parsed {
+            if self.is_protected(&binding.chord) {
+                errors.push(KeymapError::Protected(binding.chord.clone()));
+            }
+        }
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+        self.bindings.retain(|b| b.layer != Layer::Skin);
+        self.bindings.extend(parsed);
+        Ok(())
+    }
+
+    /// Checks a manifest's binding syntax without requiring the installation's command table.
+    pub fn validate_skin_bindings(bindings: &[KeyBinding]) -> Result<(), Vec<KeymapError>> {
+        let (_, errors) = Self::parse_skin_bindings(bindings);
+        if errors.is_empty() { Ok(()) } else { Err(errors) }
+    }
+
+    fn parse_skin_bindings(bindings: &[KeyBinding]) -> (Vec<Binding>, Vec<KeymapError>) {
+        // These keys must remain reachable even when a particular view hasn't mounted.
+        const RESERVED: &[&str] = &[
+            "Esc", "Ctrl+Z", "Ctrl+Y", "F4", "Ctrl+Enter", "Alt+Q", "Ctrl+Alt+1", "Alt+Shift+1"
+        ];
+        let reserved: Vec<_> = RESERVED.iter().map(|key| Chord::parse(key).expect("built-in chord")).collect();
         let mut errors = Vec::new();
-        let mut parsed = Vec::new();
+        let mut parsed: Vec<Binding> = Vec::new();
         for binding in bindings {
             let chord = Chord::parse(&binding.chord).map_err(|reason| KeymapError::Chord {
                 chord: binding.chord.clone(),
@@ -379,32 +431,25 @@ impl Keymap {
                 when: binding.when.clone(),
                 reason,
             });
-            let command = CommandId::from(binding.command.as_str());
-            if commands.spec(&command).is_none() {
-                errors.push(KeymapError::UnknownCommand(binding.command.clone()));
-            }
             match (chord, when) {
+                (Ok(chord), Ok(_)) if reserved.contains(&chord) => {
+                    errors.push(KeymapError::Protected(chord));
+                }
+                (Ok(chord), Ok(when)) if parsed.iter().any(|other| other.chord == chord && other.when.overlaps(&when)) => {
+                    errors.push(KeymapError::Collision(chord));
+                }
                 (Ok(chord), Ok(when)) => {
-                    if self.is_protected(&chord) {
-                        errors.push(KeymapError::Protected(chord));
-                    } else {
-                        parsed.push(Binding {
-                            layer: Layer::Skin,
-                            when,
-                            chord,
-                            command,
-                        });
-                    }
+                    parsed.push(Binding {
+                        layer: Layer::Skin,
+                        when,
+                        chord,
+                        command: CommandId::from(binding.command.as_str()),
+                    });
                 }
                 (chord, when) => errors.extend(chord.err().into_iter().chain(when.err())),
             }
         }
-        if !errors.is_empty() {
-            return Err(errors);
-        }
-        self.bindings.retain(|b| b.layer != Layer::Skin);
-        self.bindings.extend(parsed);
-        Ok(())
+        (parsed, errors)
     }
 
     fn is_protected(&self, chord: &Chord) -> bool {

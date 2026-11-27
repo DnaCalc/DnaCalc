@@ -12,6 +12,7 @@ portability = "portable"
 [dependencies]
 serde_json = "=1.0.154"
 calc-skin = { path = "../../crates/calc-skin" }
+dna-strand = { path = "../dna-strand" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

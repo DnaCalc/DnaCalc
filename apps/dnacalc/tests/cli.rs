@@ -275,3 +275,76 @@ fn run_all_takes_a_step_budget_per_entry() {
     let (_, code, _) = dnacalc(&["run", book, "--all", "--steps", "many", "--macro-level", "guarded", "--json"]);
     assert_eq!(code, 2);
 }
+
+#[test]
+fn skin_validate_accepts_the_dark_audit_manifest_and_checks_contrast() {
+    let path = temp("dark-audit.dnaskin.json");
+    let mut manifest = serde_json::json!({
+        "schema": "dna.skin/1", "id": "calm-dark-audit", "name": "Calm Dark Audit",
+        "extends": "dna:default",
+        "theme": {
+            "base": "cockpit-dark", "density": "working",
+            "overrides": {
+                "ink.secondary": "#A4B8C2", "ink-3": "#A4B8C2",
+                "surface.panel": "#22343C", "formula.font.size": "15.5px"
+            }
+        },
+        "shell": { "deck": "compact", "panels": { "right": [{"id": "inspector.trace", "width_px": 320}] } },
+        "keymap": { "profile": "excel-365-win-en-us", "bindings": [] }
+    });
+    let save = |manifest: &Value| std::fs::write(&path, serde_json::to_vec_pretty(manifest).unwrap()).unwrap();
+    save(&manifest);
+    let (result, code, text) = dnacalc(&["skin", "validate", &path, "--json"]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(result["schema"], "dna.skin/1");
+    assert_eq!(result["theme"], "cockpit-dark");
+    assert_eq!(result["contrast_pairs"], 17);
+    manifest["theme"]["overrides"]["ink.secondary"] = serde_json::json!("#7D97A0");
+    save(&manifest);
+    let (_, code, text) = dnacalc(&["skin", "validate", &path]);
+    assert_eq!(code, 2);
+    assert!(text.contains("ink-2 on paper-2"), "{text}");
+    assert!(text.contains("contrast"), "{text}");
+}
+
+#[test]
+fn skin_validate_checks_reserved_and_overlapping_keys_and_page_bindings() {
+    let path = temp("manifest-key-or-bind.json");
+    let mut manifest = serde_json::json!({
+        "schema": "dna.skin/1", "id": "review", "name": "Review",
+        "theme": { "base": "cockpit-light", "density": "working" },
+        "keymap": {
+            "profile": "excel-365-win-en-us",
+            "bindings": [{"chord": "Escape", "when": "mode:ready", "command": "view.classic"}]
+        }
+    });
+    let save = |manifest: &Value| std::fs::write(&path, serde_json::to_vec(manifest).unwrap()).unwrap();
+    save(&manifest);
+    let (_, code, text) = dnacalc(&["skin", "validate", &path]);
+    assert_eq!(code, 2);
+    assert!(text.contains("Escape is reserved"), "{text}");
+    manifest["keymap"]["bindings"] = serde_json::json!([
+        {"chord": "Ctrl+Shift+E", "when": "view:classic", "command": "view.classic"},
+        {"chord": "Shift+Ctrl+E", "when": "mode:ready", "command": "view.app"}
+    ]);
+    save(&manifest);
+    let (_, code, text) = dnacalc(&["skin", "validate", &path]);
+    assert_eq!(code, 2);
+    assert!(text.contains("Overlapping skin bindings for Ctrl+Shift+E"), "{text}");
+
+    save(&serde_json::json!({
+        "schema": "dna.page/1", "title": "Loan",
+        "root": {"kind": "Part", "id": "rate", "component": "input", "bind": {
+            "value": {"anchor": "00000000-0000-0000-0000-000000000001", "address": "Sheet1!B3"}
+        }}
+    }));
+    let workbook = temp("skin-bindings.xlsx");
+    std::fs::write(&workbook, calc_host::blank_package()).unwrap();
+    let (result, code, text) = dnacalc(&["skin", "validate", &path, "--json"]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(result["bindings"], 1);
+    assert!(result["bindings_checked"].is_null());
+    let (_, code, text) = dnacalc(&["skin", "validate", &path, "--workbook", &workbook]);
+    assert_eq!(code, 2);
+    assert!(text.contains("Sheet1!B3: Source missing"), "{text}");
+}

@@ -2,6 +2,7 @@
 
 pub mod client;
 pub mod commands;
+pub mod skin;
 pub mod workbook;
 pub mod workbook_tiles;
 

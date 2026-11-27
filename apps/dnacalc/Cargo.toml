@@ -16,6 +16,9 @@ portability = "native-only"
 # in a dependency's refusal (calc-platform-desktop) or in getrandom; the architecture check wasm-refusal wants the refusal from this package.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 calc-host = { path = "../../crates/calc-host" }
+calc-skin = { path = "../../crates/calc-skin" }
+calc-skin-host = { path = "../../crates/calc-skin-host" }
+dna-skin-runtime = { path = "../dna-skin-runtime" }
 calc-host-vba = { path = "../../crates/calc-host-vba" }
 calc-macro-security = { path = "../../crates/calc-macro-security" }
 calc-verdict = { path = "../../tools/calc-verdict" }

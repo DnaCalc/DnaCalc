@@ -1559,6 +1559,7 @@ name = "dna-skin-runtime"
 version = "0.1.0"
 dependencies = [
  "calc-skin",
+ "dna-strand",
  "serde_json",
  "wasm-bindgen-test",
 ]
@@ -1636,9 +1637,12 @@ dependencies = [
  "calc-host-vba",
  "calc-macro-security",
  "calc-platform-desktop",
+ "calc-skin",
+ "calc-skin-host",
  "calc-verdict",
  "dna-calc-protocol",
  "dna-calc-worker",
+ "dna-skin-runtime",
  "getrandom",
  "httparse",
  "serde_json",

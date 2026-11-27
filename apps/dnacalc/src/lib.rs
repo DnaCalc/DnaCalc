@@ -29,12 +29,14 @@ mod cells;
 mod diff;
 mod session;
 pub mod serve;
+mod skin;
 
 use serde_json::{Value, json};
 use std::io::Write;
 
 pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   serve [--port <n>] [--assets <dir>]     open the printed loopback URL in your browser (Ctrl+C stops it)
+  skin validate <manifest.json> [--workbook <file>]   check a declarative skin or page
   recalc <book> [--out <file>]            recalculate; save the result with --out
   diff   <book> [--cells]                 recalculate; compare every formula cell with the file's cached values
   get    <book> <cell>...                 a cell's formula, cached value and calculated value
@@ -154,17 +156,11 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
             }
         };
     }
-    let result = parse(args).and_then(|cli| {
-        let (report, code) = match cli.command.as_str() {
-            "recalc" => cells::recalc(&cli)?,
-            "diff" => diff::diff(&cli)?,
-            "get" => cells::get(&cli)?,
-            "set" => cells::set(&cli)?,
-            "run" => cells::run_macro(&cli)?,
-            other => return Err(fail(format!("unknown command {other:?}\n{USAGE}"))),
-        };
-        Ok((cli.json, cli.list_cells || cli.command != "diff", report, code))
-    });
+    let result = if args.first().is_some_and(|command| command == "skin") {
+        skin::validate(&args[1..]).map(|report| (args.iter().any(|arg| arg == "--json"), false, report, 0))
+    } else {
+        workbook_command(args)
+    };
     match result {
         Ok((json, list, report, code)) => {
             let text = if json {
@@ -189,6 +185,20 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
             failure.code
         }
     }
+}
+
+fn workbook_command(args: &[String]) -> Result<(bool, bool, Value, u8), Failure> {
+    parse(args).and_then(|cli| {
+        let (report, code) = match cli.command.as_str() {
+            "recalc" => cells::recalc(&cli)?,
+            "diff" => diff::diff(&cli)?,
+            "get" => cells::get(&cli)?,
+            "set" => cells::set(&cli)?,
+            "run" => cells::run_macro(&cli)?,
+            other => return Err(fail(format!("unknown command {other:?}\n{USAGE}"))),
+        };
+        Ok((cli.json, cli.list_cells || cli.command != "diff", report, code))
+    })
 }
 
 /// The text form: one `key: value` line per summary field, then the per-cell rows when asked.
