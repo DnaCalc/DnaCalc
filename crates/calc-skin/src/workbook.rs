@@ -232,6 +232,9 @@ pub enum WorkbookQuery {
     OutputCandidates {
         scope: SourceRef,
     },
+    ChartImage {
+        object: SourceRef,
+    },
     Sources,
     Deps {
         of: SourceRef,

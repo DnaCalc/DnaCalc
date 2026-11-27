@@ -77,13 +77,17 @@ pub(crate) fn result_observation(result: Option<&calc_host::FormulaResult>) -> q
 }
 
 pub(crate) fn anchor_source(state: &State, id: AnchorId) -> Result<SourceRef, Refusal> {
-    let anchor = state
-        .session
-        .host()
-        .model()
+    let host = state.session.host();
+    let anchor = host.model()
         .view_part()
         .anchor(id)
         .ok_or_else(|| invalid("The anchor does not exist"))?;
+    if let Some((key, name)) = anchor.object_target() {
+        let sheet = host.model().sheet_by_key(key)
+            .filter(|sheet| host.has_named_chart(sheet.id(), name))
+            .ok_or_else(|| invalid("The chart is unavailable"))?;
+        return Ok(SourceRef::Object { sheet: Sheet::of(sheet.id()), name: name.into() });
+    }
     let area = anchor
         .area()
         .ok_or_else(|| invalid("The anchor is orphaned"))?;
@@ -279,6 +283,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::InputCandidates { .. } | WorkbookQuery::OutputCandidates { .. } => {
             authored || recalculated
         }
+        WorkbookQuery::ChartImage { .. } => authored || recalculated || rtd_changed,
         WorkbookQuery::Sources | WorkbookQuery::Contributions { .. } => {
             authored || recalculated || rtd_changed
         }
@@ -687,6 +692,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         | WorkbookQuery::Structure { .. }
         | WorkbookQuery::OutputCandidates { .. } => Some("Choose a smaller worksheet area"),
         WorkbookQuery::InputCandidates { .. } => Some("Choose a smaller worksheet area or open Forms maker"),
+        WorkbookQuery::ChartImage { .. } => Some("Choose a chart with fewer points"),
         WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
         WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
         WorkbookQuery::Notes { .. } => Some("Choose one anchor"),
@@ -742,6 +748,26 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         }
         WorkbookQuery::OutputCandidates { scope } => {
             query::OutputCandidates::encode(&structure::outputs(state, scope, &mut meter)?)?
+        }
+        WorkbookQuery::ChartImage { object } => {
+            use base64::Engine as _;
+            let SourceRef::Object { sheet, name } = object else {
+                return Err(invalid("Choose a worksheet chart"));
+            };
+            let chart = host.chart_named(sheet.id(), name).ok_or_else(|| invalid("Source missing"))?;
+            let mut uses_saved_values = false;
+            for series in chart.plots.iter().flat_map(|plot| &plot.series) {
+                let points = series.values.len().max(series.categories.len()).max(series.sizes.len());
+                meter.work(points as u64, 1, 0)?;
+                uses_saved_values |= series.cached;
+            }
+            let svg = calc_chart_render::chart_svg(&chart, 640.0, 360.0);
+            let data = base64::engine::general_purpose::STANDARD.encode(svg);
+            query::ChartImageOf::encode(&calc_skin::ChartImage {
+                label: chart.title.filter(|title| !title.is_empty()).unwrap_or(chart.name),
+                data_url: format!("data:image/svg+xml;base64,{data}"),
+                uses_saved_values,
+            })?
         }
         WorkbookQuery::Sources => {
             query::SourceInventory::encode(&inventory::sources(host, &mut meter)?)?

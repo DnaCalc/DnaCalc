@@ -521,6 +521,8 @@ dependencies = [
 name = "calc-skin-host"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "calc-chart-render",
  "calc-doc-model",
  "calc-formula-host",
  "calc-formula-kernel",

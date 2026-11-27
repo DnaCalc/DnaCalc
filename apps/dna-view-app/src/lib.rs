@@ -5,7 +5,7 @@ use calc_skin::query::{self, ViewDocumentFacts, ViewPartFacts};
 use calc_skin::{
     AnchorId, Batch, Bound, Change, Coverage, DocId, InputCandidate, InputPolicy, InputSignal,
     InventoryItem, InventoryKind, ModelChange, Page, PageNode, PageSchema, PresentationChange,
-    Refusal, SourceRef, Stamp, TableInfo, ViewId, address,
+    Refusal, SourceRef, Stamp, TableInfo, ViewId,
 };
 use dna_kit::commands::CommandId;
 use dna_kit::page::{PageAuthor, PageInput, PageRenderer};
@@ -238,6 +238,13 @@ impl View for Surface {
                     state.add_table(table)
                 }).when("writable"),
             );
+            commands.push(
+                ViewCommand::new(&id, "forms.add-chart", "Add chart to App page", &[], move |invocation| {
+                    let chart = serde_json::from_value(invocation.args.clone())
+                        .map_err(|_| "Choose a worksheet chart.".to_owned())?;
+                    state.add_chart(chart)
+                }).when("writable"),
+            );
             commands
         }
     }
@@ -464,18 +471,40 @@ impl State {
         )
     }
 
-    fn add_table(self, table: TableInfo) -> Result<(), String> {
+    fn inventory(self) -> Result<Vec<InventoryItem>, String> {
         let inventory = self.inventory.expect("Forms reports the workbook's inventory");
         let Live::Ready(answer) = self.session.read(inventory) else {
-            return Err("Reading worksheet tables…".into());
+            return Err("Reading worksheet objects…".into());
         };
         if self.session.stamp().is_none_or(|stamp| stamp.workbook != answer.stamp.workbook)
             || answer.coverage != Coverage::Complete
-            || !answer.body.iter().any(|item| matches!(item, InventoryItem::Table(known) if known == &table))
         {
+            return Err("Reading the current workbook’s objects…".into());
+        }
+        Ok(answer.body)
+    }
+
+    fn add_table(self, table: TableInfo) -> Result<(), String> {
+        if !self.inventory()?.iter().any(|item| matches!(item, InventoryItem::Table(known) if known == &table)) {
             return Err("Choose a current workbook table.".into());
         }
         self.append_bound("Add table to App page", &table.name, "data-frame", "rows", table.area)
+    }
+
+    fn add_chart(self, object: SourceRef) -> Result<(), String> {
+        let SourceRef::Object { name, .. } = &object else {
+            return Err("Choose a worksheet chart.".into());
+        };
+        if !self.inventory()?.iter().any(|item| matches!(item, InventoryItem::Chart { object: chart } if chart == &object)) {
+            return Err("Choose a current workbook chart.".into());
+        }
+        let label = name.clone();
+        let (bound, binding) = self.bind_source(object)?;
+        self.append_part(
+            "Add chart to App page",
+            bound_part(String::new(), "chart", "object", bound, label),
+            Some(binding),
+        )
     }
 
     fn append_bound(
@@ -532,16 +561,15 @@ impl State {
     }
 
     fn make_binding(self, area: Area) -> Result<(Bound, PresentationChange), String> {
-        let mut address = qualified(self.session, area.0)
-            .ok_or_else(|| "The source worksheet is unavailable".to_owned())?;
-        if area.0 != area.1 {
-            address.push(':');
-            address.push_str(&calc_skin::address::address(area.1.2, area.1.3));
-        }
-        let source = SourceRef::Cells {
+        self.bind_source(SourceRef::Cells {
             sheet: Sheet(area.0.0, area.0.1),
             areas: vec![area],
-        };
+        })
+    }
+
+    fn bind_source(self, source: SourceRef) -> Result<(Bound, PresentationChange), String> {
+        let address = source_address(self.session, &source)
+            .ok_or_else(|| "The source worksheet is unavailable".to_owned())?;
         let Live::Ready(part) = self.session.view_part() else {
             return Err("Reading source anchors…".into());
         };
@@ -720,18 +748,17 @@ fn batch(stamp: Stamp, label: &str, changes: Vec<Change>) -> Batch {
 }
 
 fn qualified(session: Session, at: Key) -> Option<String> {
-    session
+    source_address(session, &cell_source(at))
+}
+
+fn source_address(session: Session, source: &SourceRef) -> Option<String> {
+    let sheets = session
         .summary()?
         .sheets
         .into_iter()
-        .find(|sheet| sheet.sheet == Sheet(at.0, at.1))
-        .map(|sheet| {
-            format!(
-                "{}!{}",
-                address::quoted_sheet(&sheet.name),
-                address::address(at.2, at.3)
-            )
-        })
+        .map(|sheet| (sheet.sheet, sheet.name))
+        .collect();
+    source.display(&calc_skin::AddressBook { sheets, ..Default::default() })
 }
 
 #[derive(Clone)]

@@ -1603,3 +1603,111 @@ fn forms_maker_authors_reader_prose_bound_to_the_selected_cell() {
     ));
     assert_eq!(session.stamp().unwrap().model, model);
 }
+/// Native-only: binds an existing Excel chart and reopens the authored App page.
+#[test]
+fn forms_maker_reopens_a_bound_workbook_chart_and_reads_its_image() {
+    use calc_skin::query::Query;
+    use calc_skin::{InventoryItem, InventoryKind, PageNode, SourceRef, WorkbookPort};
+
+    let page = Page::open();
+    let session = page.session;
+    session.open(
+        "Charts.xlsx".into(),
+        include_bytes!(
+            "../../../crates/calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx"
+        )
+        .to_vec(),
+    );
+    page.settle();
+    let ask = |query| {
+        page.port
+            .ask(query, dna_skin_runtime::client::PAGE_BUDGET)
+            .unwrap()
+    };
+    let inventory = query::Inventory {
+        kinds: vec![InventoryKind::Charts],
+    };
+    let worksheet = session
+        .summary()
+        .unwrap()
+        .sheets
+        .into_iter()
+        .find(|sheet| sheet.worksheet)
+        .unwrap();
+    let chart = query::Inventory::decode(ask(inventory.request()))
+        .unwrap()
+        .body
+        .into_iter()
+        .find_map(|item| match item {
+            InventoryItem::Chart {
+                object: source @ SourceRef::Object { sheet, .. },
+            } if sheet == worksheet.sheet => Some(source),
+            _ => None,
+        })
+        .expect("the worksheet has an embedded chart");
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("forms.add-chart"),
+            args: serde_json::to_value(chart).unwrap(),
+        })
+        .unwrap();
+    page.settle();
+    let model = session.stamp().unwrap().model;
+    let bound = || {
+        let Live::Ready(part) = session.view_part() else {
+            panic!("missing view part");
+        };
+        let page: calc_skin::Page =
+            serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+        let PageNode::Stack { children } = page.root else {
+            panic!("expected the app page");
+        };
+        let [
+            PageNode::Part {
+                component, bind, ..
+            },
+        ] = children.as_slice()
+        else {
+            panic!("expected one chart control");
+        };
+        assert_eq!(component, "chart");
+        bind["object"].clone()
+    };
+    let binding = bound();
+    let bytes = page
+        .host
+        .with_session(calc_skin::SelectionCause::Open, |workbook| {
+            let mut bytes = Vec::new();
+            workbook
+                .save(&calc_host::SavePolicy::default(), &mut bytes)
+                .unwrap();
+            bytes
+        });
+    assert_eq!(session.stamp().unwrap().model, model);
+    session.open("Charts.xlsx".into(), bytes);
+    page.settle();
+    assert_eq!(bound(), binding);
+    let source = query::ResolveBound { bound: binding.clone() };
+    let resolved = query::ResolveBound::decode(ask(source.request()))
+        .unwrap()
+        .body;
+    let SourceRef::Object { sheet, name } = &resolved else {
+        panic!("expected the bound chart");
+    };
+    let sheet_name = session.summary().unwrap().sheets.into_iter()
+        .find(|entry| entry.sheet == *sheet).unwrap().name;
+    let alias = query::ResolveBound {
+        bound: calc_skin::Bound {
+            address: format!("obj:{}/{name}", calc_skin::address::quoted_sheet(&sheet_name)),
+            ..binding
+        },
+    };
+    assert_eq!(query::ResolveBound::decode(ask(alias.request())).unwrap().body, resolved);
+    let drawing = query::ChartImageOf { object: resolved };
+    let chart = query::ChartImageOf::decode(ask(drawing.request())).unwrap().body;
+    assert!(chart.data_url.starts_with("data:image/svg+xml;base64,PHN2Zy"));
+    assert!(!chart.label.is_empty());
+}

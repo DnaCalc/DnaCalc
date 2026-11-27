@@ -32,6 +32,14 @@ pub struct TableInfo {
     pub columns: Vec<String>,
 }
 
+/// A worksheet chart drawn by the workbook's chart renderer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartImage {
+    pub label: String,
+    pub data_url: String,
+    pub uses_saved_values: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalLink {
     pub index: u32,
