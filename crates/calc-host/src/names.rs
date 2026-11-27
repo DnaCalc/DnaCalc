@@ -82,15 +82,13 @@ pub fn lambda_parameters(formula: &str) -> Option<Vec<String>> {
     }).collect()
 }
 
-/// Authored name bodies use the existing file-form converter. Name results are
-/// reference-or-value, so retain explicit intersection rather than choosing a
-/// cell's inferred legacy form. Imported/restored definitions keep their source.
-fn authored_name_formula(host: &HostState, text: &str, scope: NameScope) -> Result<String, String> {
+/// Use the workbook's file spelling and keep explicit intersection in a dynamic expression.
+fn authored_dynamic_formula(host: &HostState, text: &str, scope: NameScope) -> Result<String, String> {
     let formula = calc_doc_model::FormulaText::with_form(
         calc_value::ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
         calc_doc_model::FormulaForm::Dynamic,
     )
-    .map_err(|_| "The name's formula is empty")?;
+    .map_err(|_| "The formula is empty")?;
     let table = host.model().definitions().name_table();
     let lookup = |qualifier: Option<&str>, spelling: &str| {
         let local = match qualifier {
@@ -124,9 +122,9 @@ fn authored_name_formula(host: &HostState, text: &str, scope: NameScope) -> Resu
     };
     let links = host.model().definitions().external_file_names();
     let form = calc_doc::file_form_with_lookup(&formula, &lookup, &links)
-        .map_err(|_| "The name's formula cannot be written in Excel form (dc-hsa5.6)")?;
+        .map_err(|_| "The formula cannot be written in Excel form (dc-hsa5.6)")?;
     String::from_utf16(&form.text)
-        .map_err(|_| "The name's formula is unreadable (dc-hsa5.6)".into())
+        .map_err(|_| "The formula is unreadable (dc-hsa5.6)".into())
 }
 
 pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>, String> {
@@ -173,7 +171,7 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
             name: edit.name,
             scope: edit.scope,
             formula: formula
-                .map(|f| authored_name_formula(host, &f, edit.scope))
+                .map(|f| authored_dynamic_formula(host, &f, edit.scope))
                 .transpose()?,
         }]);
     };
@@ -272,7 +270,7 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
             .collect();
     }
     let formula = formula
-        .map(|f| authored_name_formula(host, &f, edit.scope))
+        .map(|f| authored_dynamic_formula(host, &f, edit.scope))
         .transpose()?;
     if formula.as_ref() == Some(&node.definition().formula) {
         return Ok(Vec::new());
@@ -293,6 +291,32 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
     Ok(vec![CellEdit::RestoreNames(snapshots)])
 }
 impl HostState {
+    /// Returns the display formula and name targets with their UTF-16 spans.
+    pub fn formula_name_sources(
+        &self, at: CellKey,
+    ) -> Option<(String, Vec<(calc_fml::syntax::TextSpan, NameId)>)> {
+        let (stored, uses) = calc_engine::cell_name_uses(&self.model, at, &self.user_function_bindings())?;
+        let text = calc_fml::assist::display_formula(&stored);
+        if text == stored {
+            let links = uses.into_iter().filter_map(|usage| Some((usage.span, usage.resolved?.id))).collect();
+            return Some((text, links));
+        }
+        let stored_runs = calc_fml::assist::highlight(&stored);
+        let display_runs = calc_fml::assist::highlight(&text);
+        let links = if stored_runs.len() == display_runs.len() {
+            uses.into_iter().filter_map(|usage| {
+                let first = stored_runs.iter().position(|run| run.span.start == usage.span.start)?;
+                let last = stored_runs.iter().position(|run| run.span.end() == usage.span.end())?;
+                let span = calc_fml::syntax::TextSpan {
+                    start: display_runs[first].span.start,
+                    len: display_runs[last].span.end() - display_runs[first].span.start,
+                };
+                Some((span, usage.resolved?.id))
+            }).collect()
+        } else { Vec::new() };
+        Some((text, links))
+    }
+
     /// Read recorded invocation evidence for a cell's last calculation.
     /// Returns `None` when the cell has no applicable calculation stamp.
     pub fn name_invocation_view(&self, caller: CellKey) -> Option<NameInvocationView> {
@@ -329,6 +353,11 @@ impl HostState {
     pub fn name_node(&self, id: NameId) -> Option<&NameNode> {
         self.engine.name_node(&self.model, id)
     }
+
+    /// The stable area a name refers to and whether it designates a spill anchor.
+    pub fn stable_name_source(&self, id: NameId) -> Option<(calc_value::GridArea, bool)> {
+        calc_engine::DetachedFormula::stable_name_source(&self.model, id)
+    }
     /// Explicit diagnostic evaluation, with a real name identity and caller anchor. No
     /// authored cell or shared name value is created, and no file cache is accepted as current.
     pub fn evaluate_name(
@@ -355,9 +384,10 @@ impl HostState {
         if self.model.sheet_by_id(anchor.sheet()).is_none() {
             return Err("The evaluation worksheet is unavailable".into());
         }
+        let text = authored_dynamic_formula(self, text, NameScope::Sheet(anchor.sheet()))?;
         let formula = calc_engine::DetachedFormula::compile_dynamic_with_bindings(
             &self.model,
-            text,
+            &text,
             anchor,
             &self.user_function_bindings(),
         )

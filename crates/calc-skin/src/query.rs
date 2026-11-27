@@ -161,8 +161,20 @@ query!(
 query!(
     Formula { at: Key } => FormulaFacts, |q: &Formula| WorkbookQuery::Formula { at: q.at });
 query!(
+    /// Bound names in the authored formulas of a bounded set of cells.
+    FormulaNames { cells: Vec<Key> } => Vec<FormulaNamesOf>,
+    |q: &FormulaNames| WorkbookQuery::FormulaNames { cells: q.cells.clone() }
+);
+query!(
     /// A detached Formula Explorer trial captured at one published workbook generation.
     TrialFor { at: Key } => crate::Trial, |q: &TrialFor| WorkbookQuery::TrialFor { at: q.at });
+query!(
+    /// Evaluate a selection from an uncommitted formula in its workbook context.
+    EvaluateDraftPart { at: Key, formula: String, start: usize, len: usize } => crate::parts::PartValue,
+    |q: &EvaluateDraftPart| WorkbookQuery::EvaluateDraftPart {
+        at: q.at, formula: q.formula.clone(), start: q.start, len: q.len,
+    }
+);
 query!(
     /// A structural view of the authored formula's expressions, in its workbook context.
     ExpressionTree { at: Key } => Evidence<crate::parts::Trace>, |q: &ExpressionTree| WorkbookQuery::ExpressionTree { at: q.at });
@@ -194,6 +206,17 @@ query!(
     /// Capture a set of bound reads against one completed workbook generation.
     ConsistentBindings { reads: Vec<crate::BindingRead> } => crate::BindingSnapshot,
     |q: &ConsistentBindings| WorkbookQuery::ConsistentBindings { reads: q.reads.clone() });
+query!(
+    /// The authored entry and authority to edit a linked literal, at one workbook revision.
+    BoundInput { bound: crate::Bound } => BoundInputFacts,
+    |q: &BoundInput| WorkbookQuery::BoundInput { bound: q.bound.clone() }
+);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BoundInputFacts {
+    pub input: String,
+    pub writable: bool,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Census {
@@ -264,6 +287,22 @@ pub struct AnchorFacts {
     pub source: Option<SourceRef>,
     /// The first area of that source, when it is on a sheet.
     pub area: Option<Area>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormulaNamesOf {
+    pub at: Key,
+    /// Formula text with the workbook's display spelling.
+    pub text: String,
+    pub links: Vec<FormulaNameLink>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormulaNameLink {
+    /// The use's start and end in UTF-16 units of FormulaNamesOf.text.
+    pub start: usize,
+    pub end: usize,
+    pub source: SourceRef,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -103,6 +103,27 @@ pub fn mentions_name(text: &str, spelling: &str) -> bool {
     })
 }
 
+/// Root occurrences of workbook names in one stored cell formula, from the canonical compiler.
+pub fn cell_name_uses(
+    inputs: &ModelRoot,
+    at: CellKey,
+    callables: &calc_fml::CallableBindings,
+) -> Option<(String, Vec<calc_fml::reference::NameUse>)> {
+    let CellInput::Formula(formula) = inputs.cell(at)? else { return None };
+    let text = format!("={}", formula.text().to_string_lossy());
+    let analysis = calc_fml::analyze_loaded_names(
+        &calc_fml::parse_formula(&text),
+        ReferenceNotation::A1,
+        FormulaAnchor::new(at),
+        &SnapshotCatalog::new(inputs),
+        &mut PlanCache::new(),
+        formula.form(),
+        callables,
+    ).ok()?;
+    let uses = analysis.uses.into_iter().filter(|usage| usage.context.definition.is_none()).collect();
+    Some((text, uses))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Source {
     Cell(CellKey),
@@ -191,11 +212,18 @@ impl EngineState {
                 .definitions()
                 .tables()
                 .iter()
-                .any(|t| calc_value::workbook_names_equal(&t.name, &request.name))
+                .any(|t| {
+                    calc_value::workbook_names_equal(&t.name, &request.name)
+                        || calc_value::workbook_names_equal(&t.display_name, &request.name)
+                })
         {
             return Err(Error::Conflict);
         }
-        if !model.definitions().tables().is_empty() {
+        if model.definitions().tables().iter().any(|table| {
+            table.opaque
+                || table.axis_opaque
+                || table.column_formulas.iter().any(Option::is_some)
+        }) {
             return Err(Error::NotModelled(
                 "Table formula metadata is not modelled for name rewriting",
             ));

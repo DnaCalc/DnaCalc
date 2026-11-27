@@ -807,7 +807,6 @@ mod tests {
                 assert_eq!(pending.columns, 7);
                 assert_eq!(pending.rows.len(), 20);
                 assert_eq!(cell(total).shown.value, number(4_667_700.0));
-                eprintln!("PIVOTBY anchor: {:?}", cell(at(10, 13)));
                 assert_eq!(cell(at(10, 14)).shown.value, text("2026-11"));
                 assert_eq!(rows(at(10, 13)).matched_rows, 3);
                 enter(1, at(3, 2), "Paid");
@@ -822,6 +821,65 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn sales_notebook_renames_a_spill_with_an_ordinary_table() {
+        use calc_skin::query::{Cells, DefinedName, ExpressionTree, Formula, Query, ViewPartOf};
+        use calc_skin::{Change, Evidence, Interest, ModelChange, NameChange, NameScope as SkinNameScope, RawValue};
+        let bytes = super::fixture("SalesNotebook").unwrap();
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(bytes)),
+            &OpenPolicy::default(),
+            HostOptions {
+                locale: calc_fml::FormatProfile::for_culture("en-US"),
+                ..HostOptions::default()
+            },
+        ).unwrap();
+        let sheet = Sheet::of(session.host().sheets()[3].id());
+        let host = SkinHost::new(session);
+        while host.advance() {}
+        let port = host.connect(Origin::User { view: ViewId("notebook".into()) }, WritePolicy::Commit);
+        let budget = Budget { cells: 1024, nodes: 1024, edges: 128, bytes: 1024*1024, millis: 100 };
+        let stamp = port.ask(WorkbookQuery::Summary, budget).unwrap().stamp;
+        let at = Key(sheet.0, sheet.1, 2, 10);
+        let view = ViewPartOf::decode(port.ask(ViewPartOf.request(), budget).unwrap()).unwrap();
+        assert_eq!(
+            view.body.anchors.iter().find(|anchor| anchor.id.0.get() == 10).and_then(|anchor| anchor.area),
+            Some(Area(at, at)),
+            "the LET cell's anchor survives Excel file spelling on save and reopen",
+        );
+        let tree = ExpressionTree { at };
+        let trace_budget = Budget { millis: 2_000, ..budget };
+        let tree = ExpressionTree::decode(port.ask(tree.request(), trace_budget).unwrap()).unwrap();
+        let Evidence::Derived { body, .. } = tree.body else { panic!("expected the expression tree") };
+        assert!(body.steps.iter().any(|step| step.text == "SUM(amounts)" && step.value == "4667700"));
+        let change = Batch {
+            id: "1".into(),
+            workbook: Some(stamp.workbook),
+            base: Some(stamp.model),
+            expects: vec![SourceRef::Workbook],
+            selection_seq: None,
+            label: None,
+            changes: vec![Change::Model(ModelChange::Name {
+                scope: SkinNameScope::Workbook,
+                change: NameChange::Rename { name: "scopeOrders".into(), to: "scopedOrders".into() },
+            })],
+        };
+        let plan = port.preview(&change, calc_skin::PreviewDepth::WritesOnly).unwrap();
+        assert_eq!(plan.refusal, None, "a plain Orders table carries no unrewritten formulas");
+        port.commit(change).unwrap();
+        while host.advance() {}
+        let by_region = Formula { at: Key(sheet.0, sheet.1, 10, 10) };
+        let answer = Formula::decode(port.ask(by_region.request(), budget).unwrap()).unwrap();
+        assert!(answer.body.input.contains("scopedOrders"));
+        let renamed = DefinedName { scope: SkinNameScope::Workbook, name: "scopedOrders".into() };
+        let definition = DefinedName::decode(port.ask(renamed.request(), budget).unwrap()).unwrap();
+        assert_eq!(definition.body.definition.name, "scopedOrders");
+        let total = Key(sheet.0, sheet.1, 2, 10);
+        let query = Cells { interest: Interest::Area(Area(total, total)) };
+        let answer = Cells::decode(port.ask(query.request(), budget).unwrap()).unwrap();
+        assert_eq!(answer.body.cells[0].shown.value, RawValue::Number { bits: 4_667_700.0_f64.to_bits() });
     }
 
     fn sales_host() -> (SkinHost, Sheet, Sheet) {

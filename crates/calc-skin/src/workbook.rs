@@ -275,6 +275,7 @@ pub enum WorkbookQuery {
     },
     SpillBlockers { anchor: Key },
     DefinedName { scope: crate::NameScope, name: String },
+    FormulaNames { cells: Vec<Key> },
     Geometry {
         sheet: Sheet,
     },
@@ -283,6 +284,12 @@ pub enum WorkbookQuery {
     },
     TrialFor {
         at: Key,
+    },
+    EvaluateDraftPart {
+        at: Key,
+        formula: String,
+        start: usize,
+        len: usize,
     },
     ExpressionTree {
         at: Key,
@@ -305,6 +312,9 @@ pub enum WorkbookQuery {
     },
     ConsistentBindings {
         reads: Vec<crate::BindingRead>,
+    },
+    BoundInput {
+        bound: Bound,
     },
     PrintPlan {
         source: SourceRef,
@@ -656,6 +666,9 @@ pub struct DefinedNameText {
 pub struct DefinedNameFacts {
     pub definition: DefinedNameText,
     pub parameters: Option<Vec<String>>,
+    /// The direct range or spill anchor when the workbook name has a stable address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

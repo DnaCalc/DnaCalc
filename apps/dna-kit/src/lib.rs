@@ -11,7 +11,7 @@ pub use view::{
 };
 /// The runtime types a view meets through the session, so a view crate needs no second import.
 pub use dna_skin_runtime::Live;
-pub use dna_skin_runtime::client::{EditSession, PAGE_BUDGET, Seam, Watch};
+pub use dna_skin_runtime::client::{EditSession, PAGE_BUDGET, Seam, Watch, refusal_text};
 pub use dna_skin_runtime::commands::{self, InputMode, Invocation, KeyInput};
 
 use calc_skin::{

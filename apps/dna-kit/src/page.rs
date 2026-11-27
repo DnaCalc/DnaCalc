@@ -360,16 +360,27 @@ pub fn bound_input(
     label: String,
     control: impl Fn(Memo<String>, Signal<bool>) -> AnyView + 'static,
 ) -> impl IntoView {
-    let resolved = resolve_bound(session, bound);
+    let watch = session.following::<query::BoundInput>();
+    let query = query::BoundInput { bound };
+    let facts = Memo::new(move |_| match watch.at(Some(query.clone())) {
+        Live::Ready(answer) if answer.coverage == Coverage::Complete => Live::Ready(answer.body),
+        Live::Ready(_) => Live::Refused(calc_skin::Refusal::Invalid { reason: "Source missing".into() }),
+        Live::Refused(reason) => Live::Refused(reason),
+        _ => Live::Loading,
+    });
+    let available = Memo::new(move |_| facts.with(|facts| match facts {
+        Live::Ready(_) => Some(true),
+        Live::Refused(_) => Some(false),
+        _ => None,
+    }));
     let control = StoredValue::new_local(control);
-    move || match resolved.get() {
-        Live::Ready(source) => {
-            let Some(at) = single_cell(&source) else {
-                return missing();
-            };
-            let read = first_cell(session, source);
-            let value = Memo::new(move |_| read.get().map(|cell| cell.input).unwrap_or_default());
-            let can_write = Signal::derive(writable_literal(session, at, read));
+    move || match available.get() {
+        Some(true) => {
+            let value = Memo::new(move |_| facts.with(|facts| match facts {
+                Live::Ready(facts) => facts.input.clone(),
+                _ => String::new(),
+            }));
+            let can_write = Signal::derive(move || facts.with(|facts| matches!(facts, Live::Ready(facts) if facts.writable)));
             let input = control.with_value(|control| control(value, can_write));
             let label = label.clone();
             let control_name = label.clone();
@@ -377,8 +388,8 @@ pub fn bound_input(
                 <label class="dna-page-card" data-page-control=control_name><strong>{label}</strong>{input}</label>
             }.into_any()
         }
-        Live::Refused(_) => missing(),
-        _ => view! { <p aria-busy="true">"Reading input…"</p> }.into_any(),
+        Some(false) => missing(),
+        None => view! { <p aria-busy="true">"Reading input…"</p> }.into_any(),
     }
 }
 
