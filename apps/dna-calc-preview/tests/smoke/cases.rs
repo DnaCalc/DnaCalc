@@ -742,6 +742,34 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             ),
         ],
     },
+    Case {
+        name: "S11 Loan prints an executive summary and the full schedule",
+        actions: &[
+            Action::WriteCast("Loan"),
+            Action::UploadDownloadTo("Loan.xlsx", "open-file"),
+            Action::Wait(Check::Js("Loan is open", "document.querySelector('.dna-book-title').textContent.includes('Loan')")),
+            Action::Click("[data-command='view.app']"),
+            Action::Wait(Check::TextContains("[data-page-part='payment'] output", "9147.39")),
+            Action::Keys("[class~='dna-book-stage']", "\u{e009}p\u{e000}"),
+            Action::Wait(Check::TextContains("[data-dnacalc='app-print-report'] [data-page-part='payment'] output", "9147.39")),
+            Action::Wait(Check::Absent("[data-dnacalc='app-print-schedule-page']")),
+            Action::CapturePrintPdf("loan-summary.b64"),
+            Action::Wait(Check::Text("[data-command='app.report-full']", "Full schedule · +10 pages")),
+            Action::Click("[data-command='app.report-full']"),
+            Action::Wait(Check::Js(
+                "all 360 schedule rows arrived",
+                "document.querySelectorAll('[data-dnacalc=app-print-schedule-page] tbody tr').length === 360",
+            )),
+            Action::CapturePrintPdf("loan-full-schedule.b64"),
+        ],
+        checks: &[
+            Check::Js(
+                "the print report has ten schedule pages",
+                "document.querySelectorAll('[data-dnacalc=app-print-schedule-page]').length === 10",
+            ),
+            Check::TextContains("[data-dnacalc='app-print-schedule-page']:last-child caption", "Rows 325–360 of 360"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -860,6 +888,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-key-tip-focus",
         start: 37,
+        end: 38,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "loan-print",
+        start: 38,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],

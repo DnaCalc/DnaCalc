@@ -2032,6 +2032,45 @@ fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
         .unwrap_or_else(|| vec![format!("the fault record is not a list: {seen}")]))
 }
 
+fn capture_print_pdf(
+    session: &Session,
+    name: &str,
+    width_cm: f64,
+    height_cm: f64,
+    prefer_css_page_size: bool,
+) -> Result<(), String> {
+    // The desktop WebView2 is headful and answers the DevTools operation used by WebDriver Print.
+    let pdf = if session.attached {
+        session.post("/goog/cdp/execute", json!({
+            "cmd": "Page.printToPDF",
+            "params": {
+                "printBackground": true, "scale": 1, "landscape": false,
+                "paperWidth": width_cm / 2.54, "paperHeight": height_cm / 2.54,
+                "marginTop": 0, "marginBottom": 0, "marginLeft": 0, "marginRight": 0,
+                "preferCSSPageSize": prefer_css_page_size,
+            }
+        }))?["data"].clone()
+    } else {
+        session.post("/print", json!({
+            "background": true, "shrinkToFit": false, "scale": 1, "orientation": "portrait",
+            "page": { "width": width_cm, "height": height_cm },
+            "margin": { "top": 0, "bottom": 0, "left": 0, "right": 0 },
+        }))?
+    };
+    let encoded = pdf
+        .as_str()
+        .filter(|s| s.starts_with("JVBERi0") && s.len() <= 48_000_000)
+        .ok_or("Browser Print did not return a bounded PDF")?;
+    let path = session
+        .downloads
+        .parent()
+        .ok_or("Print capture folder")?
+        .join(format!("print-{}-{name}", session.id));
+    fs::write(&path, encoded).map_err(|e| e.to_string())?;
+    println!("DNACALC browser PDF {}", path.display());
+    Ok(())
+}
+
 fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
         Action::WorkerCalculation => {
@@ -2193,6 +2232,9 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::CapturePrintPdf(name) => {
+            if session.script("return !!document.querySelector('[data-dnacalc=app-print-report]');")? == json!(true) {
+                return capture_print_pdf(session, name, 21.0, 29.7, true);
+            }
             if session.bidi.is_some() {
                 // Firefox's native preview lives in browser UI, beyond content key input.
                 // Control only this smoke session's print dialog, then restore content scope.
@@ -2248,26 +2290,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }
                 let width = info["width"].as_f64().ok_or("Print paper width")? * 2.54 / 96.;
                 let height = info["height"].as_f64().ok_or("Print paper height")? * 2.54 / 96.;
-                // WebDriver Print is for headless Chrome; the desktop exe's WebView2 is headful, and
-                // answers the DevTools command that WebDriver Print itself is built on.
-                let pdf = if session.attached {
-                    session.post("/goog/cdp/execute",json!({"cmd":"Page.printToPDF","params":{"printBackground":true,"scale":1,"landscape":false,
-                        "paperWidth":width/2.54,"paperHeight":height/2.54,"marginTop":0,"marginBottom":0,"marginLeft":0,"marginRight":0,"preferCSSPageSize":false}}))?["data"].clone()
-                } else {
-                    session.post("/print",json!({"background":true,"shrinkToFit":false,"scale":1,"orientation":"portrait","page":{"width":width,"height":height},"margin":{"top":0,"bottom":0,"left":0,"right":0}}))?
-                };
-                let encoded = pdf
-                    .as_str()
-                    .filter(|s| s.starts_with("JVBERi0") && s.len() <= 48_000_000)
-                    .ok_or("Browser Print did not return a bounded PDF")?;
-                let path = session
-                    .downloads
-                    .parent()
-                    .ok_or("Print capture folder")?
-                    .join(format!("print-{}-{name}", session.id));
-                fs::write(&path, encoded).map_err(|e| e.to_string())?;
-                println!("DNACALC browser PDF {}", path.display());
-                Ok(())
+                capture_print_pdf(session, name, width, height, false)
             })();
             let restored=session.script("const h=window.__dcPrintPdfHold;if(h){document.querySelector('#dc-print-pdf-capture')?.remove();h.sheet.deleteRule(h.index);h.sheet.deleteRule(h.index);delete window.__dcPrintPdfHold;}return null;");
             captured.and(restored.map(|_| ()))
