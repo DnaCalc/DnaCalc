@@ -649,6 +649,27 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         actions: &[Action::Keys("grid", "\u{e009}z\u{e000}")],
         checks: &[Check::Rendered("[data-cell=B1]", true)],
     },
+    Case {
+        name: "Classic Ctrl+F1 folds the Deck and key tips remain available",
+        actions: &[
+            Action::Wait(Check::Rendered("[data-command='calc.calculate']", true)),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e009}\u{e031}\u{e000}"),
+            Action::Wait(Check::Rendered("[data-command='calc.calculate']", false)),
+            Action::Keys("grid", "\u{e03a}"),
+            Action::Wait(Check::Rendered("[data-key-tip='H']", true)),
+            Action::Keys("grid", "\u{e00c}\u{e009}\u{e031}\u{e000}"),
+        ],
+        checks: &[
+            Check::Rendered("[data-command='calc.calculate']", true),
+            Check::Absent("[data-dnacalc='key-tips']"),
+            Check::Value("name-box", "B2"),
+            Check::Js(
+                "the Deck changed without editing the workbook",
+                "__dnaProbe().stamp.model === 0",
+            ),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -746,8 +767,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-hide-columns",
         start: 32,
-        end: PREVIEW_CASES.len(),
+        end: 34,
         core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-deck-fold",
+        start: 34,
+        end: PREVIEW_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];
