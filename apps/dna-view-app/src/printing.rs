@@ -1,17 +1,21 @@
 use super::{State, button};
 use calc_skin::{Page, ViewId, WorkbookId};
-use dna_kit::page::{PageRenderer, PageReport, report_costs};
-use dna_kit::{Session, ViewCommand};
+use dna_kit::page::{PageRenderer, PageReport, capture_report, report_costs};
+use dna_kit::{Live, Session, ViewCommand};
 use leptos::prelude::*;
+use std::sync::Arc;
 
 const OPEN: &str = "app.print-options";
 const CLOSE: &str = "app.close-print";
 const CONFIRM: &str = "app.print-report";
+const REFRESH: &str = "app.refresh-print";
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq)]
 struct Request {
     workbook: WorkbookId,
     report: PageReport,
+    capture: u64,
+    document: Arc<Page>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -37,11 +41,14 @@ pub(super) fn commands(state: State, view: &ViewId) -> Vec<ViewCommand> {
         "Print executive summary",
         &["Ctrl+P"],
         move |_| {
-            state.document()?;
+            let (document, _) = state.document()?;
             let workbook = session.stamp().ok_or("Open a workbook first")?.workbook;
+            let capture = current(session).map_or(0, |request| request.capture.wrapping_add(1));
             preview(session).set(Some(Request {
                 workbook,
                 report: PageReport::ExecutiveSummary,
+                capture,
+                document: Arc::new(document),
             }));
             Ok(())
         },
@@ -55,7 +62,14 @@ pub(super) fn commands(state: State, view: &ViewId) -> Vec<ViewCommand> {
         current(session).ok_or("Open the executive summary first")?;
         print_window()
     });
-    let mut commands = vec![open, close, print];
+    let refresh = ViewCommand::new(view, REFRESH, "Refresh print preview", &[], move |_| {
+        let mut request = current(session).ok_or("Open the executive summary first")?;
+        request.document = Arc::new(state.document()?.0);
+        request.capture = request.capture.wrapping_add(1);
+        preview(session).set(Some(request));
+        Ok(())
+    });
+    let mut commands = vec![open, close, print, refresh];
     for (command, label, report) in [
         (
             "app.report-summary",
@@ -100,23 +114,56 @@ pub(super) fn showing(session: Session) -> Memo<bool> {
     Memo::new(move |_| current(session).is_some())
 }
 
-pub(super) fn stage(session: Session, document: Page) -> impl IntoView {
-    let request = Memo::new(move |_| current(session));
+pub(super) fn stage(session: Session) -> impl IntoView {
+    let capture = Memo::new(move |_| {
+        current(session).map(|request| (request.workbook, request.capture, request.document))
+    });
     move || {
-        request.get().map(|request| {
-        let costs = report_costs(session, &document);
-        let document = document.clone();
+        capture
+            .get()
+            .map(|(_, _, document)| snapshot_stage(session, document))
+    }
+}
+
+fn snapshot_stage(session: Session, document: Arc<Page>) -> AnyView {
+    let snapshot = capture_report(session, &document);
+    let request = Memo::new(move |_| current(session));
+    (move || {
+        let Some(request) = request.get() else { return ().into_any(); };
+        let answer = match snapshot.get() {
+            Live::Ready(answer) => answer,
+            Live::Refused(_) => return view! {
+                <aside class="dna-page-card dna-page-print-options" aria-label="Print options">
+                    <h2>"Executive summary"</h2>
+                    <p role="alert">"The workbook report is unavailable."</p>
+                    {button(session, REFRESH, "Refresh preview")}
+                    {button(session, CLOSE, "Close")}
+                </aside>
+            }.into_any(),
+            _ => return view! {
+                <aside class="dna-page-card dna-page-print-options" aria-label="Print options">
+                    <h2>"Executive summary"</h2>
+                    <p aria-busy="true">"Reading a completed calculation…"</p>
+                    {button(session, CLOSE, "Close")}
+                </aside>
+            }.into_any(),
+        };
+        let document = document.as_ref().clone();
+        let costs = report_costs(&document, &answer.body);
+        let report_footer = capture_caption(answer.stamp.calc.0, answer.body.captured_unix_ms);
+        let snapshot = StoredValue::new(answer.body);
+        let stamp = answer.stamp;
         view! {
             <aside class="dna-page-card dna-page-print-options" data-dnacalc="app-print-options" aria-label="Print options">
                 <h2>"Executive summary"</h2>
                 <div class="dna-page-tools">
                     {report_choice(session, "app.report-summary", "Summary only · 1 page".into(),
                         request.report == PageReport::ExecutiveSummary)}
-                    {move || costs.get().annual.map(|pages| report_choice(
+                    {costs.annual.map(|pages| report_choice(
                         session, "app.report-annual", cost_label("Annual summary", pages),
                         request.report == PageReport::AnnualSchedule
                     ))}
-                    {move || costs.get().full.map(|pages| report_choice(
+                    {costs.full.map(|pages| report_choice(
                         session, "app.report-full", cost_label("Full schedule", pages),
                         request.report == PageReport::FullSchedule
                     ))}
@@ -124,14 +171,38 @@ pub(super) fn stage(session: Session, document: Page) -> impl IntoView {
                 <div class="dna-page-tools">
                     {button(session, CONFIRM, "Print")}
                     {button(session, CLOSE, "Close")}
+                    <Show when=move || session.stamp().is_some_and(|current| current != stamp)>
+                        <span role="status">"Workbook changed"</span>
+                        {button(session, REFRESH, "Refresh preview")}
+                    </Show>
                 </div>
             </aside>
-            <div class="dna-page-print-report" data-dnacalc="app-print-report">
-                <PageRenderer session document report=request.report compare=true />
+            <div class="dna-page-print-report" data-dnacalc="app-print-report" data-calc-generation=stamp.calc.0>
+                <PageRenderer session document report=request.report snapshot report_footer compare=true />
             </div>
-        }
-    })
-    }
+        }.into_any()
+    }).into_any()
+}
+
+fn capture_caption(generation: u64, captured_unix_ms: Option<u64>) -> String {
+    let caption = format!("Calculation {generation}");
+    captured_unix_ms.and_then(capture_time).map_or_else(
+        || caption.clone(),
+        |time| format!("{caption} · Captured {time}"),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+fn capture_time(unix_ms: u64) -> Option<String> {
+    use leptos::web_sys::js_sys::Date;
+    Date::new(&leptos::wasm_bindgen::JsValue::from_f64(unix_ms as f64))
+        .to_iso_string()
+        .as_string()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn capture_time(_: u64) -> Option<String> {
+    None
 }
 
 fn cost_label(label: &str, pages: u32) -> String {
@@ -155,7 +226,20 @@ fn report_choice(
 
 #[cfg(target_arch = "wasm32")]
 fn print_window() -> Result<(), String> {
-    leptos::prelude::window()
+    let window = leptos::prelude::window();
+    if window
+        .document()
+        .and_then(|document| {
+            document
+                .query_selector("[data-dnacalc=app-print-report]")
+                .ok()
+                .flatten()
+        })
+        .is_none()
+    {
+        return Err("Wait for the workbook report to finish reading.".into());
+    }
+    window
         .print()
         .map_err(|_| "The browser could not print the report.".into())
 }

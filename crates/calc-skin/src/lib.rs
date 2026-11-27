@@ -16,6 +16,7 @@ mod formula_tools;
 mod instruments;
 mod source_address;
 mod target;
+mod snapshot;
 mod wire;
 mod workbook;
 
@@ -25,6 +26,7 @@ pub use formula::*;
 pub use formula_tools::*;
 pub use instruments::*;
 pub use source_address::*;
+pub use snapshot::*;
 pub use target::*;
 pub use wire::*;
 pub use workbook::*;

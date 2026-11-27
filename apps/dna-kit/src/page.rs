@@ -5,8 +5,9 @@ use crate::{Live, Session};
 use calc_skin::grid::Key;
 use calc_skin::query;
 use calc_skin::{
-    Bound, Coverage, DocId, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
-    InventoryItem, InventoryKind, RowPage, WorkbookCell,
+    BindingKind, BindingSnapshot, BindingValue, Bound, ChartImage, Coverage, DocId, Page, PageNode,
+    PartialWhy, Provenance, RawValue, RowWindow, SourceRef, InventoryItem, InventoryKind, RowPage,
+    WorkbookCell,
 };
 use leptos::prelude::*;
 
@@ -14,7 +15,7 @@ pub mod clock;
 mod reader;
 mod report;
 pub use reader::live_values;
-pub use report::{PageReport, ReportCosts, costs as report_costs};
+pub use report::{PageReport, ReportCosts, capture as capture_report, costs as report_costs};
 
 #[derive(Clone, Copy)]
 pub struct PageInput {
@@ -47,6 +48,7 @@ struct PageMode {
     compare: bool,
     report: Option<PageReport>,
     clock_document: Option<DocId>,
+    snapshot: Option<StoredValue<BindingSnapshot>>,
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -60,13 +62,18 @@ pub fn PageRenderer(
     #[prop(optional)] compare: bool,
     #[prop(optional)] report: Option<PageReport>,
     #[prop(optional)] clock_document: Option<DocId>,
+    #[prop(optional)] snapshot: Option<StoredValue<BindingSnapshot>>,
+    #[prop(optional)] report_footer: Option<String>,
 ) -> impl IntoView {
-    let mode = PageMode { input, author, scenario, compare, report, clock_document };
-    let schedules = report.map(|report| report::schedules(session, &document, report));
+    let mode = PageMode { input, author, scenario, compare, report, clock_document, snapshot };
+    let schedules = report.zip(snapshot).map(|(report, snapshot)| {
+        snapshot.with_value(|snapshot| report::schedules(&document, report, snapshot))
+    });
     view! {
         <article class="dna-page" data-dnacalc="page">
             <h1>{document.title}</h1>
             {node(session, document.root, mode)}
+            {report_footer.map(|footer| view! { <footer><small>{footer}</small></footer> })}
             {schedules}
         </article>
     }
@@ -116,7 +123,7 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
                     let text = props.get("text").and_then(|value| value.as_str()).unwrap_or_default();
                     view! {
                         <section class="dna-page-card" data-page-part=id.clone()>
-                            {reader::prose(session, text, &bind)}
+                            {reader::prose(session, text, &bind, mode.snapshot)}
                         </section>
                     }.into_any()
                 }
@@ -264,41 +271,73 @@ fn part(
     summary: Option<Bound>,
     mode: PageMode,
 ) -> AnyView {
-    let resolved = resolve_bound(session, bound.clone());
-    let contents = move || match resolved.get() {
-        Live::Ready(source) => {
-            if component == "chart" {
-                chart_image(session, source, mode.compare.then(|| bound.clone()))
-            } else if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
-                schedule(session, source, summary.clone())
-            } else {
-                scalar(
-                    session,
-                    source,
-                    label.clone(),
-                    bound.clone(),
-                    if component == "input" { mode.input } else { None },
-                    mode.compare && component == "value",
-                )
+    let contents = if let Some(snapshot) = mode.snapshot {
+        snapshot.with_value(|snapshot| frozen_part(snapshot, &component, label, &bound, mode.compare))
+    } else {
+        let resolved = resolve_bound(session, bound.clone());
+        (move || match resolved.get() {
+            Live::Ready(source) => {
+                if component == "chart" {
+                    chart_image(session, source, mode.compare.then(|| bound.clone()))
+                } else if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
+                    schedule(session, source, summary.clone())
+                } else {
+                    scalar(
+                        session,
+                        source,
+                        label.clone(),
+                        bound.clone(),
+                        if component == "input" { mode.input } else { None },
+                        mode.compare && component == "value",
+                    )
+                }
             }
-        }
-        Live::Refused(_) => missing(),
-        _ => view! { <p aria-busy="true">"Reading source…"</p> }.into_any(),
+            Live::Refused(_) => missing(),
+            _ => view! { <p aria-busy="true">"Reading source…"</p> }.into_any(),
+        }).into_any()
     };
     view! { <section class="dna-page-card" data-page-part=id>{contents}</section> }.into_any()
+}
+
+fn frozen_part(
+    snapshot: &BindingSnapshot,
+    component: &str,
+    label: String,
+    bound: &Bound,
+    compare: bool,
+) -> AnyView {
+    let kind = match component {
+        "chart" => BindingKind::Chart { comparison: compare },
+        "notebook-excerpt" => BindingKind::Rows { limit: Some(12) },
+        _ => BindingKind::Value,
+    };
+    match snapshot.get(bound, kind) {
+        Some(BindingValue::Cell(cell)) => {
+            let delta = match snapshot.get(bound, BindingKind::Comparison) {
+                Some(BindingValue::Comparison(Some(reading))) if component == "value" && compare => {
+                    render_comparison(reading)
+                }
+                _ => None,
+            };
+            view! {
+                <div class="dna-page-value">
+                    <strong>{label}</strong>
+                    {shown_value(cell.clone(), None)}
+                    {delta}
+                </div>
+            }.into_any()
+        }
+        Some(BindingValue::Chart(chart)) => render_chart(chart.clone()),
+        Some(BindingValue::Rows(page)) => rows_table(page.clone(), report::print_caption(page)).into_any(),
+        _ => missing(),
+    }
 }
 
 fn chart_image(session: Session, object: SourceRef, comparison: Option<Bound>) -> AnyView {
     let watch = session.following::<query::ChartImageOf>();
     let query = query::ChartImageOf { object, comparison };
     (move || match watch.at(Some(query.clone())) {
-        Live::Ready(answer) if answer.coverage == Coverage::Complete => view! {
-            <figure class="dna-page-chart-frame">
-                <img class="dna-page-chart" src=answer.body.data_url alt=answer.body.label/>
-                {answer.body.uses_saved_values.then(|| view! { <figcaption>"Uses saved chart data"</figcaption> })}
-                {answer.body.compares_baseline.then(|| view! { <figcaption>"Dotted baseline · Solid current"</figcaption> })}
-            </figure>
-        }.into_any(),
+        Live::Ready(answer) if answer.coverage == Coverage::Complete => render_chart(answer.body),
         Live::Ready(_) | Live::Refused(_) => missing(),
         _ => view! { <p aria-busy="true">"Reading chart…"</p> }.into_any(),
     }).into_any()
@@ -352,24 +391,37 @@ fn writable_literal(session: Session, at: Key, read: Memo<Option<WorkbookCell>>)
     }
 }
 
+fn render_chart(chart: ChartImage) -> AnyView {
+    view! {
+        <figure class="dna-page-chart-frame">
+            <img class="dna-page-chart" src=chart.data_url alt=chart.label/>
+            {chart.uses_saved_values.then(|| view! { <figcaption>"Uses saved chart data"</figcaption> })}
+            {chart.compares_baseline.then(|| view! { <figcaption>"Dotted baseline · Solid current"</figcaption> })}
+        </figure>
+    }.into_any()
+}
+
 fn comparison(session: Session, bound: Bound) -> impl IntoView {
     let values = session.following::<query::NumericComparisonOf>();
     let query = query::NumericComparisonOf { bound };
     move || {
         let Live::Ready(answer) = values.at(Some(query.clone())) else { return None; };
-        let reading = answer.body?;
-        let baseline = f64::from_bits(reading.baseline);
-        let delta = f64::from_bits(reading.current) - baseline;
-        if !delta.is_finite() {
-            return None;
-        }
-        let relative = (baseline != 0.0).then(|| delta / baseline.abs() * 100.0);
-        let relative = relative.filter(|value| value.is_finite())
-            .map(|percent| format!(" ({percent:+.2}%)")).unwrap_or_default();
-        Some(view! {
-            <small data-dnacalc="app-baseline-delta">{format!("{delta:+}{relative} vs baseline")}</small>
-        })
+        render_comparison(&answer.body?)
     }
+}
+
+fn render_comparison(reading: &query::NumericComparison) -> Option<AnyView> {
+    let baseline = f64::from_bits(reading.baseline);
+    let delta = f64::from_bits(reading.current) - baseline;
+    if !delta.is_finite() {
+        return None;
+    }
+    let relative = (baseline != 0.0).then(|| delta / baseline.abs() * 100.0);
+    let relative = relative.filter(|value| value.is_finite())
+        .map(|percent| format!(" ({percent:+.2}%)")).unwrap_or_default();
+    Some(view! {
+        <small data-dnacalc="app-baseline-delta">{format!("{delta:+}{relative} vs baseline")}</small>
+    }.into_any())
 }
 
 fn single_cell(source: &SourceRef) -> Option<Key> {
@@ -538,7 +590,7 @@ fn schedule(session: Session, source: SourceRef, summary: Option<Bound>) -> AnyV
                 && let (Some(source), Some((total, columns))) = (source.get(), size.get())
                 && u64::from(total) * u64::from(columns) <= crate::PAGE_BUDGET.cells
             {
-                let parts = report::schedule_windows(session, source, 0, total)
+                let parts = report::schedule_windows(session, source, total)
                     .map(move |read| move || match read.get() {
                         Live::Ready(page) => {
                             let caption = row_caption(&page);

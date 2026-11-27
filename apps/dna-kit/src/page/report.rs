@@ -1,9 +1,12 @@
 //! Print layout for the shared workbook page renderer.
 
-use super::{resolve_bound, row_caption, rows_table};
+use super::{row_caption, rows_table};
 use crate::{Live, Session};
 use calc_skin::query;
-use calc_skin::{Bound, Coverage, Page, PartialWhy, RowPage, RowWindow, SourceRef};
+use calc_skin::{
+    Answer, BindingKind, BindingRead, BindingSnapshot, BindingValue, Bound, Budget, Coverage, Page,
+    PartialWhy, Provenance, RowPage, RowWindow, SourceRef,
+};
 use leptos::prelude::*;
 
 const ROWS_PER_SCHEDULE_PAGE: u32 = 36;
@@ -69,129 +72,109 @@ fn rows(session: Session, source: SourceRef, offset: u32, limit: u32) -> Memo<Li
     })
 }
 
-pub fn costs(session: Session, page: &Page) -> Memo<ReportCosts> {
-    let sources = |choice| {
-        bindings(page, choice)
-            .into_iter()
-            .map(|bound| {
-                let source = resolve_bound(session, bound);
-                let window = session.following::<query::Rows>();
-                Memo::new(move |_| {
-                    let Live::Ready(source) = source.get() else {
-                        return None;
-                    };
-                    let query = query::Rows {
-                        source,
-                        filter: Vec::new(),
-                        sort: Vec::new(),
-                        window: RowWindow {
-                            offset: 0,
-                            limit: 1,
-                        },
-                    };
-                    match window.at(Some(query)) {
-                        Live::Ready(answer)
-                            if matches!(
-                                answer.coverage,
-                                Coverage::Complete
-                                    | Coverage::Partial {
-                                        why: PartialWhy::Window,
-                                        ..
-                                    }
-                            ) =>
-                        {
-                            Some((
-                                answer.body.matched_rows.div_ceil(ROWS_PER_SCHEDULE_PAGE),
-                                u64::from(answer.body.matched_rows)
-                                    * u64::from(answer.body.columns),
-                            ))
-                        }
-                        _ => None,
-                    }
-                })
-            })
-            .collect::<Vec<_>>()
-    };
-    let annual = sources(PageReport::AnnualSchedule);
-    let full = sources(PageReport::FullSchedule);
-    Memo::new(move |_| {
-        let total = |parts: &[Memo<Option<(u32, u64)>>]| {
-            if parts.is_empty() {
-                return None;
-            }
-            let (pages, cells) = parts
-                .iter()
-                .try_fold((0u32, 0u64), |(pages, cells), part| {
-                    let (count, size) = part.get()?;
-                    Some((pages.checked_add(count)?, cells.checked_add(size)?))
-                })?;
-            (cells <= crate::PAGE_BUDGET.cells && pages > 0).then_some(pages)
+/// Read all report parts into one completed calculation cut.
+pub fn capture(session: Session, page: &Page) -> Memo<Live<Answer<BindingSnapshot>>> {
+    let mut reads = Vec::new();
+    let mut push = |bound: &Bound, kind| {
+        let read = BindingRead {
+            bound: bound.clone(),
+            kind,
         };
-        ReportCosts {
-            annual: total(&annual),
-            full: total(&full),
+        if !reads.contains(&read) {
+            reads.push(read);
         }
-    })
+    };
+    page.root.for_each_part(&mut |_, component, slots| {
+        let mut read = |slot, kind| {
+            if let Some(bound) = slots.get(slot) {
+                push(bound, kind);
+            }
+        };
+        match component {
+            "input" => read("value", BindingKind::Value),
+            "value" => {
+                read("value", BindingKind::Value);
+                read("value", BindingKind::Comparison);
+            }
+            "chart" => read("object", BindingKind::Chart { comparison: true }),
+            "notebook-excerpt" => read("rows", BindingKind::Rows { limit: Some(12) }),
+            "rich-prose" => {
+                for bound in slots.values() {
+                    push(bound, BindingKind::Value);
+                }
+            }
+            _ => {}
+        }
+    });
+    for report in [PageReport::AnnualSchedule, PageReport::FullSchedule] {
+        for bound in bindings(page, report) {
+            push(&bound, BindingKind::Rows { limit: None });
+        }
+    }
+    session.consistent(
+        query::ConsistentBindings { reads },
+        Budget {
+            millis: 500,
+            ..crate::PAGE_BUDGET
+        },
+    )
 }
 
-pub(super) fn schedules(session: Session, page: &Page, report: PageReport) -> Vec<AnyView> {
-    let label = match report {
-        PageReport::AnnualSchedule => "Annual schedule",
-        _ => "Schedule",
+pub fn costs(page: &Page, snapshot: &BindingSnapshot) -> ReportCosts {
+    let total = |report| {
+        let pages = bindings(page, report)
+            .iter()
+            .try_fold(0u32, |pages, bound| {
+                let rows = schedule(snapshot, bound)?;
+                pages.checked_add(rows.matched_rows.div_ceil(ROWS_PER_SCHEDULE_PAGE))
+            })?;
+        (pages > 0).then_some(pages)
+    };
+    ReportCosts {
+        annual: total(PageReport::AnnualSchedule),
+        full: total(PageReport::FullSchedule),
+    }
+}
+
+fn schedule<'a>(snapshot: &'a BindingSnapshot, bound: &Bound) -> Option<&'a RowPage> {
+    match snapshot.get(bound, BindingKind::Rows { limit: None })? {
+        BindingValue::Rows(rows) if rows.rows.len() as u32 == rows.matched_rows => Some(rows),
+        _ => None,
+    }
+}
+
+pub(super) fn schedules(
+    page: &Page,
+    report: PageReport,
+    snapshot: &BindingSnapshot,
+) -> Vec<AnyView> {
+    let label = if report == PageReport::AnnualSchedule {
+        "Annual schedule"
+    } else {
+        "Schedule"
     };
     bindings(page, report)
-        .into_iter()
-        .map(|bound| {
-            let resolved = resolve_bound(session, bound);
-            (move || match resolved.get() {
-                Live::Ready(source) => schedule_pages(session, source, label),
-                Live::Refused(_) => {
-                    view! { <p data-print-unavailable>"Schedule source missing"</p> }.into_any()
-                }
-                _ => loading(),
-            })
-            .into_any()
+        .iter()
+        .flat_map(|bound| {
+            schedule(snapshot, bound).map_or_else(
+                || {
+                    vec![
+                        view! { <p data-print-unavailable>"Schedule rows unavailable"</p> }
+                            .into_any(),
+                    ]
+                },
+                |rows| schedule_read(label, rows.clone()),
+            )
         })
         .collect()
-}
-
-fn schedule_pages(session: Session, source: SourceRef, title: &'static str) -> AnyView {
-    let first = rows(session, source.clone(), 0, ROWS_PER_READ);
-    (move || match first.get() {
-        Live::Ready(first) if first.matched_rows > 0 => {
-            if u64::from(first.matched_rows) * u64::from(first.columns) > crate::PAGE_BUDGET.cells {
-                return view! { <p data-print-unavailable>"Choose a smaller schedule to print"</p> }.into_any();
-            }
-            let tail = schedule_windows(session, source.clone(), 1, first.matched_rows)
-                .map(move |read| {
-                    move || match read.get() {
-                        Live::Ready(page) => schedule_read(title, page).into_any(),
-                        Live::Refused(_) => {
-                            view! { <p data-print-unavailable>"Schedule rows unavailable"</p> }
-                                .into_any()
-                        }
-                        _ => loading(),
-                    }
-                })
-                .collect_view();
-            view! { {schedule_read(title, first)} {tail} }.into_any()
-        }
-        Live::Ready(_) => ().into_any(),
-        Live::Refused(_) => {
-            view! { <p data-print-unavailable>"Schedule rows unavailable"</p> }.into_any()
-        }
-        _ => loading(),
-    })
-    .into_any()
 }
 
 pub(super) fn schedule_windows(
     session: Session,
     source: SourceRef,
-    first_window: u32,
     matched_rows: u32,
 ) -> impl Iterator<Item = Memo<Live<RowPage>>> {
-    (first_window..matched_rows.div_ceil(ROWS_PER_READ)).map(move |index| {
+    (0..matched_rows.div_ceil(ROWS_PER_READ)).map(move |index| {
         rows(
             session,
             source.clone(),
@@ -219,7 +202,7 @@ fn schedule_read(title: &'static str, mut read: RowPage) -> Vec<AnyView> {
 }
 
 fn schedule_page(title: &'static str, page: RowPage) -> AnyView {
-    let caption = row_caption(&page);
+    let caption = print_caption(&page);
     view! {
         <section class="dna-page-print-schedule" data-dnacalc="app-print-schedule-page">
             <h2>{title}</h2>
@@ -229,6 +212,25 @@ fn schedule_page(title: &'static str, page: RowPage) -> AnyView {
     .into_any()
 }
 
-fn loading() -> AnyView {
-    view! { <p aria-busy="true">"Reading schedule…"</p> }.into_any()
+pub(super) fn print_caption(page: &RowPage) -> String {
+    let mut caption = row_caption(page);
+    let (mut saved, mut previous, mut refused) = (false, false, false);
+    for cell in page.rows.iter().flat_map(|row| &row.cells) {
+        match &cell.shown.provenance {
+            Provenance::AsSaved => saved = true,
+            Provenance::Stale { .. } => previous = true,
+            Provenance::Refused { .. } => refused = true,
+            _ => {}
+        }
+    }
+    for (present, text) in [
+        (saved, " · Includes saved values"),
+        (previous, " · Includes previous calculations"),
+        (refused, " · Includes refused calculations"),
+    ] {
+        if present {
+            caption.push_str(text);
+        }
+    }
+    caption
 }

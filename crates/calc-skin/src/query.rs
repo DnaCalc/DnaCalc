@@ -190,6 +190,10 @@ query!(
 query!(
     /// Resolve both saved identities of a binding against the current workbook.
     ResolveBound { bound: crate::Bound } => SourceRef, |q: &ResolveBound| WorkbookQuery::ResolveBound { bound: q.bound.clone() });
+query!(
+    /// Capture a set of bound reads against one completed workbook generation.
+    ConsistentBindings { reads: Vec<crate::BindingRead> } => crate::BindingSnapshot,
+    |q: &ConsistentBindings| WorkbookQuery::ConsistentBindings { reads: q.reads.clone() });
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Census {

@@ -1563,3 +1563,59 @@ fn local_rtd_clock_starts_paused_with_the_calculated_opening_tick() {
     while host.advance() {}
     assert_eq!(tick(), value(0.0));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binding_snapshot_reads_calculated_outputs_at_one_workbook_generation() {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let at = |column| Key(sheet.0, sheet.1, 1, column);
+    let mut changes = vec![enter(at(1), "2"), enter(at(2), "=A1*3")];
+    let reads = (1..=2)
+        .map(|column| {
+            let anchor = AnchorId(NonZeroU128::new(u128::from(column)).unwrap());
+            changes.push(Change::Presentation(PresentationChange::Bind {
+                anchor,
+                source: target(at(column)),
+            }));
+            BindingRead {
+                bound: Bound {
+                    anchor,
+                    address: format!("Sheet1!{}1", char::from(b'A' + column as u8 - 1)),
+                },
+                kind: BindingKind::Value,
+            }
+        })
+        .collect();
+    port.commit(batch(1, changes)).unwrap();
+    while host.advance() {}
+    let query = query::ConsistentBindings { reads };
+    let read = |budget| {
+        query::ConsistentBindings::decode(port.ask(query.request(), budget).unwrap()).unwrap()
+    };
+    let values = |answer: &Answer<BindingSnapshot>| {
+        answer.body.items.iter()
+            .map(|item| {
+                let BindingValue::Cell(cell) = item.value.as_ref().unwrap() else {
+                    panic!("expected a cell");
+                };
+                cell.shown.value.clone()
+            })
+            .collect::<Vec<_>>()
+    };
+    let value = |n: f64| RawValue::Number { bits: n.to_bits() };
+    let opening = read(BUDGET);
+    assert_eq!(opening.coverage, Coverage::Complete);
+    assert!(opening.body.captured_unix_ms.is_some());
+    assert_eq!(values(&opening), [value(2.0), value(6.0)]);
+    let limited = read(Budget { cells: 1, ..BUDGET });
+    assert_eq!(limited.stamp, opening.stamp);
+    assert!(matches!(limited.body.items[0].value, Ok(BindingValue::Cell(_))));
+    assert!(matches!(limited.body.items[1].value, Err(Refusal::OverBudget { .. })));
+    port.commit(batch(2, vec![enter(at(1), "5")])).unwrap();
+    while host.advance() {}
+    let current = read(BUDGET);
+    assert!(current.stamp.calc.0 > opening.stamp.calc.0);
+    assert_eq!(values(&current), [value(5.0), value(15.0)]);
+    assert_eq!(values(&opening), [value(2.0), value(6.0)]);
+}
