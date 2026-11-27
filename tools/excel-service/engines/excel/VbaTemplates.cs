@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace Touchstone.Excel;
 
 /// <summary>
-/// The catalogue of reviewed VBA probe templates (dc-erfm3); same algorithm and files as tools/excel-service/vba_templates.py.
+/// The catalogue of reviewed VBA probe templates (dc-erfm3).
 /// A VBA case names a template in vba-probes/catalogue.json and gives typed parameters. Each template module file is pinned
 /// by SHA-256, and the package is built from the pinned text and the parameters only.
 /// </summary>

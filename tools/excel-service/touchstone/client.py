@@ -24,10 +24,11 @@ import time
 import uuid
 
 try:
-    from . import protocol, v1
+    from . import protocol, v1, vba_policy
 except ImportError:
     import protocol
     import v1
+    import vba_policy
 
 DEFAULT_SOCKET = Path.home() / ".excel-service" / "excel.sock"
 DEFAULT_ENDPOINT = Path(r"C:\Work\DnaCalc\codex-runs\excel-service-v2") / "endpoint.json"
@@ -329,6 +330,13 @@ class Connection:
         arguments and in the reply use the usual Touchstone binary64 hex encoding.
         """
         row = [protocol.vba_case(case)]
+        worker = vba_policy.worker_path()
+        if worker is not None:
+            group, = protocol.rows_to_groups(protocol.VBA_FUNCTION, [row])
+            try:
+                vba_policy.check(group, worker)
+            except ValueError as error:
+                raise ServiceError({"id": rid, "ok": False, "code": "refused", "error": f"refused: {error}"}) from error
         pending = self.submit_rows(protocol.VBA_FUNCTION, [row], priority="interactive", rid=rid)
         reply = pending.result(timeout)
         answer, = reply["rows"]
@@ -339,6 +347,9 @@ class Connection:
                 "id": pending.rid, "ok": False, "code": code, "error": f"{code}: {detail}",
                 "row": answer,
             })
+        case_digest = answer.pop("case_sha256", None)
+        if case_digest is not None:
+            reply["case_sha256"] = case_digest
         sent = row[0]["value"]
         if (len(answer["calls"]) != len(sent["calls"])
                 or [item["at"] for item in answer["sheet_state"]] != sent["readback"]
@@ -417,6 +428,7 @@ def _main():
             row = [protocol.vba_case(case)]
             group, = protocol.rows_to_groups(protocol.VBA_FUNCTION, [row])
             protocol.submit_frames("0" * 32, [group])  # check the same frame size the live client uses
+            vba_policy.check(group)
             print(protocol.dumps(group).decode("ascii"))
         else:
             conn = Connection.open(name="vba-case")
