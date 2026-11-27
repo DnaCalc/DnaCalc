@@ -115,3 +115,111 @@
 
 .dna-book-open { display: inline-flex; align-items: center; gap: var(--dna-gap-1); }
 .dna-book-open input { max-inline-size: 11rem; }
+
+.dna-book-stage {
+    display: grid;
+    grid-template: minmax(0, 1fr) auto / minmax(0, 1fr) auto;
+}
+.dna-book-work { display: flex; min-width: 0; min-height: 0; }
+.dna-book-dock-right { min-height: 0; display: flex; }
+.dna-book-dock-bottom { grid-column: 1 / -1; }
+.dna-book-dock-right .dna-inspector-dock {
+    box-sizing: border-box;
+    width: min(30rem, 46vw);
+    max-width: 65vw;
+    min-width: min(18rem, 45vw);
+    overflow: auto;
+    resize: horizontal;
+    border-inline-start: 1px solid var(--dna-line);
+}
+.dna-book-dock-bottom .dna-inspector-dock {
+    box-sizing: border-box;
+    height: 30vh;
+    min-height: 10rem;
+    max-height: 65vh;
+    overflow: auto;
+    resize: vertical;
+    border-block-start: 1px solid var(--dna-line);
+}
+.dna-inspector {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    background: var(--dna-bg);
+}
+.dna-inspector-head, .dna-inspector-tabs {
+    background: var(--dna-paper);
+    border-bottom: 1px solid var(--dna-line);
+    padding: var(--dna-gap-3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--dna-gap-2);
+}
+.dna-inspector-head h1 { margin: 0; font-size: 1.35rem; line-height: 1.2; }
+.dna-inspector-address, .dna-inspector code { font-family: monospace; overflow-wrap: anywhere; }
+.dna-inspector-address { color: var(--dna-ink-2); }
+.dna-inspector-actions, .dna-inspector-tabs { display: flex; flex-wrap: wrap; gap: var(--dna-gap-2); }
+.dna-inspector-tabs { justify-content: start; padding-block: var(--dna-gap-2); }
+.dna-inspector button { min-height: 1.85rem; }
+.dna-inspector-tabs [aria-pressed=true] {
+    background: var(--dna-paper-2);
+    color: var(--dna-accent-ink);
+    box-shadow: inset 0 -2px var(--dna-accent-ink);
+}
+.dna-inspector-instrument { display: grid; gap: var(--dna-gap-3); padding: var(--dna-gap-3); }
+.dna-inspector-card {
+    min-width: 0;
+    background: var(--dna-paper);
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-chip);
+    padding: var(--dna-gap-3);
+    overflow-x: auto;
+}
+.dna-inspector-card h2 { margin-block: 0 var(--dna-gap-2); font-size: 1rem; }
+.dna-inspector-card h3 { margin: 0; font-size: inherit; }
+.dna-inspector-card p { margin-block: var(--dna-gap-2); }
+.dna-inspector-counts, .dna-inspector-columns { display: flex; flex-wrap: wrap; gap: var(--dna-gap-3) 2rem; }
+.dna-inspector-counts div { display: grid; min-width: 6rem; gap: var(--dna-gap-1); }
+.dna-inspector-counts strong { font: 1.6rem / 1.1 monospace; }
+.dna-inspector-counts span, .dna-inspector-status, .dna-inspector small { color: var(--dna-ink-2); }
+.dna-inspector ul, .dna-inspector ol { margin-block: var(--dna-gap-2); padding-inline-start: 1.2rem; }
+.dna-inspector li > :is(code, small, span) { margin-inline-start: var(--dna-gap-2); }
+.dna-inspector table { width: 100%; border-collapse: collapse; }
+.dna-inspector :is(th, td) {
+    text-align: start;
+    padding: var(--dna-gap-1) var(--dna-gap-2);
+    border-block-end: 1px solid var(--dna-line);
+}
+.dna-inspector thead { background: var(--dna-paper-2); }
+.dna-inspector details { padding-block: var(--dna-gap-1); }
+.dna-inspector summary { cursor: pointer; }
+
+.dna-book-review-write { display: inline-flex; align-items: baseline; gap: var(--dna-gap-2); }
+.dna-book-review-write code { white-space: normal; overflow-wrap: anywhere; }
+.dna-book-seam[data-dnacalc="seam-review"] {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dna-gap-2);
+}
+.dna-book-bridge:has([data-dnacalc="seam-review"]) { flex-wrap: wrap; }
+.dna-inspector-form { display: grid; justify-items: start; gap: var(--dna-gap-2); margin-block: var(--dna-gap-2); }
+.dna-inspector-form label, .dna-inspector-form :is(input, textarea) { width: min(100%, 46rem); }
+.dna-inspector-form textarea {
+    display: block;
+    box-sizing: border-box;
+    padding: var(--dna-gap-2);
+    border: 1px solid var(--dna-line);
+    background: var(--dna-paper);
+    color: var(--dna-ink);
+    min-height: 3rem;
+}
+.dna-inspector-filter { margin-block-start: var(--dna-gap-3); border-block-start: 2px solid var(--dna-accent-ink); padding-block-start: var(--dna-gap-2); }
+.dna-inspector-filter tbody th button { color: var(--dna-accent-ink); }
+.dna-inspector-filter td small { display: block; }
+.dna-inspector dl { display: grid; grid-template-columns: minmax(5rem, auto) 1fr; column-gap: var(--dna-gap-3); }
+.dna-inspector dt { color: var(--dna-ink-2); }
+.dna-inspector dd { margin: 0; overflow-wrap: anywhere; }

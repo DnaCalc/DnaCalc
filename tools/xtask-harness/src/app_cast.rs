@@ -27,10 +27,11 @@ pub(super) fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub(super) fn fixture_bytes(name: &str) -> Result<Vec<u8>, String> {
-    let (_, generate) = FIXTURES.iter().find(|(known, _)| *known == name)
-        .ok_or_else(|| format!("There is no cast workbook named {name}."))?;
-    generate().map(|(bytes, _)| bytes).map_err(|error| error.to_string())
+pub(super) fn fixture(name: &str) -> Result<Vec<u8>, String> {
+    let (_, generate) = FIXTURES.iter().find(|(key, _)| *key == name)
+        .ok_or_else(|| format!("Unknown cast workbook {name}"))?;
+    let (bytes, _) = generate().map_err(|error| error.to_string())?;
+    Ok(bytes)
 }
 
 type BuildResult = Result<(Vec<u8>, usize), Box<dyn std::error::Error>>;

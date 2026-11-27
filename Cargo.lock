@@ -1385,6 +1385,7 @@ dependencies = [
  "dna-shell",
  "dna-skin-runtime",
  "dna-view-classic",
+ "dna-view-inspector",
  "dna-view-notebook",
  "js-sys",
  "leptos",
@@ -1541,6 +1542,7 @@ dependencies = [
  "dna-kit",
  "dna-skin-runtime",
  "dna-view-classic",
+ "dna-view-inspector",
  "dna-view-notebook",
  "leptos",
  "serde",
@@ -1585,6 +1587,17 @@ dependencies = [
  "leptos",
  "serde_json",
  "web-sys",
+]
+
+[[package]]
+name = "dna-view-inspector"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "dna-kit",
+ "leptos",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]

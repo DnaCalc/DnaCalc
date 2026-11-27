@@ -10,7 +10,7 @@ use calc_skin::query::{self, Census};
 use calc_skin::{Operation, SourceRef, ViewId, address};
 use dna_kit::commands::{CommandId, CommandSpec, Layer, When};
 use dna_kit::{
-    Fit, Focus, Invocation, KeyInput, Live, Located, Registry, Seam, Session, View,
+    DockSide, Fit, Focus, Invocation, KeyInput, Live, Located, Registry, Seam, Session, View,
 };
 use leptos::{leptos_dom::helpers::request_animation_frame, prelude::*, wasm_bindgen::JsCast};
 use std::rc::Rc;
@@ -105,7 +105,8 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
     session.register(spec("edit.cancel", "Cancel", ""), move |_| {
         if chrome.search.get_untracked() {
             chrome.search.set(false);
-        } else {
+        } else if session.mode().editing() || !matches!(session.seam(), Seam::Idle)
+            || !chrome.views.with_value(|views| views.iter().any(|view| view.cancel_interaction(session))) {
             session.cancel();
         }
         Ok(())
@@ -245,6 +246,10 @@ pub fn workbook(
 ) -> impl IntoView + use<> {
     let specs = registry.views();
     let views = chrome.views;
+    let docks = views.with_value(|views| views.iter().filter_map(|view| view.dock()).collect::<Vec<_>>());
+    let dock_buttons = docks.iter().map(|dock| command_button(session, dock.command, dock.label)).collect_view();
+    let right_docks = docks.iter().map(|dock| (dock.mount)(session, DockSide::Right)).collect_view();
+    let bottom_docks = docks.iter().map(|dock| (dock.mount)(session, DockSide::Bottom)).collect_view();
     let on_stage = move || {
         let id = session.view();
         views.with_value(|views| views.iter().find(|view| view.spec().id == id).cloned())
@@ -382,6 +387,7 @@ pub fn workbook(
                 {command_button(session, "edit.redo", "Redo")}
                 {command_button(session, "calc.calculate", "Calculate")}
                 {command_button(session, "shell.details", "Details")}
+                {dock_buttons}
             </nav>
             <div class="dna-book-bridge">
                 <input class="dna-book-name" aria-label="Cell address" data-dnacalc="name-box"
@@ -400,6 +406,14 @@ pub fn workbook(
                 {move || match session.seam() {
                     Seam::Review(preview) => Some(view! {
                         <span class="dna-book-seam" role="alert" data-dnacalc="seam-review">
+                            <span>{format!("{} {} changed", preview.writes.len(),
+                                if preview.writes.len() == 1 { "cell entry" } else { "cell entries" })}</span>
+                            {preview.writes.into_iter().map(|write| view! {
+                                <span class="dna-book-review-write">
+                                    <strong>{a1(write.at)}</strong>
+                                    <code>{write.before}</code>" → "<code>{write.after}</code>
+                                </span>
+                            }).collect_view()}
                             {preview.warnings.join(" · ")}
                             {command_button(session, "edit.apply-review", "Apply")}
                             {command_button(session, "edit.cancel", "Cancel")}
@@ -442,14 +456,18 @@ pub fn workbook(
                 </ul>
             </form>
             <main class="dna-book-stage" tabindex="-1" node_ref=stage_node>
-                {stage}
-                <Show when=move || chrome.details.get()>
+                <div class="dna-book-work">
+                    {stage}
+                    <Show when=move || chrome.details.get()>
                     <aside class="dna-book-details">
                         <h2>"Details"</h2>
                         <dl><dt>"Selected cell"</dt><dd>{move || session.active().map(a1).unwrap_or_default()}</dd>
                             <dt>"Entry"</dt><dd>{move || session.entry()}</dd></dl>
                     </aside>
-                </Show>
+                    </Show>
+                </div>
+                <div class="dna-book-dock-right">{right_docks}</div>
+                <div class="dna-book-dock-bottom">{bottom_docks}</div>
             </main>
             <nav class="dna-book-sheets" aria-label="Worksheets">
                 {move || session.summary().into_iter().flat_map(|book| book.sheets)

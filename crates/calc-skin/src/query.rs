@@ -187,6 +187,18 @@ pub struct FormulaFacts {
     pub input: String,
     pub formula: bool,
     pub precedents: Vec<Area>,
+    /// The exact entry used as the precondition for a formula rewrite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authored: Option<String>,
+    /// A historical observation from the opened file, independent of the current result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_saved: Option<AsSavedFormula>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AsSavedFormula {
+    pub entry: String,
+    pub value: crate::RawValue,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

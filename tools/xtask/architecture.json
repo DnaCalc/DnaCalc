@@ -54,6 +54,7 @@
         "calc-skin-host",
         "dna-shell",
         "dna-view-classic",
+        "dna-view-inspector",
         "dna-view-notebook",
         "dna-view-explorer",
         "dna-grid"
@@ -102,6 +103,7 @@
         "calc-skin-host",
         "dna-grid",
         "dna-view-classic",
+        "dna-view-inspector",
         "dna-view-notebook"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
@@ -140,6 +142,25 @@
         "calc-chart-render",
         "dna-shell",
         "dna-view-explorer",
+        "dna-view-inspector",
+        "dna-view-notebook"
+      ],
+      "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
+    },
+    {
+      "package": "dna-view-inspector",
+      "scope": "closure",
+      "forbidden": [
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-skin-host",
+        "calc-formula-host",
+        "calc-chart-render",
+        "dna-shell",
+        "dna-view-explorer",
+        "dna-view-classic",
         "dna-view-notebook"
       ],
       "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
@@ -157,7 +178,8 @@
         "calc-chart-render",
         "dna-shell",
         "dna-view-classic",
-        "dna-view-explorer"
+        "dna-view-explorer",
+        "dna-view-inspector"
       ],
       "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
     },
@@ -267,6 +289,7 @@
         "calc-skin-host",
         "dna-grid",
         "dna-view-classic",
+        "dna-view-inspector",
         "dna-view-notebook"
       ],
       "reason": "plan 1.3 and the owner's ruling of 2026-11-07: OneCalc's transitive dependency closure contains no CalcEngine or CalcHost; it may use calc-doc, since its file is a constrained Excel workbook read and written through the CalcDoc codec"
@@ -280,6 +303,7 @@
         "calc-skin-host",
         "dna-grid",
         "dna-view-classic",
+        "dna-view-inspector",
         "dna-view-notebook"
       ],
       "reason": "plan 8.7: the formula UI both applications show reaches no CalcEngine and no CalcHost (it may use calc-doc, as dna-onecalc may)"
@@ -489,6 +513,7 @@
         "calc-skin-host",
         "dna-grid",
         "dna-view-classic",
+        "dna-view-inspector",
         "dna-view-notebook"
       ],
       "reason": "plan 8.7 and the OneCalc desktop note: the shipped OneCalc executable reaches no CalcHost and no CalcEngine (also checked by `cargo xtask sweep`'s ceiling step)"

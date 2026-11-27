@@ -536,6 +536,8 @@ fn every_answer_decodes_as_its_query_type() {
     let formula = ask(&port, query::Formula { at: a2 });
     assert!(formula.formula);
     assert_eq!(formula.input, "=A1*21");
+    assert_eq!(formula.authored.as_deref(), Some("=A1*21"));
+    assert_eq!(formula.as_saved, None);
     assert_eq!(formula.precedents, [Area(a1, a1)]);
 
     let rules = ask(&port, query::Rules { at: a2 });

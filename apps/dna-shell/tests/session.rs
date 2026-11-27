@@ -49,6 +49,7 @@ impl Page {
         });
         let mut registry = Registry::default();
         dna_view_classic::install(&mut registry);
+        dna_view_inspector::install(&mut registry);
         dna_view_notebook::install(&mut registry);
         dna_shell::workbook::install(&registry, session);
         let page = Self {
@@ -151,10 +152,16 @@ fn a_person_moves_types_commits_and_undoes_through_commands() {
     // the seam.
     assert!(page.press("=", Focus::Stage));
     assert_eq!(session.mode(), InputMode::Enter);
-    assert!(!page.press("2", Focus::Editor), "the editor types its own text");
+    assert!(
+        !page.press("2", Focus::Editor),
+        "the editor types its own text"
+    );
     session.edit_text("=21*2".into());
     assert_eq!(session.entry(), "=21*2");
-    assert!(page.press("ArrowDown", Focus::Editor) == false, "motion waits while a draft is open");
+    assert!(
+        page.press("ArrowDown", Focus::Editor) == false,
+        "motion waits while a draft is open"
+    );
     assert!(page.press("Enter", Focus::Editor));
     assert_eq!(session.mode(), InputMode::Ready);
     assert_eq!(session.seam(), Seam::Idle);
@@ -165,14 +172,21 @@ fn a_person_moves_types_commits_and_undoes_through_commands() {
     // F2 opens the entry the host reports.
     assert!(page.press("F2", Focus::Stage));
     let draft = session.edit().expect("F2 opens a draft");
-    assert_eq!((draft.text.as_str(), draft.mode), ("=21*2", InputMode::Edit));
+    assert_eq!(
+        (draft.text.as_str(), draft.mode),
+        ("=21*2", InputMode::Edit)
+    );
     assert!(page.press("Escape", Focus::Editor));
     assert_eq!(session.edit(), None);
 
     // The one history.
     assert!(page.press("Ctrl+z", Focus::Stage));
     assert_eq!(page.shown(page.at(2, 2)), "");
-    assert!(session.notice().starts_with("Undid · "), "{}", session.notice());
+    assert!(
+        session.notice().starts_with("Undid · "),
+        "{}",
+        session.notice()
+    );
     assert_eq!(session.entry(), "");
     assert!(page.press("Ctrl+y", Focus::Stage));
     assert_eq!(page.shown(page.at(2, 2)), "42");
@@ -186,7 +200,10 @@ fn keys_in_another_field_stay_that_fields() {
     // Enter in the Name Box is the Name Box's, typing is typing, and Alt+Q still opens search.
     assert!(!page.press("Enter", Focus::Field));
     assert!(!page.press("x", Focus::Field));
-    assert_eq!((session.active(), session.edit()), (Some(page.at(1, 1)), None));
+    assert_eq!(
+        (session.active(), session.edit()),
+        (Some(page.at(1, 1)), None)
+    );
     assert!(page.press("Alt+q", Focus::Field));
 }
 
@@ -196,9 +213,15 @@ fn a_command_that_cannot_run_now_says_so_on_the_strip() {
     let page = Page::open();
     let session = page.session;
     assert!(page.press("x", Focus::Stage));
-    assert!(matches!(session.command("edit.undo"), Err(CommandError::NotNow(_))));
+    assert!(matches!(
+        session.command("edit.undo"),
+        Err(CommandError::NotNow(_))
+    ));
     assert_eq!(session.notice(), "Undo is not available now.");
-    assert!(matches!(session.command("no.such"), Err(CommandError::Unknown(_))));
+    assert!(matches!(
+        session.command("no.such"),
+        Err(CommandError::Unknown(_))
+    ));
     // The draft is untouched by either refusal.
     assert_eq!(session.edit().map(|draft| draft.text), Some("x".into()));
 }
@@ -226,6 +249,111 @@ fn a_reader_runs_again_only_for_what_it_read() {
     page.press("ArrowDown", Focus::Stage);
     assert_eq!(active.get_untracked(), Some(page.at(2, 1)));
     assert!(runs.load(Ordering::Relaxed) > 1);
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn inspector_and_dock_switch_without_changing_the_workbook() {
+    let page = Page::open();
+    let session = page.session;
+    let stamp = session.stamp();
+    let selection = session.selection();
+
+    session.command("inspector.dock").unwrap();
+    assert_eq!(session.view().0, "classic");
+    session.command("inspector.enlarge").unwrap();
+    assert_eq!(session.view().0, "inspector");
+    session.command("inspector.dependents").unwrap();
+    session.command("view.classic").unwrap();
+    page.settle();
+    assert_eq!(session.selection(), selection);
+    assert_eq!(session.stamp(), stamp);
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn inspector_audits_large_ranges_and_previews_a_single_cell_repair() {
+    use calc_skin::{Budget, Evidence};
+    use dna_kit::commands::CommandId;
+    let page = Page::open();
+    let session = page.session;
+    let at = page.at(1, 1);
+    session.edit_text(r#"=SUMIFS(B1:B5000,C1:C5000,"West")"#.into());
+    session.commit_edit();
+    page.settle();
+
+    let watch = session.following_with_budget::<query::ContributionsAt>(Budget {
+        cells: 20_000,
+        nodes: 4096,
+        edges: 4096,
+        bytes: 1_000_000,
+        millis: 2000,
+    });
+    let query = query::ContributionsAt { at };
+    watch.at(Some(query.clone()));
+    page.settle();
+    assert!(matches!(watch.at(Some(query)), Live::Ready(answer)
+        if matches!(&answer.body, Evidence::Derived { body, .. } if body.inspected == 5000)));
+
+    let before = session.stamp().unwrap();
+    let original = session.entry();
+    let replacement = r#"=SUMIFS(B1:B5000,C1:C5000,"West",D1:D5000,"Paid")"#;
+    session
+        .run(&dna_kit::Invocation {
+            command: CommandId::new("inspector.repair"),
+            args: serde_json::json!([at, original, replacement, before]),
+        })
+        .unwrap();
+    page.settle();
+    let Seam::Review(preview) = session.seam() else {
+        panic!("expected explicit review")
+    };
+    assert_eq!(preview.writes.len(), 1);
+    assert_eq!(preview.writes[0].at, at);
+    assert_eq!(preview.writes[0].before.as_deref(), Some(original.as_str()));
+    assert_eq!(preview.writes[0].after.as_deref(), Some(replacement));
+    assert_eq!(session.entry(), original);
+    assert_eq!(session.stamp(), Some(before));
+    session.command("edit.cancel").unwrap();
+    assert_eq!(session.seam(), Seam::Idle);
+    session
+        .run(&dna_kit::Invocation {
+            command: CommandId::new("inspector.repair"),
+            args: serde_json::json!([at, original, replacement, before]),
+        })
+        .unwrap();
+    page.settle();
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(session.entry(), replacement);
+    assert!(session.stamp().unwrap().model > before.model);
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn inspector_finding_uses_presentation_history_and_undo() {
+    let page = Page::open();
+    let session = page.session;
+    let before = session.stamp().unwrap();
+    let text = "Check the Revenue.Window definition";
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("inspector.note-put"),
+            args: serde_json::json!([page.at(1, 1), before, null, null, text]),
+        })
+        .unwrap();
+    page.settle();
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    assert!(session.stamp().unwrap().view > before.view);
+    let notes = session.watch(query::NotesOf { anchor: None });
+    page.settle();
+    assert!(
+        matches!(session.read(notes), Live::Ready(answer) if answer.body.len() == 1
+        && answer.body[0].text == text && answer.body[0].source.as_ref() == Some(&session.selection().unwrap().target))
+    );
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert!(matches!(session.read(notes), Live::Ready(answer) if answer.body.is_empty()));
 }
 
 /// Native-only: drives the real workbook service by packets.

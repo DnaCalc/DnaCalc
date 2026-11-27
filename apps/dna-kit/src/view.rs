@@ -76,7 +76,26 @@ impl ViewCommand {
         chords: &[&'static str],
         run: impl Fn(&Invocation) -> Result<(), String> + 'static,
     ) -> Self {
-        let here = When::view(&view.0);
+        Self::under(When::view(&view.0), id, label, chords, run)
+    }
+
+    /// A command available from any view, for an instrument that can be docked anywhere.
+    pub fn global(
+        id: &'static str,
+        label: &'static str,
+        chords: &[&'static str],
+        run: impl Fn(&Invocation) -> Result<(), String> + 'static,
+    ) -> Self {
+        Self::under(When::ALWAYS, id, label, chords, run)
+    }
+
+    fn under(
+        here: When,
+        id: &'static str,
+        label: &'static str,
+        chords: &[&'static str],
+        run: impl Fn(&Invocation) -> Result<(), String> + 'static,
+    ) -> Self {
         Self {
             spec: CommandSpec {
                 id: CommandId::new(id),
@@ -120,6 +139,28 @@ impl MountedView {
     }
 }
 
+/// The shell's shared panel positions. A view decides which instrument to mount in a slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockSide {
+    Right,
+    Bottom,
+}
+
+impl DockSide {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Right => "right",
+            Self::Bottom => "bottom",
+        }
+    }
+}
+
+pub struct DockSpec {
+    pub command: &'static str,
+    pub label: &'static str,
+    pub mount: fn(Session, DockSide) -> AnyView,
+}
+
 pub trait View: 'static {
     fn spec(&self) -> ViewSpec;
 
@@ -131,6 +172,15 @@ pub trait View: 'static {
     /// The view's commands and their keys. Called once per session, before any mount.
     fn commands(&self, _session: Session) -> Vec<ViewCommand> {
         Vec::new()
+    }
+
+    fn dock(&self) -> Option<DockSpec> {
+        None
+    }
+
+    /// Cancels an open view-local interaction when the shell has no edit or review to cancel.
+    fn cancel_interaction(&self, _session: Session) -> bool {
+        false
     }
 
     fn mount(&self, session: Session) -> MountedView;

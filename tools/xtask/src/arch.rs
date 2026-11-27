@@ -846,6 +846,7 @@ mod tests {
                 "calc-skin-host",
                 "dna-grid",
                 "dna-view-classic",
+                "dna-view-inspector",
                 "dna-view-notebook"
             ]
         );

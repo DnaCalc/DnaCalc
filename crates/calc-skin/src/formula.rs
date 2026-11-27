@@ -131,7 +131,7 @@ pub struct TrialCell {
     pub conditional_match: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RawValue {
     Number { bits: u64 },
     Text(Vec<u16>),
