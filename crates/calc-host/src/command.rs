@@ -72,6 +72,13 @@ pub enum CellEdit {
         /// The complete collection of validation rules.
         rules: Vec<calc_doc_model::Validation>,
     },
+    /// Replace the sheet's native Excel Scenario Manager records.
+    Scenarios {
+        /// The worksheet that owns the scenarios.
+        sheet: calc_value::SheetId,
+        /// The restored or edited catalog, or no catalog.
+        records: Option<calc_doc_model::WorksheetScenarios>,
+    },
     /// Replace the worksheet’s merged areas.
     Merges {
         /// The worksheet to edit.
@@ -210,6 +217,10 @@ impl CellEdit {
             CellEdit::Validations { sheet, rules } => WorkbookOp::SetValidations {
                 sheet: *sheet,
                 rules: rules.clone(),
+            },
+            CellEdit::Scenarios { sheet, records } => WorkbookOp::SetScenarios {
+                sheet: *sheet,
+                records: records.clone(),
             },
             CellEdit::ReviewLinks { sheet, links } => WorkbookOp::SetReviewLinks {
                 sheet: *sheet,
@@ -680,6 +691,12 @@ fn stage_slice<T>(
         .map(|(s, f)| (s, f.area))
         .collect::<std::collections::BTreeMap<_, _>>();
     for edit in &axis_edits {
+        if host.model.definitions().scenarios(edit.sheet()).is_some() {
+            return Err(CommandError::NotModelled {
+                what: "Moving native Excel scenarios",
+                owner: "dc-zh096",
+            });
+        }
         if crate::review::has_sorted_imported_notes(host, edit.sheet()) {
             return Err(CommandError::Document(EditError::SheetOperation(
                 "Row or column edits with sorted notes are not modelled (dc-971p); save and reopen first; nothing changed"

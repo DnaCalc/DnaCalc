@@ -5,10 +5,10 @@ use calc_skin::query::{self, ViewDocumentFacts, ViewPartFacts};
 use calc_skin::{
     AnchorId, Batch, Bound, Change, Coverage, DocId, InputCandidate, InputPolicy, InputSignal,
     InventoryItem, InventoryKind, ModelChange, Page, PageNode, PageSchema, PresentationChange,
-    Refusal, SourceRef, Stamp, TableInfo, ViewId,
+    Refusal, ScenarioRef, SourceRef, Stamp, TableInfo, ViewId,
 };
 use dna_kit::commands::CommandId;
-use dna_kit::page::{PageAuthor, PageInput, PageRenderer};
+use dna_kit::page::{PageAuthor, PageInput, PageRenderer, PageScenario};
 use dna_kit::{
     Invocation, Live, Located, MountedView, Registry, Seam, Session, View, ViewCommand, ViewSpec,
     Watch,
@@ -20,6 +20,8 @@ use std::num::NonZeroU128;
 
 const APP: &str = "app";
 const FORMS: &str = "forms";
+const REVIEW_SCENARIO: &str = "app.review-scenario";
+const SAVE_SCENARIO: &str = "app.save-scenario";
 
 mod controls;
 mod rail;
@@ -72,6 +74,17 @@ impl View for Surface {
             let _ = draft(session);
             let candidates = session.watch(query::InputCandidates { scope: SourceRef::Workbook });
             vec![
+                ViewCommand::new(&id, REVIEW_SCENARIO, "Review saved scenario", &[], move |invocation| {
+                    let scenario = serde_json::from_value(invocation.args.clone())
+                        .map_err(|_| "Choose a saved worksheet scenario".to_owned())?;
+                    state.review_scenario(scenario)
+                }).when("writable"),
+                ViewCommand::new(&id, SAVE_SCENARIO, "Save as scenario", &[], move |invocation| {
+                    let name = invocation.args.as_str().map(str::trim)
+                        .filter(|name| !name.is_empty())
+                        .ok_or_else(|| "Enter a scenario name first".to_owned())?;
+                    state.save_scenario(name)
+                }).when("writable"),
                 ViewCommand::new(
                     &id,
                     "app.draft-from-file",
@@ -141,6 +154,18 @@ impl View for Surface {
             ]
         } else {
             let mut commands = vec![
+                ViewCommand::new(&id, "forms.add-scenario-picker", "Add scenario picker", &[], move |_| {
+                    state.append_part(
+                        "Add scenario picker",
+                        PageNode::Part {
+                            id: String::new(),
+                            component: "scenario-picker".into(),
+                            bind: BTreeMap::new(),
+                            props: BTreeMap::from([("label".into(), "Scenarios".into())]),
+                        },
+                        None,
+                    )
+                }).when("writable"),
                 ViewCommand::new(&id, "forms.create", "Create App page", &[], move |_| {
                     state.create()
                 })
@@ -687,6 +712,43 @@ impl State {
             });
         Ok(())
     }
+
+    fn review_scenario(self, scenario: ScenarioRef) -> Result<(), String> {
+        self.document()?;
+        let label = format!("Show scenario {}", scenario.name);
+        self.scenario_batch(&label, ModelChange::ShowScenario { scenario })
+    }
+
+    fn save_scenario(self, name: &str) -> Result<(), String> {
+        let (page, _) = self.document()?;
+        let at = self.session.active().ok_or_else(|| "Choose a worksheet for the scenario".to_owned())?;
+        let scenario = ScenarioRef { sheet: Sheet(at.0, at.1), name: name.into() };
+        let mut inputs = Vec::new();
+        page.root.for_each_part(&mut |_, component, bindings| {
+            if component == "input" && let Some(bound) = bindings.get("value") {
+                inputs.push(bound.clone());
+            }
+        });
+        self.scenario_batch(&format!("Save scenario {name}"), ModelChange::SaveScenario { scenario, inputs })
+    }
+
+    fn scenario_batch(self, label: &str, change: ModelChange) -> Result<(), String> {
+        let stamp = self.session.stamp().ok_or_else(|| "Open a workbook first".to_owned())?;
+        if !matches!(self.session.seam(), Seam::Idle) {
+            return Err("Finish the change in progress first".into());
+        }
+        if inputs(self.session).with_untracked(|values| {
+            values.current(self.session).is_some_and(|current| !current.values.is_empty())
+        }) {
+            return Err("Apply or discard the drafted inputs first".into());
+        }
+        self.session.submit_for_review(batch(
+            stamp,
+            label,
+            vec![Change::Model(change)],
+        ));
+        Ok(())
+    }
 }
 
 fn app_document(part: &ViewPartFacts) -> Option<&ViewDocumentFacts> {
@@ -865,7 +927,10 @@ fn operator(session: Session, state: State) -> AnyView {
                             {button(session, "view.forms", "Edit page…")}
                             {button(session, "view.classic", "See the cells")}
                         </header>
-                        <PageRenderer session document input=INPUT />
+                        <PageRenderer session document input=INPUT scenario=PageScenario {
+                            review: REVIEW_SCENARIO,
+                            save: SAVE_SCENARIO,
+                        } />
                         {batched.then(|| view! {
                             <footer class="dna-page-tools">
                                 {button(session, "app.apply-inputs", "Apply inputs")}
@@ -943,6 +1008,7 @@ fn forms(session: Session, state: State) -> AnyView {
                             </form>
                         </aside>
                         {reader_tools(session)}
+                        {button(session, "forms.add-scenario-picker", "Add scenario picker")}
                         <div class="dna-page-author-layout">
                             {rail::rail(session, state.inventory.expect("Forms has an inventory watch"))}
                             {controls::inspector(session, id, document.clone())}

@@ -598,6 +598,9 @@ impl WireOp {
             | WorkbookOp::SetValidations { .. } => {
                 unreachable!("review notes are refused before encoding")
             }
+            WorkbookOp::SetScenarios { .. } => {
+                unreachable!("scenario metadata is refused before encoding")
+            }
             WorkbookOp::SetConditionalRules { .. } => {
                 unreachable!("conditional rules are refused before the wire codec")
             }

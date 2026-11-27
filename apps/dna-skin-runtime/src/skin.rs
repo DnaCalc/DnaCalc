@@ -199,7 +199,6 @@ fn validate_page(page: &Page) -> Result<(), String> {
             "input" | "value" => Some("value"),
             "data-frame" | "notebook-excerpt" => Some("rows"),
             "chart" => Some("object"),
-            "chart" => Some("object"),
             _ => None,
         };
         if let Some(slot) = required

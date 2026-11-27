@@ -401,6 +401,7 @@ pub struct Definitions {
     styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     validations: BTreeMap<SheetId, Vec<crate::Validation>>,
+    scenarios: BTreeMap<SheetId, std::sync::Arc<crate::WorksheetScenarios>>,
     /// Authored merged areas per sheet; a sheet's entry (possibly empty) replaces the imported set.
     merges: BTreeMap<SheetId, Vec<GridArea>>,
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
@@ -546,6 +547,25 @@ impl Definitions {
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
+
+    /// Native Scenario Manager records in worksheet order.
+    pub fn scenarios(&self, sheet: SheetId) -> Option<&crate::WorksheetScenarios> {
+        self.scenarios.get(&sheet).map(std::sync::Arc::as_ref)
+    }
+
+    pub fn with_scenarios(mut self, sheet: SheetId, scenarios: Option<crate::WorksheetScenarios>) -> Self {
+        if let Some(scenarios) = scenarios {
+            self.scenarios.insert(sheet, scenarios.into());
+        } else {
+            self.scenarios.remove(&sheet);
+        }
+        self
+    }
+
+    pub fn all_scenarios(&self) -> impl Iterator<Item = (SheetId, &crate::WorksheetScenarios)> {
+        self.scenarios.iter().map(|(sheet, records)| (*sheet, records.as_ref()))
+    }
+
     pub fn all_validations(&self) -> impl Iterator<Item = (SheetId, &[crate::Validation])> {
         self.validations.iter().map(|(s, v)| (*s, v.as_slice()))
     }
@@ -802,6 +822,7 @@ impl Definitions {
             data_model: None,
             page_setups: BTreeMap::new(),
             validations: BTreeMap::new(),
+            scenarios: BTreeMap::new(),
             merges: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
@@ -1007,6 +1028,7 @@ impl Definitions {
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
         self.text_sources.retain(|at, _| at.sheet() != sheet);
         self.validations.remove(&sheet);
+        self.scenarios.remove(&sheet);
         self.merges.remove(&sheet);
         self.conditional.remove(&sheet);
         self.review.remove(&sheet);
@@ -1188,6 +1210,7 @@ impl Definitions {
             .chain(self.charts.keys().copied())
             .chain(self.shapes.keys().copied())
             .chain(self.sparklines.keys().copied())
+            .chain(self.scenarios.keys().copied())
             .chain(self.pivots.sheets.keys().copied())
             .chain(self.page_setups.keys().copied())
             .chain(self.axis_layouts.sheets())

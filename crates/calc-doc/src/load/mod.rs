@@ -44,6 +44,7 @@ pub(crate) mod geometry;
 pub(crate) mod manifest;
 pub(crate) mod metadata;
 pub(crate) mod outline;
+mod scenario;
 pub(crate) mod sheet;
 mod shift;
 mod sparkline;
@@ -1484,6 +1485,7 @@ impl LoadedWorkbook {
                 WorkbookOp::Clear { area } => own_sheet(area.sheet())?,
                 WorkbookOp::SetArray { array, .. } => own_sheet(array.area().sheet())?,
                 WorkbookOp::SetPageSetup { sheet, .. } => own_sheet(*sheet)?,
+                WorkbookOp::SetScenarios { sheet, .. } => own_sheet(*sheet)?,
                 _ => {}
             }
         }
@@ -2303,6 +2305,7 @@ pub fn load_preserving_sheet_ids(
     let mut auto_filters = Vec::new();
     let mut table_visibility = Vec::new();
     let mut conditional_sources = Vec::new();
+    let mut scenarios = Vec::new();
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     let mut repairs = Vec::new();
@@ -2333,6 +2336,9 @@ pub fn load_preserving_sheet_ids(
             Ok((loaded, sheet_tables)) => {
                 if !loaded.conditional_sources.is_empty() {
                     conditional_sources.push((id, loaded.conditional_sources));
+                }
+                if let Some(records) = loaded.scenarios {
+                    scenarios.push((id, records));
                 }
                 cells.extend(loaded.inputs);
                 repairs.extend(loaded.repairs);
@@ -2604,6 +2610,9 @@ pub fn load_preserving_sheet_ids(
     }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);
+    }
+    for (sheet, records) in scenarios {
+        definitions = definitions.with_scenarios(sheet, Some(records));
     }
     let entries = declared
         .into_iter()

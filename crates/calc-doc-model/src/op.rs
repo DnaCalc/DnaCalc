@@ -66,6 +66,10 @@ pub enum WorkbookOp {
         sheet: SheetId,
         rules: Vec<crate::Validation>,
     },
+    SetScenarios {
+        sheet: SheetId,
+        records: Option<crate::WorksheetScenarios>,
+    },
     /// The sheet's complete set of merged areas (each at least two cells, none overlapping).
     SetMerges {
         sheet: SheetId,

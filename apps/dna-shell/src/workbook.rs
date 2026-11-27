@@ -46,6 +46,13 @@ fn a1(at: Key) -> String {
 
 fn model_property_text(diff: ModelPropertyDiff) -> String {
     match diff {
+        ModelPropertyDiff::AddedScenario { scenario, values } => {
+            let values = values.into_iter().map(|(at, value)| {
+                let value = if value.is_empty() { "Blank".into() } else { value };
+                format!("{} = {value}", a1(at))
+            }).collect::<Vec<_>>().join(", ");
+            format!("Save scenario {} · {values}", scenario.name)
+        }
         ModelPropertyDiff::CellFormat { at, before, after } => {
             let style =
                 |id: Option<u32>| id.map_or_else(|| "File format".into(), |id| format!("Format {id}"));

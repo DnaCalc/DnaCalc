@@ -1183,7 +1183,7 @@ fn chart_sheet_preserves_representable_print_setup() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn scenarios_survive_conversion_as_unsupported_metadata() {
+fn scenarios_survive_conversion_with_exact_changing_cells() {
     let full = |text: &str| {
         let mut bytes = (text.len() as u16).to_le_bytes().to_vec(); bytes.push(0); bytes.extend(text.as_bytes()); bytes
     };
@@ -1206,10 +1206,42 @@ fn scenarios_survive_conversion_as_unsupported_metadata() {
         }
     };
     check(&document);
-    let _loaded = load(&bytes);
+    let loaded = load(&bytes);
+    let sheet = loaded.sheets()[0].id();
+    let scenarios = loaded.model().definitions().scenarios(sheet).unwrap();
+    assert_eq!(scenarios.unread, 0);
+    let [plan] = scenarios.entries.as_slice() else { panic!("expected one scenario") };
+    assert_eq!(plan.name, "Plan");
+    assert!(plan.locked && !plan.hidden);
+    assert_eq!(
+        plan.inputs.iter().map(|input| (input.at.row(), input.at.column(), input.value.to_string_lossy())).collect::<Vec<_>>(),
+        [(1, 1, "12".to_owned()), (3, 2, "_x0041_".to_owned())],
+    );
     let plan = calc_doc::prepare_save(&document.snapshot(), &calc_doc::SavePolicy::default()).unwrap();
     let mut saved = Vec::new(); calc_doc::write(plan, &mut saved).unwrap();
     check(&calc_doc::open(source(&saved), &OpenPolicy::default()).unwrap());
+    let reloaded = load(&saved);
+    assert_eq!(reloaded.model().definitions().scenarios(reloaded.sheets()[0].id()), Some(scenarios));
+    let mut records = scenarios.clone();
+    records.entries.push(calc_doc::model::WorksheetScenario {
+        name: "New & _x0041_".into(),
+        ..scenarios.entries[0].clone()
+    });
+    let edited = calc_doc::prepare_edit(loaded.model(), &calc_doc::model::OpBatch {
+        base: loaded.model().revision(),
+        operations: vec![calc_doc::model::WorkbookOp::SetScenarios {
+            sheet,
+            records: Some(records.clone()),
+        }],
+    }).unwrap();
+    let mut appended = Vec::new();
+    calc_doc::write(
+        calc_doc::prepare_save(&loaded.snapshot(edited.model()), &calc_doc::SavePolicy::default()).unwrap(),
+        &mut appended,
+    ).unwrap();
+    check(&calc_doc::open(source(&appended), &OpenPolicy::default()).unwrap());
+    let appended = load(&appended);
+    assert_eq!(appended.model().definitions().scenarios(appended.sheets()[0].id()), Some(&records));
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unknown_records.get(&0x00AE), Some(&1));
     assert_eq!(report.unknown_records.get(&0x00AF), Some(&1));
