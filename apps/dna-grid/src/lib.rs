@@ -19,6 +19,9 @@ const PAGE_COLUMNS: u32 = 18;
 const LAST_ROW: u32 = 1_048_576;
 const LAST_COLUMN: u32 = 16_384;
 
+#[derive(Clone, Copy, Default)]
+struct ViewportScroll(RwSignal<bool>);
+
 /// The page of the sheet that holds `at`: the area the grid watches and draws.
 pub fn page_of(at: Key) -> Area {
     let Key(sheet, generation, row, column) = at;
@@ -299,7 +302,10 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             let (Some(at), Some(stamp)) = (session.active(), session.stamp()) else {
                 return Err("No worksheet cell is selected.".into());
             };
-            session.operate(Operation::ToggleFreezePanes { workbook: stamp.workbook, at }, None);
+            let Area(first, _) = page_of(at);
+            let off_origin = (first.2, first.3) != (1, 1)
+                || session.local::<ViewportScroll>().0.get_untracked();
+            session.operate(Operation::ToggleFreezePanes { workbook: stamp.workbook, at, off_origin }, None);
             Ok(())
         })
         .when("mode:ready && writable"),
@@ -355,11 +361,20 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
     let geometry = session.following::<query::Geometry>();
     let selected = Memo::new(move |_| selected_areas(session));
     let dragging = RwSignal::new(None::<Key>);
+    let scroll = session.local::<ViewportScroll>().0;
+    if editable {
+        scroll.set(false);
+    }
     view! {
         <div class="dna-sheet" data-dnacalc="grid" tabindex="0" node_ref=focus
             role="region" aria-label="Worksheet grid"
             on:pointerup=move |_| dragging.set(None)
             on:pointercancel=move |_| dragging.set(None)
+            on:scroll=move |_| {
+                if editable && let Some(viewport) = focus.get_untracked() {
+                    scroll.set(viewport.scroll_top() != 0 || viewport.scroll_left() != 0);
+                }
+            }
         >
             <div class="dna-sheet-content" node_ref=content>
             {move || {

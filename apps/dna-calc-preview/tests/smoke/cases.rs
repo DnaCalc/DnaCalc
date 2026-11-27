@@ -1001,6 +1001,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Attr("[data-cell=Z40]", "aria-selected", "true"),
         ],
     },
+    Case {
+        name: "Classic explains when active-cell freezing starts from a scrolled worksheet",
+        actions: &[
+            Action::Window(960, 600),
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::ScrollGrid(180, 180),
+            Action::Into("name-box", "D15"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-cell=D15]", "aria-selected", "true")),
+            Action::Wait(Check::Js(
+                "the grid is still scrolled",
+                "document.querySelector('[data-dnacalc=grid]').scrollTop > 20",
+            )),
+            Action::Keys("grid", "\u{e03a}wff"),
+            Action::Wait(Check::TextContains("strip", "Return to the top-left")),
+        ],
+        checks: &[
+            Check::Value("name-box", "D15"),
+            Check::Js(
+                "the refusal kept the worksheet model and panes unchanged",
+                "__dnaProbe().stamp.model === 0 && getComputedStyle(document.querySelector('[data-cell=A1]')).position !== 'sticky'",
+            ),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1175,6 +1199,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-freeze-panes",
         start: 45,
+        end: 46,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-freeze-scrolled",
+        start: 46,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],

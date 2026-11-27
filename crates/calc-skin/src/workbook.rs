@@ -728,7 +728,13 @@ pub enum Operation {
     CancelCalculation,
     ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
     /// Freeze the leading bands before the confirmed active cell, or unfreeze the sheet.
-    ToggleFreezePanes { workbook: WorkbookId, at: Key },
+    ToggleFreezePanes {
+        workbook: WorkbookId,
+        at: Key,
+        /// The worksheet viewport has moved away from its leading row or column.
+        #[serde(default)]
+        off_origin: bool,
+    },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
     /// Pin the current publication for these page bindings without editing the workbook.
     PinBaseline { expected: Stamp, bounds: Vec<Bound>, budget: Budget },

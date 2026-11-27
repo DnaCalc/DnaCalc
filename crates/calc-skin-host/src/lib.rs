@@ -798,7 +798,7 @@ impl WorkbookPort for Connection {
                 state.session.toggle_gridlines(sheet.id()).map_err(batch::refusal)?;
                 return Ok(state.stamp());
             }
-            Operation::ToggleFreezePanes { workbook, at } => {
+            Operation::ToggleFreezePanes { workbook, at, off_origin } => {
                 self.check_write(&state)?;
                 let at = cell(at)?;
                 if workbook != before.workbook || state.selection.active != Some(at) {
@@ -810,8 +810,8 @@ impl WorkbookPort for Connection {
                 let (rows, columns) = if view.frozen.is_some() {
                     (0, 0)
                 } else {
-                    if view.top_left.is_some_and(|origin| origin != (1, 1)) {
-                        return Err(unavailable("dc-s2xup", "Freezing panes from an offset worksheet origin"));
+                    if off_origin || view.top_left.is_some_and(|origin| origin != (1, 1)) {
+                        return Err(unavailable("dc-s2xup", "Freezing from a scrolled worksheet (Return to the top-left to freeze at the active cell)"));
                     }
                     if (at.row(), at.column()) == (1, 1) {
                         return Err(unavailable("dc-s2xup", "Freezing at the first cell using the window midpoint"));
