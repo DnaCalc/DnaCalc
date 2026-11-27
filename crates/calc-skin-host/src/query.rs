@@ -1090,7 +1090,8 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
     let geometry = host.sheet_geometry(id);
     let size = geometry.as_ref();
     let view = host.sheet_view(id);
-    let panes = host.model().definitions().frozen_panes(id);
+    let definitions = host.model().definitions();
+    let panes = definitions.frozen_panes(id);
     query::Geometry::encode(&WorksheetGeometry {
         rows: size
             .into_iter()
@@ -1112,6 +1113,10 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
         frozen_columns: panes.map_or(0, |p| p.columns()),
         zoom: view.as_ref().and_then(|v| v.zoom).unwrap_or(100),
         show_grid_lines: view.and_then(|v| v.show_grid_lines),
+        auto_filter_areas: definitions.auto_filter(id).into_iter().chain(
+            definitions.tables().iter().filter(|table| table.sheet == id)
+                .filter_map(|table| table.filter.as_ref())
+        ).map(|filter| Area::of(filter.area)).collect(),
     })
 }
 

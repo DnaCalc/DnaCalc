@@ -275,6 +275,44 @@ fn classic_gridlines_key_tip_persists_as_a_worksheet_view() {
     );
 }
 
+/// Native-only: drives AutoFilter through the real Classic command and workbook session.
+#[test]
+fn classic_filter_key_tip_uses_the_current_region_and_undoes_the_toggle() {
+    let page = Page::open();
+    let session = page.session;
+    for (row, column, text) in [
+        (1, 1, "Region"),
+        (1, 2, "Units"),
+        (2, 1, "North"),
+        (2, 2, "2"),
+        (3, 1, "East"),
+        (3, 2, "3"),
+        (1, 4, "Outside"),
+    ] {
+        session.begin_edit(page.at(row, column), Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    let filter_range = || page.host.with_session(SelectionCause::Open, |book| {
+        book.host().model().definitions().auto_filter(page.sheet.id())
+            .map(|filter| calc_skin::grid::Area::of(filter.area))
+    });
+    let range = calc_skin::grid::Area(page.at(1, 1), page.at(3, 2));
+    assert_eq!(filter_range(), None);
+    for key in ["F10", "a", "t"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(filter_range(), Some(range), "{} · {:?}", session.notice(), session.seam());
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert_eq!(page.shown(page.at(2, 2)), "2");
+    assert!(page.press("Ctrl+Shift+l", Focus::Stage));
+    assert_eq!(filter_range(), None);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(filter_range(), Some(range));
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {

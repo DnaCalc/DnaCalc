@@ -86,6 +86,7 @@ fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
                 ModelProperty::Hyperlinks => "Hyperlinks",
                 ModelProperty::RichText => "Rich text",
                 ModelProperty::ColumnVisibility => "Column visibility",
+                ModelProperty::AutoFilter => "AutoFilter",
                 ModelProperty::Charts => "Charts",
                 ModelProperty::Shapes => "Shapes",
             };

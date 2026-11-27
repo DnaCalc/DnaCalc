@@ -236,7 +236,7 @@ impl WorkbookAutomation {
             let mut area = range.areas()[0];
             // Sorting one cell sorts its current region, as Excel does.
             if area.cell_count() == 1 {
-                area = Self::current_region(session.host().model(), area.first());
+                area = crate::filter::current_region(session.host().model(), area.first());
                 if area.cell_count() == 1 {
                     return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
                 }
@@ -264,39 +264,5 @@ impl WorkbookAutomation {
             }))
         })?;
         Ok(AutoValue::Bool(true))
-    }
-}
-
-impl WorkbookAutomation {
-    /// The block of non-empty cells around `at`, grown through every neighbouring non-empty cell (Excel's CurrentRegion).
-    pub(super) fn current_region(model: &calc_doc_model::ModelRoot, at: CellKey) -> GridArea {
-        let sheet = at.sheet();
-        let occupied = |row: u32, column: u32| {
-            CellKey::new(sheet, row, column).is_ok_and(|key| model.cell(key).is_some())
-        };
-        let (mut top, mut left, mut bottom, mut right) = (at.row(), at.column(), at.row(), at.column());
-        loop {
-            let (t, l, b, r) = (top.saturating_sub(1).max(1), left.saturating_sub(1).max(1), (bottom + 1).min(MAX_ROWS), (right + 1).min(MAX_COLUMNS));
-            let ring_has = |row: u32, column: u32| occupied(row, column);
-            let mut grown = (top, left, bottom, right);
-            if t < top && (l..=r).any(|c| ring_has(t, c)) {
-                grown.0 = t;
-            }
-            if b > bottom && (l..=r).any(|c| ring_has(b, c)) {
-                grown.2 = b;
-            }
-            if l < left && (t..=b).any(|row| ring_has(row, l)) {
-                grown.1 = l;
-            }
-            if r > right && (t..=b).any(|row| ring_has(row, r)) {
-                grown.3 = r;
-            }
-            if grown == (top, left, bottom, right) {
-                break;
-            }
-            (top, left, bottom, right) = grown;
-        }
-        let corner = |row, column| CellKey::new(sheet, row, column).expect("inside the grid");
-        GridArea::new(corner(top, left), corner(bottom, right)).expect("an ordered area")
     }
 }
