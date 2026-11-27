@@ -2803,6 +2803,8 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     let mut dark_cells = 0;
     let mut light16_edges = [0, 0];
     let mut light16_cells = 0;
+    let mut light12_matches = [0usize; 16];
+    let mut light12_cells = 0;
     let mut unavailable = [0usize; 16];
     let mut value_matches = 0;
     let mut text_matches = 0;
@@ -3033,6 +3035,12 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
             light16_edges[0] += stage_properties[9];
             light16_edges[1] += stage_properties[10];
         }
+        if stage.ends_with("PivotStyleLight12") {
+            light12_cells += cells.len();
+            for (total, matched) in light12_matches.iter_mut().zip(stage_properties) {
+                *total += matched;
+            }
+        }
         if stage.ends_with("PivotStyleDark6") || stage.ends_with("PivotStyleDark11") {
             dark_cells += cells.len();
             for (total, matched) in dark_matches.iter_mut().zip(stage_properties) {
@@ -3089,16 +3097,22 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
         "Light16 top and bottom border: {}/{} and {}/{} match",
         light16_edges[0], light16_cells, light16_edges[1], light16_cells
     );
-    let dark_properties = [3, 5, 6, 7, 8, 9, 10, 11];
-    for i in dark_properties {
+    let preset_properties = [3, 5, 6, 7, 8, 9, 10, 11];
+    assert_eq!(light12_cells, 95);
+    for i in preset_properties {
         println!(
             "Dark6 and Dark11 {}: {}/{} match",
             names[i], dark_matches[i], dark_cells
         );
+        println!(
+            "Light12 {}: {}/{} match",
+            names[i], light12_matches[i], light12_cells
+        );
     }
     assert_eq!(light16_edges, [light16_cells; 2]);
-    for i in dark_properties {
+    for i in preset_properties {
         assert_eq!(dark_matches[i], dark_cells, "Dark6 and Dark11 {}", names[i]);
+        assert_eq!(light12_matches[i], light12_cells, "Light12 {}", names[i]);
     }
 }
 

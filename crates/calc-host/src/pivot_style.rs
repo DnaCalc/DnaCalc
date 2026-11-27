@@ -21,6 +21,7 @@ pub struct PivotStyleLook {
 enum Preset {
     Light1,
     Light8,
+    Light12,
     Light16,
     Light21,
     Medium1,
@@ -369,6 +370,7 @@ impl HostState {
         let preset = match style.attributes.get("name")?.as_str() {
             "PivotStyleLight1" => Preset::Light1,
             "PivotStyleLight8" => Preset::Light8,
+            "PivotStyleLight12" => Preset::Light12,
             "PivotStyleLight16" => Preset::Light16,
             "PivotStyleLight21" => Preset::Light21,
             "PivotStyleMedium1" => Preset::Medium1,
@@ -382,7 +384,7 @@ impl HostState {
         };
         let light = matches!(
             preset,
-            Preset::Light1 | Preset::Light8 | Preset::Light16 | Preset::Light21
+            Preset::Light1 | Preset::Light8 | Preset::Light12 | Preset::Light16 | Preset::Light21
         );
         let dark = matches!(preset, Preset::Dark1 | Preset::Dark6 | Preset::Dark11);
         let header = flag(style, "showColHeaders")?;
@@ -396,7 +398,7 @@ impl HostState {
         if !matches!(preset, Preset::Light16 | Preset::Medium9) && (rows || columns) {
             return None;
         }
-        if dark && (!header || !row_headers) {
+        if (dark || preset == Preset::Light12) && (!header || !row_headers) {
             return None;
         }
         // The fixed neutral colours below are measured with a white background and black text.
@@ -522,6 +524,9 @@ impl HostState {
         {
             look.font_color = Some(theme(0, "0"));
         }
+        if preset == Preset::Light12 && font == 0 && !is_header && !is_total && !is_subtotal {
+            look.font_color = pivot_tint(self, 7, -25);
+        }
         if fill == 0 {
             if preset == Preset::Light16 && (is_header || is_total) {
                 look.fill = Some(theme(4, "0.7999816888943144"));
@@ -531,6 +536,8 @@ impl HostState {
                 look.fill = Some(theme(0, "0"));
             } else if preset == Preset::Light8 && is_subtotal {
                 look.fill = Some(rgb("FFD9D9D9"));
+            } else if preset == Preset::Light12 && is_subtotal {
+                look.fill = pivot_tint(self, 7, 80);
             } else if preset == Preset::Dark1 {
                 look.fill = Some(rgb(if is_header || is_total {
                     "FF808080"
@@ -589,6 +596,38 @@ impl HostState {
         }
         if border == 0 {
             match preset {
+                Preset::Light12 => {
+                    let col = at.column();
+                    let outline = || Some(edge("medium", theme(7, "0")));
+                    let label_divider = || Some(edge("thin", theme(7, "0")));
+                    let header_divider = || Some(edge("thin", theme(0, "0")));
+                    let body_divider = pivot_tint(self, 7, 80).map(|color| edge("thin", color));
+                    let last_header = is_header && row + 1 == data_row;
+                    if col == data_col {
+                        look.borders[0] = label_divider();
+                    } else if col == first.column() && (is_header || is_total) {
+                        look.borders[0] = outline();
+                    }
+                    if col == first.column() {
+                        look.borders[3] = label_divider();
+                    } else if col == last.column() && (last_header || is_total) {
+                        look.borders[3] = outline();
+                    }
+                    look.borders[1] = if row == first.row() || row == data_row || is_total {
+                        outline()
+                    } else if is_header {
+                        header_divider()
+                    } else {
+                        body_divider.clone()
+                    };
+                    look.borders[2] = if last_header || row + 1 >= last.row() {
+                        outline()
+                    } else if is_header {
+                        header_divider()
+                    } else {
+                        body_divider
+                    };
+                }
                 Preset::Light16 => {
                     let rule_below = |row| {
                         (header && row + 1 == data_row) || row + 1 == last.row() || subtotal_at(row)
