@@ -369,6 +369,32 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Attr("[data-notebook-rows]", "data-notebook-rows", "20854"),
         ],
     },
+    Case {
+        name: "Classic F10 exposes the Excel tab letters and Escape backs out one level",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}"),
+            Action::Wait(Check::Js(
+                "the Deck shows the Excel tab letters",
+                "Array.from(document.querySelectorAll('[data-key-tip]'), tip => tip.dataset.keyTip).join('') === 'FHNPMARWLQ'",
+            )),
+            Action::Keys("grid", "hv\u{e00c}"),
+        ],
+        checks: &[
+            Check::Text("mode", "Key tips"),
+            Check::Attr("[data-dnacalc='key-tips']", "data-key-tip-path", "H"),
+            Check::Js("the keys never entered a cell", "__dnaProbe().draft === null"),
+        ],
+    },
+    Case {
+        name: "Classic sequential Q opens command search from the Deck",
+        actions: &[Action::Keys("grid", "\u{e00c}q")],
+        checks: &[
+            Check::Rendered("[aria-label='Find a command or cell']", true),
+            Check::Absent("[data-dnacalc='key-tips']"),
+            Check::Text("mode", "Ready"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -403,8 +429,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "notebook",
         start: 12,
+        end: 16,
+        core: 4,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-key-tips",
+        start: 16,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 12,
+        core: PREVIEW_CASES.len() - 16,
         setup: &[],
     },
 ];

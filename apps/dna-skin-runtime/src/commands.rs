@@ -313,9 +313,43 @@ pub enum KeymapError {
 #[derive(Clone, Debug, Default)]
 pub struct Keymap {
     bindings: Vec<Binding>,
+    key_tips: Option<(ViewId, &'static [KeyTip])>,
+}
+
+/// One entry in the active view's Deck profile. Paths hold space-delimited key names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyTip {
+    pub path: &'static str,
+    pub label: &'static str,
+    pub action: KeyTipAction,
+    pub hidden: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyTipAction {
+    Group,
+    Command(&'static str),
+    NotModelled { owner: &'static str },
+}
+
+impl KeyTip {
+    pub fn key(self) -> &'static str {
+        self.path.rsplit(' ').next().expect("a tip contains a key")
+    }
 }
 
 impl Keymap {
+    pub fn set_key_tips(&mut self, view: ViewId, tips: &'static [KeyTip]) {
+        self.key_tips = Some((view, tips));
+    }
+
+    pub fn key_tips(&self, view: &ViewId) -> &'static [KeyTip] {
+        self.key_tips
+            .as_ref()
+            .filter(|(owner, _)| owner == view)
+            .map_or(&[], |(_, tips)| *tips)
+    }
+
     /// Adds a built-in binding. Within one layer a later binding wins.
     pub fn bind(&mut self, layer: Layer, when: When, chord: &str, command: CommandId) {
         let chord = Chord::parse(chord).expect("a built-in chord parses");

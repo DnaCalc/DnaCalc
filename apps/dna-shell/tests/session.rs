@@ -207,6 +207,56 @@ fn keys_in_another_field_stay_that_fields() {
     assert!(page.press("Alt+q", Focus::Field));
 }
 
+/// Native-only: drives the real workbook host through packets.
+#[test]
+fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
+    let page = Page::open();
+    let session = page.session;
+    assert!(page.press("F10", Focus::Stage));
+    assert_eq!(session.mode(), InputMode::KeyTips);
+    assert!(!page.press("Tab", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(1, 1)));
+    for key in ["h", "v", "Escape", "v", "v"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert!(session.notice().contains("dc-s2xup"), "{}", session.notice());
+    assert_eq!(session.edit(), None);
+
+    assert!(page.press("F10", Focus::Stage));
+    for key in ["e", "s", "v", "Enter"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert!(session.notice().contains("Paste Values"), "{}", session.notice());
+
+    let alt = KeyInput {
+        key: "Alt".into(),
+        ctrl: false,
+        alt: true,
+        shift: false,
+        meta: false,
+        alt_graph: false,
+        composing: false,
+    };
+    assert!(session.key(&alt, Focus::Stage));
+    assert_eq!(session.mode(), InputMode::Ready);
+    session.key_released(&alt);
+    assert_eq!(session.mode(), InputMode::KeyTips);
+    assert!(page.press("q", Focus::Stage));
+    assert_eq!(session.mode(), InputMode::Ready);
+
+    assert!(page.press("F10", Focus::Stage));
+    assert!(page.press("m", Focus::Stage));
+    assert!(page.press("Escape", Focus::Stage));
+    assert_eq!(session.mode(), InputMode::KeyTips);
+    assert!(page.press("Escape", Focus::Stage));
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert!(page.press("j", Focus::Stage));
+    assert_eq!(session.edit().unwrap().text, "j");
+    assert!(!page.press("F10", Focus::Editor));
+}
+
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
 #[test]
 fn a_command_that_cannot_run_now_says_so_on_the_strip() {
