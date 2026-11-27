@@ -15,6 +15,7 @@ dna-kit = { path = "../dna-kit" }
 dna-shell = { path = "../dna-shell" }
 dna-skin-runtime = { path = "../dna-skin-runtime" }
 dna-view-classic = { path = "../dna-view-classic" }
+dna-view-inspector = { path = "../dna-view-inspector" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

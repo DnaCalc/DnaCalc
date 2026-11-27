@@ -3,7 +3,7 @@
 pub mod session;
 pub mod view;
 pub use session::{Focus, Following, Session};
-pub use view::{Fit, Located, MountedView, View, ViewCommand, ViewSpec, WayForward};
+pub use view::{DockSide, DockSpec, Fit, Located, MountedView, View, ViewCommand, ViewSpec, WayForward};
 /// The runtime types a view meets through the session, so a view crate needs no second import.
 pub use dna_skin_runtime::Live;
 pub use dna_skin_runtime::client::{EditSession, Seam, Watch};

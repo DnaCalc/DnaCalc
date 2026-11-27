@@ -23,3 +23,4 @@ calc-host = { path = "../../crates/calc-host" }
 calc-skin-host = { path = "../../crates/calc-skin-host" }
 dna-grid = { path = "../dna-grid" }
 dna-view-classic = { path = "../dna-view-classic" }
+dna-view-inspector = { path = "../dna-view-inspector" }

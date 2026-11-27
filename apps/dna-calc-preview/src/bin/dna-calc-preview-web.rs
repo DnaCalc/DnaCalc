@@ -82,6 +82,7 @@ mod browser {
             probe.forget();
             let mut registry = dna_kit::Registry::default();
             dna_view_classic::install(&mut registry);
+            dna_view_inspector::install(&mut registry);
             let _ = ready.set_attribute("data-dnacalc-preview-ready", "true");
             let open = view! {
                 <label class="dna-book-open">

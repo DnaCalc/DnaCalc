@@ -75,7 +75,7 @@ pub enum Seam {
     /// Waiting for the host to confirm the selection the change was made against.
     Queued,
     Previewing,
-    /// The preview carries warnings: the person applies or cancels.
+    /// The preview was requested for review or carries warnings: the person applies or cancels.
     Review(Preview),
     Committing,
 }
@@ -104,6 +104,13 @@ impl Changes {
         self.seam |= other.seam;
         self.notice |= other.notice;
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Submission {
+    Draft,
+    Direct,
+    Review,
 }
 
 enum Pending {
@@ -135,7 +142,7 @@ pub struct Client {
     /// Watches dropped before the host named them: unwatched the moment it does.
     orphans: BTreeSet<WatchKey>,
     edit: Option<EditSession>,
-    seam: Option<(Seam, Batch, bool)>,
+    seam: Option<(Seam, Batch, Submission)>,
     notice: String,
 }
 
@@ -205,6 +212,10 @@ impl Client {
     // Watches
 
     pub fn watch<Q: Query>(&mut self, query: Q) -> Watch<Q> {
+        self.watch_with_budget(query, PAGE_BUDGET)
+    }
+
+    pub fn watch_with_budget<Q: Query>(&mut self, query: Q, budget: Budget) -> Watch<Q> {
         self.next_watch += 1;
         let key = WatchKey(self.next_watch);
         let query = query.request();
@@ -212,7 +223,7 @@ impl Client {
         self.send(
             WorkbookRequest::Watch {
                 query,
-                budget: PAGE_BUDGET,
+                budget,
             },
             None,
             Pending::Watch(key),
@@ -378,29 +389,38 @@ impl Client {
                 text: edit.text,
             })],
         };
-        self.start(batch, true)
+        self.start(batch, Submission::Draft)
     }
 
     /// Sends any batch through the seam: preview, then commit when the preview is clean, or
     /// [`Seam::Review`] when it carries warnings. The client fills in the batch identity and the
     /// selection it was made against.
     pub fn submit(&mut self, batch: Batch) -> Changes {
+        self.submit_batch(batch, Submission::Direct)
+    }
+
+    /// Previews the change through the same seam and waits for an explicit Apply.
+    pub fn submit_for_review(&mut self, batch: Batch) -> Changes {
+        self.submit_batch(batch, Submission::Review)
+    }
+
+    fn submit_batch(&mut self, batch: Batch, submission: Submission) -> Changes {
         if !matches!(self.seam(), Seam::Idle) {
             return self.say("Finish the change in progress first.");
         }
-        self.start(batch, false)
+        self.start(batch, submission)
     }
 
-    fn start(&mut self, mut batch: Batch, edit: bool) -> Changes {
+    fn start(&mut self, mut batch: Batch, submission: Submission) -> Changes {
         let Some(selection) = self.store.confirmed_selection().cloned() else {
             // A keystroke can outrun the host's echo of the selection it was typed at.
-            self.seam = Some((Seam::Queued, batch, edit));
+            self.seam = Some((Seam::Queued, batch, submission));
             return Changes {
                 seam: true,
                 ..Changes::default()
             };
         };
-        if edit && selection.active != self.edit.as_ref().map(|e| e.at) {
+        if submission == Submission::Draft && selection.active != self.edit.as_ref().map(|e| e.at) {
             self.seam = None;
             let mut changes = self.refuse(Refusal::StaleSelection);
             changes.seam = true;
@@ -417,7 +437,7 @@ impl Client {
             None,
             Pending::Preview,
         );
-        self.seam = Some((Seam::Previewing, batch, edit));
+        self.seam = Some((Seam::Previewing, batch, submission));
         Changes {
             seam: true,
             ..Changes::default()
@@ -427,7 +447,7 @@ impl Client {
     /// Applies the change under review.
     pub fn apply_review(&mut self) -> Changes {
         match self.seam.take() {
-            Some((Seam::Review(_), batch, edit)) => self.commit(batch, edit),
+            Some((Seam::Review(_), batch, submission)) => self.commit(batch, submission),
             other => {
                 self.seam = other;
                 Changes::default()
@@ -435,13 +455,13 @@ impl Client {
         }
     }
 
-    fn commit(&mut self, batch: Batch, edit: bool) -> Changes {
+    fn commit(&mut self, batch: Batch, submission: Submission) -> Changes {
         self.send(
             WorkbookRequest::Commit(batch.clone()),
             None,
-            Pending::Commit { edit },
+            Pending::Commit { edit: submission == Submission::Draft },
         );
-        self.seam = Some((Seam::Committing, batch, edit));
+        self.seam = Some((Seam::Committing, batch, submission));
         Changes {
             seam: true,
             ..Changes::default()
@@ -551,8 +571,8 @@ impl Client {
             );
         }
         if matches!(self.seam(), Seam::Queued) && self.store.confirmed_selection().is_some() {
-            let (_, batch, edit) = self.seam.take().expect("a queued change");
-            changes.merge(self.start(batch, edit));
+            let (_, batch, submission) = self.seam.take().expect("a queued change");
+            changes.merge(self.start(batch, submission));
         }
         changes
     }
@@ -614,15 +634,17 @@ impl Client {
     }
 
     fn previewed(&mut self, result: Result<WorkbookReply, Refusal>) -> Changes {
-        let Some((Seam::Previewing, batch, edit)) = self.seam.take() else {
+        let Some((Seam::Previewing, batch, submission)) = self.seam.take() else {
             return Changes::default();
         };
         let refusal = match result {
             Ok(WorkbookReply::Preview(preview)) => match preview.refusal.clone() {
                 Some(reason) => reason,
-                None if preview.warnings.is_empty() => return self.commit(batch, edit),
+                None if submission != Submission::Review && preview.warnings.is_empty() => {
+                    return self.commit(batch, submission);
+                }
                 None => {
-                    self.seam = Some((Seam::Review(preview), batch, edit));
+                    self.seam = Some((Seam::Review(preview), batch, submission));
                     return Changes {
                         seam: true,
                         ..Changes::default()

@@ -1379,6 +1379,8 @@ pub enum Action {
     /// Like [`Action::WriteSession`], with a plain formula (a legacy formula as a file stores it)
     /// over the constants A1 = 3 and A2 = 4.
     WritePlainSession(&'static str, &'static str),
+    /// Generate one Design Book cast workbook in the browser session's download folder.
+    WriteCast(&'static str),
     /// Write these bytes into the downloads folder under this name (a file that is no workbook).
     WriteDownload(&'static str, &'static [u8]),
     UploadDownload(&'static str),
@@ -1416,6 +1418,8 @@ pub enum Action {
     CompositionEnd(&'static str),
     /// Wait for a worker-backed projection before the next gesture.
     Wait(Check),
+    /// Wait for a complete generation on a large fixture.
+    WaitWorkbook(Check),
     /// Chooses this file (relative to the workspace root) in the file input.
     Upload(&'static str, &'static str),
     /// Reuse a retained fixture with a different test-owned file identity.
@@ -2548,6 +2552,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             let bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
             fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
         }
+        Action::WriteCast(name) => {
+            let bytes = cast::fixture(name)?;
+            fs::write(session.downloads.join(format!("{name}.xlsx")), bytes).map_err(|e| e.to_string())
+        }
         Action::WriteDownload(name, bytes) => {
             fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
         }
@@ -2967,6 +2975,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::Wait(check) => wait_for(app, session, check, settle()).map_or(Ok(()), Err),
+        Action::WaitWorkbook(check) => wait_for(app, session, check, Duration::from_secs(120)).map_or(Ok(()), Err),
         Action::Choose(name, value) => {
             let option =
                 session.element(&format!("{} option[value=\"{value}\"]", select(app, name)))?;

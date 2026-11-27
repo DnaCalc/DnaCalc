@@ -686,6 +686,15 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             if precedents.len() as u64 > budget.edges {
                 return Err(over_budget(precedents.len() as u64, 0));
             }
+            let loaded = host.loaded();
+            let as_saved = loaded.sheets().iter().find(|sheet| sheet.id() == at.sheet())
+                .and_then(|sheet| sheet.formula(at.row(), at.column()))
+                .and_then(|formula| formula.cache())
+                .map(|cache| query::AsSavedFormula {
+                    entry: calc_formula_kernel::display::formula(&entry_text(loaded.model().cell(at))),
+                    value: raw(&cache.value().to_value()),
+                });
+            let authored = formula.then(|| text.clone());
             query::Formula::encode(&query::FormulaFacts {
                 input: if formula {
                     calc_formula_kernel::display::formula(&text)
@@ -694,6 +703,8 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 },
                 formula,
                 precedents: precedents.into_iter().map(Area::of).collect(),
+                authored,
+                as_saved,
             })?
         }
         WorkbookQuery::Rules { at } => {

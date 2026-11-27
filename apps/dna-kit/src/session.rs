@@ -13,17 +13,18 @@ use crate::view::ViewCommand;
 use calc_skin::grid::Key;
 use calc_skin::query::{self, Query};
 use calc_skin::{
-    Answer, Batch, Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookSummary,
+    Answer, Batch, Budget, Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
-use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey};
+use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
 use dna_skin_runtime::commands::{
     Chord, CommandError, CommandId, CommandSpec, CommandTable, Context, InputMode, Invocation,
     KeyInput, Keymap, Layer, Resolution, When,
 };
 use leptos::prelude::*;
+use std::any::{Any, TypeId};
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 /// Where the keyboard focus is when a key arrives.
@@ -44,6 +45,7 @@ struct Inner {
     ticks: RefCell<BTreeMap<WatchKey, ArcRwSignal<u64>>>,
     commands: RefCell<CommandTable>,
     keymap: RefCell<Keymap>,
+    local: RefCell<HashMap<TypeId, Box<dyn Any>>>,
     summary: Cell<Option<Watch<query::Summary>>>,
     /// The watch on the active cell's entry, which the editor shows and F2 opens.
     entry: Cell<Option<(Key, Watch<query::Formula>)>>,
@@ -76,6 +78,7 @@ impl Session {
                 ticks: RefCell::default(),
                 commands: RefCell::default(),
                 keymap: RefCell::default(),
+                local: RefCell::default(),
                 summary: Cell::new(None),
                 entry: Cell::new(None),
                 opening: Cell::new(None),
@@ -261,8 +264,12 @@ impl Session {
     // Watches
 
     pub fn watch<Q: Query>(self, query: Q) -> Watch<Q> {
+        self.watch_with_budget(query, PAGE_BUDGET)
+    }
+
+    pub fn watch_with_budget<Q: Query>(self, query: Q, budget: Budget) -> Watch<Q> {
         let inner = self.inner();
-        let watch = inner.client.borrow_mut().watch(query);
+        let watch = inner.client.borrow_mut().watch_with_budget(query, budget);
         inner.ticks.borrow_mut().insert(watch.key(), ArcRwSignal::new(0));
         self.flush(&inner);
         watch
@@ -287,6 +294,11 @@ impl Session {
     /// A watch that follows a query which changes: the cells under a viewport, the geometry of
     /// the sheet on show. It is dropped with the component that made it.
     pub fn following<Q: Query>(self) -> Following<Q> {
+        self.following_with_budget(PAGE_BUDGET)
+    }
+
+    /// A following watch with a budget matched to its diagnostic workload.
+    pub fn following_with_budget<Q: Query>(self, budget: Budget) -> Following<Q> {
         let held = StoredValue::new_local(None::<(Q, Watch<Q>)>);
         on_cleanup(move || {
             if let Some(Some((_, watch))) = held.try_get_value() {
@@ -296,6 +308,7 @@ impl Session {
         Following {
             session: self,
             held,
+            budget,
         }
     }
 
@@ -362,6 +375,10 @@ impl Session {
         self.update(|client| client.submit(batch));
     }
 
+    pub fn submit_for_review(self, batch: Batch) {
+        self.update(|client| client.submit_for_review(batch));
+    }
+
     pub fn apply_review(self) {
         self.update(Client::apply_review);
     }
@@ -378,6 +395,17 @@ impl Session {
     }
 
     // Views
+
+    /// Per-session presentation state shared by a view's commands, stage and dock.
+    /// A view initializes it when installing its commands, under the session owner.
+    pub fn local<T: Copy + Default + 'static>(self) -> T {
+        let inner = self.inner();
+        let mut local = inner.local.borrow_mut();
+        *local.entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(T::default()))
+            .downcast_ref::<T>()
+            .expect("presentation state type agrees with its key")
+    }
 
     pub fn view(self) -> ViewId {
         self.view.get()
@@ -510,6 +538,7 @@ impl Session {
 pub struct Following<Q: Query> {
     session: Session,
     held: StoredValue<Option<(Q, Watch<Q>)>, LocalStorage>,
+    budget: Budget,
 }
 
 impl<Q: Query> Clone for Following<Q> {
@@ -530,7 +559,7 @@ impl<Q: Query> Following<Q> {
                 self.session.unwatch(watch);
             }
             self.held.set_value(query.map(|query| {
-                let watch = self.session.watch(query.clone());
+                let watch = self.session.watch_with_budget(query.clone(), self.budget);
                 (query, watch)
             }));
         }
