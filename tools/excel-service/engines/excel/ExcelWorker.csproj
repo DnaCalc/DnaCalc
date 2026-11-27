@@ -19,4 +19,8 @@
     <EmbeddedResource Include="../../vba-probes/*" LogicalName="vba-probes/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../vba-probe-policy.json" LogicalName="vba-probe-policy.json" />
   </ItemGroup>
+  <Target Name="AdmitVbaTemplates" AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(IsCrossTargetingBuild)' != 'true'">
+    <Exec Command="dotnet &quot;$(TargetPath)&quot; --admit-vba-templates" />
+  </Target>
 </Project>

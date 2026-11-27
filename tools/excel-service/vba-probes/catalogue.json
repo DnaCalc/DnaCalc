@@ -8,7 +8,12 @@
       ],
       "layout": {"file": "smoke-layout.json", "sha256": "e53f9ef73ec1b06a9619873aec3d6cf8dda87e823068a8bdff4f75c360ae6a47"},
       "params": {"target_sheet": "sheet", "target_cell": "address", "message": "text", "event_sheet": "sheet", "event_cell": "address"},
-      "entry_points": ["Module1.Probe", "Module1.ErrProbe"]
+      "entry_points": {"Module1.Probe": ["number"], "Module1.ErrProbe": []},
+      "review": {
+        "reviewer": null,
+        "claim": "For every declared parameter and argument value, the probe writes only within its case workbook and returns its values or VBA error.",
+        "excel_build_family": null
+      }
     }
   }
 }

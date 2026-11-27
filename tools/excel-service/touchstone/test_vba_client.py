@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from test_touchstone import ONE, TWO, number, start_broker, template_vba_group
 
-from touchstone import client, protocol
+from touchstone import client, protocol, vba_policy
 
 
 CASE = template_vba_group()["v"][0]
@@ -20,7 +20,7 @@ class VbaClientTests(unittest.TestCase):
         cls.stop()
 
     def connect(self):
-        if client.vba_policy.worker_path() is None:
+        if vba_policy.worker_path() is None:
             self.skipTest("build the Excel worker's offline decoder")
         conn = client.Connection.open(endpoint=self.state / "endpoint.json",
                                       socket_path=self.state / "not-a-socket",

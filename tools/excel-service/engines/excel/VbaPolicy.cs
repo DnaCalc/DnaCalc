@@ -14,7 +14,7 @@ static class VbaPolicy
 {
     static readonly Dictionary<string, object> Rules = ReadRules();
     public static Dictionary<string, object> RuleTable => Rules;
-    static readonly Regex SheetName = new(@"\A" + Rules["sheet_name"] + @"\z", RegexOptions.CultureInvariant);
+    internal static readonly Regex SheetName = new(@"\A" + Rules["sheet_name"] + @"\z", RegexOptions.CultureInvariant);
     static readonly string FormulaStart = (string)Rules["formula_chars"];
     const int FrameBudget = 40 * 1024;     // touchstone.protocol.FRAME_BUDGET: one VBA case is one group of one call
 
@@ -63,17 +63,17 @@ static class VbaPolicy
             throw new RefusedVbaException("a VBA case names a reviewed template with typed params; VBA source is not accepted");
         if (Json.Write(group).Length > FrameBudget)
             throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
-        var expanded = CheckExpanded(group, VbaTemplates.Expand(probe));
-        // The approval digest binds the template, its typed parameters and the pinned module hashes as well as the expansion.
+        var expanded = VbaTemplates.Expand(probe);
+        CheckCalls(expanded, VbaTemplates.EntryPoints(template));
+        CheckLayout(expanded, SheetList(expanded));
         VbaTemplates.ApplyLayout(expanded, template, (Dictionary<string, object>)probe["params"]);
         expanded["template"] = template;
         expanded["params"] = probe["params"];
         expanded["pins"] = VbaTemplates.Pins(template);
-        return VbaCase.FromChecked(expanded);
+        return VbaCase.FromChecked(expanded, VbaTemplates.Review(template));
     }
 
-    /// <summary>The checks every expanded case passes. The wire reaches it only through a template expansion.</summary>
-    internal static Dictionary<string, object> CheckExpanded(Dictionary<string, object> group, Dictionary<string, object> probe)
+    static Dictionary<string, object> CheckExpanded(Dictionary<string, object> group, Dictionary<string, object> probe)
     {
         // No workbook travels with the case: the worker builds the package from the modules it checked.
         if (probe.Count != 6 || !new[] { "sheets", "names", "modules", "calls", "readback", "event_log" }.All(probe.ContainsKey))
@@ -82,8 +82,7 @@ static class VbaPolicy
             throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
         if (probe["modules"] is not List<object> modules || modules.Count < 1 || modules.Count > Limit("max_modules"))
             throw new RefusedVbaException("invalid VBA module count");
-        if (probe["sheets"] is not List<object> sheets || sheets.Count < 1 || sheets.Count > 16)
-            throw new RefusedVbaException("invalid VBA sheet count");
+        var sheets = SheetList(probe);
         var triples = new List<(string name, string kind, string source)>();
         int sourceChars = 0;
         foreach (var item in modules)
@@ -103,28 +102,49 @@ static class VbaPolicy
         }
         if (sourceChars > Limit("max_source_chars"))
             throw new RefusedVbaException("oversized VBA module source");
-        var (entryPoints, _) = VbaGrammar.CheckModules(triples, sheets.Count);
+        var entryPoints = VbaGrammar.CheckModules(triples, sheets.Count);
+        CheckCalls(probe, null, entryPoints);
+        CheckLayout(probe, sheets);
+        return probe;
+    }
+
+    static List<object> SheetList(Dictionary<string, object> probe)
+    {
+        if (probe["sheets"] is not List<object> sheets || sheets.Count < 1 || sheets.Count > 16)
+            throw new RefusedVbaException("invalid VBA sheet count");
+        return sheets;
+    }
+
+    static void CheckCalls(Dictionary<string, object> probe, IReadOnlyDictionary<string, string[]> signatures, HashSet<string> offlineEntries = null)
+    {
         if (probe["calls"] is not List<object> calls || calls.Count < 1 || calls.Count > Limit("max_calls"))
             throw new RefusedVbaException("invalid VBA call count");
         foreach (var item in calls)
         {
             if (item is not Dictionary<string, object> call || call.Count != 2
-                || call.GetValueOrDefault("procedure") is not string procedure
-                || !entryPoints.Contains(procedure.ToLowerInvariant()))
+                || call.GetValueOrDefault("procedure") is not string procedure)
+                throw new RefusedVbaException("invalid VBA call fields");
+            string[] signature = null;
+            if (signatures != null && !signatures.TryGetValue(procedure, out signature))
+                throw new RefusedVbaException("VBA call must name an entry point of the template");
+            if (offlineEntries != null && !offlineEntries.Contains(procedure.ToLowerInvariant()))
                 throw new RefusedVbaException("VBA call must name a public standard-module procedure in the case");
             if (call.GetValueOrDefault("args") is not List<object> args || args.Count > Limit("max_args"))
                 throw new RefusedVbaException("invalid VBA argument count");
-            foreach (var arg in args)
+            if (signature != null && signature.Length != args.Count)
+                throw new RefusedVbaException("VBA arguments must match the template entry point signature");
+            for (int i = 0; i < args.Count; i++)
             {
+                var arg = args[i];
                 CheckRangeCell(arg);
+                if (signature != null && !Equals(((Dictionary<string, object>)arg)["type"], signature[i]))
+                    throw new RefusedVbaException("VBA arguments must match the template entry point signature");
                 // Case text reaches cells through the probe's own writes: it must be data, never a formula.
                 if (arg is Dictionary<string, object> cell && Equals(cell.GetValueOrDefault("type"), "text")
                     && cell.GetValueOrDefault("value") is string text && text.Length > 0 && FormulaStart.Contains(text[0]))
                     throw new RefusedVbaException("VBA text arguments must not start with = + - or @");
             }
         }
-        CheckLayout(probe, sheets);
-        return probe;
     }
 
     static readonly string[] Errors = { "#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A" };
@@ -176,7 +196,8 @@ static class VbaPolicy
                 || !SheetName.IsMatch(name) || !sheetNames.Add(name.ToLowerInvariant())
                 || (sheet.TryGetValue("cells", out var raw) ? raw as Dictionary<string, object> : new()) is not { } layout
                 || sheet.Keys.Any(k => k is not ("name" or "cells" or "hidden_rows" or "hidden_columns"))
-                || !layout.Keys.All(IsAddress))
+                || !layout.Keys.All(IsAddress)
+                || layout.Keys.Select(at => at.Replace("$", "")).Distinct(StringComparer.OrdinalIgnoreCase).Count() != layout.Count)
                 throw new RefusedVbaException("invalid or duplicate VBA layout sheet");
         }
         if (probe["names"] is not Dictionary<string, object> { Count: 0 })
@@ -218,8 +239,10 @@ static class VbaPolicy
     }
 
     // Covers the modules, layout, calls and readback; the worker builds the package from the modules.
-    public static string CaseDigest(VbaCase probe) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(Json.Write(Ordered(probe.Evidence()))))).ToLowerInvariant();
+    public static string CaseDigest(VbaCase probe) => Digest(probe.Evidence());
+
+    internal static string Digest(object value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(Json.Write(Ordered(value))))).ToLowerInvariant();
 
     static object Ordered(object value) => value switch
     {
@@ -229,10 +252,15 @@ static class VbaPolicy
         _ => value,
     };
 
-    /// <summary>Refuses a case whose digest has no approval file (when an approvals folder is given).</summary>
-    public static void CheckApproval(VbaCase probe, string approvals)
+    public static void CheckApproval(VbaCase probe, string approvals, string excelFileVersion = null)
     {
-        if (approvals != null && !File.Exists(Path.Combine(approvals, CaseDigest(probe) + ".approved")))
-            throw new RefusedVbaException("unapproved VBA case: the source, inputs and layout require a local approval");
+        if (approvals == null) return;
+        var review = probe.Review;
+        if (review == null || review.Reviewer == null || review.ExcelBuildFamily == null)
+            throw new RefusedVbaException("unapproved VBA template: template review is pending");
+        if (excelFileVersion != null && !excelFileVersion.StartsWith(review.ExcelBuildFamily + ".", StringComparison.Ordinal))
+            throw new RefusedVbaException("unapproved VBA template for this Excel build family");
+        if (!File.Exists(Path.Combine(approvals, review.Pin + ".approved")))
+            throw new RefusedVbaException("unapproved VBA template pin");
     }
 }

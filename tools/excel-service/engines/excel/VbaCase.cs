@@ -9,10 +9,11 @@ sealed record VbaCase(
     IReadOnlyList<VbaModule> Modules,
     IReadOnlyList<VbaCall> Calls,
     IReadOnlyList<VbaPlace> Readback,
-    IReadOnlyList<VbaPlace> EventLog)
+    IReadOnlyList<VbaPlace> EventLog,
+    VbaTemplateReview Review)
 {
     // Only the policy's checked template expansion or the local grammar test route calls this.
-    internal static VbaCase FromChecked(Dictionary<string, object> fields)
+    internal static VbaCase FromChecked(Dictionary<string, object> fields, VbaTemplateReview review = null)
     {
         var template = fields.GetValueOrDefault("template") as string;
         var parameters = template == null ? new() : ((Dictionary<string, object>)fields["params"])
@@ -27,7 +28,8 @@ sealed record VbaCase(
             List(fields, "calls").Cast<Dictionary<string, object>>()
                 .Select(c => new VbaCall((string)c["procedure"], List(c, "args").Select(VbaCell.FromChecked).ToArray())).ToArray(),
             List(fields, "readback").Cast<string>().Select(VbaPlace.FromChecked).ToArray(),
-            List(fields, "event_log").Cast<string>().Select(VbaPlace.FromChecked).ToArray());
+            List(fields, "event_log").Cast<string>().Select(VbaPlace.FromChecked).ToArray(),
+            review);
     }
 
     static List<object> List(Dictionary<string, object> fields, string key) => (List<object>)fields[key];
@@ -53,10 +55,13 @@ sealed record VbaCase(
             fields["template"] = Template;
             fields["params"] = Parameters.ToDictionary(p => p.Key, p => p.Value.Value);
             fields["pins"] = Pins.ToArray();
+            fields["template_pin"] = Review.Pin;
         }
         return fields;
     }
 }
+
+sealed record VbaTemplateReview(string Reviewer, string Claim, string ExcelBuildFamily, string Pin);
 
 sealed record VbaParameter(string Text, long? Integer)
 {

@@ -39,10 +39,23 @@ static class Program
 
     static int Main(string[] args)
     {
-        if (args.Length is 1 or 2 && args[0] is "--check-vba-policy" or "--build-vba-package" or "--check-vba-expanded" or "--build-vba-expanded")
+        if (args.Length is 1 or 2 && args[0] is "--admit-vba-templates" or "--vba-template-pin"
+            or "--check-vba-policy" or "--build-vba-package" or "--check-vba-expanded" or "--build-vba-expanded")
         {
             try
             {
+                if (args[0] == "--admit-vba-templates")
+                {
+                    int count = VbaTemplateAdmission.Verify(args.Length == 2 ? args[1] : null);
+                    Console.WriteLine($"Admitted {count} VBA template(s).");
+                    return 0;
+                }
+                if (args[0] == "--vba-template-pin")
+                {
+                    if (args.Length != 2) throw new RefusedVbaException("--vba-template-pin needs a template name");
+                    Console.WriteLine(VbaTemplates.Review(args[1]).Pin);
+                    return 0;
+                }
                 var buffer = new char[65537];
                 int size = Console.In.ReadBlock(buffer, 0, buffer.Length);
                 if (size == buffer.Length) throw new RefusedVbaException("VBA policy input exceeds 64 KiB");
@@ -58,7 +71,8 @@ static class Program
                 Console.WriteLine(VbaPolicy.CaseDigest(probe));
                 return 0;
             }
-            catch (Exception e) when (e is RefusedVbaException or System.Text.Json.JsonException or FormatException)
+            catch (Exception e) when (e is RefusedVbaException or System.Text.Json.JsonException or FormatException
+                or IOException or KeyNotFoundException or InvalidCastException)
             {
                 Console.Error.WriteLine(e.Message);
                 return 1;
@@ -373,7 +387,7 @@ static class Program
                 if (serial || echo || groupList.Count != 1)
                     throw new RefusedVbaException("VBA requires one case without echo or serial mode");
                 vbaCase = VbaPolicy.CheckGroup(groupList[0]);
-                VbaPolicy.CheckApproval(vbaCase, Path.Combine(Root, "vba-approved"));
+                VbaPolicy.CheckApproval(vbaCase, Path.Combine(Root, "vba-approved"), X.Env["file_version"] as string ?? "");
                 vbaWorkbook = VbaPackage.Build(vbaCase);
             }
             // Drift before: recycle and report; the broker re-queues nothing it has not been told about.

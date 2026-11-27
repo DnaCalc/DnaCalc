@@ -20,8 +20,13 @@ static class Json
             case JsonValueKind.Object:
                 var fields = new Dictionary<string, object>();
                 foreach (var field in value.EnumerateObject())
-                    if (!fields.TryAdd(field.Name, Value(field.Value)))
+                {
+                    string name;
+                    try { name = field.Name; }
+                    catch (InvalidOperationException error) { throw new FormatException("invalid UTF-16 JSON property name", error); }
+                    if (!fields.TryAdd(name, Value(field.Value)))
                         throw new FormatException("duplicate JSON key");
+                }
                 return fields;
             case JsonValueKind.Array:
                 return value.EnumerateArray().Select(Value).ToList();

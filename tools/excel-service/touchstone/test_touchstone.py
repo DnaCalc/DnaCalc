@@ -436,6 +436,58 @@ class AdmissionTests(unittest.TestCase):
             raise ValueError(result.stderr.strip())
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_template_admission_checks_literal_positions(self):
+        import hashlib
+        import shutil
+
+        command = [os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--admit-vba-templates"]
+        actual = subprocess.run(command, text=True, capture_output=True, timeout=30)
+        self.assertEqual(actual.returncode, 0, actual.stderr)
+
+        catalogue_dir = HERE.parent / "vba-probes"
+        variations = (
+            ("modules", "Public Function Probe", "Public Function {{message}}"),
+            ("modules", '"Module1"', '"{{message}}"'),
+            ("modules", "    Exit Function", "    ' {{message}}\n    Exit Function"),
+            ("modules", "{{target_cell}}", "{{target_cell}}0"),
+            ("modules", "{{target_cell}}", "{{target_cell}}&"),
+            ("layout", "=A1*2", "=A1{{message}}"),
+            ("layout", "={{target_sheet}}!", "={{message}}!"),
+        )
+        for field, old, new in variations:
+            with self.subTest(field=field, token=new), tempfile.TemporaryDirectory() as directory:
+                scratch = Path(directory)
+                shutil.copytree(catalogue_dir, scratch, dirs_exist_ok=True)
+                path = scratch / "catalogue.json"
+                manifest = json.loads(path.read_text(encoding="ascii"))
+                entry = manifest["templates"]["smoke"][field]
+                if field == "modules":
+                    entry = entry[0]
+                probe = scratch / entry["file"]
+                source = probe.read_text(encoding="ascii").replace(old, new, 1)
+                probe.write_bytes(source.encode("ascii"))
+                entry["sha256"] = hashlib.sha256(probe.read_bytes()).hexdigest()
+                path.write_text(json.dumps(manifest), encoding="ascii")
+                result = subprocess.run([*command, str(scratch)], text=True, capture_output=True, timeout=30)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("placeholder", result.stderr.lower())
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_template_calls_use_the_admitted_argument_signature(self):
+        for value in ({"type": "text", "value": "21"}, {"type": "boolean", "value": True}):
+            case = template_vba_group(calls=[{"procedure": "Module1.Probe", "args": [value]}])
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "argument"):
+                self.check_vba(case)
+
+    def test_python_vba_admission_uses_the_worker_decision(self):
+        from touchstone import vba_policy
+
+        group = template_vba_group()
+        with patch.object(vba_policy, "check", return_value="worker digest") as check:
+            self.assertEqual(self.admission.check(group), "worker digest")
+            check.assert_called_once_with(group, None)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_refuses_invalid_position_envelopes(self):
         worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
         group = template_vba_group()
@@ -742,10 +794,21 @@ class AdmissionTests(unittest.TestCase):
                 self.check_vba(group)
 
     def values_only_requests(self):
-        formula = self.template_group()
-        case = formula["v"][0]
-        case["sheets"][0]["cells"]["A2"] = {"type": "formula", "formula": "=A1*2"}
-        yield "formula cell", formula, "layout cell"
+        # Match the reviews' formula shapes using local calculations and inert names.
+        formulas = {
+            "plain formula": ["=A1*2"],
+            "rw19 function values": ["=LET(T,_xleta.SUM,T(1))", "=LET(x,1,_xleta.SUM)(1)",
+                                     "=LET(α,_xleta.SUM,α(1))", "=MAKEARRAY(1,1,_xleta.SUM)"],
+            "rw19 qualified and Unicode calls": ["=α(1)", "=LET(T,Fixture.Probe,T(1))"],
+            "rw19 whitespace before arguments": ["=SUM\x1c(1)"],
+            "rw19 whitespace before sheet delimiter": ["=Data\x1c!A1"],
+        }
+        for label, expressions in formulas.items():
+            group = self.template_group()
+            cells = group["v"][0]["sheets"][0]["cells"]
+            cells.update({f"A{row}": {"type": "formula", "formula": formula}
+                          for row, formula in enumerate(expressions, start=2)})
+            yield label, group, "layout cell"
         yield "defined name", self.template_group(names={"Rate": "=Data!$A$1"}), "names"
         yield "empty names", self.template_group(names={}), "names"
 
@@ -775,6 +838,9 @@ class AdmissionTests(unittest.TestCase):
         catalogue = json.loads((HERE.parent / "vba-probes" / "catalogue.json").read_text(encoding="ascii"))
         entry = catalogue["templates"]["smoke"]
         expanded["pins"] = [file["sha256"] for file in [*entry["modules"], entry["layout"]]]
+        pin = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--vba-template-pin", "smoke"],
+                             text=True, capture_output=True, timeout=30, check=True)
+        expanded["template_pin"] = pin.stdout.strip()
         expanded["sheets"][0]["cells"]["C1"] = {"type": "formula", "formula": "=A1*2"}
         expanded["names"] = {"Rate": "='My Data'!$A$1"}
         canonical = json.dumps(expanded, sort_keys=True, separators=(",", ":")).replace(r"\n", r"\u000a")
@@ -789,6 +855,11 @@ class AdmissionTests(unittest.TestCase):
                                 input=json.dumps(group), text=True, capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("overlaps a request cell", result.stderr)
+
+        del case["sheets"][0]["cells"]["$c$1"]
+        case["sheets"][0]["cells"]["$a$1"] = number(TWO)
+        with self.assertRaisesRegex(ValueError, "duplicate VBA layout sheet"):
+            self.check_vba(group)
 
     def rw18_layout_group(self, formula, as_name=False):
         """dc-kv1dh: a smoke template case whose layout (a cell, or a defined name) carries one formula."""
@@ -834,8 +905,10 @@ class AdmissionTests(unittest.TestCase):
         params = {**self.template_group()["v"][0]["params"], "target_sheet": "K"}
         yield "kelvin", self.template_group(sheets=sheets, params=params, readback=["\u212a!A1"]), False
         yield "ascii", self.template_group(sheets=sheets, params=params, readback=["k!A1"]), True
-        yield "lone surrogate", self.template_group(calls=[{"procedure": "Module1.Probe", "args": [
-            {"type": "text", "value": "\ud800"}]}]), True
+        yield "lone surrogate argument", self.template_group(calls=[{"procedure": "Module1.Probe", "args": [
+            {"type": "text", "value": "\ud800"}]}]), False
+        sheets[0]["cells"]["A2"] = {"type": "text", "value": "\ud800"}
+        yield "lone surrogate cell", self.template_group(sheets=sheets, params=params, readback=["k!A2"]), True
 
     def test_vba_validators_agree_on_the_rw18_differentials(self):
         for name, group, accepted in self.rw18_parity_groups():
@@ -1058,7 +1131,15 @@ class AdmissionTests(unittest.TestCase):
         self.assertNotEqual(text, duplicated)
         result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-expanded"], input=duplicated,
                                 text=True, capture_output=True, timeout=30)
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("duplicate JSON key", result.stderr)
+
+        group = template_vba_group()
+        group["v"][0]["\ud800"] = None
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                input=json.dumps(group), text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("JSON property name", result.stderr)
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_handles_mutated_sources_with_typed_refusals(self):
@@ -1098,7 +1179,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertLess(accepted, len(cases))
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
-    def test_vba_worker_accepts_only_the_exact_approved_case(self):
+    def test_vba_worker_ignores_legacy_case_approval_for_the_pending_template(self):
         worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
         with tempfile.TemporaryDirectory() as directory:
             def check(group, verify=True):
@@ -1111,15 +1192,15 @@ class AdmissionTests(unittest.TestCase):
             self.assertRegex(digest.stdout.strip(), r"^[0-9a-f]{64}$")
             self.assertIn("unapproved", check(group).stderr)
             (Path(directory) / (digest.stdout.strip() + ".approved")).touch()
-            self.assertEqual(check(group).returncode, 0)
+            self.assertIn("template review", check(group).stderr)
             reordered = json.loads(json.dumps(group, sort_keys=True))
-            self.assertEqual(check(reordered).returncode, 0)
+            self.assertEqual(check(reordered, verify=False).stdout, digest.stdout)
             other_param = template_vba_group()
             other_param["v"][0]["params"]["message"] = "other"
             for changed in (template_vba_group(readback=["Data!A2"]),
                             template_vba_group(calls=[{"procedure": "Module1.Probe", "args": [number(TWO)]}]),
                             other_param):
-                self.assertIn("unapproved", check(changed).stderr)
+                self.assertIn("template review", check(changed).stderr)
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_builds_the_package_from_the_modules(self):
@@ -1152,6 +1233,7 @@ class AdmissionTests(unittest.TestCase):
                 self.assertNotIn(b"Shell", parts["xl/vbaProject.bin"])
         # two sheets, a document module for each, and the smoke case's own modules
         smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
+        smoke["params"]["message"] = 'say "hi" {{target_cell}}'
         parts = build({"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [protocol.vba_case(smoke)["value"]]})
         streams = reader.read_compound_file(parts["xl/vbaProject.bin"])
         self.assertEqual(sorted(streams), ["PROJECT", "PROJECTwm", "VBA/Module1", "VBA/Sheet1", "VBA/Sheet2",
@@ -1159,6 +1241,8 @@ class AdmissionTests(unittest.TestCase):
         self.assertIn(b'<sheet name="Data" sheetId="1" r:id="rId1"/><sheet name="Events" sheetId="2" r:id="rId5"/>',
                       parts["xl/workbook.xml"])
         self.assertIn(b"Worksheet_Change", reader.decompress_vba_stream(streams["VBA/Sheet1"]))
+        self.assertIn(b'Err.Raise 5, "Module1", "say ""hi"" {{target_cell}}"',
+                      reader.decompress_vba_stream(streams["VBA/Module1"]))
 
     def test_the_package_reader_refuses_the_rw15_parser_differentials(self):
         import vba_package_reader as reader

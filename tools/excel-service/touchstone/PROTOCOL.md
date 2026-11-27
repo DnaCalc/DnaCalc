@@ -66,51 +66,39 @@ a formula: its text (any text of 1 to 255 characters) is entered by FormulaLocal
 into a cell (a number, date, time, percentage or currency takes the number format Excel gives it), and its answer adds
 `"nf"`, the cell's NumberFormat after the entry (decoded as `number_format`). Send the cases of one layout together.
 
-**Probe templates (dc-erfm3, the route to use).** A VBA case does not carry VBA source. It names a template from the
-catalogue `tools/excel-service/vba-probes/catalogue.json` and gives typed parameters: `{"template", "params", "sheets",
-"calls", "readback", "event_log"}` with no `modules`. Each template's module files (`vba-probes/*.bas`) are
-reviewed once by the coordinator and pinned by SHA-256 in the catalogue. The worker (`VbaTemplates.cs`,
-files embedded in the build) refuses a file that differs from its pin and builds the .xlsm from the pinned text and the
-parameters only. Parameter types: `sheet` (a case sheet's name), `address` (one A1 cell), `text` (1..255 printable ASCII
-characters, not starting with `=`, `+`, `-` or `@`; rendered as one quoted VBA string), `long` (an integer) and
-`enum:a|b` (a listed word). Every `{{name}}` in a template is a declared parameter and every parameter must be given; a
-call names one of the template's `entry_points`. `touchstone/vba-smoke.json` is the reviewed smoke case on template
-`smoke` (it expands to the source in `vba-smoke-source.json`). To add a template: add the `.bas` files and a catalogue
-entry with their hashes, and have the coordinator review them. The expanded modules still pass the grammar below. The
-free-source `modules` shape below is no longer accepted on the wire (dc-45ndr): a case without `template` and `params` is
-refused. It describes the expanded form the validators check. The approval digest binds the template name, its parameters and the
-pinned module and layout hashes as well as the expansion. Approvals stay frozen.
+**Probe templates.** A VBA case names a template in
+`tools/excel-service/vba-probes/catalogue.json` and gives its typed parameters. The wire fields are
+`template`, `params`, `sheets`, `calls`, `readback`, and `event_log`. Request sheets carry typed
+number, text, boolean, error, or blank cells. Formula cells, defined names, modules, and workbook
+bytes are refused. Formulas and defined names come from the template’s SHA-256-pinned layout.
+The worker builds the workbook from its templates and writes the typed values to cells.
 
-A **VBA case** (function `_VBA`, token `V`) occupies one position in one request frame, encoded as `"o": 0` or `"i": [0]`.
-The worker's decoder validates the group and case fields and rejects unknown fields. The broker invokes
-`excel-worker --check-vba-policy` on its staged worker executable before queueing the case. The client uses the same
-check when the local worker is available. `TOUCHSTONE_VBA_POLICY_WORKER` selects the local executable.
-The case value contains `sheets` with typed number, text, boolean, error and blank cells, and the following fields.
-The worker prints formulas and defined names from the template’s pinned layout and refuses request formula cells or
-the `names` field. No workbook travels with the case: the
-worker writes the source-only .xlsm itself from the checked `sheets` and `modules` (the sheet names, the `ThisWorkbook`
-and `Sheet<N>` document modules, one project stream per module), so no uploaded compound file or compressed stream is
-parsed. A case that carries a `workbook` field is refused.
+A **VBA case** (function `_VBA`, token `V`) occupies one position in one request frame, encoded as
+`"o": 0` or `"i": [0]`. The worker's decoder validates the group and case fields. The broker calls
+`excel-worker --check-vba-policy` using the staged worker before queueing the case on the isolation slot.
+The client invokes the same decoder when the worker is available locally. Set
+`TOUCHSTONE_VBA_POLICY_WORKER` to select the local executable. Echo, serial mode, primers, add-ins,
+and sweep are unavailable for VBA cases.
 
 | Field | Value |
 | --- | --- |
-| `modules` | Ordered `{"name", "kind", "source"}` objects. A `standard` module contains callable procedures. A `document` module names `ThisWorkbook` or a sheet code name `Sheet1`, `Sheet2`, … in layout order. |
-| `calls` | Ordered `{"procedure": "Module.Procedure", "args": [...]}` objects. Entries name public procedures in standard modules. Arguments are typed scalar numbers, text, booleans, blanks, or worksheet errors. |
-| `readback`, `event_log` | Ordered lists of `Sheet!A1` addresses. The probe's VBA writes event records to the requested cells. |
+| `params` | The exact parameters declared by the template. Types are a case sheet, an A1 cell, printable ASCII text, a VBA Long, and closed lists of strings. |
+| `calls` | Ordered `{"procedure": "Module.Procedure", "args": [...]}` objects. Each procedure and its argument types are declared by the template. The smoke probe accepts one binary64 number and its error probe takes no arguments. |
+| `readback`, `event_log` | Ordered lists of `Sheet!A1` addresses. The template can write event records to cells in the case workbook. |
 
-The broker sends one case per batch to the designated isolation slot. Echo, serial mode, primers, add-ins, and sweep
-are unavailable on this route. The worker checks probe source against the grammar in `VbaGrammar.cs`
-and `vba-probe-policy.json`: only the listed statement forms, expressions, built-in
-functions and member chains of `ThisWorkbook`, its sheets and ranges, `Scripting.Dictionary`, `VBScript.RegExp` and `Err` are
-accepted, and everything else is refused. A cell written through `.Value` or `.Value2` must be data: a number, a boolean, a
-string literal that does not start with `=`, `+`, `-` or `@`, a case argument (text arguments may not start with those
-characters either) or a concatenation of such; a value read from a cell, a dictionary or by a string function is never
-written back. There is no `Application`, `Workbooks`, `Sheets.Add`, `Worksheets.Add`, unqualified `Range`, `Evaluate`,
-`Run`, `Name ... As`, `Declare` or `CreateObject` outside the two classes. Standard module names match `[A-Z][A-Za-z0-9]{0,23}`
-and are not reserved words; document modules are `ThisWorkbook` or `Sheet<N>` for a sheet in the case, and may define only
-the listed `Worksheet_*` and `Workbook_*` event procedures. Sheet names match `[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}`. The worker requires a local approval for the exact case before opening the workbook.
-The approval digest binds the expanded source, layout, calls and readback addresses.
-Reordering JSON object keys preserves the digest. Approvals remain frozen.
+Run `cargo xtask vba-case admit` with a built worker to validate the embedded catalogue. Give it a
+catalogue directory to preview a change before editing the embedded catalogue. The worker build runs the
+same admission check. It verifies the raw source and layout pins, checks the template's VBA grammar with
+typed literal tokens, and checks where each placeholder goes in the layout. Module placeholders provide
+VBA string or numeric literals. Layout placeholders provide quoted sheet references or formula literals.
+The admission check runs on template text. At request time the worker checks the pins, decodes values,
+and renders the template.
+
+The approval pin covers the template’s module and layout pins, parameters, entry-point signatures, and
+review record. That record identifies the reviewer, the claim covering every declared input, and the
+Excel build family. The worker requires a recorded review and a matching local template approval before
+opening the workbook. The case digest identifies the exact typed case and its template, independent of
+object key order. The smoke template is pending review and approvals remain frozen.
 
 The worker opens the workbook read-only without updating links, applies the layout, calculates it, and enables events
 for the `Application.Run` calls. It reads the requested cells and closes the workbook without saving.
@@ -123,41 +111,19 @@ report those exact values. A COM invocation failure uses the service's worker er
 
 #### Ask from Linux
 
-Save an authored case as `probe.json`. The client defaults
-`names`, `readback` and `event_log` to empty.
+Use `touchstone/vba-smoke.json` as the request example. The client defaults
+`readback` and `event_log` to empty. With a built worker, `prepare` validates the case locally and
+prints its group. A capture requires the coordinator to have approved the template and enabled use
+after independent review.
 
-```json
-{
-  "sheets": [{"name": "Data", "cells": {}}],
-  "modules": [{
-    "name": "Module1",
-    "kind": "standard",
-    "source": "Public Function Probe(ByVal x As Variant) As Variant\n    Probe = x * 2\nEnd Function\n"
-  }],
-  "calls": [{"procedure": "Module1.Probe", "args": [{"type": "number", "bits": "4035000000000000"}]}],
-  "readback": ["Data!A1"]
-}
+```bash
+cargo xtask vba-case prepare tools/excel-service/touchstone/vba-smoke.json
+cargo xtask vba-case capture tools/excel-service/touchstone/vba-smoke.json --out captures
 ```
 
-Prepare the exact group for the coordinator to approve on the worker host. After approval,
-capture the answer over the socket.
-
-```sh
-cargo xtask vba-case prepare probe.json > probe.group.json
-cargo xtask vba-case capture probe.json --out ~/codex-runs/my-lane/vba-captures
-```
-
-`cargo xtask vba-case build probe.json > probe.xlsm` outputs a CalcDoc workbook for local inspection; Touchstone does not
-use it. A Python caller
-can use `Connection.vba_case(case, timeout=60)` from `touchstone.client`. It returns a
-one-row reply with typed values and the Excel build, CPU, lane, and hashes. Refusals expose
-the service code in `ServiceError.response["code"]`. The source checks refuse external
-declarations, shell commands, file and network operations, dialogs, VBE access, and COM
-activation outside the listed literal classes.
-
-Each capture is stored under `<out>/<source_sha256>/<request-id>.json` with its typed case
-and reply. The source hash covers the ordered module names, kinds, and source text. Compare
-against a frozen CalcVBA prediction in the same form as `reply.rows[0]` to keep a bank row
+The capture retains the case and its one-row reply with typed values and provenance. The source hash
+identifies the template and parameters, and the worker's case hash covers its typed case and pins.
+Compare against a frozen CalcVBA prediction in the same form as `reply.rows[0]` to keep a bank row
 only when the complete case differs.
 
 ```sh
