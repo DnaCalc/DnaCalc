@@ -960,6 +960,48 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic freezes the rows and columns before the active cell across scroll and navigation",
+        actions: &[
+            Action::Window(960, 600),
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "7"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "7")),
+            Action::Click("[data-cell=C4]"),
+            Action::Keys("grid", "\u{e03a}wff"),
+            Action::Wait(Check::Js(
+                "the bands before C4 are pinned",
+                concat!(
+                    "(() => { const cell = n => document.querySelector('[data-cell='+n+']');",
+                    " const a = cell('A1'), c = cell('C4');",
+                    " if (!a || !c || getComputedStyle(a).position !== 'sticky'",
+                    " || getComputedStyle(c).position === 'sticky') return false;",
+                    " const r = a.getBoundingClientRect(), body = c.getBoundingClientRect();",
+                    " window.freezePositions = [r.x, r.y, body.x, body.y]; return true; })()",
+                ),
+            )),
+            Action::ScrollGrid(270, 180),
+            Action::Wait(Check::Js(
+                "the frozen cells stay put while the body scrolls",
+                concat!(
+                    "(() => { const rect = n => document.querySelector('[data-cell='+n+']').getBoundingClientRect();",
+                    " const a = rect('A1'), c = rect('C4'), p = window.freezePositions;",
+                    " return Math.abs(a.x-p[0])<2 && Math.abs(a.y-p[1])<2",
+                    " && c.x<p[2]-50 && c.y<p[3]-50; })()",
+                ),
+            )),
+            Action::Into("name-box", "Z40"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-cell=Z40]", "aria-selected", "true")),
+            Action::Wait(Check::Text("[data-cell=A1]", "7")),
+            Action::Keys("grid", "\u{e03a}wff"),
+            Action::Wait(Check::Absent("[data-cell=A1]")),
+        ],
+        checks: &[
+            Check::Attr("[data-cell=Z40]", "aria-selected", "true"),
+        ],
+    },
+    Case {
         name: "Notebook NC01 opens the complete named Sales chain",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -1308,8 +1350,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "notebook-sales",
+        name: "classic-freeze-panes",
         start: 45,
+        end: 46,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "notebook-sales",
+        start: 46,
         end: PREVIEW_CASES.len(),
         core: 8,
         setup: &[],
