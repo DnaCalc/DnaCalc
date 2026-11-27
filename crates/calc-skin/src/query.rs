@@ -115,6 +115,9 @@ query!(
 query!(
     Formula { at: Key } => FormulaFacts, |q: &Formula| WorkbookQuery::Formula { at: q.at });
 query!(
+    /// A detached Formula Explorer trial captured at one published workbook generation.
+    TrialFor { at: Key } => crate::Trial, |q: &TrialFor| WorkbookQuery::TrialFor { at: q.at });
+query!(
     /// A structural view of the authored formula's expressions, in its workbook context.
     ExpressionTree { at: Key } => Evidence<crate::parts::Trace>, |q: &ExpressionTree| WorkbookQuery::ExpressionTree { at: q.at });
 query!(

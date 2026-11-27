@@ -4,7 +4,9 @@ pub mod live_tree;
 pub mod session;
 pub mod view;
 pub use session::{Focus, Following, Session};
-pub use view::{DockSide, DockSpec, Fit, Located, MountedView, View, ViewCommand, ViewSpec, WayForward};
+pub use view::{
+    DockSide, DockSpec, Fit, Located, MountedView, ToolSpec, View, ViewCommand, ViewSpec, WayForward,
+};
 /// The runtime types a view meets through the session, so a view crate needs no second import.
 pub use dna_skin_runtime::Live;
 pub use dna_skin_runtime::client::{EditSession, Seam, Watch};
@@ -24,6 +26,7 @@ pub struct FormulaContext {
     pub persist: Option<fn(Trial)>,
     pub clock: fn() -> Option<f64>,
     pub status: RwSignal<&'static str>,
+    pub apply: Option<Callback<String>>,
 }
 
 pub trait FormulaView {
@@ -34,6 +37,7 @@ pub trait FormulaView {
 pub struct Registry {
     formula: Option<fn(FormulaContext) -> AnyView>,
     views: Vec<Rc<dyn View>>,
+    tools: Vec<ToolSpec>,
 }
 
 impl Registry {

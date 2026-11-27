@@ -66,7 +66,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     pending("M D", "Trace Dependents"),
     group("M A", "Remove Arrows"),
     pending("M A A", "Remove All Arrows"),
-    pending("M V", "Evaluate Formula"),
+    command("M V", "Evaluate Formula", "explorer.dock"),
     group("W F", "Freeze Panes"),
     pending("W F F", "Freeze Panes"),
     group("W V", "Show"),

@@ -13,7 +13,8 @@ use crate::view::ViewCommand;
 use calc_skin::grid::Key;
 use calc_skin::query::{self, Query};
 use calc_skin::{
-    Answer, Batch, Budget, Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookSummary,
+    Answer, Batch, Budget, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply, Operation,
+    Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
@@ -66,6 +67,22 @@ pub struct Session {
     notice: RwSignal<u64>,
     view: RwSignal<ViewId>,
     tip_path: RwSignal<Option<&'static str>>,
+}
+
+impl FormulaPort for Session {
+    fn ask(&self, query: FormulaQuery, complete: FormulaReply) {
+        self.update(|client| {
+            client.ask_formula(query, complete);
+            Changes::default()
+        });
+    }
+
+    fn operate(&self, operation: FormulaOperation, complete: FormulaReply) {
+        self.update(|client| {
+            client.operate_formula(operation, complete);
+            Changes::default()
+        });
+    }
 }
 
 fn tick(signal: impl Update<Value = u64>) {
@@ -148,6 +165,10 @@ impl Session {
             if let Some(continuation) = continuation {
                 continuation();
             }
+        }
+        let replies = inner.client.borrow_mut().take_formula_replies();
+        for (complete, result) in replies {
+            complete(result);
         }
     }
 

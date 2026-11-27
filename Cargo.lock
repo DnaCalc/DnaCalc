@@ -522,6 +522,7 @@ name = "calc-skin-host"
 version = "0.1.0"
 dependencies = [
  "calc-doc-model",
+ "calc-formula-host",
  "calc-formula-kernel",
  "calc-func",
  "calc-host",
@@ -1385,6 +1386,7 @@ dependencies = [
  "dna-shell",
  "dna-skin-runtime",
  "dna-view-classic",
+ "dna-view-explorer",
  "dna-view-inspector",
  "dna-view-notebook",
  "js-sys",

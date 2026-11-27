@@ -262,6 +262,9 @@ pub enum WorkbookQuery {
     Formula {
         at: Key,
     },
+    TrialFor {
+        at: Key,
+    },
     ExpressionTree {
         at: Key,
     },

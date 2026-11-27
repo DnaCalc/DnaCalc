@@ -1,6 +1,6 @@
 use crate::{
-    Answer, Batch, Budget, Frame, Operation, Preview, PreviewDepth, Refusal, Selection, Stamp,
-    Target, WatchId, WorkbookQuery,
+    Answer, Batch, Budget, FormulaAnswer, FormulaOperation, FormulaQuery, Frame, Operation,
+    Preview, PreviewDepth, Refusal, Selection, Stamp, Target, WatchId, WorkbookQuery,
 };
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
@@ -46,6 +46,8 @@ pub enum WorkbookRequest {
     },
     Commit(Batch),
     Run(Operation),
+    FormulaQuery(FormulaQuery),
+    FormulaOperation(FormulaOperation),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -55,6 +57,7 @@ pub enum WorkbookReply {
     Preview(Preview),
     Stamp(Stamp),
     Accepted,
+    Formula(FormulaAnswer),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

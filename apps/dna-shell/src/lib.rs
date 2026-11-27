@@ -23,6 +23,7 @@ pub fn formula(
         persist,
         clock,
         status,
+        apply: None,
     });
     view! {
         <div class="dna-fe-frame" data-skin0="frame">

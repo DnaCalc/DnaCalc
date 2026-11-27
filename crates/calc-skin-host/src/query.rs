@@ -212,7 +212,9 @@ pub(crate) fn invalidated(
                     .cell()
                     .is_none_or(|at| intersects(&[GridArea::cell(at)], false))
         }
-        WorkbookQuery::ExpressionTree { .. } => authored || recalculated || rtd_changed,
+        WorkbookQuery::ExpressionTree { .. } | WorkbookQuery::TrialFor { .. } => {
+            authored || recalculated || rtd_changed
+        }
         WorkbookQuery::Geometry { .. } | WorkbookQuery::PrintPlan { .. } => authored,
         WorkbookQuery::ViewPart => presentation || recalculated,
         WorkbookQuery::Notes { .. } => presentation,
@@ -389,25 +391,8 @@ fn project_window(
     budget: Budget,
 ) -> Result<CellWindow, Refusal> {
     let areas = interest_areas(state, interest)?;
-    area_size(&areas, budget)?;
     let host = state.session.host();
-    let mut keys = BTreeSet::new();
-    for area in &areas {
-        for row in area.first().row()..=area.last().row() {
-            for column in area.first().column()..=area.last().column() {
-                keys.insert(
-                    CellKey::new(area.sheet(), row, column).expect("within the checked area"),
-                );
-            }
-        }
-    }
-    let page = calc_host::project(
-        host,
-        &ProjectionRequest {
-            cells: keys.into_iter().collect(),
-        },
-    )
-    .map_err(|error| invalid(error.to_string()))?;
+    let page = project_areas(host, &areas, budget)?;
     let cells = page
         .cells()
         .iter()
@@ -421,6 +406,85 @@ fn project_window(
         areas: areas.into_iter().map(Area::of).collect(),
         cells,
     })
+}
+
+fn project_areas(
+    host: &HostState,
+    areas: &[GridArea],
+    budget: Budget,
+) -> Result<calc_host::ProjectionPage, Refusal> {
+    area_size(areas, budget)?;
+    let mut keys = BTreeSet::new();
+    for area in areas {
+        for row in area.first().row()..=area.last().row() {
+            for column in area.first().column()..=area.last().column() {
+                keys.insert(
+                    CellKey::new(area.sheet(), row, column).expect("within the checked area"),
+                );
+            }
+        }
+    }
+    calc_host::project(
+        host,
+        &ProjectionRequest {
+            cells: keys.into_iter().collect(),
+        },
+    )
+    .map_err(|error| invalid(error.to_string()))
+}
+
+fn trial_for(state: &State, at: Key, budget: Budget) -> Result<Trial, Refusal> {
+    let host = state.session.host();
+    let cell = cell(at)?;
+    checked_sheet(host, Sheet::of(cell.sheet()))?;
+    let input = host.model().cell(cell);
+    let mut trial = Trial::default();
+    if let Some(profile) = host.options().locale {
+        trial.culture = profile.id.stable_name().into();
+    }
+    if let Some(format) = host.number_format(cell) {
+        trial.number_format = format.into();
+    }
+    let precedents = if matches!(input, Some(calc_doc_model::CellInput::Formula(_))) {
+        trial.formula = calc_formula_kernel::display::formula(&entry_text(input));
+        let areas = host.precedents(cell)
+            .ok_or_else(|| invalid("Calculate the workbook to capture this formula's inputs."))?;
+        if areas.iter().any(|area| area.contains(cell)) {
+            return Err(unavailable("dc-s2xup", "Explorer trial with a circular caller"));
+        }
+        if areas.len() as u64 > budget.edges {
+            return Err(over_budget(areas.len() as u64, 0));
+        }
+        let page = project_areas(host, &areas, budget)?;
+        page.cells()
+            .iter()
+            .map(|cell| {
+                let (value, provenance) = shown_value(state, cell.value());
+                SnapshotCell {
+                    at: Key::of(cell.at()),
+                    shown: Shown {
+                        value: value.as_ref().map_or(RawValue::Blank, raw),
+                        provenance,
+                    },
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    trial.caller = Some(CallerSnapshot {
+        at,
+        stamp: state.stamp(),
+        date_1904: host.declared_date1904(),
+        precedents,
+        sheets: host.sheets().iter().filter(|sheet| sheet.kind() == SheetKind::Worksheet)
+            .map(|sheet| CallerSheet {
+                sheet: Sheet::of(sheet.id()),
+                name: sheet.name().text().to_string_lossy(),
+            })
+            .collect(),
+    });
+    Ok(trial)
 }
 
 pub(crate) fn shown_value(
@@ -572,6 +636,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::Notes { .. } => Some("Choose one anchor"),
         WorkbookQuery::Sources => Some("Increase the source inventory budget"),
         WorkbookQuery::Contributions { .. } => Some("Increase the contribution scan budget"),
+        WorkbookQuery::TrialFor { .. } => Some("Choose a formula that reads fewer cells"),
         _ => None,
     };
     let mut meter = QueryWork::scan(
@@ -713,6 +778,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             let evidence = expression_tree(host, at, stamp, &mut meter)?;
             query::ExpressionTree::encode(&evidence)?
         }
+        WorkbookQuery::TrialFor { at } => query::TrialFor::encode(&trial_for(state, *at, budget)?)?,
         WorkbookQuery::Rules { at } => {
             let at = cell(*at)?;
             checked_sheet(host, Sheet::of(at.sheet()))?;

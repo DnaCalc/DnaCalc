@@ -270,7 +270,7 @@ pub fn workbook(
 ) -> impl IntoView + use<> {
     let specs = registry.views();
     let views = chrome.views;
-    let docks = views.with_value(|views| views.iter().filter_map(|view| view.dock()).collect::<Vec<_>>());
+    let docks: Vec<_> = registry.docks().collect();
     let dock_buttons = docks.iter().map(|dock| command_button(session, dock.command, dock.label)).collect_view();
     let right_docks = docks.iter().map(|dock| (dock.mount)(session, DockSide::Right)).collect_view();
     let bottom_docks = docks.iter().map(|dock| (dock.mount)(session, DockSide::Bottom)).collect_view();

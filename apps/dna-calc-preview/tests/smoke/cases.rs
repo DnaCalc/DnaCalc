@@ -444,6 +444,54 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Text("[data-cell=B1]", "23"),
         ],
     },
+    Case {
+        name: "Classic Formulas Evaluate opens Explorer with live caller inputs",
+        actions: &[
+            Action::WritePlainSession("Explorer caller.xlsx", "A1+A2"),
+            Action::UploadDownloadTo("Explorer caller.xlsx", "open-file"),
+            Action::Wait(Check::Text("[data-cell=A1]", "3")),
+            Action::Click("[data-command='calc.calculate']"),
+            Action::Wait(Check::Text("[data-cell=H1]", "7")),
+            Action::Click("[data-cell=H1]"),
+            Action::Keys("grid", "\u{e03a}mv"),
+        ],
+        checks: &[
+            Check::Text("explorer-caller", "Sheet1!H1"),
+            Check::Value("[data-onecalc='formula']", "=A1+A2"),
+            Check::Text("[data-skin0='raw']", "7"),
+            Check::Js("opening the dock leaves the workbook alone", "__dnaProbe().stamp.model === 0"),
+        ],
+    },
+    Case {
+        name: "Classic Explorer applies an explicitly reviewed formula to its pinned caller",
+        actions: &[
+            Action::Into("[data-onecalc='formula']", "=A1*A2"),
+            Action::Click("[data-skin0='evaluate']"),
+            Action::Wait(Check::Text("[data-skin0='raw']", "12")),
+            Action::Click("[data-command='explorer.apply']"),
+            Action::Wait(Check::TextContains("seam-review", "=A1*A2")),
+            Action::Wait(Check::Text("[data-cell=H1]", "7")),
+            Action::Click("[data-command='edit.apply-review']"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=H1]", "12"),
+            Check::Value("formula-bar", "=A1*A2"),
+            Check::Value("name-box", "H1"),
+            Check::Js("only applying writes a workbook revision", "__dnaProbe().stamp.model === 1"),
+        ],
+    },
+    Case {
+        name: "Classic Explorer rejects a second apply from the stale caller snapshot",
+        actions: &[
+            Action::Into("[data-onecalc='formula']", "=A1-A2"),
+            Action::Click("[data-command='explorer.apply']"),
+        ],
+        checks: &[
+            Check::TextContains("strip", "The workbook changed"),
+            Check::Text("[data-cell=H1]", "12"),
+            Check::Absent("[data-dnacalc='seam-review']"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -499,8 +547,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-navigation",
         start: 20,
+        end: 21,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-explorer",
+        start: 21,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 20,
+        core: PREVIEW_CASES.len() - 21,
         setup: &[],
     },
 ];

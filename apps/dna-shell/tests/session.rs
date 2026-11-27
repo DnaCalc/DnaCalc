@@ -399,6 +399,55 @@ fn inspector_and_dock_switch_without_changing_the_workbook() {
 
 /// Native-only: drives the real workbook host through packets.
 #[test]
+fn explorer_trial_has_the_exact_caller_inputs_including_blanks() {
+    use calc_skin::{FormulaAnswer, FormulaPort, FormulaQuery, Provenance, RawValue, TrialValue};
+
+    let page = Page::open();
+    let session = page.session;
+    for (at, text) in [(page.at(1, 1), "42"), (page.at(3, 1), "=SUM(A1:A2)")] {
+        session.select_cell(at);
+        page.settle();
+        session.edit_text(text.into());
+        session.commit_edit();
+        page.settle();
+    }
+    let watch = session.watch(query::TrialFor { at: page.at(3, 1) });
+    page.settle();
+    let Live::Ready(answer) = session.read(watch) else {
+        panic!("The workbook did not serve a caller trial");
+    };
+    assert_eq!(answer.body.formula, "=SUM(A1:A2)");
+    let caller = answer.body.caller.as_ref().unwrap();
+    assert_eq!(caller.stamp, session.stamp().unwrap());
+    assert_eq!(caller.at, page.at(3, 1));
+    assert_eq!(caller.sheets.len(), 1);
+    assert_eq!(caller.precedents.len(), 2);
+    assert_eq!(caller.precedents[0].at, page.at(1, 1));
+    assert_eq!(caller.precedents[0].shown.value, RawValue::Number { bits: 42_f64.to_bits() });
+    assert_eq!(caller.precedents[0].shown.provenance, Provenance::Literal);
+    assert_eq!(caller.precedents[1].at, page.at(2, 1));
+    assert_eq!(caller.precedents[1].shown.value, RawValue::Blank);
+    assert_eq!(caller.precedents[1].shown.provenance, Provenance::Empty);
+    assert_eq!(session.active(), Some(caller.at));
+    let stamp = caller.stamp;
+    let result = Rc::new(RefCell::new(None));
+    session.ask(FormulaQuery::Evaluate(answer.body), Box::new({
+        let result = result.clone();
+        move |answer| *result.borrow_mut() = Some(answer)
+    }));
+    page.settle();
+    let Some(Ok(FormulaAnswer::Evaluated(shown))) = result.take() else {
+        panic!("The session did not return the trial result");
+    };
+    let TrialValue::Scalar(cell) = shown.value else {
+        panic!("Expected one result cell");
+    };
+    assert_eq!(cell.raw, RawValue::Number { bits: 42_f64.to_bits() });
+    assert_eq!(session.stamp(), Some(stamp));
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
 fn inspector_audits_large_ranges_and_previews_a_single_cell_repair() {
     use calc_skin::{Budget, Evidence};
     use dna_kit::commands::CommandId;
