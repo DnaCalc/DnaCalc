@@ -889,6 +889,37 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
         checks: &[Check::Text("[data-cell=B2]", "8")],
     },
+    Case {
+        name: "Classic traces direct precedents and dependents and clears the worksheet arrows",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "5"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "5")),
+            Action::Click("[data-cell=B2]"),
+            Action::Into("formula-bar", "=A1*2"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "10")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e03a}mp"),
+            Action::Wait(Check::Js(
+                "the precedent arrow spans A1 and B2",
+                "document.querySelector('[data-dnacalc=trace-arrow][data-from=A1][data-to=B2]')?.getBoundingClientRect().width > 0",
+            )),
+            Action::Keys("grid", "\u{e03a}maa"),
+            Action::Wait(Check::Absent("[data-dnacalc=trace-arrow]")),
+            Action::Click("[data-cell=A1]"),
+            Action::Keys("grid", "\u{e03a}md"),
+        ],
+        checks: &[
+            Check::Js(
+                "the dependent arrow spans A1 and B2",
+                "document.querySelector('[data-dnacalc=trace-arrow][data-from=A1][data-to=B2]')?.getBoundingClientRect().width > 0",
+            ),
+            Check::Value("name-box", "A1"),
+            Check::Js("the traces left the workbook model at its last edit", "__dnaProbe().stamp.model === 2"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1042,6 +1073,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-name-manager",
         start: 42,
+        end: 43,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-trace",
+        start: 43,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],

@@ -398,6 +398,27 @@ fn classic_name_manager_versions_and_undoes_defined_names() {
     assert!(page.press("Escape", Focus::ActionField));
 }
 
+/// Native-only: follows Classic's auditing commands through the workbook shell.
+#[test]
+fn classic_trace_keys_do_not_edit_the_sheet_or_move_its_selection() {
+    let page = Page::open();
+    let session = page.session;
+    session.begin_edit(page.at(2, 2), Some("=A1*2".into()));
+    session.commit_edit();
+    page.settle();
+    let stamp = session.stamp().unwrap();
+    for key in ["F10", "m", "p"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(session.last_refusal().is_none(), "{}", session.notice());
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    for key in ["F10", "m", "a", "a"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(session.last_refusal().is_none(), "{}", session.notice());
+    assert_eq!(session.stamp().unwrap().model, stamp.model);
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
