@@ -1203,6 +1203,13 @@ impl HostState {
         Some(view)
     }
 
+    pub(crate) fn set_sheet_grid_lines(&mut self, sheet: SheetId, show: bool) {
+        if self.sheet_view(sheet).and_then(|view| view.show_grid_lines) != Some(show) {
+            self.skin_view += 1;
+        }
+        self.sheet_view_overrides.entry(sheet).or_default().show_grid_lines = Some(show);
+    }
+
     /// Returns current review notes and hyperlinks with the loaded review metadata.
     pub fn sheet_review(&self, sheet: SheetId) -> calc_doc::SheetReview {
         let mut review = self

@@ -333,6 +333,7 @@ pub struct WorksheetGeometry {
     pub frozen_rows: u32,
     pub frozen_columns: u32,
     pub zoom: u16,
+    pub show_grid_lines: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -643,6 +644,7 @@ pub enum Operation {
     Revert(EntryId),
     Calculate { scope: SourceRef },
     CancelCalculation,
+    ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
 }
 

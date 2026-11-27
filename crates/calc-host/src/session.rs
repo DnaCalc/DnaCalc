@@ -486,6 +486,13 @@ impl fmt::Debug for HostSession {
 }
 
 impl HostSession {
+    /// Toggles the native worksheet view's gridlines without editing the authored model.
+    pub fn toggle_gridlines(&mut self, sheet: SheetId) -> Result<(), IntentError> {
+        let view = self.host.sheet_view(sheet).ok_or(IntentError::UnknownSheet(sheet))?;
+        self.host.set_sheet_grid_lines(sheet, !view.show_grid_lines.unwrap_or(true));
+        Ok(())
+    }
+
     /// Replaces callable registrations and notifies affected projection subscribers.
     pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
         self.host.set_user_functions(functions);

@@ -742,6 +742,24 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             ),
         ],
     },
+    Case {
+        name: "Classic View Gridlines toggles the worksheet gridlines without editing cells",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}wvg"),
+            Action::Wait(Check::Js(
+                "worksheet cell borders are transparent when gridlines are off",
+                "getComputedStyle(document.querySelector('[data-cell=A1]')).borderRightColor === 'rgba(0, 0, 0, 0)'",
+            )),
+            Action::Keys("grid", "\u{e03a}wvg"),
+        ],
+        checks: &[
+            Check::Js(
+                "gridlines returned and the workbook model stamp stayed unchanged",
+                "getComputedStyle(document.querySelector('[data-cell=A1]')).borderRightColor !== 'rgba(0, 0, 0, 0)' && __dnaProbe().stamp.model === 0",
+            ),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -860,6 +878,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic-key-tip-focus",
         start: 37,
+        end: 38,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-gridlines",
+        start: 38,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],
