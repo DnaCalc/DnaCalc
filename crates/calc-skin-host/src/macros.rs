@@ -1,8 +1,8 @@
 use crate::{Connection, State, invalid};
-use calc_host::portability::HostKind;
+use calc_host::portability::{HostKind, Need};
 use calc_host_vba::{Outcome, ProjectGrant, WorkbookEvents};
 use calc_skin::{
-    MacroDenial, MacroReview, MacroRun, MacroSecurity, Origin, Refusal, SelectionCause, Stamp,
+    Capability, MacroDenial, MacroReview, MacroRun, MacroSecurity, Origin, Refusal, SelectionCause, Stamp,
 };
 use std::rc::Rc;
 
@@ -182,7 +182,16 @@ impl Connection {
             state.macros.project = Some(project.clone());
             project
         };
-        let result = project.run_procedure(&mut state.session, &approval.procedure, &[]);
+        let (result, view_requests) = state.session.with_macro_history(
+            format!("{}:{id}", self.id),
+            &approval.procedure,
+            |session| project.run_procedure_with_views(session, &approval.procedure),
+        );
+        {
+            let mut local = self.local.borrow_mut();
+            local.macro_ended = true;
+            local.macro_views.extend(view_requests);
+        }
         // An output needs a carrier that can display and deliver the file. No export is
         // delivered by the skin carrier as a side effect of confirming a macro review.
         let outputs = project.take_output_files();
@@ -209,10 +218,17 @@ impl Connection {
                 owner,
                 what: member,
             }),
-            Outcome::NotAvailableHere { member, capability } => Some(crate::unavailable(
-                "dc-6gb1m",
-                &format!("{member} with {}", capability.key()),
-            )),
+            Outcome::NotAvailableHere { capability, route, .. } => Some(Refusal::NotAvailableHere {
+                capability: match capability {
+                    Need::Dll | Need::Dylib | Need::Xll => Capability::NativeAddins,
+                    Need::OsCom => Capability::ComRtd,
+                    Need::FileDialog => Capability::NativeFileDialogs,
+                    Need::Clipboard => Capability::ExcelClipboardFormats,
+                    Need::Print => Capability::Printing,
+                    _ => Capability::Vba,
+                },
+                route: route.map(str::to_owned),
+            }),
             Outcome::NotCallable(reason) | Outcome::Failed(reason) => Some(invalid(reason)),
         };
         Ok(MacroRun {

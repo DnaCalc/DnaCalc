@@ -601,6 +601,13 @@ pub enum ModelChange {
     SetOutlineBorder {
         selected: Area,
     },
+    ClearBorders {
+        selected: Area,
+    },
+    SetSideBorder {
+        selected: Area,
+        side: BorderSide,
+    },
     /// Refresh the workbook cache used by the PivotTable at this cell.
     RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.
@@ -685,6 +692,19 @@ pub enum PasteArithmetic {
     Subtract,
     Multiply,
     Divide,
+}
+
+/// A side of a rectangular worksheet selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BorderSide {
+    Left,
+    Top,
+    Bottom,
+    Right,
+}
+
+impl BorderSide {
+    pub const ALL: [Self; 4] = [Self::Left, Self::Top, Self::Bottom, Self::Right];
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1019,6 +1039,7 @@ pub enum Operation {
     Revert(EntryId),
     SetMacroSecurity(crate::MacroSecurity),
     RunMacro { approval: u64 },
+    RestoreCheckpoint { workbook: WorkbookId, entry: EntryId },
     /// Stage model changes from an agent without changing the workbook.
     Propose(Proposal),
     /// Resolve exactly these pending units as an operator.
@@ -1061,6 +1082,7 @@ pub enum Event {
         cause: SelectionCause,
     },
     History(HistoryEntry),
+    MacroView(crate::ViewRequest),
     TryOn(LookOffer),
 }
 

@@ -191,6 +191,8 @@ fn headless_dialogs_use_explicit_answers_and_record_each_call() {
     ]);
     assert_eq!(code, 0, "{text}");
     assert_eq!(report["result"]["value"], "6/Alice");
+    assert_eq!(report["invocation"]["allowed"], 2);
+    assert_eq!(report["invocation"]["denials"], serde_json::json!([]));
     let dialogs = report["invocation"]["dialogs"].as_array().unwrap();
     assert_eq!(dialogs.len(), 2);
     assert_eq!(dialogs[0]["member"], "MsgBox");

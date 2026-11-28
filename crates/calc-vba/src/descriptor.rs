@@ -322,6 +322,10 @@ impl DescriptorTypeLibResolver {
     /// enumerations whose members this library exposes. A variable declared `As XlCalculation`
     /// holds a Long.
     fn enum_type_names(descriptor: &Descriptor, library: &str) -> Vec<String> {
+        let enums = descriptor.enumerations(library);
+        if !enums.is_empty() {
+            return enums.iter().map(|enumeration| enumeration.name.clone()).collect();
+        }
         let mut names = std::collections::BTreeSet::new();
         for (id, _) in descriptor.types() {
             let owner_matches = descriptor.library(id).name.eq_ignore_ascii_case(library);
@@ -422,13 +426,7 @@ impl DescriptorTypeLibResolver {
         };
         let Some(requested) = request.requested_coclass.as_deref() else {
             return Some(TypeLibMetadataBlob {
-                constants: if is_excel {
-                    excel_constants()
-                } else if library.eq_ignore_ascii_case("MSForms") {
-                    msforms_constants()
-                } else {
-                    office_constants()
-                },
+                constants: library_constants(descriptor, library),
                 identity: Self::library_identity(descriptor, library, &request.reference_name, None),
                 activation_prog_id: None,
                 member_name_to_token: vec![],
@@ -1520,6 +1518,29 @@ const OFFICE_CONSTANT_ONLY_ENUMS: &[&str] = &[
     "MsoTriState",
 ];
 
+fn library_constants(descriptor: &Descriptor, library: &str) -> Vec<TypeLibConstantMetadata> {
+    let enums = descriptor.enumerations(library);
+    if !enums.is_empty() {
+        return enums.iter()
+            .flat_map(|enumeration| &enumeration.members)
+            .map(|member| TypeLibConstantMetadata {
+                owner: library.into(),
+                name: member.name.clone(),
+                value: ComDefaultValue::Int(member.value),
+            })
+            .collect();
+    }
+
+    // Compatibility for the checked-in libraries which predate enum export (dc-md2j3).
+    if library.eq_ignore_ascii_case("Excel") {
+        excel_constants()
+    } else if library.eq_ignore_ascii_case("MSForms") {
+        msforms_constants()
+    } else {
+        office_constants()
+    }
+}
+
 fn excel_constants() -> Vec<TypeLibConstantMetadata> {
     XL_CV_ERROR
         .iter()
@@ -1558,6 +1579,33 @@ fn office_constants() -> Vec<TypeLibConstantMetadata> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn exported_constants_and_enum_types_come_from_their_library() {
+        let excel = r#"{
+            "library":{"name":"Excel","guid":"","version":"1.9"},
+            "types":[],
+            "enums":[{"name":"XlProbe","members":[{"name":"xlProbe","value":-4162}]}]
+        }"#;
+        let office = r#"{
+            "library":{"name":"Office","guid":"","version":"2.8"},
+            "types":[],
+            "enums":[{"name":"MsoProbe","members":[{"name":"msoProbe","value":0}]}]
+        }"#;
+        let descriptor = Descriptor::from_files(&[excel, office]).unwrap();
+        for (library, enum_name, name, expected) in [
+            ("Excel", "XlProbe", "xlProbe", -4162),
+            ("Office", "MsoProbe", "msoProbe", 0),
+        ] {
+            assert_eq!(DescriptorTypeLibResolver::enum_type_names(&descriptor, library), [enum_name]);
+            let constants = library_constants(&descriptor, library);
+            assert_eq!(constants.len(), 1);
+            assert_eq!(constants[0].owner, library);
+            assert_eq!(constants[0].name, name);
+            assert!(matches!(constants[0].value, ComDefaultValue::Int(value) if value == expected));
+        }
+    }
 
     /// dc-y7tqj (rw12 finding 22d): `enum_type_names` must be scoped per library (no Office/Mso
     /// leaks into Excel, no Excel/Xl leaks into Office, no dotted `Office.*` names) and include

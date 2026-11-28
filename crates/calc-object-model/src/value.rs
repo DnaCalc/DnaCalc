@@ -37,21 +37,56 @@ pub enum AutoValue {
     /// A foreign object passed in by a client (an add-in's own IDispatch): the projection keeps
     /// it alive under this handle and the core passes it through unchanged.
     Foreign(u64),
-    /// VT_ARRAY | VT_VARIANT, two-dimensional, 1-based as Excel's Range.Value returns.
+    /// VT_ARRAY | VT_VARIANT, with the Automation rank and lower bounds.
     Array(Box<AutoArray>),
 }
 
-/// A rectangular array of values in row-major order.
+/// The dimensions in logical (VBA subscript) order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AutoArrayShape {
+    /// A vector such as Series.Values.
+    Vector {
+        /// Lower bound of the only dimension.
+        lower: i32,
+    },
+    /// A worksheet-shaped array such as Range.Value.
+    Matrix {
+        /// Number of rows.
+        rows: u32,
+        /// Number of columns.
+        columns: u32,
+        /// Lower bounds of the row and column dimensions.
+        lower: (i32, i32),
+    },
+}
+
+/// An array of Automation values. Matrices store their elements in row-major order.
 #[derive(Clone, Debug)]
 pub struct AutoArray {
-    /// Number of rows.
-    pub rows: u32,
-    /// Number of columns.
-    pub columns: u32,
-    /// Lower bounds of the two dimensions (Range.Value uses 1, 1).
-    pub lower: (i32, i32),
-    /// Elements in row-major order, with columns varying fastest.
+    /// Rank and bounds.
+    pub shape: AutoArrayShape,
+    /// Elements, with columns varying fastest in a matrix.
     pub values: Vec<AutoValue>,
+}
+
+impl AutoArray {
+    /// Construct a one-dimensional array with the supplied lower bound.
+    pub fn vector(lower: i32, values: Vec<AutoValue>) -> Self {
+        Self { shape: AutoArrayShape::Vector { lower }, values }
+    }
+
+    /// Construct a two-dimensional array with the supplied row and column bounds.
+    pub fn matrix(rows: u32, columns: u32, lower: (i32, i32), values: Vec<AutoValue>) -> Self {
+        Self { shape: AutoArrayShape::Matrix { rows, columns, lower }, values }
+    }
+
+    /// Shape for consumers that need a grid. A vector provides one row in that grid.
+    pub fn grid_size(&self) -> (u32, u32) {
+        match self.shape {
+            AutoArrayShape::Vector { .. } => (1, self.values.len() as u32),
+            AutoArrayShape::Matrix { rows, columns, .. } => (rows, columns),
+        }
+    }
 }
 
 impl AutoValue {

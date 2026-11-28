@@ -16,6 +16,27 @@ pub struct LibraryFile {
     pub library: LibraryInfo,
     /// Types extracted from the library in descriptor order.
     pub types: Vec<TypeInfo>,
+    /// Enumerations and constants in their type-library order.
+    #[serde(default)]
+    pub enums: Vec<Enumeration>,
+}
+
+/// One enumeration from the type library.
+#[derive(Clone, Debug, Deserialize)]
+pub struct Enumeration {
+    /// The name used in a type declaration.
+    pub name: String,
+    /// Every constant declared in the enumeration, including aliases.
+    pub members: Vec<EnumMember>,
+}
+
+/// A named enumeration constant and its integer value.
+#[derive(Clone, Debug, Deserialize)]
+pub struct EnumMember {
+    /// The member name.
+    pub name: String,
+    /// The exact integer supplied by the type library.
+    pub value: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -467,6 +488,7 @@ pub struct InterfaceId(
 pub struct Descriptor {
     /// Originating libraries in the order supplied to the descriptor.
     pub libraries: Vec<LibraryInfo>,
+    enums: Vec<Vec<Enumeration>>,
     types: Vec<TypeInfo>,
     library_of: Vec<usize>,
     by_name: HashMap<String, InterfaceId>,
@@ -533,6 +555,7 @@ impl Descriptor {
     pub fn from_files(files: &[&str]) -> Result<Descriptor, String> {
         let mut descriptor = Descriptor {
             libraries: Vec::new(),
+            enums: Vec::new(),
             types: Vec::new(),
             library_of: Vec::new(),
             by_name: HashMap::new(),
@@ -547,6 +570,7 @@ impl Descriptor {
             let file: LibraryFile = serde_json::from_str(text).map_err(|why| why.to_string())?;
             let library = descriptor.libraries.len();
             descriptor.libraries.push(file.library);
+            descriptor.enums.push(file.enums);
             for ty in file.types {
                 let id = InterfaceId(descriptor.types.len() as u32);
                 if let Some(guid) = Guid::parse(&ty.guid) {
@@ -562,6 +586,14 @@ impl Descriptor {
             }
         }
         Ok(descriptor)
+    }
+
+    /// Enumerations declared by the named library, in descriptor order.
+    pub fn enumerations(&self, library: &str) -> &[Enumeration] {
+        self.libraries.iter()
+            .zip(&self.enums)
+            .find(|(info, _)| info.name.eq_ignore_ascii_case(library))
+            .map_or(&[], |(_, enums)| enums.as_slice())
     }
 
     fn load_overlay<T: DeserializeOwned>(

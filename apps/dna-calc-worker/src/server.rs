@@ -2796,8 +2796,8 @@ impl Server {
                 plot,
                 series,
                 name,
-                categories,
-                values,
+                categories: categories.map(Into::into),
+                values: values.map(Into::into),
                 remove,
             }),
             Intent::ChartProperties {

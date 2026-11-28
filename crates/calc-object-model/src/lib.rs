@@ -46,4 +46,4 @@ pub use descriptor::{Descriptor, Guid, InterfaceId, InvokeKind, Member, Param, P
 pub use events::EventSource;
 pub use model::{AutoError, Call, Handler, Handlers, ObjectModel};
 pub use object::{ObjectKey, ObjectRef, Paint, PaintLevel, ReportItem};
-pub use value::{AutoArray, AutoValue};
+pub use value::{AutoArray, AutoArrayShape, AutoValue};

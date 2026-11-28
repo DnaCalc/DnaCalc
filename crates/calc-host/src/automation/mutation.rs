@@ -397,15 +397,16 @@ impl WorkbookAutomation {
             ));
         }
         let multi_area = areas.len() > 1;
-        let broadcast = multi_area && array.is_some_and(|a| a.rows == 1 && a.columns == 1);
+        let broadcast = multi_area && array.is_some_and(|a| a.grid_size() == (1, 1));
         if let Some(a) = array {
+            let (rows, columns) = a.grid_size();
             // E11 broadcasts 1×1 or repeats a conforming array across equal-sized areas.
             let shape = if broadcast {
                 (areas[0].row_count(), areas[0].column_count())
             } else {
-                (a.rows, a.columns)
+                (rows, columns)
             };
-            if u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64
+            if u64::from(rows) * u64::from(columns) != a.values.len() as u64
                 || areas
                     .iter()
                     .any(|area| (area.row_count(), area.column_count()) != shape)

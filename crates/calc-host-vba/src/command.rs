@@ -23,8 +23,7 @@ pub enum InvocationKind {
 /// One request the execution policy denied during an invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Denial {
-    /// `files`, `com-activate`, ... for the VBA library layer; the descriptor capability key for an
-    /// object-model member.
+    /// The shared dotted capability key.
     pub capability: String,
     /// The detail the request named (a path, a ProgID) or the descriptor member (`_Application.Run`).
     pub subject: String,
@@ -43,8 +42,8 @@ pub enum Outcome {
     /// A host member the run needed is not modelled. `member` is the descriptor member as the
     /// refusal names it; `owner` is the work package that owns it.
     Refused { member: String, owner: String, reason: String },
-    /// A headless invocation reached a dialog for which it had no answer.
-    NotAvailableHere { member: &'static str, capability: Need },
+    /// A call needed a facility this invocation could not use.
+    NotAvailableHere { member: String, capability: Need, route: Option<&'static str> },
     /// The run exceeded its step budget or the backend failed.
     Failed(String),
 }
@@ -127,6 +126,17 @@ impl WorkbookEvents {
         self.run_procedure_inner(session, request, arguments, None)
     }
 
+    /// Let an interactive carrier receive any presentation requests emitted by the procedure.
+    pub fn run_procedure_with_views(
+        self: &Rc<Self>,
+        session: &mut HostSession,
+        request: &str,
+    ) -> (InvocationRecord, Vec<calc_host::ViewRequest>) {
+        self.application.view_requests.replace(Some(Vec::new()));
+        let result = self.run_procedure(session, request, &[]);
+        (result, self.application.view_requests.take().unwrap_or_default())
+    }
+
     /// Run a command with explicit answers, recording even unanswered dialogs caught in VBA.
     pub fn run_procedure_with_dialog_answers(
         self: &Rc<Self>,
@@ -178,7 +188,7 @@ impl WorkbookEvents {
                     .iter()
                     .filter(|r| r.decision == calc_vba::policy::Decision::Denied)
                     .map(|r| Denial {
-                        capability: format!("{:?}", r.capability),
+                        capability: r.capability.name().to_owned(),
                         subject: r.detail.clone(),
                         layer: "vba-host",
                     })
@@ -204,6 +214,13 @@ impl WorkbookEvents {
                         let (member, owner) = split_refusal(&reason);
                         Outcome::Refused { member, owner, reason }
                     }
+                    Err(ProcedureError::NotAvailableHere { facility, member }) => {
+                        Outcome::NotAvailableHere {
+                            member,
+                            capability: facility.capability,
+                            route: facility.route,
+                        }
+                    }
                     Err(ProcedureError::Budget) => {
                         Outcome::Failed("the step budget was exhausted".into())
                     }
@@ -211,8 +228,9 @@ impl WorkbookEvents {
                 };
                 let outcome = match dialogs.iter().find(|dialog| dialog.answer.is_none()) {
                     Some(dialog) => Outcome::NotAvailableHere {
-                        member: dialog.member,
+                        member: dialog.member.to_owned(),
                         capability: Need::Dialog,
+                        route: None,
                     },
                     None => outcome,
                 };
@@ -293,7 +311,8 @@ impl WorkbookEvents {
         name: &str,
         arguments: &[calc_object_model::AutoValue],
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
-        use calc_object_model::AutoError;
+        use calc_host::{ViewId, ViewRequest};
+        use calc_object_model::{AutoError, AutoValue};
 
         let verb = name.trim();
         if verb.eq_ignore_ascii_case("DnaCalc.View.Select") || verb.eq_ignore_ascii_case("DnaCalc.Select") {
@@ -302,6 +321,31 @@ impl WorkbookEvents {
             };
             let address = address.as_text().ok_or_else(|| AutoError::excel(13, "Type mismatch"))?;
             return self.automation.select_view_range(&address);
+        }
+        let view = verb.eq_ignore_ascii_case("DnaCalc.View.Switch") || verb.eq_ignore_ascii_case("DnaCalc.View");
+        let panel = verb.eq_ignore_ascii_case("DnaCalc.View.ShowPanel") || verb.eq_ignore_ascii_case("DnaCalc.Panel");
+        if view || panel {
+            let mut requests = self.application.view_requests.borrow_mut();
+            let requests = requests.as_mut().ok_or_else(|| cannot_run(name))?;
+            let text = |value: &AutoValue| value.as_text().ok_or_else(|| AutoError::excel(13, "Type mismatch"));
+            let request = if view {
+                let (view, sheet) = match arguments {
+                    [view] => (text(view)?, None),
+                    [view, sheet] => (text(view)?, Some(text(sheet)?)),
+                    _ => return Err(AutoError::excel(450, "Wrong number of arguments")),
+                };
+                ViewRequest::Switch { view: ViewId(view.trim().to_ascii_lowercase()), sheet }
+            } else {
+                let [panel, shown] = arguments else {
+                    return Err(AutoError::excel(450, "Wrong number of arguments"));
+                };
+                let AutoValue::Bool(shown) = shown else {
+                    return Err(AutoError::excel(13, "Type mismatch"));
+                };
+                ViewRequest::ShowPanel { panel: text(panel)?.trim().to_ascii_lowercase(), shown: *shown }
+            };
+            requests.push(request);
+            return Ok(AutoValue::Bool(true));
         }
         let request = match name.rsplit_once('!') {
             Some((book, request)) => {
@@ -383,6 +427,13 @@ impl WorkbookEvents {
             Err(ProcedureError::Refused(reason)) => {
                 let (member, owner) = split_refusal(&reason);
                 Err(AutoError::not_modelled(member, interned(owner)))
+            }
+            Err(ProcedureError::NotAvailableHere { facility, member }) => {
+                Err(AutoError::NotAvailableHere {
+                    subject: member,
+                    capability: facility.capability,
+                    route: facility.route,
+                })
             }
             Err(ProcedureError::Arguments) => Err(AutoError::excel(
                 1004,

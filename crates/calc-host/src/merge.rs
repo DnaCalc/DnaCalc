@@ -39,7 +39,7 @@ fn finish(sheet: calc_value::SheetId, mut merges: Vec<GridArea>) -> CellEdit {
 }
 
 /// Merge each area into one cell holding the upper-left value; with `across`, each row of an
-/// area separately. A merged area meeting a new one is unmerged first.
+/// area separately. An ordinary single-area merge absorbs existing merges that intersect it.
 pub(crate) fn prepare_merge(
     host: &HostState,
     areas: &[GridArea],
@@ -59,6 +59,23 @@ pub(crate) fn prepare_merge(
     if rects.is_empty() {
         return Ok(Vec::new());
     }
+    let mut merges = host.merged_areas(sheet);
+    if !across && let [rect] = rects.as_mut_slice() {
+        // Excel expands an overlapping merge to include the existing rectangle (ww23).
+        // Each expansion can reach another merge, so continue until the rectangle is closed.
+        while let Some(index) = merges.iter().position(|existing| meets(*existing, *rect)) {
+            let existing = merges.swap_remove(index);
+            *rect = area(
+                sheet,
+                rect.first().row().min(existing.first().row()),
+                rect.first().column().min(existing.first().column()),
+                rect.last().row().max(existing.last().row()),
+                rect.last().column().max(existing.last().column()),
+            );
+        }
+    } else {
+        merges.retain(|existing| !rects.iter().any(|rect| meets(*existing, *rect)));
+    }
     let definitions = host.model().definitions();
     for rect in &rects {
         if definitions.arrays_meeting(*rect).next().is_some() {
@@ -72,8 +89,6 @@ pub(crate) fn prepare_merge(
             return Err("Cannot merge cells of a table".into());
         }
     }
-    let mut merges = host.merged_areas(sheet);
-    merges.retain(|m| !rects.iter().any(|r| meets(*m, *r)));
     let mut edits = Vec::new();
     for rect in &rects {
         let (t, l, b, r) = (rect.first().row(), rect.first().column(), rect.last().row(), rect.last().column());

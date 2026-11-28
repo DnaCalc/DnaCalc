@@ -13,27 +13,27 @@ portability = "portable"
 scoped-tls-hkt = "0.1.5"
 serde_json = "=1.0.154"
 thiserror = "2"
-calcvba-oxir = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-eval = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-bundle = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-symbol = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-syntax = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-hal = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-com = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-runtime = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-office = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd", default-features = false }
-calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
+calcvba-oxir = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-eval = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-bundle = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-symbol = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-syntax = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-hal = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-com = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-runtime = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-office = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284", default-features = false }
+calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
 calc-fml = { path = "../calc-fml" }
 calc-func = { path = "../calc-func" }
 calc-object-model = { path = "../calc-object-model" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd", default-features = false }
+calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-calcvba-bind = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-engine = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd" }
-calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "7a81159e632c72518b0d26dc1e9c28186ba54bbd", default-features = false, features = ["jit"] }
+calcvba-bind = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-engine = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284" }
+calcvba-host = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "aa44c07ba2db475fc48b581c607914341e2fb284", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

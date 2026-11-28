@@ -1,14 +1,13 @@
 //! `Range.End(Direction)` (dc-oxh8w.47): the Ctrl+arrow rules over the occupied cells (inputs, formulas, arrays,
-//! spills). Inside a block the result is the block's last cell in the direction; at a block's edge, or from an
-//! empty cell, it is the next occupied cell, else the sheet's edge. A multi-cell or multi-area range refuses.
+//! spills). A multi-cell or multi-area range starts at the top-left cell of its first area (Excel ww21).
+//! Inside a block the result is its last cell in the direction. From an edge or an empty cell it is the next
+//! occupied cell, or the sheet's edge when there is no occupied cell in that direction.
 use super::*;
 
 const XL_DOWN: i64 = -4121;
 const XL_UP: i64 = -4162;
 const XL_TO_LEFT: i64 = -4159;
 const XL_TO_RIGHT: i64 = -4161;
-/// Excel answers for a multi-cell range are not recorded (dc-oxh8w.74).
-const OWNER: &str = "dc-oxh8w.74";
 
 /// Where Ctrl+arrow lands along one line: `runs` are the occupied spans (start, end), `at` the start position,
 /// `forward` the direction, `limit` the last position (or 1 going backwards).
@@ -50,11 +49,8 @@ impl WorkbookAutomation {
         }
         let mut landed: Option<CellKey> = None;
         self.with_range(target, |access, _, range, _| {
-            if range.area_count() != 1 || range.areas()[0].cell_count() != 1 {
-                return Err(AutoError::not_modelled("Range.End of a multi-cell range", OWNER));
-            }
             let Access::Session(session, _) = access else {
-                return Err(AutoError::not_modelled("Range.End inside a worksheet invocation", OWNER));
+                return Err(AutoError::not_modelled("Range.End inside a worksheet invocation", "dc-1nbp.6"));
             };
             let start = range.areas()[0].first();
             let sheet = start.sheet();

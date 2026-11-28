@@ -63,6 +63,79 @@ pub(crate) enum Inverse {
         axis_edits: Vec<AxisEdit>,
         source: Option<calc_doc::LoadedWorkbook>,
     },
+    MacroCheckpoint(MacroCheckpoint),
+}
+
+/// The authored workbook and application settings before one imperative macro.
+#[derive(Clone, Debug)]
+pub(crate) struct MacroCheckpoint {
+    pub(crate) model: Arc<ModelRoot>,
+    pub(crate) axis_edits: Vec<AxisEdit>,
+    pub(crate) calc_mode: Option<calc_doc::CalcMode>,
+    pub(crate) enable_events: bool,
+    pub(crate) screen_updating: bool,
+}
+
+/// A macro records its writes without consuming ordinary undo slots as it runs.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MacroWrites {
+    cells: BTreeSet<CellKey>,
+    ranges: Vec<GridArea>,
+    structure: bool,
+}
+
+impl MacroWrites {
+    fn record(&mut self, edits: &[CellEdit]) {
+        for edit in edits {
+            let area = match edit {
+                CellEdit::Set { at, .. } | CellEdit::SetFormat { at, .. } => GridArea::cell(*at),
+                CellEdit::Clear { area } => *area,
+                CellEdit::SetArray { array, .. } => array.area(),
+                _ => {
+                    self.structure = true;
+                    continue;
+                }
+            };
+            if area.cell_count() == 1 {
+                let key = area.first();
+                if !self.ranges.iter().any(|range| range.contains(key)) {
+                    self.cells.insert(key);
+                }
+                continue;
+            }
+            let mut uncovered = vec![area];
+            for range in &self.ranges {
+                uncovered = uncovered.into_iter().flat_map(|piece| piece.subtract(*range)).collect();
+                if uncovered.is_empty() {
+                    break;
+                }
+            }
+            if !uncovered.is_empty() {
+                self.cells.retain(|key| !area.contains(*key));
+                self.ranges.extend(uncovered);
+            }
+        }
+    }
+
+    pub(crate) fn finish(self) -> (u64, Vec<calc_skin::Target>) {
+        use calc_skin::{SourceRef, Target, grid::{Area, Sheet}};
+
+        let count = self.cells.len() as u64 + self.ranges.iter().map(|range| range.cell_count()).sum::<u64>();
+        let mut sheets: BTreeMap<Sheet, Vec<Area>> = BTreeMap::new();
+        for area in self.ranges.into_iter().chain(self.cells.into_iter().map(GridArea::cell)) {
+            let entries = sheets.entry(Sheet::of(area.sheet())).or_default();
+            if entries.len() <= 32 {
+                entries.push(Area::of(area));
+            }
+        }
+        let mut targets: Vec<_> = sheets.into_iter().map(|(sheet, areas)| {
+            Target::Source(if areas.len() > 32 { SourceRef::Sheet(sheet) } else { SourceRef::Cells { sheet, areas } })
+        }).collect();
+        if self.structure || targets.is_empty() {
+            targets.push(Target::Source(SourceRef::Workbook));
+        }
+        (count, targets)
+    }
 }
 
 /// One undo step: a committed edit, the edits that undo it, and the selection before and after.
@@ -461,6 +534,7 @@ pub(crate) struct History {
     redo: Vec<Step>,
     limit: usize,
     next_skin_id: u64,
+    macro_writes: Option<MacroWrites>,
 }
 
 impl History {
@@ -470,12 +544,29 @@ impl History {
             redo: Vec::new(),
             limit,
             next_skin_id: 1,
+            macro_writes: None,
         }
+    }
+
+    pub(crate) fn begin_macro(&mut self) -> bool {
+        if self.macro_writes.is_some() {
+            return false;
+        }
+        self.macro_writes = Some(MacroWrites::default());
+        true
+    }
+
+    pub(crate) fn end_macro(&mut self) -> MacroWrites {
+        self.macro_writes.take().expect("the macro history scope began")
     }
 
     /// Records a committed edit: it becomes the step an undo takes back, the oldest step is
     /// dropped beyond the limit, and nothing is left to redo.
     pub(crate) fn record(&mut self, mut step: Step) {
+        if let Some(writes) = &mut self.macro_writes {
+            writes.record(&step.forward);
+            return;
+        }
         if let Some(entry) = &mut step.skin {
             entry.id = calc_skin::EntryId(self.next_skin_id);
             self.next_skin_id = self.next_skin_id.checked_add(1).expect("history identity exhausted");
@@ -523,6 +614,10 @@ impl History {
     pub(crate) fn skin_entry_for_restore(&self, redo: bool) -> Option<&calc_skin::HistoryEntry> {
         let steps = if redo { &self.redo } else { &self.undo };
         steps.last()?.skin.as_ref()
+    }
+
+    pub(crate) fn macro_running(&self) -> bool {
+        self.macro_writes.is_some()
     }
 
     pub(crate) fn undo_depth(&self) -> usize {

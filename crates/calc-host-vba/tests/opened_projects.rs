@@ -2556,6 +2556,47 @@ End Sub
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11_1_chart_series_arrays_have_one_dimension() {
+    let sheet_source = r#"
+Private Sub Worksheet_Change(ByVal Target As Excel.Range)
+ If Target.Column <> 1 Or Target.Row <> 1 Then Exit Sub
+ Dim co As Excel.ChartObject
+ Set co = Me.ChartObjects.Add(10, 80, 200, 120)
+ co.Chart.SetSourceData Me.Range("A3:B5"), xlColumns
+ Dim s As Excel.Series
+ Set s = co.Chart.SeriesCollection(1)
+ Dim y As Variant, x As Variant, second As Long
+ y = s.Values
+ x = s.XValues
+ History = CStr(LBound(y)) & ":" & CStr(UBound(y)) & ":" & CStr(LBound(x)) & ":" & CStr(UBound(x))
+ On Error Resume Next
+ second = UBound(y, 2)
+ History = History & ":" & CStr(Err.Number)
+ Err.Clear
+ On Error GoTo 0
+ History = History & ":" & CStr(y(1)) & ":" & CStr(y(2)) & ":" & CStr(x(1)) & ":" & CStr(x(2))
+End Sub
+"#;
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "series-arrays.xlsm");
+        for (row, left, right) in [(3, "Item", "Amount"), (4, "Alpha", "10"), (5, "Beta", "25")] {
+            enter(&mut session, row, 1, left);
+            enter(&mut session, row, 2, right);
+        }
+        let project = mutable_owner(&mut session, sheet_source, OWNER_STATE, 50_000, backend);
+        enter(&mut session, 1, 1, "go");
+        let trace = project.functions().call("Trace", &[]).unwrap();
+        assert_eq!(
+            trace.as_text().unwrap().to_string_lossy(),
+            "1:2:1:2:9:10:25:Alpha:Beta",
+            "{backend:?}: {:?}",
+            session.workbook_event_failures()
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_2_vba_formats_a_report_total_through_the_descriptor() {
     let sheet_source = r#"
 Private Sub Worksheet_Change(ByVal Target As Excel.Range)

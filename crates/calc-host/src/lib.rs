@@ -143,8 +143,9 @@ pub use model_clock::{ClockBalance, ModelClock, ModelClockTick};
 pub use facts::alignment as style_alignment;
 pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
 pub use format::{
-    BorderPatch, FillColor, FormatPatch, InteriorPatch, border_for_style, format_regions,
-    format_samples, patched_style, prepare_all_borders, prepare_outline_border,
+    BorderPatch, FillColor, FormatPatch, InteriorPatch, border_affected_areas, border_for_style,
+    format_regions, format_samples, patched_style, prepare_all_borders, prepare_no_borders,
+    prepare_outline_border, prepare_side_border,
 };
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use calc_engine::DependencySpelling;
@@ -164,7 +165,7 @@ mod flash_fill;
 mod paste;
 pub mod search;
 pub use actions::{
-    ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
+    ChartSeriesSource, ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
     prepare_column_visibility, prepare_row_visibility, prepare_sort_rows, stored_axis_size,
 };
 pub use paste::{
@@ -250,6 +251,7 @@ pub use calc_engine::{
     ValueDelta, WorkBudget, resolve_reference_text,
 };
 pub use calc_engine::FormulaResult;
+pub use calc_skin::{ViewId, ViewRequest};
 pub use calc_fml::reference::CellRun;
 pub use calc_fml::{
     CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdConnection, RtdConnector,

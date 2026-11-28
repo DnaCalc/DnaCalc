@@ -549,17 +549,17 @@ fn worksheet_functions_share_the_catalogue_for_scalars_arrays_and_dotted_names()
         panic!("WorksheetFunction");
     };
     let array = || {
-        AutoValue::Array(Box::new(calc_object_model::AutoArray {
-            rows: 2,
-            columns: 2,
-            lower: (1, 1),
-            values: vec![
+        AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(
+            2,
+            2,
+            (1, 1),
+            vec![
                 AutoValue::R8(1.),
                 AutoValue::R8(2.),
                 AutoValue::Bool(true),
                 AutoValue::text("ignored"),
             ],
-        }))
+        )))
     };
     assert!(matches!(
         invoke(
@@ -594,8 +594,12 @@ fn worksheet_functions_share_the_catalogue_for_scalars_arrays_and_dotted_names()
         panic!("array");
     };
     assert_eq!(
-        (transposed.rows, transposed.columns, transposed.lower),
-        (2, 2, (1, 1))
+        transposed.shape,
+        calc_object_model::AutoArrayShape::Matrix {
+            rows: 2,
+            columns: 2,
+            lower: (1, 1),
+        }
     );
     assert!(matches!(transposed.values[1], AutoValue::Bool(true)));
     assert!(matches!(transposed.values[2], AutoValue::R8(2.)));
@@ -644,12 +648,12 @@ fn worksheet_function_errors_are_1004_with_explicitly_unmeasured_e7_description(
         InvokeKind::Method,
         vec![
             AutoValue::I4(9),
-            AutoValue::Array(Box::new(calc_object_model::AutoArray {
-                rows: 1,
-                columns: 2,
-                lower: (1, 1),
-                values: vec![AutoValue::I4(1), AutoValue::I4(2)],
-            })),
+            AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(
+                1,
+                2,
+                (1, 1),
+                vec![AutoValue::I4(1), AutoValue::I4(2)],
+            ))),
             AutoValue::I4(0),
         ],
     )

@@ -27,6 +27,7 @@ struct Page {
     sent: Rc<RefCell<VecDeque<Packet>>>,
     session: Session,
     sheet: Sheet,
+    registry: Registry,
     _owner: Owner,
 }
 
@@ -71,6 +72,7 @@ impl Page {
             sent,
             session,
             sheet,
+            registry,
             _owner: owner,
         };
         page.settle();
@@ -250,6 +252,113 @@ fn macro_run_reports_a_denial_handled_by_vba() {
     assert!(run.error.is_none());
     assert_eq!(run.denials.len(), 1);
     assert_eq!(page.shown(page.at(1, 1)), "70");
+}
+
+/// Native-only: checks the host's workbook checkpoint through the macro and history carrier.
+#[test]
+fn a_faulted_macro_has_one_checkpoint_for_its_writes_and_application_settings() {
+    use calc_skin::{MacroSecurity, Operation, Refusal, Reversibility, WorkbookPort};
+
+    let page = macro_page(r#"Public Sub Fill()
+ Static runs As Long
+ runs = runs + 1
+ Range("A1").Value2 = runs
+ Range("B1").Value2 = runs * 10
+ Application.Calculation = -4135
+ Application.EnableEvents = False
+ Err.Raise 2705, "Checkpoint probe", "Intentional fault"
+End Sub
+"#);
+    let state = || page.host.with_session(SelectionCause::History, |workbook| {
+        (workbook.history_depth(), workbook.calc_mode(), workbook.workbook_events_enabled())
+    });
+    let initial = state();
+    macro_level(&page, MacroSecurity::Guarded);
+    let fault = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert!(matches!(fault.error, Some(Refusal::Excel { reason }) if reason.contains("2705")));
+    assert_eq!(page.shown(page.at(1, 1)), "1");
+    assert_eq!(page.shown(page.at(1, 2)), "10");
+    assert_eq!(state(), ((1, 0), calc_doc::CalcMode::Manual, false));
+
+    let history = page.host.with_session(SelectionCause::History, |workbook| workbook.skin_history());
+    assert_eq!(history.0.len(), 1);
+    let entry = &history.0[0];
+    assert_eq!(entry.cells_touched, 2);
+    assert!(matches!(&entry.origin, Origin::Macro { procedure, .. } if procedure == "Module1.Fill"));
+    assert!(matches!(entry.reversibility, Reversibility::Irreversible { .. }));
+    assert!(matches!(page.port.run(Operation::Undo), Err(Refusal::Irreversible { .. })));
+
+    let start = std::time::Instant::now();
+    page.port.run(Operation::RestoreCheckpoint { workbook: entry.at.workbook, entry: entry.id }).unwrap();
+    page.settle();
+    println!("checkpoint restore and publication took {:?}", start.elapsed());
+    assert_eq!(state(), initial);
+    assert_eq!(page.shown(page.at(1, 1)), "");
+    assert_eq!(page.shown(page.at(1, 2)), "");
+
+    let fault = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert!(fault.error.is_some());
+    assert_eq!(page.shown(page.at(1, 1)), "2");
+    assert_eq!(page.shown(page.at(1, 2)), "20");
+}
+
+/// Native-only: runs the VBA view verbs through the workbook carrier into the installed shell.
+#[test]
+fn macro_view_requests_wait_for_the_cell_draft_and_leave_workbook_history_alone() {
+    let page = macro_page(r#"Public Sub Fill()
+ Application.Run "DnaCalc.View.ShowPanel", "inspector.trace", True
+ Application.Run "DnaCalc.View.Switch", "notebook"
+End Sub
+"#);
+    macro_level(&page, calc_skin::MacroSecurity::Guarded);
+    let approval = macro_review(&page).approval.unwrap();
+    let before = page.session.stamp().unwrap();
+    assert!(page.press("x", Focus::Stage));
+    assert_eq!(page.session.edit().unwrap().text, "x");
+
+    let run = run_macro(&page, approval).unwrap();
+    assert_eq!(run.error, None);
+    assert_eq!(page.session.view().0, "classic");
+    assert_eq!(page.session.edit().unwrap().text, "x");
+    let trace = page.registry.docks().filter_map(|dock| dock.panel)
+        .find(|panel| panel.id == "inspector.trace").unwrap();
+    assert!(!(trace.visible)(page.session));
+
+    page.session.cancel();
+    page.settle();
+    assert_eq!(page.session.view().0, "notebook");
+    assert!((trace.visible)(page.session));
+    assert!(page.press("Alt+ArrowLeft", Focus::Stage));
+    assert_eq!(page.session.view().0, "classic");
+    assert!(page.press("Alt+ArrowLeft", Focus::Stage));
+    assert!(!(trace.visible)(page.session));
+    assert_eq!(page.session.stamp(), Some(before));
+    assert_eq!(page.host.with_session(SelectionCause::History, |book| book.history_depth()), (0, 0));
+}
+
+/// Native-only: verifies the aliases keep the range that VBA selected after requesting a view.
+#[test]
+fn macro_view_switch_on_the_selected_sheet_preserves_the_vba_range() {
+    let page = macro_page(r#"Public Sub Fill()
+ Application.Run "DnaCalc.View", "Notebook", "Cases"
+ Application.Run "DnaCalc.Select", "Cases!B2:C3"
+ Application.Run "DnaCalc.Panel", "inspector.trace", True
+ Application.Run "DnaCalc.Panel", "inspector.trace", False
+End Sub
+"#);
+    macro_level(&page, calc_skin::MacroSecurity::Guarded);
+    let run = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert_eq!(run.error, None);
+    assert_eq!(page.session.view().0, "notebook");
+    assert_eq!(page.session.active(), Some(page.at(2, 2)));
+    let selection = page.session.selection().unwrap();
+    assert!(matches!(selection.target, calc_skin::SourceRef::Cells { areas, .. }
+        if areas == [calc_skin::grid::Area(page.at(2, 2), page.at(3, 3))]));
+    let trace = page.registry.docks().filter_map(|dock| dock.panel)
+        .find(|panel| panel.id == "inspector.trace").unwrap();
+    assert!(!(trace.visible)(page.session));
+    assert!(page.press("Alt+ArrowLeft", Focus::Stage));
+    assert!((trace.visible)(page.session));
 }
 
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
@@ -857,15 +966,158 @@ fn classic_outline_border_keeps_inside_borders_and_undoes_once() {
                 })
         })
     };
+    assert_eq!(edges(1, 2), [false, false, true, false]);
     assert_eq!(edges(2, 2), [true, false, false, true]);
-    assert_eq!(edges(2, 3), [true, false, false, false]);
+    assert_eq!(edges(2, 3), [true, false, true, false]);
     assert_eq!(edges(4, 4), [false, true, true, false]);
     assert_eq!(edges(3, 3), [true; 4]);
     assert_eq!(edges(1, 1), [false; 4]);
     assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(1, 2), [false; 4]);
     assert_eq!(edges(2, 2), [false; 4]);
     assert_eq!(edges(4, 4), [false; 4]);
+    assert_eq!(edges(2, 3), [false, false, true, false]);
     assert_eq!(edges(3, 3), [true; 4]);
+}
+
+/// Native-only: checks the shared edge authored on both cells through the Classic Deck.
+#[test]
+fn classic_home_outside_borders_updates_and_restores_neighbour_edges() {
+    use calc_host::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, FillColor, FormatPatch, WorkbookCommand};
+    use calc_host::value::GridArea;
+
+    let page = Page::open();
+    let old_edge = page.at(1, 2).cell().unwrap();
+    page.host.with_session(SelectionCause::History, |book| {
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::cell(old_edge)],
+            patch: FormatPatch {
+                edges: Some(EdgesPatch {
+                    bottom: Some(EdgeChange {
+                        line: Some(EdgeLine::Continuous),
+                        weight: Some(EdgeWeight::Thick),
+                        color: Some(FillColor::Rgb("CC2200".into())),
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        }));
+        assert!(receipt.error.is_none());
+    });
+    let edges = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or_else(|| [None, None, None, None], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.clone()))
+                })
+        })
+    };
+    assert_eq!(edges(1, 2)[2].as_deref(), Some("thick"));
+    page.session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown", "Shift+ArrowDown", "F10", "h", "b", "s"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(edges(2, 2)[0].as_deref(), Some("thin"));
+    assert_eq!(edges(1, 2)[2].as_deref(), Some("thin"));
+    assert_eq!(edges(2, 1)[1].as_deref(), Some("thin"));
+    assert_eq!(edges(3, 5)[3].as_deref(), Some("thin"));
+    assert_eq!(edges(5, 3)[0].as_deref(), Some("thin"));
+    assert_eq!(edges(3, 3), [None, None, None, None]);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(1, 2)[2].as_deref(), Some("thick"));
+    assert_eq!(edges(2, 2), [None, None, None, None]);
+    assert_eq!(edges(2, 1), [None, None, None, None]);
+    assert_eq!(edges(3, 5), [None, None, None, None]);
+    assert_eq!(edges(5, 3), [None, None, None, None]);
+}
+
+/// Native-only: validates the authored shared edges after removing one cell's borders from a range.
+#[test]
+fn classic_home_no_border_removes_only_the_selected_cells_shared_boundaries() {
+    let page = Page::open();
+    let session = page.session;
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowDown", "F10", "h", "b", "a"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    let edges = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or([false; 4], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.as_deref()) == Some("thin"))
+                })
+        })
+    };
+    assert_eq!(edges(2, 2), [true; 4]);
+    assert_eq!(edges(1, 2), [false, false, true, false]);
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["F10", "h", "b", "n"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(edges(2, 2), [false; 4]);
+    assert_eq!(edges(1, 2), [false; 4]);
+    assert_eq!(edges(2, 1), [false; 4]);
+    assert_eq!(edges(2, 3), [true, true, true, false]);
+    assert_eq!(edges(3, 2), [false, true, true, true]);
+    assert_eq!(edges(3, 3), [true; 4]);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(2, 2), [true; 4]);
+    assert_eq!(edges(2, 3), [true; 4]);
+    assert_eq!(edges(3, 2), [true; 4]);
+    assert_eq!(edges(1, 2), [false, false, true, false]);
+}
+
+/// Native-only: routes the four Home borders through Classic and inspects their shared edges.
+#[test]
+fn classic_home_borders_apply_one_selected_side_and_its_opposite_edge() {
+    let page = Page::open();
+    page.session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown", "Shift+ArrowDown"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    let edges = |(row, column)| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or([false; 4], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.as_deref()) == Some("thin"))
+                })
+        })
+    };
+    for (tip, at, side, neighbour, opposite) in [
+        ("p", (2, 3), 0, (1, 3), 2),
+        ("o", (4, 3), 2, (5, 3), 0),
+        ("l", (3, 2), 3, (3, 1), 1),
+        ("r", (3, 4), 1, (3, 5), 3),
+    ] {
+        for key in ["F10", "h", "b", tip] {
+            assert!(page.press(key, Focus::Stage), "{key}");
+        }
+        let expected = |side| -> [bool; 4] { std::array::from_fn(|index| side == index) };
+        assert_eq!(edges(at), expected(side), "selected side {tip}");
+        assert_eq!(edges(neighbour), expected(opposite), "shared side {tip}");
+        assert_eq!(edges((3, 3)), [false; 4]);
+        assert_eq!(edges((1, 1)), [false; 4]);
+        assert!(page.press("Ctrl+z", Focus::Stage));
+        assert_eq!(edges(at), [false; 4]);
+        assert_eq!(edges(neighbour), [false; 4]);
+    }
 }
 
 /// Native-only: drives workbook clipboard commands through the real host.

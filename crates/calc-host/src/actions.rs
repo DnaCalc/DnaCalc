@@ -4,6 +4,27 @@ use crate::value::{CellKey, GridArea, SheetId};
 use crate::{Axis, CellEdit, HostState, SheetEdit, SheetKey, SheetName, SheetVisibility};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Input to a chart series source edit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChartSeriesSource {
+    /// A worksheet reference.
+    Reference(String),
+    /// A sequence of literal points.
+    Literal(calc_doc_model::ChartData),
+}
+
+impl From<String> for ChartSeriesSource {
+    fn from(reference: String) -> Self {
+        Self::Reference(reference)
+    }
+}
+
+impl From<&str> for ChartSeriesSource {
+    fn from(reference: &str) -> Self {
+        Self::Reference(reference.to_owned())
+    }
+}
+
 /// Sort columns in priority order, with an independent direction per column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SortKey {
@@ -581,10 +602,10 @@ pub enum WorkbookCommand {
         series: Option<u32>,
         /// Optional series name text.
         name: Option<String>,
-        /// Optional source reference for the categories or X values.
-        categories: Option<String>,
-        /// Optional source reference for the series values.
-        values: Option<String>,
+        /// Optional source edit for the categories or X values.
+        categories: Option<ChartSeriesSource>,
+        /// Optional source edit for the series values.
+        values: Option<ChartSeriesSource>,
         /// Whether to remove the identified series.
         remove: bool,
     },

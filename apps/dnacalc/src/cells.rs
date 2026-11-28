@@ -149,8 +149,8 @@ fn invocation_json(record: &calc_host_vba::InvocationRecord) -> Value {
         O::Refused { member, owner, reason } => json!({
             "kind": "refused", "member": member, "owner": owner, "reason": reason,
         }),
-        O::NotAvailableHere { member, capability } => json!({
-            "kind": "not-available-here", "member": member, "need": capability.key(),
+        O::NotAvailableHere { member, capability, route } => json!({
+            "kind": "not-available-here", "member": member, "need": capability.key(), "route": route,
         }),
         O::Failed(why) => json!({"kind": "failed", "reason": why}),
     };

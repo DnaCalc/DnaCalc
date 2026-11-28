@@ -53,6 +53,8 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 - `tools/com-descriptor` (Rust, Windows) reads a type library through `LoadRegTypeLib`/`ITypeLib` and writes
   the listed types to JSON. Lists: `descriptor/<library>.interfaces.txt`. Libraries: Excel 1.9 (EXCEL.EXE
   16.0.20527), Office 2.8 (MSO.DLL), Add-in Designer 1.0 (MSADDNDR.OLB). The file version is recorded.
+  The exporter reads every enumeration and member from the library independently of the selected
+  interface list. CalcVBA uses the generated enum types and constants when the descriptor has them.
 - For a dual interface the JSON holds the vtable view: every parameter in order, `slot = oVft / 8` (x64),
   `vtable_slots` counting IUnknown and IDispatch. A dispinterface has DISPIDs only and 7 slots.
 - Names and ABI facts only, no documentation strings. These are the facts any client compiled against
@@ -69,7 +71,8 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 
 - `AutoValue` (calc-object-model): Empty, Null, Missing, Bool, I2, I4, R4, R8, Currency, Date, Text
   (UTF-16, `ExcelText`), Error (CVErr number), Object (`ObjectRef`), Foreign (a client's own IDispatch,
-  borrowed for a call unless a member explicitly takes ownership), Array (2-D, 1-based).
+  borrowed for a call unless a member explicitly takes ownership), and Array (rank and lower bounds
+  preserved for Automation). Range.Value returns a 1-based matrix and chart series return 1-based vectors.
 - `ObjectRef { interface, key }`: the default interface and what it denotes. Workbook objects name session
   identities and are resolved on every call. A Range is a `StoredReference` handle of the session tracker
   (harvest finding 1), released when the last wrapper is released (`ObjectModel::released`).

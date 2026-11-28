@@ -24,6 +24,9 @@ pub(crate) fn refusal(error: IntentError) -> Refusal {
         IntentError::Irreversible(error) => Refusal::Irreversible {
             reason: error.to_string(),
         },
+        error @ IntentError::MacroCheckpointRequired(_) => Refusal::Irreversible {
+            reason: error.to_string(),
+        },
         IntentError::Command(CommandError::NotModelled { owner, what }) => Refusal::NotModelled {
             owner: owner.into(),
             what: what.into(),
@@ -775,24 +778,48 @@ pub(crate) fn prepare(
                         ranges_with_metadata.push(selected);
                     }
                 }
-                ModelChange::SetAllBorders { selected } | ModelChange::SetOutlineBorder { selected } => {
+                ModelChange::SetAllBorders { selected }
+                | ModelChange::SetOutlineBorder { selected }
+                | ModelChange::ClearBorders { selected }
+                | ModelChange::SetSideBorder { selected, .. } => {
                     require_current_model(request, base.model)?;
                     if request.changes.len() != 1 {
                         return Err(invalid("Apply borders as one workbook change"));
                     }
                     let selected = grid_area(*selected)?;
                     let host = state.session.host();
-                    if host.merged_areas(selected.sheet()).iter().any(|area| area.intersection(selected).is_some()) {
-                        return Err(unavailable("dc-s2xup", "Applying borders to merged cells"));
-                    }
-                    let border_edits = if matches!(change, ModelChange::SetOutlineBorder { .. }) {
-                        calc_host::prepare_outline_border(host, selected)
-                    } else {
-                        calc_host::prepare_all_borders(host, selected)
+                    let side = match change {
+                        ModelChange::SetSideBorder { side, .. } => Some(*side),
+                        _ => None,
                     };
-                    edits.extend(border_edits.map_err(|reason| Refusal::Excel { reason })?);
-                    areas.push(selected);
-                    ranges_with_metadata.push(selected);
+                    let affected = calc_host::border_affected_areas(selected, side);
+                    if host.merged_areas(selected.sheet()).iter().any(|merge| {
+                        affected.iter().any(|area| merge.intersection(*area).is_some())
+                    }) {
+                        return Err(unavailable("dc-s2xup", "Applying borders at merged cells"));
+                    }
+                    let excel = |reason| Refusal::Excel { reason };
+                    let border_edits = match change {
+                        ModelChange::SetAllBorders { .. } => calc_host::prepare_all_borders(host, selected),
+                        ModelChange::SetOutlineBorder { .. } => calc_host::prepare_outline_border(host, selected),
+                        ModelChange::SetSideBorder { side, .. } => {
+                            calc_host::prepare_side_border(host, selected, *side)
+                        }
+                        ModelChange::ClearBorders { .. } => {
+                            for at in calc_host::format_samples(host, &affected).map_err(excel)? {
+                                let border = calc_host::border_for_style(host.styles(), host.cell_style(at))
+                                    .map_err(excel)?;
+                                if border.is_some_and(|border| !border.other_children.is_empty()) {
+                                    return Err(unavailable("dc-s2xup", "Removing unmodelled imported border fields"));
+                                }
+                            }
+                            calc_host::prepare_no_borders(host, selected)
+                        }
+                        _ => unreachable!("only worksheet border commands enter this arm"),
+                    };
+                    edits.extend(border_edits.map_err(excel)?);
+                    areas.extend(affected.iter().copied());
+                    ranges_with_metadata.extend(affected);
                 }
                 ModelChange::RefreshPivot { at, expected } => {
                     require_current_model(request, base.model)?;

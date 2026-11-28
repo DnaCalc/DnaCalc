@@ -454,6 +454,8 @@ impl SkinHost {
                 awaiting_tiles: None,
                 last_client_seq: 0,
                 macro_review: Default::default(),
+                macro_views: Vec::new(),
+                macro_ended: false,
             }),
         }
     }
@@ -535,6 +537,8 @@ struct Local {
     awaiting_tiles: Option<u64>,
     last_client_seq: u64,
     macro_review: macros::PendingReview,
+    macro_views: Vec<ViewRequest>,
+    macro_ended: bool,
 }
 
 struct CopiedCells {
@@ -882,6 +886,16 @@ impl WorkbookPort for Connection {
                 let receipt = self.run_macro(&mut state, approval)?;
                 return receipt.error.map_or(Ok(receipt.stamp), Err);
             }
+            Operation::RestoreCheckpoint { workbook, entry } => {
+                self.check_write(&state)?;
+                if !matches!(self.origin, Origin::User { .. }) {
+                    return Err(Refusal::PolicyRefused);
+                }
+                if workbook != before.workbook {
+                    return Err(invalid("This macro checkpoint belongs to another workbook."));
+                }
+                SkinIntent::RestoreMacroCheckpoint(entry)
+            }
             Operation::Propose(declaration) => {
                 return proposal::offer(&mut state, &self.origin, self.policy, declaration);
             }
@@ -1064,13 +1078,14 @@ impl WorkbookPort for Connection {
 
     fn next_frame(&self) -> Result<Option<Frame>, Refusal> {
         let state = self.host.borrow();
-        if !state.session.screen_updating() {
+        let mut local = self.local.borrow_mut();
+        if !state.session.screen_updating() && !local.macro_ended {
             return Ok(None);
         }
-        let mut local = self.local.borrow_mut();
+        local.macro_ended = false;
         let stamp = state.stamp();
         let mut updates = Vec::new();
-        let mut events = Vec::new();
+        let mut events: Vec<_> = local.macro_views.drain(..).map(Event::MacroView).collect();
         let prior = local.last_stamp;
         let selection_changed = local.last_selection != state.selection_seq;
         let rtd = state.session.host().rtd_revision();
@@ -1304,7 +1319,10 @@ impl Connection {
         *state.dependency_atlas.get_mut() = None;
         state.baseline = None;
         state.update_selection(SelectionCause::Open);
-        self.local.borrow_mut().copied = None;
+        let mut local = self.local.borrow_mut();
+        local.copied = None;
+        local.macro_views.clear();
+        local.macro_ended = false;
         Ok(stamp)
     }
 
