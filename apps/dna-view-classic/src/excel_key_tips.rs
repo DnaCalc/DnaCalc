@@ -44,6 +44,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     command("H V V", "Paste Values", "classic.paste-values"),
     command("H V F", "Paste Formulas", "classic.paste-formulas"),
     command("H V T", "Paste Transpose", "classic.paste-transpose"),
+    command("H V S", "Paste Special", dna_kit::paste_special::OPEN),
     group("H O", "Format"),
     pending("H O I", "AutoFit Column Width"),
     pending("H O A", "AutoFit Row Height"),

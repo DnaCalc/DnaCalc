@@ -579,6 +579,23 @@ pub enum PasteContents {
     Values,
     Formulas,
     AllTransposed,
+    Special { part: PastePart, transpose: bool },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PastePart {
+    #[default]
+    All,
+    Formulas,
+    Values,
+    Formats,
+    Comments,
+    Validation,
+    AllUsingSourceTheme,
+    AllExceptBorders,
+    FormulasAndNumberFormats,
+    ValuesAndNumberFormats,
+    AllMergingConditionalFormats,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
