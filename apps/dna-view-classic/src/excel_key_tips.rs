@@ -63,7 +63,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     pending("H F I J", "Justify"),
     command("H F I F", "Flash Fill", "grid.flash-fill"),
     group("A V", "Data Tools"),
-    pending("A V V", "Data Validation"),
+    command("A V V", "Data Validation", dna_kit::data_validation::OPEN),
     group("A S", "Sort"),
     command("A S S", "Sort", dna_kit::sort_dialog::OPEN),
     command("A T", "Filter", "grid.toggle-filter"),

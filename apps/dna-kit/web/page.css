@@ -61,6 +61,8 @@
     gap: var(--dna-gap-2);
 }
 .dna-paste-special footer { display: flex; gap: var(--dna-gap-2); }
+.dna-validation-dialog form, .dna-validation-dialog label { display: grid; gap: var(--dna-gap-2); }
+.dna-validation-dialog footer { display: flex; justify-content: end; gap: var(--dna-gap-2); }
 .dna-name-manager-tools {
     display: flex;
     flex-wrap: wrap;

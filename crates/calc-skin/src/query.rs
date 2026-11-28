@@ -144,6 +144,10 @@ query!(
     /// The cells of an interest. Watched, it arrives as tiles.
     Cells { interest: Interest } => CellWindow, |q: &Cells| WorkbookQuery::Cells { interest: q.interest.clone() });
 query!(
+    /// The editable native data-validation settings for the selected rectangle.
+    ValidationFor { selected: Area } => crate::ValidationSettings,
+    |q: &ValidationFor| WorkbookQuery::ValidationSettings { selected: q.selected });
+query!(
     /// Intended extent and known physical obstructions of a current blocked spill.
     SpillBlockers { anchor: Key } => crate::SpillBlockers,
     |q: &SpillBlockers| WorkbookQuery::SpillBlockers { anchor: q.anchor }

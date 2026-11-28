@@ -3026,6 +3026,52 @@ fn read_objects(port: &impl WorkbookPort, sheet: Sheet) -> WorksheetObjects {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn validation_settings_round_trip_and_require_an_exact_scope_and_revision() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let (first, last) = (Key(sheet.0, sheet.1, 2, 2), Key(sheet.0, sheet.1, 3, 2));
+    let request = query::ValidationFor { selected: Area(first, last) };
+    let author = |id, stamp: Stamp, settings| {
+        let mut edit = batch(id, vec![Change::Model(ModelChange::SetValidation {
+            selected: request.selected,
+            settings,
+        })]);
+        edit.workbook = Some(stamp.workbook);
+        edit.base = Some(stamp.model);
+        edit
+    };
+    let settings = ValidationSettings::List { source: r#"Red,Blue & "Green""#.into() };
+    let original = operator.ask(request.request(), BUDGET).unwrap().stamp;
+    let edit = author(1, original, settings.clone());
+    let preview = operator.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    operator.commit(edit).unwrap();
+    assert_eq!(ask(&operator, request.clone()), settings);
+    assert!(matches!(operator.ask(
+        query::ValidationFor { selected: Area(first, first) }.request(), BUDGET,
+    ), Err(Refusal::NotModelled { .. })));
+    let stale = author(2, original, ValidationSettings::AnyValue);
+    assert!(matches!(operator.commit(stale), Err(Refusal::Conflict { .. })));
+    let mut bytes = Vec::new();
+    host.with_session(SelectionCause::History, |session| {
+        session.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+    });
+
+    let (reopened, reopened_sheet) = object_fixture(&bytes);
+    assert_eq!(reopened_sheet, sheet);
+    let operator = port(&reopened);
+    assert_eq!(ask(&operator, request.clone()), settings);
+    assert!(matches!(operator.commit(batch(1, vec![enter(last, "Purple")])),
+        Err(Refusal::Validation { .. })));
+    let current = operator.ask(request.request(), BUDGET).unwrap().stamp;
+    operator.commit(author(2, current, ValidationSettings::AnyValue)).unwrap();
+    assert_eq!(ask(&operator, request.clone()), ValidationSettings::AnyValue);
+    operator.run(Operation::Undo).unwrap();
+    assert_eq!(ask(&operator, request), settings);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn input_editors_follow_linked_controls_and_excel_validation() {
     use query::{InputChoice, InputEditor};
 

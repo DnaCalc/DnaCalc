@@ -305,6 +305,9 @@ pub enum WorkbookQuery {
     Rules {
         at: Key,
     },
+    ValidationSettings {
+        selected: Area,
+    },
     CalcState,
     CalcChanges,
     /// Retained evaluator entries from the latest publication of an observed command.
@@ -556,6 +559,10 @@ pub enum ModelChange {
     ToggleAutoFilter {
         selected: Area,
     },
+    SetValidation {
+        selected: Area,
+        settings: ValidationSettings,
+    },
     /// Refresh the workbook cache used by the PivotTable at this cell.
     RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.
@@ -577,6 +584,12 @@ pub enum ModelChange {
         new_text: String,
         extent: Area,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ValidationSettings {
+    AnyValue,
+    List { source: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

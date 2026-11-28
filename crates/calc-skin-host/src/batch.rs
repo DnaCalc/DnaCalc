@@ -738,6 +738,18 @@ pub(crate) fn prepare(
                         .map_err(|reason| Refusal::Excel { reason })?);
                     filter_sheets.insert(selected.sheet());
                 }
+                ModelChange::SetValidation { selected, settings } => {
+                    require_current_model(request, base.model)?;
+                    if request.changes.len() != 1 {
+                        return Err(invalid("Apply Data Validation as one workbook change"));
+                    }
+                    let selected = grid_area(*selected)?;
+                    if let Some(edit) = crate::validation::prepare(state.session.host(), selected, settings)? {
+                        edits.push(edit);
+                        areas.push(selected);
+                        ranges_with_metadata.push(selected);
+                    }
+                }
                 ModelChange::RefreshPivot { at, expected } => {
                     require_current_model(request, base.model)?;
                     if expected.workbook != base.workbook || expected.calc != base.calc || expected.model != base.model {
