@@ -589,6 +589,21 @@ pub(crate) fn prepare(
                         PasteContents::Values => (PasteMode::Values, false),
                         PasteContents::Formulas => (PasteMode::Formulas, false),
                         PasteContents::AllTransposed => (PasteMode::All, true),
+                        PasteContents::Special { part, transpose } => {
+                            let mode = match part {
+                                PastePart::All | PastePart::AllUsingSourceTheme => PasteMode::All,
+                                PastePart::Formulas => PasteMode::Formulas,
+                                PastePart::Values => PasteMode::Values,
+                                PastePart::Formats => PasteMode::Formats,
+                                PastePart::Comments => PasteMode::Comments,
+                                PastePart::Validation => PasteMode::Validation,
+                                PastePart::AllExceptBorders => PasteMode::AllExceptBorders,
+                                PastePart::FormulasAndNumberFormats => PasteMode::FormulasAndNumberFormats,
+                                PastePart::ValuesAndNumberFormats => PasteMode::ValuesAndNumberFormats,
+                                PastePart::AllMergingConditionalFormats => PasteMode::AllMergingConditionalFormats,
+                            };
+                            (mode, *transpose)
+                        }
                     };
                     let host = state.session.host();
                     let excel = |reason| Refusal::Excel { reason };
