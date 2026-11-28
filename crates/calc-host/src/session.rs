@@ -438,6 +438,28 @@ struct Subscription {
     cells: BTreeMap<CellKey, ProjectedCell>,
 }
 
+/// An independently undoable unit of one accepted model proposal.
+pub struct SkinEditUnit {
+    /// The ordinary workbook edits prepared for this unit.
+    pub edits: Vec<CellEdit>,
+    /// The origin, group and reviewed targets shown in history.
+    pub history: calc_skin::HistoryEntry,
+}
+
+enum SkinHistory {
+    Single(calc_skin::HistoryEntry),
+    Group(Vec<SkinEditUnit>),
+}
+
+impl SkinHistory {
+    fn single(self) -> Option<calc_skin::HistoryEntry> {
+        match self {
+            Self::Single(entry) => Some(entry),
+            Self::Group(_) => None,
+        }
+    }
+}
+
 /// One open workbook as skins see it: the host, its undo history, the selection, the
 /// subscriptions and the intent log.
 pub struct HostSession {
@@ -1114,7 +1136,7 @@ impl HostSession {
 
     /// Commit a prepared skin edit using the workbook's existing transaction and history.
     pub fn dispatch_skin_edit(&mut self, edits: Vec<CellEdit>, history: calc_skin::HistoryEntry) -> IntentReceipt {
-        self.dispatch_with_history(CommandIngress::UserInterface, SkinIntent::Edit { edits }, Some(history))
+        self.dispatch_with_history(CommandIngress::UserInterface, SkinIntent::Edit { edits }, Some(SkinHistory::Single(history)))
     }
 
     /// Apply a revision-bound paste and its coordinate change under the skin history entry.
@@ -1122,7 +1144,7 @@ impl HostSession {
         self.dispatch_with_history(
             CommandIngress::UserInterface,
             SkinIntent::Command(crate::WorkbookCommand::Paste(paste)),
-            Some(history),
+            Some(SkinHistory::Single(history)),
         )
     }
 
@@ -1130,7 +1152,7 @@ impl HostSession {
         &mut self,
         ingress: CommandIngress,
         intent: SkinIntent,
-        history: Option<calc_skin::HistoryEntry>,
+        history: Option<SkinHistory>,
     ) -> IntentReceipt {
         let seq = self.next_seq;
         self.next_seq = self
@@ -1191,7 +1213,7 @@ impl HostSession {
                             return Ok(());
                         }
                         let edits = self.authored_edits(edits);
-                        self.edit_with_history(edits, coordinates, after_selection, history, &mut receipt)
+                        self.edit_with_history(edits, coordinates, after_selection, history.and_then(SkinHistory::single), &mut receipt)
                     })
             }
             SkinIntent::EnterCell { at, text } => self
@@ -1226,10 +1248,13 @@ impl HostSession {
                     .and_then(|edits| self.edit(edits, &mut receipt)),
                 None => Err(IntentError::EmptySelection),
             },
-            SkinIntent::Edit { edits } => {
-                let edits = self.authored_edits(edits);
-                self.edit_with_history(edits, None, None, history, &mut receipt)
-            }
+            SkinIntent::Edit { edits } => match history {
+                Some(SkinHistory::Group(units)) => self.edit_skin_group(units, &mut receipt),
+                history => {
+                    let edits = self.authored_edits(edits);
+                    self.edit_with_history(edits, None, None, history.and_then(SkinHistory::single), &mut receipt)
+                }
+            },
             SkinIntent::EditAxis(edit) => self.edit(vec![CellEdit::Axis(edit)], &mut receipt),
             SkinIntent::Copy { from, to, cut } => {
                 match crate::copy::copy_edits(&self.host, from, to, cut) {
@@ -1522,10 +1547,14 @@ impl HostSession {
     /// typed or pasted into a cell, so the engine spills its result. A formula whose text the
     /// parser does not read is left as typed, for the edit to refuse.
     fn authored(&self, edit: CellEdit) -> CellEdit {
-        self.authored_with_names(edit, &BTreeMap::new())
+        Self::authored_with_names(&self.host.model, edit, &BTreeMap::new())
     }
 
     fn authored_edits(&self, edits: Vec<CellEdit>) -> Vec<CellEdit> {
+        Self::authored_edits_in(&self.host.model, edits)
+    }
+
+    fn authored_edits_in(model: &calc_doc_model::ModelRoot, edits: Vec<CellEdit>) -> Vec<CellEdit> {
         let mut pending =
             BTreeMap::<calc_doc_model::value::NameKey, std::collections::VecDeque<String>>::new();
         for edit in &edits {
@@ -1537,9 +1566,7 @@ impl HostSession {
                 } => {
                     let key = calc_doc_model::value::NameKey::new(*scope, name);
                     let queue = pending.entry(key.clone()).or_insert_with(|| {
-                        self.host
-                            .model
-                            .definitions()
+                        model.definitions()
                             .name_table()
                             .matching(&key)
                             .map(|node| node.definition().formula.clone())
@@ -1579,22 +1606,19 @@ impl HostSession {
             .collect();
         edits
             .into_iter()
-            .map(|edit| self.authored_with_names(edit, &names))
+            .map(|edit| Self::authored_with_names(model, edit, &names))
             .collect()
     }
 
     fn authored_with_names(
-        &self,
+        model: &calc_doc_model::ModelRoot,
         edit: CellEdit,
         names: &BTreeMap<calc_doc_model::value::NameKey, Option<String>>,
     ) -> CellEdit {
         let file_form = |formula: &FormulaText, sheet| {
             let lookup = |qualifier: Option<&str>, spelling: &str| {
                 let local = match qualifier {
-                    Some(name) => self
-                        .host
-                        .model
-                        .sheets()
+                    Some(name) => model.sheets()
                         .iter()
                         .find(|entry| {
                             entry
@@ -1623,7 +1647,7 @@ impl HostSession {
                         Some(None) => continue,
                         None => {
                             if let Some(node) =
-                                self.host.model.definitions().name_table().lookup_key(&key)
+                                model.definitions().name_table().lookup_key(&key)
                             {
                                 return Some(node.definition().formula.as_str());
                             }
@@ -1632,7 +1656,7 @@ impl HostSession {
                 }
                 None
             };
-            let links = self.host.model.definitions().external_file_names();
+            let links = model.definitions().external_file_names();
             let form = calc_doc::file_form_with_lookup(formula, &lookup, &links).ok()?;
             let dynamic = if formula.is_form_explicit() {
                 formula.form() == calc_doc_model::FormulaForm::Dynamic
@@ -1726,6 +1750,64 @@ impl HostSession {
         self.edit_with_history(edits, coordinates, after_selection, None, receipt)
     }
 
+    /// Prepare subsequent units over the retained intermediate revision without publishing.
+    pub fn for_staged_edits(&self, model: Arc<calc_doc_model::ModelRoot>) -> Self {
+        let mut staging = Self::new(self.host.isolated_at(model));
+        staging.selection = self.selection.clone();
+        staging.sheet_keys.extend(self.sheet_keys.iter().copied());
+        staging
+    }
+
+    /// Commit all units in one authored transaction and record each unit for Undo.
+    pub fn dispatch_skin_group(&mut self, units: Vec<SkinEditUnit>) -> IntentReceipt {
+        let edits = units.iter().flat_map(|unit| unit.edits.iter().cloned()).collect();
+        self.dispatch_with_history(
+            CommandIngress::UserInterface,
+            SkinIntent::Edit { edits },
+            Some(SkinHistory::Group(units)),
+        )
+    }
+
+    fn edit_skin_group(
+        &mut self, units: Vec<SkinEditUnit>, receipt: &mut IntentReceipt,
+    ) -> Result<(), IntentError> {
+        let mut model = self.host.model.clone();
+        let mut all = Vec::new();
+        let mut steps = Vec::new();
+        for unit in units {
+            let edits = Self::authored_edits_in(&model, unit.edits);
+            let inverse = inverse(&model, &self.host.axis_edits, &edits)
+                .map_err(IntentError::Irreversible)?;
+            let batch = calc_doc_model::OpBatch {
+                base: model.revision(),
+                operations: edits.iter().map(CellEdit::to_operation).collect(),
+            };
+            model = calc_doc::prepare_edit(&model, &batch)
+                .map_err(|error| IntentError::Command(crate::CommandError::Document(error)))?
+                .into_model();
+            all.extend(edits.iter().cloned());
+            steps.push(Step {
+                skin: Some(unit.history),
+                forward: edits,
+                coordinates: None,
+                imported: None,
+                inverse: Ok(inverse),
+                before: self.selection.clone(),
+                after: self.selection.clone(),
+            });
+        }
+        self.commit_coordinates(&all, None, receipt)?;
+        self.sheet_keys.extend(self.host.model.sheets().iter().map(|sheet| sheet.key()));
+        for mut step in steps {
+            if let Some(entry) = &mut step.skin {
+                entry.at = self.host.skin_stamp();
+            }
+            self.history.record(step);
+        }
+        self.after_commit(receipt);
+        Ok(())
+    }
+
     fn edit_with_history(
         &mut self,
         edits: Vec<CellEdit>,
@@ -1746,7 +1828,6 @@ impl HostSession {
             self.select_quietly(selection, receipt);
         }
         let skin = skin.map(|mut entry| {
-            entry.id = calc_skin::EntryId(receipt.seq);
             entry.at = self.host.skin_stamp();
             if let Err(reason) = &inverse {
                 entry.reversibility = calc_skin::Reversibility::Irreversible { reason: reason.to_string() };

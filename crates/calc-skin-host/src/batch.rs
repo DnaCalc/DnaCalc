@@ -211,6 +211,7 @@ fn require_current_model(request: &Batch, current: Revision) -> Result<(), Refus
         return Err(Refusal::Conflict {
             base: expected,
             conflicts: vec![Target::Source(SourceRef::Workbook)],
+            diffs: Vec::new(),
         });
     }
     Ok(())
@@ -230,6 +231,7 @@ fn require_formula(
         return Err(Refusal::Conflict {
             base,
             conflicts: vec![Target::Source(source_area(GridArea::cell(at)))],
+            diffs: Vec::new(),
         });
     }
     if !text.starts_with('=') {
@@ -280,6 +282,7 @@ fn rewrite_run(
         .ok_or_else(|| Refusal::Conflict {
             base,
             conflicts: vec![Target::Source(source.clone())],
+            diffs: Vec::new(),
         })?;
     for target in &targets {
         for row in target.first().row()..=target.last().row() {
@@ -436,6 +439,7 @@ pub(crate) fn prepare(
                         return Err(Refusal::Conflict {
                             base: request.base.unwrap_or(base.model),
                             conflicts: vec![Target::Source(SourceRef::Workbook)],
+                            diffs: Vec::new(),
                         });
                     }
                     let (id, edit) = state.session.prepare_worksheet_insert(name.clone()).map_err(refusal)?;

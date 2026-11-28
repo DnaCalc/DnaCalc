@@ -181,7 +181,7 @@ pub enum CellEdit {
 }
 
 impl CellEdit {
-    fn to_operation(&self) -> WorkbookOp {
+    pub(crate) fn to_operation(&self) -> WorkbookOp {
         match self {
             CellEdit::TextSources(sources) => WorkbookOp::SetTextSources(sources.clone()),
             CellEdit::DataModel(state) => WorkbookOp::SetDataModel(state.clone()),

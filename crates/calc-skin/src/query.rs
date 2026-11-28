@@ -201,6 +201,9 @@ query!(
     /// The one history: what Ctrl+Z and Ctrl+Y will do next, newest first.
     History => HistoryList, |_: &History| WorkbookQuery::History);
 query!(
+    /// The proposals awaiting or recording the operator's decision in this workbook.
+    Proposals => Vec<crate::ProposalReview>, |_: &Proposals| WorkbookQuery::Proposals);
+query!(
     Resolve { address: String } => SourceRef, |q: &Resolve| WorkbookQuery::Resolve { address: q.address.clone() });
 query!(
     /// Resolve both saved identities of a binding against the current workbook.

@@ -169,6 +169,9 @@ pub enum Refusal {
     Conflict {
         base: Revision,
         conflicts: Vec<Target>,
+        /// The inputs at review and at refusal, when both revisions are retained.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        diffs: Vec<ModelWriteDiff>,
     },
     Invalid {
         reason: String,
@@ -305,6 +308,7 @@ pub enum WorkbookQuery {
         anchor: Option<AnchorId>,
     },
     History,
+    Proposals,
     Resolve {
         address: String,
     },
@@ -766,6 +770,55 @@ pub struct HistoryEntry {
     pub unreviewed: bool,
 }
 
+/// The agent's proposal identity within an open workbook.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProposalId(pub String);
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct UnitId(pub String);
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Proposal {
+    pub at: Stamp,
+    pub intent: String,
+    pub units: Vec<ProposalUnit>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProposalUnit {
+    pub id: UnitId,
+    pub needs: Vec<UnitId>,
+    pub batch: Batch,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProposalStatus {
+    Pending,
+    Accepted,
+    Rejected,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProposalReview {
+    pub id: ProposalId,
+    pub at: Stamp,
+    pub agent: String,
+    pub intent: String,
+    pub units: Vec<ProposalUnitReview>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProposalUnitReview {
+    pub id: UnitId,
+    pub needs: Vec<UnitId>,
+    pub label: String,
+    pub status: ProposalStatus,
+    pub writes: Vec<ModelWriteDiff>,
+    pub properties: Vec<ModelPropertyDiff>,
+}
+
 /// Code-free presentation that an agent can offer for temporary preview.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TryOnPayload {
@@ -787,6 +840,10 @@ pub enum Operation {
     Undo,
     Redo,
     Revert(EntryId),
+    /// Stage model changes from an agent without changing the workbook.
+    Propose(Proposal),
+    /// Resolve exactly these pending units as an operator.
+    Decide { proposal: ProposalId, accept: Vec<UnitId>, reject: Vec<UnitId> },
     /// Offer a declarative appearance to the workbook operator for temporary preview.
     TryOn { expected: Stamp, look: TryOnPayload },
     Calculate { scope: SourceRef },

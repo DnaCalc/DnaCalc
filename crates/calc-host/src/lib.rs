@@ -205,7 +205,7 @@ pub use save_calculation::{
 pub use session::{
     CommandIngress, DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession,
     INTENT_LOG_LIMIT, IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome,
-    SkinIntent, SubscriptionId, UNDO_LIMIT, replay,
+    SkinEditUnit, SkinIntent, SubscriptionId, UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, OpenReport, RecalcContext};
 pub use validation::{

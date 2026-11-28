@@ -1,9 +1,9 @@
 //! Budgeted callers may calculate the ordinary graph of a retained model without live providers.
 use crate::{HostProgress, HostState, ReadObserver, WorkBudget};
 use calc_doc_model::{CellInput, FormulaForm, ModelRoot};
-use calc_engine::{CalcScope, EngineState, EvalSelection, Prerequisite};
+use calc_engine::{CalcScope, EvalSelection, Prerequisite};
 use calc_skin::Refusal;
-use calc_value::{CellKey, GridArea, IdAllocator};
+use calc_value::{CellKey, GridArea};
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 
@@ -26,17 +26,7 @@ impl TrialGraph {
                 "workbooks containing executable macro projects or sheets",
             ));
         }
-        let engine = EngineState::new(&model);
-        let mut host = HostState::from_parts(
-            source.loaded.clone(),
-            model,
-            IdAllocator::new(),
-            engine,
-            source.options.clone(),
-        );
-        host.axis_edits = source.axis_edits.clone();
-        host.file = source.file.clone();
-        host.application = source.application.clone();
+        let mut host = source.isolated_at(model);
         crate::calculate_full(&mut host);
         match crate::step(
             &mut host,

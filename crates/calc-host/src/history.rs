@@ -460,6 +460,7 @@ pub(crate) struct History {
     undo: Vec<Step>,
     redo: Vec<Step>,
     limit: usize,
+    next_skin_id: u64,
 }
 
 impl History {
@@ -468,12 +469,17 @@ impl History {
             undo: Vec::new(),
             redo: Vec::new(),
             limit,
+            next_skin_id: 1,
         }
     }
 
     /// Records a committed edit: it becomes the step an undo takes back, the oldest step is
     /// dropped beyond the limit, and nothing is left to redo.
-    pub(crate) fn record(&mut self, step: Step) {
+    pub(crate) fn record(&mut self, mut step: Step) {
+        if let Some(entry) = &mut step.skin {
+            entry.id = calc_skin::EntryId(self.next_skin_id);
+            self.next_skin_id = self.next_skin_id.checked_add(1).expect("history identity exhausted");
+        }
         self.undo.push(step);
         if self.undo.len() > self.limit {
             self.undo.remove(0);

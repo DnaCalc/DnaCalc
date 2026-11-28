@@ -5,15 +5,19 @@ use calc_host::{
     CalculationTrial, CellRun, HostProgress, HostState, ProjectionRequest, ReadObserver,
     TrialGraph, WorkBudget,
 };
-use calc_skin::{Budget, Provenance, RawValue, Refusal, Shown, ValueEffect, grid::Key};
+use calc_skin::{Budget, Preview, Provenance, RawValue, Refusal, Shown, ValueEffect, grid::Key};
 use std::{
     collections::{BTreeMap, BTreeSet},
     ops::ControlFlow,
     sync::Arc,
 };
 
-pub(crate) fn append(host: &HostState, staged: &mut crate::batch::Prepared, budget: Budget) {
-    let preview = &mut staged.preview;
+pub(crate) fn append(
+    host: &HostState,
+    preview: &mut Preview,
+    after: Arc<ModelRoot>,
+    budget: Budget,
+) {
     if !matches!(
         preview.kind(),
         Some(calc_skin::ChangeKind::Model | calc_skin::ChangeKind::Both)
@@ -25,15 +29,9 @@ pub(crate) fn append(host: &HostState, staged: &mut crate::batch::Prepared, budg
         .iter()
         .map(|write| crate::cell(write.at))
         .collect::<Result<Vec<_>, _>>();
-    match writes.and_then(|writes| {
-        compare(
-            host,
-            staged.after.clone(),
-            &writes,
-            !preview.properties.is_empty(),
-            budget,
-        )
-    }) {
+    match writes
+        .and_then(|writes| compare(host, after, &writes, !preview.properties.is_empty(), budget))
+    {
         Ok(effects) => preview.effects = effects,
         Err(refusal) => {
             preview.refusal = Some(refusal);

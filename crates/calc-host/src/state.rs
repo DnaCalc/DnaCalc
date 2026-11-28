@@ -451,6 +451,19 @@ impl HostState {
         host
     }
 
+    pub(crate) fn isolated_at(&self, model: Arc<ModelRoot>) -> Self {
+        let engine = EngineState::new(&model);
+        let mut host = Self::from_parts(
+            self.loaded.clone(), model, IdAllocator::new(), engine, self.options.clone(),
+        );
+        host.axis_edits = self.axis_edits.clone();
+        host.file = self.file.clone();
+        host.application = self.application.clone();
+        host.sheet_view_overrides = self.sheet_view_overrides.clone();
+        host.sheet_protection_saves = self.sheet_protection_saves.clone();
+        host
+    }
+
     /// Independent counters for the skin model/view boundary.
     pub fn skin_stamp(&self) -> calc_skin::Stamp {
         calc_skin::Stamp {
