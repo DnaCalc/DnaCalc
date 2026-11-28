@@ -113,17 +113,14 @@ impl TrialGraph {
         })
     }
 
-    /// Authorize the selected scalar formulas and the placed formula prerequisites they read.
+    /// Authorize the selected formulas and the placed formula prerequisites they read.
+    /// When other formulas may spill, verify actual reads and output footprints before
+    /// reporting isolated effects.
     pub fn restrict(
         mut self,
         outputs: &BTreeSet<CellKey>,
         visit: &mut dyn FnMut() -> Result<(), Refusal>,
     ) -> Result<CalculationTrial, Refusal> {
-        if !self.scalar_graph() {
-            return Err(unavailable(
-                "a partial graph with array or data table outputs",
-            ));
-        }
         let mut cells = BTreeSet::new();
         let mut pending: VecDeque<_> = outputs.iter().copied().collect();
         while let Some(at) = pending.pop_front() {
@@ -137,6 +134,11 @@ impl TrialGraph {
             };
             if !cells.insert(at) {
                 continue;
+            }
+            if self.host.model.definitions().array_containing(at).is_some_and(|array| {
+                array.kind() == calc_doc_model::ArrayKind::Legacy && array.area().cell_count() > 1
+            }) {
+                return Err(unavailable("a scoped formula in a multi-cell legacy array"));
             }
             visit()?;
             for edge in node.prerequisites().unwrap_or_default() {
@@ -218,6 +220,12 @@ impl CalculationTrial {
     /// The result spill areas of the trial's calculation.
     pub fn spills(&self) -> impl Iterator<Item = GridArea> + '_ {
         self.host.engine.spills().map(|spill| spill.area())
+    }
+
+    /// Whether this trial installed or attempted a multi-cell output.
+    pub fn has_spill_effect(&self) -> bool {
+        self.spills().any(|area| area.cell_count() > 1)
+            || self.anchors().any(|at| self.host.engine.blocked_spill_area(at).is_some())
     }
 }
 

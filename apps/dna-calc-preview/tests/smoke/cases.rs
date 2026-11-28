@@ -103,6 +103,14 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Click("[data-command='inspector.repair']"),
             Action::Wait(Check::TextContains("seam-review", "1 cell entry changed")),
             Action::Wait(Check::TextContains(
+                "[data-dnacalc='preview-effect']",
+                "change -4200",
+            )),
+            Action::Wait(Check::Js(
+                "The retained trial preview reports 128450 to 124250",
+                "[...document.querySelectorAll('[data-dnacalc=preview-effect]')].some(line => line.textContent.includes('128450') && line.textContent.includes('124250'))",
+            )),
+            Action::Wait(Check::TextContains(
                 "[data-inspector='trace-result']",
                 "128450",
             )),
@@ -1685,6 +1693,49 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::TextContains("[data-inspector='cell-comparison']", "A1:A2"),
         ],
     },
+    Case {
+        name: "Inspector filters the worksheet positions included by FILTER",
+        actions: &[
+            Action::WritePlainSession("Contribution.xlsx", "A1+A2"),
+            Action::UploadDownloadTo("Contribution.xlsx", "open-file"),
+            Action::Wait(Check::Text("[data-cell=A1]", "3")),
+            Action::Click("[data-cell=C1]"),
+            Action::Into("formula-bar", "=FILTER(A1:A2,A1:A2>3)"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=C1]", "4")),
+            Action::Click("[data-cell=C1]"),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Click("[data-command='inspector.precedents']"),
+            Action::Click("[data-command='inspector.trace']"),
+            Action::Wait(Check::Text("[data-inspector='trace-coverage']", "2 inspected · 1 match · 0 undetermined")),
+            Action::Click(".dna-inspector-card > [data-command='inspector.filter']"),
+        ],
+        checks: &[
+            Check::TextContains("[data-inspector='trace-result']", "FILTER"),
+            Check::TextContains("[data-criterion='Include mask']", "Include mask"),
+            Check::TextContains("[data-trace-row='2']", "4"),
+            Check::Absent("[data-trace-row='1']"),
+        ],
+    },
+    Case {
+        name: "Inspector distinguishes the XLOOKUP selection from its source range",
+        actions: &[
+            Action::Click("[data-command='view.classic']"),
+            Action::Click("[data-cell=D1]"),
+            Action::Into("formula-bar", "=XLOOKUP(4,A1:A2,A1:A2)"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=D1]", "4")),
+            Action::Click("[data-cell=D1]"),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Click("[data-command='inspector.precedents']"),
+            Action::Click("[data-command='inspector.trace']"),
+        ],
+        checks: &[
+            Check::Text("[data-inspector='trace-coverage']", "2 inspected · 1 match · 0 undetermined"),
+            Check::TextContains("[data-inspector='trace-result']", "XLOOKUP"),
+            Check::TextContains("[data-inspector='trace-chosen']", "A2"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1915,15 +1966,22 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "inspector-dependencies",
         start: 66,
-        end: PREVIEW_CASES.len() - 1,
+        end: PREVIEW_CASES.len() - 3,
         core: 2,
         setup: &[],
     },
     CaseGroup {
         name: "inspector-comparison",
-        start: PREVIEW_CASES.len() - 1,
-        end: PREVIEW_CASES.len(),
+        start: PREVIEW_CASES.len() - 3,
+        end: PREVIEW_CASES.len() - 2,
         core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-contributions",
+        start: PREVIEW_CASES.len() - 2,
+        end: PREVIEW_CASES.len(),
+        core: 2,
         setup: &[],
     },
 ];
