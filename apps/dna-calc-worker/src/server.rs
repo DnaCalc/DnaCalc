@@ -3690,6 +3690,8 @@ impl Server {
             }
         };
         let receipt = match event {
+            // The skin service reads these observations at publication through its typed queries.
+            E::ExecutionObserved(_) | E::IterationObserved(_) => return,
             E::TargetsRefused {
                 command,
                 targets,

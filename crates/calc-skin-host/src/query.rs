@@ -355,7 +355,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::Deps { .. } => authored || recalculated,
         WorkbookQuery::DependencyAtlas | WorkbookQuery::CompareCells { .. } => authored || recalculated,
         WorkbookQuery::CalcState => true,
-        WorkbookQuery::CalcChanges => recalculated,
+        WorkbookQuery::CalcChanges | WorkbookQuery::CalcIteration | WorkbookQuery::CalcExecution => recalculated,
         WorkbookQuery::Rules { .. } => authored || recalculated,
     }
 }
@@ -1061,10 +1061,14 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             let evidence = match &state.calculation_changes {
                 Some(changes) => {
                     coverage = changes.coverage.clone();
+                    let mut body = changes.values.clone();
+                    if changes.stamp.model == stamp.model && !body.is_empty() {
+                        attach_result_aliases(host, &mut body, &mut meter)?;
+                    }
                     Evidence::Observed {
                         observer: "Formula result publication".into(),
                         at: changes.stamp,
-                        body: changes.values.clone(),
+                        body,
                     }
                 }
                 None => Evidence::Unavailable {
@@ -1072,6 +1076,45 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 },
             };
             query::CalcChanges::encode(&evidence)?
+        }
+        WorkbookQuery::CalcExecution => {
+            let evidence = match &state.execution {
+                Some((stamp, trace)) => {
+                    let retained = trace.bands.iter().map(|band| band.cells.len() as u64).sum();
+                    if retained < trace.total_entries {
+                        coverage = Coverage::Partial {
+                            done: retained, total: Some(trace.total_entries), why: PartialWhy::Budget,
+                        };
+                    }
+                    Evidence::Observed {
+                        observer: "DNA Calc evaluator dispatch".into(),
+                        at: *stamp,
+                        body: trace.clone(),
+                    }
+                }
+                None => Evidence::Unavailable { reason: "Not observed".into() },
+            };
+            query::CalcExecution::encode(&evidence)?
+        }
+        WorkbookQuery::CalcIteration => {
+            let evidence = match &state.iteration {
+                Some((observed_at, report)) => {
+                    if report.omitted_members > 0 {
+                        coverage = Coverage::Partial {
+                            done: report.members.len() as u64,
+                            total: Some((report.members.len() + report.omitted_members) as u64),
+                            why: PartialWhy::Budget,
+                        };
+                    }
+                    Evidence::Observed {
+                        observer: "Calculation iteration scheduler".into(),
+                        at: *observed_at,
+                        body: report.clone(),
+                    }
+                }
+                None => Evidence::Unavailable { reason: "No iteration was observed at the latest publication.".into() },
+            };
+            query::CalcIteration::encode(&evidence)?
         }
         WorkbookQuery::ViewPart => {
             let part = host.model().view_part();
@@ -1297,4 +1340,31 @@ fn expression_tree(
         at: stamp,
         body,
     })
+}
+
+fn attach_result_aliases(
+    host: &HostState,
+    changes: &mut [query::FormulaResultChange],
+    meter: &mut QueryWork,
+) -> Result<(), Refusal> {
+    for name in host.model().definitions().name_table().nodes() {
+        meter.work(0, 1, 0)?;
+        let Some((area, spill)) = host.stable_name_source(name.id()) else { continue };
+        let definition = name.definition();
+        for change in changes.iter_mut() {
+            let matches = if spill {
+                change.spill_anchor.unwrap_or(change.at) == Key::of(area.first())
+            } else {
+                change.at.cell().is_some_and(|at| area.contains(at))
+            };
+            if matches {
+                meter.work(0, 0, 1)?;
+                change.aliases.push(query::ResultAlias {
+                    name: definition.name.clone(),
+                    scope: inventory::name_scope(definition.scope),
+                });
+            }
+        }
+    }
+    Ok(())
 }

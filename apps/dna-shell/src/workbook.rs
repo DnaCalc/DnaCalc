@@ -171,6 +171,20 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         );
         Ok(())
     });
+    session.register(spec("calc.calculate-sheet", "Calculate active sheet", "!editing"), move |_| {
+        let at = session.active().ok_or("Select a worksheet cell.")?;
+        session.operate(Operation::Calculate { scope: SourceRef::Sheet(Sheet(at.0, at.1)) }, None);
+        Ok(())
+    });
+    for (id, label, operation) in [
+        ("calc.calculate-full", "Calculate all formulas", Operation::CalculateFull),
+        ("calc.calculate-rebuild", "Rebuild dependencies and calculate", Operation::CalculateRebuild),
+    ] {
+        session.register(spec(id, label, "!editing"), move |_| {
+            session.operate(operation.clone(), None);
+            Ok(())
+        });
+    }
     session.register(spec("edit.commit", "Enter", "editing"), move |_| {
         session.commit_edit();
         Ok(())
@@ -241,6 +255,13 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         session.bind(Layer::Safety, when, chord, CommandId::new(command));
     }
     session.bind(Layer::Shell, When::ALWAYS, "F9", CommandId::new("calc.calculate"));
+    for (chord, command) in [
+        ("Shift+F9", "calc.calculate-sheet"),
+        ("Ctrl+Alt+F9", "calc.calculate-full"),
+        ("Ctrl+Alt+Shift+F9", "calc.calculate-rebuild"),
+    ] {
+        session.bind(Layer::Shell, When::ALWAYS, chord, CommandId::new(command));
+    }
     session.bind(Layer::Shell, When::ALWAYS, "F1", CommandId::new("shell.help"));
     for (id, label, forward, chords) in [
         ("deck.next-tip", "Next key tip", true, ["Tab", "ArrowRight", "ArrowDown"]),

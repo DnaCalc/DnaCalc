@@ -317,6 +317,8 @@ pub struct SpillChange {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResultDifference {
     pub at: CellKey,
+    /// Producing anchor for a value installed in a spill follower.
+    pub spill_anchor: Option<CellKey>,
     pub before: Option<FormulaResult>,
     pub after: Option<FormulaResult>,
 }
@@ -326,6 +328,8 @@ pub struct ResultDifference {
 pub struct ResultDifferences {
     pub total: u64,
     pub changes: Vec<ResultDifference>,
+    /// Some spill followers exceeded the inspection limit.
+    pub followers_limited: bool,
 }
 
 impl ResultDifferences {
@@ -352,9 +356,87 @@ impl ResultDifferences {
         if self.changes.len() < 100 {
             self.changes.push(ResultDifference {
                 at,
+                spill_anchor: None,
                 before: before.cloned().map(FormulaResult::without_stamp),
                 after: after.cloned().map(FormulaResult::without_stamp),
             });
+        }
+    }
+}
+
+/// Previous spills and changed anchors in a single publication.
+#[derive(Default)]
+pub(crate) struct SpillDifferences {
+    previous: crate::spill::SpillIndex,
+    calculations: std::collections::BTreeMap<CellKey, Calculation>,
+    installed: Vec<CellKey>,
+}
+
+impl SpillDifferences {
+    pub(crate) fn stage(
+        &mut self,
+        previous: Option<crate::Spill>,
+        result: Option<&FormulaResult>,
+        installed: Option<GridArea>,
+    ) {
+        if let Some(previous) = previous
+            && let Some((_, calculation)) = result.and_then(FormulaResult::calculated)
+        {
+            self.calculations.insert(previous.anchor(), calculation.clone());
+            self.previous.insert(previous);
+        }
+        if let Some(area) = installed {
+            self.installed.push(area.first());
+        }
+    }
+
+    pub(crate) fn record(
+        self,
+        differences: &mut ResultDifferences,
+        engine: &crate::EngineState,
+        inputs: &calc_doc_model::ModelRoot,
+    ) {
+        const LIMIT: usize = 65_536;
+        let mut seen = std::collections::BTreeSet::new();
+        let after = self.installed.iter().filter_map(|&at| engine.spills.get(at));
+        for spill in self.previous.iter().chain(after) {
+            let area = spill.area();
+            for row in area.first().row()..=area.last().row() {
+                for column in area.first().column()..=area.last().column() {
+                    let at = CellKey::new(area.sheet(), row, column).expect("a cell in a spill");
+                    if at == spill.anchor() || inputs.cell(at).is_some() {
+                        continue;
+                    }
+                    if seen.contains(&at) {
+                        continue;
+                    }
+                    if seen.len() == LIMIT {
+                        differences.followers_limited = true;
+                        return;
+                    }
+                    seen.insert(at);
+                    let before = self.previous.covering(at);
+                    let after = engine.spills.covering(at);
+                    let make_result = |spill: &crate::Spill, calculation: &Calculation| {
+                        FormulaResult::Calculated {
+                            value: spill.value_at(at).clone(),
+                            calculation: calculation.clone(),
+                        }
+                    };
+                    let old = before.and_then(|spill| {
+                        self.calculations.get(&spill.anchor()).map(|calc| make_result(spill, calc))
+                    });
+                    let new = after.and_then(|spill| {
+                        engine.result(spill.anchor()).and_then(FormulaResult::calculated)
+                            .map(|(_, calc)| make_result(spill, calc))
+                    });
+                    let retained = differences.changes.len();
+                    differences.record(at, old.as_ref(), new.as_ref());
+                    if let Some(change) = differences.changes.get_mut(retained) {
+                        change.spill_anchor = after.or(before).map(crate::Spill::anchor);
+                    }
+                }
+            }
         }
     }
 }

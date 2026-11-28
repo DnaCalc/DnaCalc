@@ -84,6 +84,8 @@ struct State {
     touches: VecDeque<Touch>,
     calc_touches: VecDeque<CalcTouch>,
     calculation_changes: Option<CalculationChanges>,
+    execution: Option<(Stamp, calc_skin::query::ExecutionReport)>,
+    iteration: Option<(Stamp, IterationFacts)>,
     read_only: bool,
     opened_at: Stamp,
     baseline: Option<comparison::Baseline>,
@@ -152,16 +154,60 @@ impl State {
         if generation == before.calc {
             return;
         }
+        self.execution = match progress {
+            Some(HostProgress::Published(delta)) if generation.0 == before.calc.0 + 1 => {
+                delta.events().iter().find_map(|event| {
+                    let calc_host::CalcEvent::ExecutionObserved(trace) = event else { return None };
+                    Some((stamp, calc_skin::query::ExecutionReport {
+                        total_entries: trace.total_entries,
+                        finished: delta.completion().is_some(),
+                        bands: trace.bands.iter().map(|band| calc_skin::query::ExecutionBand {
+                            pass: band.pass,
+                            workers: band.workers,
+                            cells: band.cells.iter().copied().map(Key::of).collect(),
+                        }).collect(),
+                    }))
+                })
+            }
+            _ => None,
+        };
+        self.iteration = match progress {
+            Some(HostProgress::Published(delta)) if generation.0 == before.calc.0 + 1 => {
+                delta.events().iter().rev().find_map(|entry| {
+                    let calc_host::CalcEvent::IterationObserved(observed) = entry else { return None };
+                    let stop = match observed.stop {
+                        calc_host::IterationStop::MaximumIterations => IterationStop::MaximumIterations,
+                        calc_host::IterationStop::Converged => IterationStop::Converged,
+                        calc_host::IterationStop::NoNumericSample => IterationStop::NoNumericSample,
+                    };
+                    Some((stamp, IterationFacts {
+                        members: observed.members.iter().copied().map(Key::of).collect(),
+                        omitted_members: observed.omitted_members,
+                        passes: observed.passes,
+                        residual_bits: observed.residual_bits,
+                        max_change_bits: observed.max_change_bits,
+                        stop,
+                        reads: observed.reads.iter().map(|read| IterationRead {
+                            reader: Key::of(read.reader),
+                            source: Key::of(read.source),
+                            current_pass: read.kind == calc_host::IterationReadKind::CurrentPass,
+                        }).collect(),
+                        reads_limited: observed.reads_limited,
+                    }))
+                })
+            }
+            _ => None,
+        };
         self.calculation_changes = match progress {
             Some(HostProgress::Published(delta)) if generation.0 == before.calc.0 + 1 => {
                 delta.differences().map(|differences| CalculationChanges {
                     stamp,
-                    coverage: if differences.changes.len() as u64 == differences.total {
+                    coverage: if !differences.followers_limited && differences.changes.len() as u64 == differences.total {
                         Coverage::Complete
                     } else {
                         Coverage::Partial {
                             done: differences.changes.len() as u64,
-                            total: Some(differences.total),
+                            total: (!differences.followers_limited).then_some(differences.total),
                             why: PartialWhy::Budget,
                         }
                     },
@@ -172,6 +218,8 @@ impl State {
                             at: Key::of(change.at),
                             before: query::result_observation(change.before.as_ref()),
                             after: query::result_observation(change.after.as_ref()),
+                            spill_anchor: change.spill_anchor.map(Key::of),
+                            aliases: Vec::new(),
                         })
                         .collect(),
                 })
@@ -314,6 +362,8 @@ impl SkinHost {
                 touches: VecDeque::new(),
                 calc_touches: VecDeque::new(),
                 calculation_changes: None,
+                execution: None,
+                iteration: None,
                 read_only,
                 opened_at,
                 baseline: None,
@@ -846,9 +896,21 @@ impl WorkbookPort for Connection {
             Operation::Calculate {
                 scope: SourceRef::Workbook,
             } => SkinIntent::Recalculate,
+            Operation::Calculate {
+                scope: SourceRef::Sheet(sheet),
+            } => SkinIntent::Calculate {
+                scope: calc_host::CalcScope::Sheet(sheet.id()),
+                selection: calc_host::EvalSelection::ForceAll,
+            },
             Operation::Calculate { scope } => SkinIntent::CalculateRange {
                 areas: query::source_areas(&state, &scope)?,
             },
+            Operation::CalculateFull => SkinIntent::Calculate {
+                scope: calc_host::CalcScope::Workbook,
+                selection: calc_host::EvalSelection::ForceAll,
+            },
+            Operation::CalculateRebuild => SkinIntent::Rebuild,
+            Operation::CalculateObserved => SkinIntent::CalculateObserved,
             Operation::Revert(_) => {
                 return Err(unavailable("dc-zh096", "Reverting an earlier edit"));
             }
@@ -1162,6 +1224,8 @@ impl Connection {
         state.touches.clear();
         state.calc_touches.clear();
         state.calculation_changes = None;
+        state.execution = None;
+        state.iteration = None;
         state.baseline = None;
         state.update_selection(SelectionCause::Open);
         self.local.borrow_mut().copied = None;

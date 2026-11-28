@@ -192,6 +192,8 @@ pub enum SkinIntent {
     /// Recalculates the workbook now, whatever the calculation mode ([`crate::calculate`]: what
     /// Excel's Calculate Now does).
     Recalculate,
+    /// Force workbook calculation and retain the evaluator entries of this command.
+    CalculateObserved,
     /// Rebuild formula bindings/dependencies, then force every workbook formula.
     /// Active cell work blocks admission. A retained name handle expires when
     /// this command resets binding authority, before it can enter more user code.
@@ -745,6 +747,7 @@ impl HostSession {
         self.host.calculate_requested = false;
         self.host.full_calculate_requested = false;
         self.host.requested_calculation = None;
+        self.host.observe_requested_calculation = false;
         self.host.transformed_calculation_scope = None;
         self.host.calculation_source = None;
         self.host.calculation_cancelled = true;
@@ -1274,6 +1277,12 @@ impl HostSession {
                 self.recalculate(&mut receipt);
                 Ok(())
             }
+            SkinIntent::CalculateObserved => self.request_calculation(
+                calc_engine::CalcScope::Workbook,
+                calc_engine::EvalSelection::ForceAll,
+                true,
+                &mut receipt,
+            ),
             SkinIntent::Rebuild => {
                 if self.host.work.is_some() {
                     Err(IntentError::Workbook(
@@ -1286,6 +1295,7 @@ impl HostSession {
                     self.request_calculation(
                         calc_engine::CalcScope::Workbook,
                         calc_engine::EvalSelection::ForceAll,
+                        false,
                         &mut receipt,
                     )
                 }
@@ -1293,10 +1303,11 @@ impl HostSession {
             SkinIntent::CalculateRange { areas } => self.request_calculation(
                 calc_engine::CalcScope::Range(areas),
                 calc_engine::EvalSelection::ForceAll,
+                false,
                 &mut receipt,
             ),
             SkinIntent::Calculate { scope, selection } => {
-                self.request_calculation(scope, selection, &mut receipt)
+                self.request_calculation(scope, selection, false, &mut receipt)
             }
             SkinIntent::SetCalcMode(mode) => {
                 if self.host.calc_mode() != mode {
@@ -1346,6 +1357,7 @@ impl HostSession {
         &mut self,
         scope: calc_engine::CalcScope,
         selection: calc_engine::EvalSelection,
+        observe: bool,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
         if self.host.work.is_some() {
@@ -1377,6 +1389,7 @@ impl HostSession {
             ));
         }
         self.host.requested_calculation = Some((scope, selection));
+        self.host.observe_requested_calculation = observe;
         calculate(&mut self.host);
         self.recalculate(receipt);
         Ok(())

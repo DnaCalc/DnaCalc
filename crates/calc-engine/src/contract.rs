@@ -640,9 +640,104 @@ pub struct CompletionReceipt {
     /// Latest publication acknowledged by the receipt, when present.
     pub after_publication: Option<PublicationUnitId>,
 }
+
+/// The stop condition met by an actual sequence of iteration passes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IterationStop {
+    /// The configured pass limit was reached.
+    MaximumIterations,
+    /// The largest observed change is below MaxChange.
+    Converged,
+    /// No numeric stopping sample was available.
+    NoNumericSample,
+}
+
+/// The value image used for a read of an iterative producer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IterationReadKind {
+    /// The producer had yet to run on this pass and supplied its seed or prior pass value.
+    PriorPass,
+    /// The producer had staged its current pass value.
+    CurrentPass,
+}
+
+/// A witnessed read within an iterative sweep.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IterationRead {
+    /// Formula that read the value.
+    pub reader: CellKey,
+    /// Cell whose value the reader consumed.
+    pub source: CellKey,
+    /// Which pass supplied the value.
+    pub kind: IterationReadKind,
+}
+
+/// What the iteration scheduler measured at its stopping boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IterationObservation {
+    /// Cells admitted into the circular group, in scheduler order.
+    pub members: Vec<CellKey>,
+    /// Additional members beyond the retained list.
+    pub omitted_members: usize,
+    /// Completed passes.
+    pub passes: u32,
+    /// Largest stopping sample, as binary64 bits.
+    pub residual_bits: Option<u64>,
+    /// Configured MaxChange, as binary64 bits.
+    pub max_change_bits: u64,
+    /// Observed reason the scheduler stopped repeating the pass.
+    pub stop: IterationStop,
+    /// Retained distinct iterative reads from the final pass.
+    pub reads: Vec<IterationRead>,
+    /// Whether the final pass exceeded the read sample limit.
+    pub reads_limited: bool,
+}
+/// Actual evaluator entries in one dispatch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExecutionBand {
+    /// Pass ordinal for these entries.
+    pub pass: u32,
+    /// Cells entered by the dispatch. Worker bands have no ordering within the band.
+    pub cells: Vec<CellKey>,
+    /// Whether a pool of native workers handled this dispatch.
+    pub workers: bool,
+}
+
+/// Bounded execution evidence from a calculation explicitly asked to retain it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExecutionObservation {
+    /// Evaluator entries including those beyond the retained list.
+    pub total_entries: u64,
+    /// Recorded evaluator entries, grouped at their dispatch boundary.
+    pub bands: Vec<ExecutionBand>,
+}
+
+impl ExecutionObservation {
+    pub(crate) fn observe(
+        &mut self,
+        pass: u32,
+        workers: bool,
+        cells: impl IntoIterator<Item = CellKey>,
+    ) {
+        const LIMIT: u64 = 200;
+        let mut retained = Vec::new();
+        for cell in cells {
+            if self.total_entries < LIMIT {
+                retained.push(cell);
+            }
+            self.total_entries += 1;
+        }
+        if !retained.is_empty() {
+            self.bands.push(ExecutionBand { pass, cells: retained, workers });
+        }
+    }
+}
+
 /// Authored, execution and publication observations reported by the engine.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CalcEvent {
+    /// Evaluator entries retained from an observed calculation.
+    ExecutionObserved(ExecutionObservation),
     /// An authored revision was committed.
     Committed {
         /// Revision made current by the commit.
@@ -670,6 +765,8 @@ pub enum CalcEvent {
     },
     /// An admitted command was superseded.
     Superseded(CompletionReceipt),
+    /// A repeating calculation reached its stopping boundary.
+    IterationObserved(IterationObservation),
     /// A held result was certified for the current command.
     Reused {
         /// Cell whose result was reused.

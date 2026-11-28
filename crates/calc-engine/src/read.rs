@@ -1039,6 +1039,7 @@ pub(crate) struct WorkbookReader<'a> {
     /// ([`Calculation::reads_external_links`], dc-ylr).
     external: Cell<bool>,
     denial: Cell<Option<calc_fml::ReadDenial>>,
+    iterative: Option<&'a RefCell<crate::recalc::IterativeReads>>,
 }
 
 impl<'a> WorkbookReader<'a> {
@@ -1052,6 +1053,25 @@ impl<'a> WorkbookReader<'a> {
             batch: Vec::new(),
             external: Cell::new(false),
             denial: Cell::new(None),
+            iterative: None,
+        }
+    }
+
+    pub(crate) fn with_iterative_reads(
+        mut self,
+        evidence: Option<&'a RefCell<crate::recalc::IterativeReads>>,
+    ) -> Self {
+        self.iterative = evidence;
+        self
+    }
+
+    fn iterative_read(&self, source: CellKey, kind: crate::contract::IterationReadKind) {
+        if let Some(evidence) = self.iterative
+            && let Some(reader) = self.view.caller.and_then(|id| self.view.state.node(id))
+        {
+            evidence.borrow_mut().record(crate::contract::IterationRead {
+                reader: reader.anchor(), source, kind,
+            });
         }
     }
 
@@ -1384,6 +1404,9 @@ impl<'a> WorkbookReader<'a> {
         let result = match self.view.standing_at(node, at) {
             NodeStanding::Pending => {
                 if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node)) {
+                    if value.is_some() {
+                        self.iterative_read(at, crate::contract::IterationReadKind::PriorPass);
+                    }
                     return Ok(value.as_ref());
                 }
                 return Err(Unread::Waits(node));
@@ -1393,6 +1416,11 @@ impl<'a> WorkbookReader<'a> {
                     && kept.contains(&node)
                 {
                     return Err(Unread::Kept);
+                }
+                if result.calculated().is_some()
+                    && self.view.iterates.is_some_and(|iterates| iterates.contains_key(&node))
+                {
+                    self.iterative_read(at, crate::contract::IterationReadKind::CurrentPass);
                 }
                 result
             }
