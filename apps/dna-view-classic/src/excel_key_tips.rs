@@ -60,7 +60,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     pending("H F I A", "Across Worksheets"),
     pending("H F I S", "Series"),
     pending("H F I J", "Justify"),
-    pending("H F I F", "Flash Fill"),
+    command("H F I F", "Flash Fill", "grid.flash-fill"),
     group("A V", "Data Tools"),
     pending("A V V", "Data Validation"),
     group("A S", "Sort"),

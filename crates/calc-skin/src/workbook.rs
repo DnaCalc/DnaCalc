@@ -532,6 +532,9 @@ pub enum ModelChange {
         selected: Area,
         direction: FillDirection,
     },
+    FlashFill {
+        selected: Area,
+    },
     SetColumnsHidden {
         sheet: Sheet,
         /// Inclusive first and last column in each band.
