@@ -3330,17 +3330,23 @@ fn dc_piw0_4__report_listing() {
     invoke_kind(&model, &table, "TableStyle", InvokeKind::Put, vec![AutoValue::text("TableStyleMedium4")]).unwrap();
 
     let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
-    let frame = obj(invoke_kind(
-        &model, &charts, "Add", InvokeKind::Method,
-        vec![AutoValue::R8(300.0), AutoValue::R8(20.0), AutoValue::R8(360.0), AutoValue::R8(220.0)],
-    ).unwrap());
-    invoke_kind(&model, &frame, "Name", InvokeKind::Put, vec![AutoValue::text("SalesChart")]).unwrap();
-    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
-    invoke_kind(&model, &chart, "SetSourceData", InvokeKind::Method, vec![AutoValue::Object(range(&model, "A1:C6"))]).unwrap();
-    invoke_kind(&model, &chart, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
-    let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
-    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Sales by region")]).unwrap();
-    invoke_kind(&model, &chart, "HasLegend", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    for (name, source, top, kind, plot_by, caption, legend) in [
+        ("SalesChart", "A1:C6", 20.0, 51, None, "Sales by region", true),
+        ("SalesTrend", "A1:B6", 255.0, 4, Some(2), "Q1 sales", false),
+    ] {
+        let frame = obj(invoke_kind(
+            &model, &charts, "Add", InvokeKind::Method,
+            [300.0, top, 360.0, 220.0].map(AutoValue::R8).to_vec(),
+        ).unwrap());
+        invoke_kind(&model, &frame, "Name", InvokeKind::Put, vec![AutoValue::text(name)]).unwrap();
+        let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+        set_source_by(&model, &chart, source, plot_by);
+        invoke_kind(&model, &chart, "ChartType", InvokeKind::Put, vec![AutoValue::I4(kind)]).unwrap();
+        invoke_kind(&model, &chart, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+        let title = obj(invoke(&model, &chart, "ChartTitle", vec![]).unwrap());
+        invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text(caption)]).unwrap();
+        invoke_kind(&model, &chart, "HasLegend", InvokeKind::Put, vec![AutoValue::Bool(legend)]).unwrap();
+    }
 
     let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
     let add = |name: &str, args: [f64; 4], kind: Option<i32>| {
@@ -3388,7 +3394,7 @@ fn dc_piw0_4__report_listing() {
     }
     // The records the Excel run lists, by kind.
     let count_of = |kind: &str| listing.lines().filter(|l| l.starts_with(&format!("{kind}\t"))).count();
-    assert_eq!((count_of("CELL"), count_of("TABLE"), count_of("CHART"), count_of("SERIES"), count_of("SHAPE")), (24, 1, 1, 2, 6));
+    assert_eq!((count_of("CELL"), count_of("TABLE"), count_of("CHART"), count_of("SERIES"), count_of("SHAPE")), (24, 1, 2, 3, 7));
     assert!(listing.contains("CELL\tD2\t30\n"), "the formula column calculates");
     assert_eq!(count_of("FORMULA"), 5);
     assert!(listing.contains("FORMULA\tD2\t=B2+C2\n"));
@@ -7778,6 +7784,38 @@ fn merged(model: &WorkbookAutomation, address: &str) -> AutoValue {
 fn merge_area_address(model: &WorkbookAutomation, address: &str) -> String {
     let area = obj(invoke(model, &range(model, address), "MergeArea", vec![]).unwrap());
     text(model, &area, "Address")
+}
+
+/// Excel ww23 d/Merge.overlap and Merge.single.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_39_overlapping_merge_expands_to_the_bounding_rectangle() {
+    let (host, model, _) = blank_report();
+    merge_call(&model, "A1", "Merge", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(merged(&model, "A1"), AutoValue::Bool(false)));
+    merge_call(&model, "B2", "Value2", InvokeKind::Put, vec![AutoValue::R8(1.)]).unwrap();
+    merge_call(&model, "B2:C3", "Merge", InvokeKind::Method, vec![]).unwrap();
+    merge_call(&model, "C3:D4", "Merge", InvokeKind::Method, vec![]).unwrap();
+    for address in ["B2", "C3", "D4"] {
+        assert_eq!(merge_area_address(&model, address), "$B$2:$D$4");
+    }
+    assert!(matches!(cell_text(&model, "B2"), AutoValue::R8(1.)));
+    let reopened = reopen_formatting(&host);
+    assert_eq!(merge_area_address(&reopened, "D4"), "$B$2:$D$4");
+    assert!(matches!(cell_text(&reopened, "B2"), AutoValue::R8(1.)));
+}
+
+/// Excel ww23 d/MergeCells.text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_39_merge_cells_rejects_text_with_the_property_error() {
+    let (_host, model, _) = blank_report();
+    let result = merge_call(&model, "B2:C3", "MergeCells", InvokeKind::Put, vec![AutoValue::text("x")]);
+    assert_eq!(
+        excel_error(result),
+        (1004, "Unable to set the MergeCells property of the Range class".to_owned())
+    );
+    assert!(matches!(merged(&model, "B2:C3"), AutoValue::Bool(false)));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -2,7 +2,7 @@ Attribute VB_Name = "BuildReport"
 Option Explicit
 ' dc-piw0.4: the macro-built report. One macro, run in Excel (the answer) and in DNA Calc (compared).
 ' Builds, on the active sheet of the active workbook: the data of report-data.tsv (values and a formula
-' column), a table "Sales" over it, a column chart over the data with a title, and four drawing objects:
+' column), a table "Sales" over it, two titled charts, and five drawing objects:
 ' two auto shapes with text joined by a straight connector, a text box and a line.
 ' Only members registered in the object-model descriptor are used. After it, run DumpReport.Dump.
 
@@ -45,9 +45,19 @@ Public Sub Build()
     Set co = ws.ChartObjects.Add(300, 20, 360, 220)
     co.Name = "SalesChart"
     co.Chart.SetSourceData ws.Range("A1:C6")
+    co.Chart.ChartType = xlColumnClustered
     co.Chart.HasTitle = True
     co.Chart.ChartTitle.Text = "Sales by region"
     co.Chart.HasLegend = True
+
+    ' The line chart over the same table's first quarter.
+    Set co = ws.ChartObjects.Add(300, 255, 360, 220)
+    co.Name = "SalesTrend"
+    co.Chart.SetSourceData ws.Range("A1:B6"), xlColumns
+    co.Chart.ChartType = xlLine
+    co.Chart.HasTitle = True
+    co.Chart.ChartTitle.Text = "Q1 sales"
+    co.Chart.HasLegend = False
 
     ' The drawing objects.
     Dim startBox As Shape, endBox As Shape, link As Shape, note As Shape, rule As Shape
