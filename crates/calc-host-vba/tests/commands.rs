@@ -289,7 +289,7 @@ fn a_denial_vba_catches_is_still_recorded_and_an_unmodelled_member_is_a_typed_re
         let denied = owner.run_procedure(&mut session, "Module1.CaughtDenial", &[]);
         assert_eq!(denied.outcome, Outcome::Success(ProcedureResult::Empty), "{denied:?}");
         assert!(
-            denied.denials.iter().any(|d| d.capability.contains("ComActivate") && d.layer == "vba-host"),
+            denied.denials.iter().any(|d| d.capability == "com.activate" && d.layer == "vba-host"),
             "{denied:?}"
         );
         assert!(matches!(cell(&session, 1, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 429.0));

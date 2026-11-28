@@ -23,8 +23,7 @@ pub enum InvocationKind {
 /// One request the execution policy denied during an invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Denial {
-    /// `files`, `com-activate`, ... for the VBA library layer; the descriptor capability key for an
-    /// object-model member.
+    /// The shared dotted capability key.
     pub capability: String,
     /// The detail the request named (a path, a ProgID) or the descriptor member (`_Application.Run`).
     pub subject: String,
@@ -189,7 +188,7 @@ impl WorkbookEvents {
                     .iter()
                     .filter(|r| r.decision == calc_vba::policy::Decision::Denied)
                     .map(|r| Denial {
-                        capability: format!("{:?}", r.capability),
+                        capability: r.capability.name().to_owned(),
                         subject: r.detail.clone(),
                         layer: "vba-host",
                     })
