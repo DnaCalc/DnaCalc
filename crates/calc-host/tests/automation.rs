@@ -4445,6 +4445,45 @@ fn host_provisions_are_checked_before_authority() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn guarded_capabilities_from_profile_are_audited_and_allowed() {
+    use calc_host::portability::HostProfile;
+    use calc_object_model::policy::{MacroSecurity, PolicyChecker};
+
+    let (host, _) = setup();
+    let audit = Rc::new(RefCell::new(Vec::new()));
+    let checker = PolicyChecker::new(|| MacroSecurity::Guarded, {
+        let audit = audit.clone();
+        move |record| audit.borrow_mut().push(record)
+    })
+    .with_provisions(|need| HostProfile::WINDOWS.provision(need));
+    let model = WorkbookAutomation::with_policy(host.clone(), checker);
+    model.context_changed(&host.session.borrow());
+    let app = model.application();
+    let AutoValue::Object(range) = invoke(&model, &app, "Range", vec![AutoValue::text("A1")]).unwrap()
+    else {
+        panic!("expected Range");
+    };
+
+    for (target, member, kind, args) in [
+        (&app, "InputBox", InvokeKind::Method, vec![AutoValue::text("Enter a value")]),
+        (&app, "FileDialog", InvokeKind::Get, vec![AutoValue::I4(3)]),
+        (&app, "ClipboardFormats", InvokeKind::Get, vec![]),
+        (&range, "PrintOut", InvokeKind::Method, vec![]),
+    ] {
+        let reply = invoke_kind(&model, target, member, kind, args);
+        assert!(!matches!(reply, Err(AutoError::PolicyDenied { .. })), "{reply:?}");
+    }
+    let audit = audit.borrow();
+    assert_eq!(audit.len(), 4);
+    for (record, expected) in audit.iter().zip(["ui.dialog", "ui.filedialog", "clipboard", "print"]) {
+        assert!(record.allowed);
+        assert_eq!(record.reach[0].key(), expected);
+        assert_eq!(record.unavailable, None);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn multiple_observers_receive_ordered_events_under_one_enable_events_switch() {
     struct Listener(&'static str, Rc<RefCell<Vec<(&'static str, &'static str)>>>);
     impl Listener {

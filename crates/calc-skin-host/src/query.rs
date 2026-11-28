@@ -15,9 +15,26 @@ use std::collections::BTreeSet;
 const MAX_QUERY_CELLS: u64 = 65_536;
 
 pub(crate) fn capabilities(state: &State) -> Capabilities {
+    use calc_host::portability::{Need, Provision};
+
+    let profile = &state.host_profile;
+    let mut supported = vec![Capability::Workbook];
+    for (capability, need) in [
+        (Capability::NativeAddins, Need::Xll),
+        (Capability::ComRtd, Need::OsCom),
+        (Capability::NativeFileDialogs, Need::FileDialog),
+        (Capability::Printing, Need::Print),
+    ] {
+        if profile.provision(need) != Provision::Reject {
+            supported.push(capability);
+        }
+    }
+    if matches!(profile.provision(Need::Clipboard), Provision::Native | Provision::Host) {
+        supported.push(Capability::ExcelClipboardFormats);
+    }
     Capabilities {
         read_only: state.read_only,
-        supported: vec![Capability::Workbook, Capability::Printing],
+        supported,
         platform_reserved_chords: Vec::new(),
     }
 }

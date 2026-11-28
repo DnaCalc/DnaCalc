@@ -277,6 +277,45 @@ fn application_run_runs_another_procedure_nested_and_raises_excels_error_for_a_m
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dna_view_select_uses_the_live_workbook_selection_without_a_history_step() {
+    let module = r#"
+Public Sub ReviewCells()
+    Application.Run "DnaCalc.View.Select", Application.ActiveSheet.Name & "!B2:C3"
+    If Application.ActiveCell.Row <> 2 Then Err.Raise 5
+    Application.Run "dnacalc.select", "D4:E5"
+    If Application.ActiveCell.Column <> 4 Then Err.Raise 5
+End Sub
+Public Sub InvalidAddress()
+    Application.Run "DnaCalc.View.Select", "'Missing sheet'!A1"
+End Sub
+Public Sub InvalidArgument()
+    Application.Run "DnaCalc.View.Select", True
+End Sub
+"#;
+    for backend in backends() {
+        let (mut session, owner) = project_with(module, calc_macro_security::VbaPolicy::Guarded, backend);
+        let before = session.skin_history();
+        let revision = session.host().revision();
+        let run = owner.run_procedure(&mut session, "ReviewCells", &[]);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{run:?}");
+        assert!(run.denials.is_empty(), "{run:?}");
+        for (procedure, expected) in [("InvalidAddress", 1004), ("InvalidArgument", 13)] {
+            let run = owner.run_procedure(&mut session, procedure, &[]);
+            assert!(matches!(run.outcome, Outcome::RuntimeError { number, .. } if number == expected), "{run:?}");
+        }
+        let selected = session.selection();
+        let at = selected.active.unwrap();
+        assert_eq!((at.row(), at.column()), (4, 4));
+        assert_eq!(selected.areas.len(), 1);
+        let last = selected.areas[0].last();
+        assert_eq!((last.row(), last.column()), (5, 5));
+        assert_eq!(session.skin_history(), before);
+        assert_eq!(session.host().revision(), revision);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn an_omitted_optional_argument_takes_its_declared_default() {
     for backend in backends() {
         let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);

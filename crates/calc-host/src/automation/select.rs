@@ -89,6 +89,23 @@ impl WorkbookAutomation {
         }
     }
 
+    /// Select a worksheet range in this workbook for the late-bound DNA Calc view verb.
+    pub fn select_view_range(&self, address: &str) -> Reply {
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            let address = AutoValue::text(address);
+            let range = self.range_argument(&mut Access::Session(session, false), &meta, &address, None)?;
+            let areas = range.areas();
+            let sheet = areas.first().ok_or_else(geometry::type_mismatch)?.sheet();
+            if !Self::visible_sheet(session, sheet) {
+                return Err(Self::failed("DnaCalc.View", "Select"));
+            }
+            Self::select_intent(session, Self::range_selection(areas), "DnaCalc.View", "Select")?;
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
     fn held_of(target: &ObjectRef) -> Result<StoredReference, AutoError> {
         match &target.key {
             ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. } => Ok(held.clone()),

@@ -142,6 +142,18 @@ pub enum Capability {
     /// Modify a VBA project.
     #[serde(rename = "project.write")]
     ProjectWrite,
+    /// Display a message or input dialog.
+    #[serde(rename = "ui.dialog")]
+    UiDialog,
+    /// Ask the person to pick a file or folder.
+    #[serde(rename = "ui.filedialog")]
+    UiFileDialog,
+    /// Access the system clipboard.
+    #[serde(rename = "clipboard")]
+    Clipboard,
+    /// Print a workbook or display a print preview.
+    #[serde(rename = "print")]
+    Print,
 }
 
 impl Capability {
@@ -158,7 +170,15 @@ impl Capability {
             Self::UiKeys => "ui.keys",
             Self::Network => "network",
             Self::ProjectWrite => "project.write",
+            Self::UiDialog => Need::Dialog.key(),
+            Self::UiFileDialog => Need::FileDialog.key(),
+            Self::Clipboard => Need::Clipboard.key(),
+            Self::Print => Need::Print.key(),
         }
+    }
+
+    pub(crate) const fn allowed_in_guarded(self) -> bool {
+        matches!(self, Self::UiDialog | Self::UiFileDialog | Self::Clipboard | Self::Print)
     }
 }
 

@@ -34,6 +34,18 @@ fn port(host: &SkinHost) -> impl WorkbookPort + use<> {
     )
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn guarded_capabilities_from_profile_reach_the_skin_connection() {
+    let (host, _) = workbook();
+    let supported = port(&host).capabilities().supported;
+    assert!(supported.contains(&Capability::Workbook));
+    assert!(supported.contains(&Capability::Printing));
+    assert!(supported.contains(&Capability::NativeFileDialogs));
+    assert_eq!(supported.contains(&Capability::NativeAddins), cfg!(windows));
+    assert_eq!(supported.contains(&Capability::ComRtd), cfg!(windows));
+}
+
 fn enter(at: Key, text: &str) -> Change {
     Change::Model(ModelChange::Enter {
         at,

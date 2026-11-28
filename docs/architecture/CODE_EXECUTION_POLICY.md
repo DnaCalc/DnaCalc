@@ -66,8 +66,8 @@ own and needs no origin; its functions that reach outside (`Shell`, `Kill`, `Ope
 
 ### 2.2 Reach and the shared capability names
 
-One vocabulary across all runtimes, used by triage, the audit and the settings. The first eight
-exist in CalcVBA today (calcvba-hal capability.rs:44-52); the last two are new.
+One vocabulary across the runtimes, used by triage, the audit and the settings. The first eight
+exist in CalcVBA's HAL capability table.
 
 | Capability | Covers |
 |---|---|
@@ -80,6 +80,13 @@ exist in CalcVBA today (calcvba-hal capability.rs:44-52); the last two are new.
 | `ui.keys` | `SendKeys` |
 | `network` *(new)* | HTTP, sockets, URLs opened by any member (XMLHTTP, WinHttp, `Workbooks.Open "https://..."`, `FollowHyperlink`) |
 | `project.write` *(new)* | Changing VBA code or references (`VBProject`, `VBComponents.Import`), in this or another workbook |
+| `ui.dialog` | Message and input dialogs |
+| `ui.filedialog` | File and folder pickers |
+| `clipboard` | Access to the system clipboard |
+| `print` | Print and print preview |
+
+The object-model policy audits the four UI capabilities and allows them in Guarded where the
+host supplies them.
 
 Reach is declared per member, not per class, wherever the member is the host's:
 
