@@ -1158,6 +1158,7 @@ fn dependency_query_preserves_dynamic_edges_and_bounds_both_directions() {
                         kind: DependencyKind::Dynamic
                     },
                 ],
+                references: Vec::new(),
                 sheets: vec![DependencySheetGroup {
                     sheet,
                     members: vec![0, 1, 2]
@@ -1189,6 +1190,139 @@ fn dependency_query_preserves_dynamic_edges_and_bounds_both_directions() {
         port.ask(downstream.request(), Budget { edges: 1, ..BUDGET }),
         Err(Refusal::OverBudget { counts, .. }) if counts.edges == 2
     ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dependency_query_preserves_spill_reference_identity() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let a1 = key(1, 1);
+    let c1 = key(1, 3);
+    connection
+        .commit(batch(
+            1,
+            vec![enter(a1, "=SEQUENCE(3)"), enter(c1, "=SUM(A1#)")],
+        ))
+        .unwrap();
+    while host.advance() {}
+
+    let deps = |at, dir| {
+        let request = query::Deps {
+            of: target(at),
+            dir,
+            depth: 1,
+            group: DependencyGrouping::Reference,
+        };
+        let answer =
+            query::Deps::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+        let Evidence::Derived { body, .. } = answer.body else {
+            panic!("dependency graph")
+        };
+        body
+    };
+    let forwards = deps(c1, DependencyDirection::Precedents);
+    assert!(
+        forwards
+            .edges
+            .iter()
+            .any(|edge| edge.kind == DependencyKind::Dynamic
+                && forwards.nodes[edge.to]
+                    == DependencyTarget::Source(SourceRef::Cells {
+                        sheet,
+                        areas: vec![Area(a1, key(3, 1))],
+                    }))
+    );
+    let backwards = deps(key(2, 1), DependencyDirection::Dependents);
+    for (graph, kind) in [
+        (forwards, DependencyKind::Placed),
+        (backwards, DependencyKind::Reader),
+    ] {
+        let [reference] = graph.references.as_slice() else {
+            panic!("one explicit spill operand")
+        };
+        assert_eq!(reference.edge.kind, kind);
+        assert_eq!(reference.spelling, "A1#");
+        assert_eq!(reference.source, SourceRef::Spill { anchor: a1 });
+        assert_eq!(reference.published_extent, Some(Area(a1, key(3, 1))));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dependency_query_retains_bound_table_selectors() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    connection
+        .commit(batch(
+            1,
+            vec![
+                enter(key(1, 1), "Region"),
+                enter(key(1, 2), "Amount"),
+                enter(key(2, 1), "West"),
+                enter(key(2, 2), "10"),
+                enter(key(3, 1), "East"),
+                enter(key(3, 2), "20"),
+            ],
+        ))
+        .unwrap();
+    while host.advance() {}
+    host.with_session(SelectionCause::Open, |session| {
+        let revision = session.host().revision().get();
+        let change = calc_host::TableChange::Create {
+            area: Area(key(1, 1), key(3, 2)).area().unwrap(),
+            name: "Orders".into(),
+        };
+        let receipt = session.dispatch(calc_host::SkinIntent::Command(
+            calc_host::WorkbookCommand::Table { revision, change },
+        ));
+        assert!(receipt.accepted(), "{receipt:?}");
+    });
+    let report = key(1, 4);
+    connection
+        .commit(batch(
+            2,
+            vec![enter(
+                report,
+                r#"=SUMIFS(Orders[Amount],Orders[Region],"West")"#,
+            )],
+        ))
+        .unwrap();
+    while host.advance() {}
+    let request = query::Deps {
+        of: SourceRef::Cells {
+            sheet,
+            areas: vec![Area(report, report)],
+        },
+        dir: DependencyDirection::Precedents,
+        depth: 1,
+        group: DependencyGrouping::Reference,
+    };
+
+    let answer = query::Deps::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body: graph, .. } = answer.body else {
+        panic!("dependency graph")
+    };
+    assert_eq!(graph.edges.len(), 2);
+    assert_eq!(graph.references.len(), 2);
+    for (spelling, column) in [("Orders[Amount]", 2), ("Orders[Region]", 1)] {
+        let reference = graph
+            .references
+            .iter()
+            .find(|reference| reference.spelling == spelling)
+            .unwrap();
+        assert_eq!(reference.edge.kind, DependencyKind::Placed);
+        assert_eq!(
+            reference.source,
+            SourceRef::Cells {
+                sheet,
+                areas: vec![Area(key(2, column), key(3, column))],
+            }
+        );
+        assert_eq!(reference.published_extent, None);
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

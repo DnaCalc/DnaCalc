@@ -328,6 +328,8 @@ pub struct ReferenceSite {
     pub span: TextSpan,
     /// The bound operand or the reason no operand was produced.
     pub binding: Result<ReferenceOperand, BindError>,
+    /// Whether the reference selected part of a structured table.
+    pub structured: bool,
     /// The reference takes the formula's row from its area by implicit intersection: a
     /// structured reference's `#This Row` (`Sales[@Qty]`), bound to the column's data rows.
     pub this_row: bool,
@@ -555,6 +557,7 @@ impl Binder<'_> {
         self.sites.push(ReferenceSite {
             span,
             binding,
+            structured: false,
             this_row: false,
         });
     }
@@ -588,6 +591,7 @@ impl Binder<'_> {
                 self.sites.push(ReferenceSite {
                     span: node.span(),
                     binding: Ok(bound.operand),
+                    structured: true,
                     this_row: bound.this_row,
                 });
                 true
@@ -632,6 +636,7 @@ impl Binder<'_> {
                 self.sites.push(ReferenceSite {
                     span: node.span(),
                     binding: Ok(bound.operand),
+                    structured: true,
                     this_row: bound.this_row,
                 });
                 true

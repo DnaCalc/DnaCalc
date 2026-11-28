@@ -1446,6 +1446,10 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
                 "The selected Report formula has a collapsed dependency branch",
                 "document.querySelector('[role=treeitem][tabindex=\"0\"][aria-expanded=false]')?.textContent.includes('Report!B5') === true",
             )),
+            Action::Wait(Check::Js(
+                "Dependency edges retain both authored Orders selectors",
+                "['Orders[Amount]', 'Orders[Region]'].every(name => Array.from(document.querySelectorAll('[data-inspector=dependency-operand] code')).some(node => node.textContent === name))",
+            )),
             Action::Keys("[role='treeitem'][tabindex='0']", "\u{e014}"),
             Action::Wait(Check::Attr("[role='treeitem'][tabindex='0']", "aria-expanded", "true")),
             Action::Keys("[role='treeitem'][tabindex='0']", "\u{e014}"),

@@ -117,7 +117,8 @@ mod state;
 mod structural;
 
 pub use detached::{
-    DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation, DetachedReadPolicy,
+    DependencySpelling, DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation,
+    DetachedReadPolicy,
 };
 pub use detached::{NameCalculationProgress, NameCalculationResult, NameCalculationWork};
 pub use edit::{

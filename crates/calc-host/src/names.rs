@@ -358,6 +358,11 @@ impl HostState {
     pub fn stable_name_source(&self, id: NameId) -> Option<(calc_value::GridArea, bool)> {
         calc_engine::DetachedFormula::stable_name_source(&self.model, id)
     }
+
+    /// Explicit table and spill reference spellings for the workbook dependency instrument.
+    pub fn dependency_spellings(&self, at: CellKey) -> Vec<calc_engine::DependencySpelling> {
+        calc_engine::DetachedFormula::dependency_spellings(&self.model, at)
+    }
     /// Explicit diagnostic evaluation, with a real name identity and caller anchor. No
     /// authored cell or shared name value is created, and no file cache is accepted as current.
     pub fn evaluate_name(
