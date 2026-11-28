@@ -44,7 +44,11 @@ fn bindings(page: &Page, report: PageReport) -> Vec<Bound> {
 }
 
 fn rows(session: Session, source: SourceRef, offset: u32, limit: u32) -> Memo<Live<RowPage>> {
-    let watch = session.following::<query::Rows>();
+    // Expansion can overlap the calculation and publication from an applied input.
+    let watch = session.following_with_budget::<query::Rows>(Budget {
+        millis: 500,
+        ..crate::PAGE_BUDGET
+    });
     let query = query::Rows {
         source,
         filter: Vec::new(),
