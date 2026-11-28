@@ -693,7 +693,8 @@ impl WorkbookPort for Connection {
                             continue;
                         }
                         ModelPropertyDiff::Scope { source, .. } => source.clone(),
-                        ModelPropertyDiff::AddedScenario { scenario, .. } => SourceRef::Sheet(scenario.sheet),
+                        ModelPropertyDiff::AddedScenario { scenario, .. }
+                        | ModelPropertyDiff::EditedScenario { scenario, .. } => SourceRef::Sheet(scenario.sheet),
                     };
                     scope_changed = true;
                     let target = Target::Source(source);
@@ -953,7 +954,7 @@ impl WorkbookPort for Connection {
                 ));
             if slot.answer.is_some()
                 && !completed_snapshot
-                && !(proposals_changed && matches!(slot.query, WorkbookQuery::Proposals))
+                && !(proposals_changed && matches!(slot.query, WorkbookQuery::Proposals | WorkbookQuery::Summary))
                 && !(baseline_changed && matches!(
                     slot.query,
                     WorkbookQuery::NumericComparison { .. }

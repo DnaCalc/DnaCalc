@@ -152,3 +152,34 @@
     .dna-page-print-schedule { break-before: page; overflow: visible; }
     .dna-page-print-schedule tr { break-inside: avoid; }
 }
+
+.dna-proposal-review {
+    flex-basis: min(28rem, 48vw);
+}
+
+.dna-proposal-review > header,
+.dna-proposal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dna-gap-2);
+}
+
+.dna-proposal-review > header {
+    justify-content: space-between;
+}
+
+.dna-proposal-list,
+.dna-proposal-unit {
+    display: grid;
+    gap: var(--dna-gap-1);
+}
+
+.dna-proposal-unit {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+}
+
+.dna-proposal-unit small {
+    grid-column: 2;
+}

@@ -16,7 +16,7 @@ use crate::Live;
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::query::{self, Query};
 use calc_skin::{
-    Answer, Batch, Budget, Change, Envelope, FormulaAnswer, FormulaOperation, FormulaQuery,
+    Answer, Batch, Budget, Change, Envelope, FormulaOperation, FormulaQuery,
     Event, FormulaReply, Frame, LookOffer, Message, ModelChange, Operation, Packet, Preview, PreviewDepth, Refusal,
     Revision, Selection, SourceRef, Stamp, Target, WatchId, WorkbookId, WorkbookReply, WorkbookRequest,
 };
@@ -128,7 +128,7 @@ enum Pending {
     Run { notice: Option<String> },
     Resolve,
     Navigate,
-    Formula(FormulaReply),
+    Complete(Box<dyn FnOnce(Result<WorkbookReply, Refusal>)>),
 }
 
 struct Slot {
@@ -153,7 +153,7 @@ pub struct Client {
     notice: String,
     last_refusal: Option<Refusal>,
     look_offer: Option<LookOffer>,
-    formula_replies: Vec<(FormulaReply, Result<FormulaAnswer, Refusal>)>,
+    completions: Vec<Box<dyn FnOnce()>>,
 }
 
 impl Client {
@@ -163,16 +163,53 @@ impl Client {
     }
 
     pub fn ask_formula(&mut self, query: FormulaQuery, complete: FormulaReply) {
-        self.send(WorkbookRequest::FormulaQuery(query), None, Pending::Formula(complete));
+        self.formula_request(WorkbookRequest::FormulaQuery(query), complete);
     }
 
     pub fn operate_formula(&mut self, operation: FormulaOperation, complete: FormulaReply) {
-        self.send(WorkbookRequest::FormulaOperation(operation), None, Pending::Formula(complete));
+        self.formula_request(WorkbookRequest::FormulaOperation(operation), complete);
     }
 
-    /// Run completions outside the client's borrow so a formula tool can send another request.
-    pub fn take_formula_replies(&mut self) -> Vec<(FormulaReply, Result<FormulaAnswer, Refusal>)> {
-        std::mem::take(&mut self.formula_replies)
+    fn formula_request(&mut self, request: WorkbookRequest, complete: FormulaReply) {
+        self.complete(request, move |result| {
+            complete(result.and_then(|reply| match reply {
+                WorkbookReply::Formula(answer) => Ok(answer),
+                _ => Err(Refusal::Transport("Expected a formula reply".into())),
+            }));
+        });
+    }
+
+    pub fn preview_proposal(
+        &mut self, proposal: calc_skin::ProposalId, units: Vec<calc_skin::UnitId>, depth: PreviewDepth,
+        complete: impl FnOnce(Result<Preview, Refusal>) + 'static,
+    ) {
+        self.complete(WorkbookRequest::PreviewProposal { proposal, units, depth }, move |result| {
+            complete(result.and_then(|reply| match reply {
+                WorkbookReply::Preview(preview) => Ok(preview),
+                _ => Err(Refusal::Transport("Expected a proposal preview".into())),
+            }));
+        });
+    }
+
+    pub fn decide_proposal(
+        &mut self, proposal: calc_skin::ProposalId, accept: Vec<calc_skin::UnitId>, reject: Vec<calc_skin::UnitId>,
+        complete: impl FnOnce(Result<Stamp, Refusal>) + 'static,
+    ) {
+        self.complete(WorkbookRequest::Run(Operation::Decide { proposal, accept, reject }), move |result| {
+            complete(result.and_then(|reply| match reply {
+                WorkbookReply::Stamp(stamp) => Ok(stamp),
+                _ => Err(Refusal::Transport("Expected a proposal decision receipt".into())),
+            }));
+        });
+    }
+
+    fn complete(&mut self, request: WorkbookRequest, callback: impl FnOnce(Result<WorkbookReply, Refusal>) + 'static) {
+        self.send(request, None, Pending::Complete(Box::new(callback)));
+    }
+
+    /// Invoke completions after releasing the client borrow so a callback can send another request.
+    pub fn take_completions(&mut self) -> Vec<Box<dyn FnOnce()>> {
+        std::mem::take(&mut self.completions)
     }
 
     pub fn stamp(&self) -> Option<Stamp> {
@@ -683,12 +720,8 @@ impl Client {
 
     fn reply(&mut self, pending: Pending, result: Result<WorkbookReply, Refusal>) -> Changes {
         match (pending, result) {
-            (Pending::Formula(complete), result) => {
-                let result = result.and_then(|reply| match reply {
-                    WorkbookReply::Formula(answer) => Ok(answer),
-                    _ => Err(Refusal::Transport("Expected a formula reply".into())),
-                });
-                self.formula_replies.push((complete, result));
+            (Pending::Complete(callback), result) => {
+                self.completions.push(Box::new(move || callback(result)));
                 Changes::default()
             }
             (Pending::Quiet, _) => Changes::default(),

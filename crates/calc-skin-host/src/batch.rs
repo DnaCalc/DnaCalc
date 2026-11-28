@@ -1,6 +1,6 @@
 use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
-use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetScenario};
-use calc_host::value::{CellKey, GridArea};
+use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetScenario, WorksheetScenarios};
+use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{
     Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, SortKey, SortOptions,
     prepare_column_visibility, prepare_filter_toggle, prepare_paste_oriented, prepare_sort_rows,
@@ -512,6 +512,10 @@ pub(crate) fn prepare(
                     let change = save_scenario(state, scenario, ScenarioCells::Areas(areas), &mut edits)?;
                     scenario_changes.push(change);
                 }
+                ModelChange::EditScenario { scenario, change } => {
+                    require_current_model(request, base.model)?;
+                    scenario_changes.extend(edit_scenario(state, scenario, change, &mut edits)?);
+                }
                 ModelChange::ResetInputs { inputs } => {
                     require_current_model(request, base.model)?;
                     let host = state.session.host();
@@ -963,6 +967,55 @@ enum ScenarioCells<'a> {
     Areas(&'a [Area]),
 }
 
+fn scenario_records(state: &State, sheet: Sheet, edits: &[CellEdit]) -> Result<(SheetId, WorksheetScenarios), Refusal> {
+    let host = state.session.host();
+    let id = crate::query::checked_sheet(host, sheet)?;
+    if host.sheet_contents_protected(id) {
+        return Err(Refusal::Protected(SourceRef::Sheet(sheet)));
+    }
+    let records = edits.iter().rev().find_map(|edit| match edit {
+        CellEdit::Scenarios { sheet, records } if *sheet == id => Some(records.as_ref()),
+        _ => None,
+    }).unwrap_or_else(|| host.model().definitions().scenarios(id)).cloned().unwrap_or_default();
+    Ok((id, records))
+}
+
+fn scenario_name(name: &str) -> Result<String, Refusal> {
+    if name.is_empty() || name.encode_utf16().count() > 255 {
+        return Err(invalid("Enter a scenario name of 1–255 characters"));
+    }
+    Ok(calc_doc_model::value::fold_workbook_name(name))
+}
+
+fn edit_scenario(state: &State, scenario: &ScenarioRef, change: &ScenarioChange, edits: &mut Vec<CellEdit>) -> Result<Option<ModelPropertyDiff>, Refusal> {
+    let (id, mut records) = scenario_records(state, scenario.sheet, edits)?;
+    if records.unread != 0 {
+        return Err(unavailable("dc-s2xup", "Editing unread Scenario Manager records"));
+    }
+    let i = records.entries.iter().position(|record| record.name == scenario.name)
+        .ok_or_else(|| invalid("The worksheet scenario is unavailable"))?;
+    match change {
+        ScenarioChange::Rename { to } => {
+            if to == &scenario.name {
+                return Ok(None);
+            }
+            let folded = scenario_name(to)?;
+            if records.entries.iter().enumerate().any(|(index, known)| {
+                index != i && calc_doc_model::value::fold_workbook_name(&known.name) == folded
+            }) {
+                return Err(invalid("A scenario with that name already exists on the worksheet"));
+            }
+            records.entries[i].name = to.clone();
+        }
+        ScenarioChange::Remove => {
+            records.entries.remove(i);
+        }
+    }
+    let records = (!records.entries.is_empty()).then_some(records);
+    edits.push(CellEdit::Scenarios { sheet: id, records });
+    Ok(Some(ModelPropertyDiff::EditedScenario { scenario: scenario.clone(), change: change.clone() }))
+}
+
 fn save_scenario(
     state: &State,
     scenario: &ScenarioRef,
@@ -970,21 +1023,11 @@ fn save_scenario(
     edits: &mut Vec<CellEdit>,
 ) -> Result<ModelPropertyDiff, Refusal> {
     let host = state.session.host();
-    let id = crate::query::checked_sheet(host, scenario.sheet)?;
-    if host.sheet_contents_protected(id) {
-        return Err(Refusal::Protected(SourceRef::Sheet(scenario.sheet)));
-    }
-    if scenario.name.is_empty() || scenario.name.encode_utf16().count() > 255 {
-        return Err(invalid("Enter a scenario name of 1–255 characters"));
-    }
-    let mut records = edits.iter().rev().find_map(|edit| match edit {
-        CellEdit::Scenarios { sheet, records } if *sheet == id => records.as_ref(),
-        _ => None,
-    }).or_else(|| host.model().definitions().scenarios(id)).cloned().unwrap_or_default();
+    let (id, mut records) = scenario_records(state, scenario.sheet, edits)?;
+    let folded = scenario_name(&scenario.name)?;
     if records.unread != 0 {
         return Err(unavailable("dc-zh096", "Adding a scenario to unread Scenario Manager records"));
     }
-    let folded = calc_doc_model::value::fold_workbook_name(&scenario.name);
     if records.entries.iter().any(|known| calc_doc_model::value::fold_workbook_name(&known.name) == folded) {
         return Err(invalid("A scenario with that name already exists on the worksheet"));
     }
@@ -1052,6 +1095,7 @@ fn save_scenario(
         values.push((Key::of(at), display));
     }
     records.entries.push(WorksheetScenario {
+        source_index: None,
         name: scenario.name.clone(),
         hidden: false,
         locked: false,

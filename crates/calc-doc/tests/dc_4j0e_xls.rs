@@ -1194,9 +1194,15 @@ fn scenarios_survive_conversion_with_exact_changing_cells() {
     scenario.extend(full("Ann")); scenario.extend(full("note"));
     scenario.extend(u16s(&[0, 0, 2, 1]));
     scenario.extend(full("12")); scenario.extend(full("_x0041_")); scenario.extend([0, 0, 0, 0]);
-    let make = |m: &[u8], s: &[u8]| xls(false, &[], &[Sheet::worksheet("S",
-        [record(0x00AE, m), record(0x00AF, s), number(0, 0, 1.0)].concat())]);
-    let bytes = make(&manager, &scenario);
+    let make = |m: &[u8], scenarios: &[&[u8]]| {
+        let mut sheet = record(0x00AE, m);
+        for scenario in scenarios {
+            sheet.extend(record(0x00AF, scenario));
+        }
+        sheet.extend(number(0, 0, 1.0));
+        xls(false, &[], &[Sheet::worksheet("S", sheet)])
+    };
+    let bytes = make(&manager, &[&scenario]);
     let document = calc_doc::open(source(&bytes), &OpenPolicy::default()).unwrap();
     let check = |doc: &calc_doc::OpenedDocument| {
         let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
@@ -1224,6 +1230,7 @@ fn scenarios_survive_conversion_with_exact_changing_cells() {
     assert_eq!(reloaded.model().definitions().scenarios(reloaded.sheets()[0].id()), Some(scenarios));
     let mut records = scenarios.clone();
     records.entries.push(calc_doc::model::WorksheetScenario {
+        source_index: None,
         name: "New & _x0041_".into(),
         ..scenarios.entries[0].clone()
     });
@@ -1241,18 +1248,72 @@ fn scenarios_survive_conversion_with_exact_changing_cells() {
     ).unwrap();
     check(&calc_doc::open(source(&appended), &OpenPolicy::default()).unwrap());
     let appended = load(&appended);
+    records.entries[1].source_index = Some(1);
     assert_eq!(appended.model().definitions().scenarios(appended.sheets()[0].id()), Some(&records));
+    let rewrite = |book: &LoadedWorkbook, records| {
+        let sheet = book.sheets()[0].id();
+        let edited = calc_doc::prepare_edit(book.model(), &calc_doc::model::OpBatch {
+            base: book.model().revision(),
+            operations: vec![calc_doc::model::WorkbookOp::SetScenarios { sheet, records }],
+        }).unwrap();
+        let plan = calc_doc::prepare_save(&book.snapshot(edited.model()), &calc_doc::SavePolicy::default()).unwrap();
+        let mut bytes = Vec::new();
+        calc_doc::write(plan, &mut bytes).unwrap();
+        bytes
+    };
+    let scenario_xml = |bytes: &[u8]| {
+        let doc = calc_doc::open(source(bytes), &OpenPolicy::default()).unwrap();
+        String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap()
+    };
+    let mut records = appended.model().definitions().scenarios(appended.sheets()[0].id()).unwrap().clone();
+    records.entries[0].name = "Plan & _x0042_".into();
+    let renamed = rewrite(&appended, Some(records));
+    let xml = scenario_xml(&renamed);
+    for expected in ["<scenarios current=\"0\" sqref=\"D5\">", "name=\"Plan &amp; _x005F_x0042_\"",
+        "user=\"Ann\" comment=\"note\"", "<inputCells r=\"B3\" val=\"_x005F_x0041_\"/>"] {
+        assert!(xml.contains(expected), "{expected} in {xml}");
+    }
+    let renamed = load(&renamed);
+    let mut records = renamed.model().definitions().scenarios(renamed.sheets()[0].id()).unwrap().clone();
+    assert_eq!(records.entries[0].name, "Plan & _x0042_");
+    assert_eq!(records.entries[0].inputs, records.entries[1].inputs);
+    records.entries.remove(0);
+    let one_left = rewrite(&renamed, Some(records));
+    let xml = scenario_xml(&one_left);
+    assert!(xml.contains("sqref=\"D5\""), "{xml}");
+    assert!(!xml.contains("current=\""), "{xml}");
+    assert!(!xml.contains("name=\"Plan &amp;") && !xml.contains("comment=\"note\""), "{xml}");
+    let one_left = load(&one_left);
+    let records = one_left.model().definitions().scenarios(one_left.sheets()[0].id()).unwrap();
+    let [remaining] = records.entries.as_slice() else { panic!("one scenario should survive") };
+    assert_eq!(remaining.name, "New & _x0041_");
+    assert_eq!(remaining.inputs[1].value.to_string_lossy(), "_x0041_");
+    let removed = rewrite(&one_left, None);
+    assert!(!scenario_xml(&removed).contains("<scenarios"));
+
+    let mut next = scenario.clone();
+    next[8..12].copy_from_slice(b"Next");
+    let paired = make(&u16s(&[2, 1, 0, 1, 4, 4, 3, 3]), &[&scenario, &next]);
+    let paired = load(&paired);
+    let mut records = paired.model().definitions().scenarios(paired.sheets()[0].id()).unwrap().clone();
+    assert_eq!(records.entries[1].name, "Next");
+    records.entries.remove(0);
+    let shifted = rewrite(&paired, Some(records));
+    let xml = scenario_xml(&shifted);
+    assert!(xml.contains("<scenarios current=\"0\" sqref=\"D5\">"), "{xml}");
+    assert!(xml.contains("<scenario name=\"Next\"") && !xml.contains("show=\""), "{xml}");
+
     let report = legacy_workbook_report(source(&bytes), &OpenPolicy::default()).unwrap().unwrap();
     assert_eq!(report.unknown_records.get(&0x00AE), Some(&1));
     assert_eq!(report.unknown_records.get(&0x00AF), Some(&1));
     // A mismatched manager and a deleted input do not yield a partial scenario.
     manager[..2].copy_from_slice(&2u16.to_le_bytes());
-    let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
+    let bad = calc_doc::open(source(&make(&manager, &[&scenario])), &OpenPolicy::default()).unwrap();
     assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
     manager[..2].copy_from_slice(&1u16.to_le_bytes());
     let reference = scenario.windows(8).position(|w| w == u16s(&[0, 0, 2, 1])).unwrap();
     scenario[reference+2..reference+4].copy_from_slice(&0x4000u16.to_le_bytes());
-    let bad = calc_doc::open(source(&make(&manager, &scenario)), &OpenPolicy::default()).unwrap();
+    let bad = calc_doc::open(source(&make(&manager, &[&scenario])), &OpenPolicy::default()).unwrap();
     assert!(!String::from_utf8(bad.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap().contains("<scenarios"));
     // BIFF5 strings are byte-counted and use the workbook code page.
     let mut legacy = u16s(&[1]); legacy.extend([1, 0, 4, 0, 3]); legacy.extend(b"caf\xE9");

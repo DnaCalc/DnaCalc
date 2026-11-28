@@ -16,7 +16,9 @@ use dna_kit::{
 use leptos::{leptos_dom::helpers::request_animation_frame, prelude::*, wasm_bindgen::JsCast};
 use std::rc::Rc;
 
+mod proposals;
 mod studio;
+use proposals::Proposals;
 use studio::Studio;
 
 /// The digit of each view's switching chord (decision D12). App has only the Alt+Shift alias:
@@ -43,6 +45,7 @@ pub struct Chrome {
     side_pane: RwSignal<Option<SidePane>>,
     deck_folded: RwSignal<bool>,
     studio: Studio,
+    proposals: Proposals,
     name_manager: NameManager,
     tips: NodeRef<leptos::html::Div>,
 }
@@ -75,6 +78,10 @@ fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
             }).collect::<Vec<_>>().join(", ");
             format!("Save scenario {} · {values}", scenario.name)
         }
+        ModelPropertyDiff::EditedScenario { scenario, change } => match change {
+            calc_skin::ScenarioChange::Rename { to } => format!("Rename scenario {} to {to}", scenario.name),
+            calc_skin::ScenarioChange::Remove => format!("Delete scenario {}", scenario.name),
+        },
         ModelPropertyDiff::WorksheetInserted { name, .. } => format!("Add worksheet {name}"),
         ModelPropertyDiff::CellFormat { at, before, after } => {
             let style =
@@ -122,6 +129,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         side_pane: RwSignal::new(None),
         deck_folded: RwSignal::new(false),
         studio: Studio::new(),
+        proposals: Proposals::install(session),
         name_manager: NameManager::install(session),
         tips: NodeRef::new(),
     };
@@ -180,6 +188,8 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         } else if session.mode().editing() || !matches!(session.seam(), Seam::Idle) {
             session.cancel();
         } else if chrome.name_manager.close() {
+            return Ok(());
+        } else if chrome.proposals.close() {
             return Ok(());
         } else if chrome.side_pane.get_untracked() == Some(SidePane::Help) {
             chrome.side_pane.set(None);
@@ -663,6 +673,7 @@ pub fn workbook(
                 {switcher}
                 <button type="button" data-command="shell.search" on:click=move |_| { let _ = session.command("shell.search"); }>"Go to" <kbd>"Alt+Q"</kbd></button>
                 {command_button(session, "shell.help", "Help")}
+                {chrome.proposals.opener(session)}
                 {chrome.studio.banner(session)}
             </header>
             <nav class="dna-book-deck" aria-label="Workbook commands"
@@ -760,6 +771,7 @@ pub fn workbook(
                 <div class="dna-book-work">
                     {stage}
                     {chrome.studio.editor(session)}
+                    {chrome.proposals.panel(session)}
                     <Show when=move || chrome.side_pane.get() == Some(SidePane::Details)>
                     <aside class="dna-book-details">
                         <h2>"Details"</h2>
