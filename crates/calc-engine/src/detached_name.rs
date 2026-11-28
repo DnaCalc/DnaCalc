@@ -132,6 +132,34 @@ impl ReferenceCatalog for SelectedName<'_> {
     }
 }
 impl DetachedFormula {
+    /// A bare single-cell worksheet reference whose value is the formula result.
+    pub fn direct_reference(inputs: &ModelRoot, at: CellKey) -> Option<CellKey> {
+        let calc_doc_model::CellInput::Formula(formula) = inputs.cell(at)? else {
+            return None;
+        };
+        let source = formula.rendered();
+        let text = String::from_utf16(source.utf16_code_units()).ok()?;
+        let tree = calc_fml::parse_formula(&text);
+        if !tree.diagnostics().is_empty() {
+            return None;
+        }
+        let mut expression = tree.expression()?;
+        while expression.kind() == SyntaxKind::GroupingExpr {
+            expression = expression.child_nodes().next()?;
+        }
+        let anchor = FormulaAnchor::new(at);
+        let catalog = SnapshotCatalog::new(inputs);
+        let sites = bind_references(&tree, ReferenceNotation::A1, anchor, &catalog);
+        let [site] = sites.as_slice() else {
+            return None;
+        };
+        if site.span != expression.span() || site.this_row {
+            return None;
+        }
+        let area = site.binding.as_ref().ok()?.instantiate(anchor).ok()?;
+        (area.cell_count() == 1).then(|| area.first())
+    }
+
     /// Binds explicit table and spill operands in an authored formula for graph display.
     /// The published graph still determines which reads and areas are connected.
     pub fn dependency_spellings(inputs: &ModelRoot, at: CellKey) -> Vec<DependencySpelling> {
