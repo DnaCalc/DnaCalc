@@ -2,7 +2,8 @@ use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
 use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetScenario, WorksheetScenarios};
 use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{
-    Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, SortKey, SortOptions,
+    Axis, CellEdit, CommandError, HostSession, IntentError, PasteArithmetic as HostPasteArithmetic,
+    PasteCellOptions, PasteMode, PasteOptionsRefusal, PasteSource, SortKey, SortOptions,
     prepare_column_visibility, prepare_filter_toggle, prepare_paste, prepare_paste_oriented, prepare_sort_rows,
     search::entry_text,
 };
@@ -585,11 +586,12 @@ pub(crate) fn prepare(
                     let copied = copied
                         .filter(|copied| (copied.workbook, copied.id) == (base.workbook, *copy))
                         .ok_or_else(|| invalid("Copy worksheet cells again before pasting."))?;
-                    let (mode, transpose) = match contents {
-                        PasteContents::Values => (PasteMode::Values, false),
-                        PasteContents::Formulas => (PasteMode::Formulas, false),
-                        PasteContents::AllTransposed => (PasteMode::All, true),
-                        PasteContents::Special { part, transpose } => {
+                    let plain = PasteCellOptions::default();
+                    let (mode, transpose, options) = match contents {
+                        PasteContents::Values => (PasteMode::Values, false, plain),
+                        PasteContents::Formulas => (PasteMode::Formulas, false, plain),
+                        PasteContents::AllTransposed => (PasteMode::All, true, plain),
+                        PasteContents::Special { part, transpose, skip_blanks, arithmetic } => {
                             let mode = match part {
                                 PastePart::All | PastePart::AllUsingSourceTheme => PasteMode::All,
                                 PastePart::Formulas => PasteMode::Formulas,
@@ -602,7 +604,13 @@ pub(crate) fn prepare(
                                 PastePart::ValuesAndNumberFormats => PasteMode::ValuesAndNumberFormats,
                                 PastePart::AllMergingConditionalFormats => PasteMode::AllMergingConditionalFormats,
                             };
-                            (mode, *transpose)
+                            let arithmetic = arithmetic.map(|operation| match operation {
+                                PasteArithmetic::Add => HostPasteArithmetic::Add,
+                                PasteArithmetic::Subtract => HostPasteArithmetic::Subtract,
+                                PasteArithmetic::Multiply => HostPasteArithmetic::Multiply,
+                                PasteArithmetic::Divide => HostPasteArithmetic::Divide,
+                            });
+                            (mode, *transpose, PasteCellOptions { skip_blanks: *skip_blanks, arithmetic })
                         }
                     };
                     let host = state.session.host();
@@ -617,7 +625,16 @@ pub(crate) fn prepare(
                         mode,
                         transpose,
                     )
-                    .map_err(excel)?;
+                    .map_err(excel)?
+                    .with_cell_options(host, options)
+                    .map_err(|reason| match reason {
+                        PasteOptionsRefusal::WorkbookChanged => invalid("The workbook changed after the preview; paste again."),
+                        PasteOptionsRefusal::ProjectionUnavailable => invalid("The destination values are unavailable."),
+                        PasteOptionsRefusal::NotModelled(what) => Refusal::NotModelled {
+                            owner: "dc-oxh8w.43".into(),
+                            what: format!("Paste Special operation {what}"),
+                        },
+                    })?;
                     let target = plan.target();
                     areas.push(target);
                     if !ranges_with_metadata.contains(&target) {

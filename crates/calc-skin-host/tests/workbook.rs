@@ -2837,3 +2837,54 @@ fn preview_effects_scope_an_edited_formula_and_reject_an_unread_spill_cell() {
     assert!(expanding.effects.is_empty());
     assert_eq!(connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp, before);
 }
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pivot_cache_freshness_tracks_source_changes_and_refresh() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    connection.commit(batch(1, vec![
+        enter(at(1, 1), "Region"), enter(at(1, 2), "Amount"),
+        enter(at(2, 1), "West"), enter(at(2, 2), "2"),
+        enter(at(3, 1), "East"), enter(at(3, 2), "5"),
+        enter(at(4, 1), "West"), enter(at(4, 2), "7"),
+    ])).unwrap();
+    while host.advance() {}
+    let name = host.with_session(SelectionCause::Open, |session| {
+        let revision = session.host().revision().get();
+        let source = Area(at(1, 1), at(4, 2)).area().unwrap();
+        let receipt = session.dispatch(calc_host::SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate {
+            revision, source, destination: "M3".into(), row: 0, value: 1, subtotal: "sum".into(),
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        session.host().model().definitions().pivots().tables().next().unwrap().name.clone()
+    });
+    let inventory = query::Inventory { kinds: vec![InventoryKind::PivotTables] };
+    let answer = query::Inventory::decode(connection.ask(inventory.request(), BUDGET).unwrap()).unwrap();
+    assert!(matches!(&answer.body[..], [InventoryItem::PivotTable { name: held, .. }] if held == &name));
+    let compare = || {
+        let request = query::PivotFreshnessAt { at: at(3, 13) };
+        query::PivotFreshnessAt::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap().body
+    };
+    let initial = compare();
+    assert_eq!(initial.freshness, PivotFreshness::Current);
+    let read_at = initial.observed_refresh_unix_ms.expect("measured creation time");
+    connection.commit(batch(2, vec![enter(at(2, 2), "3")])).unwrap();
+    while host.advance() {}
+    let stale = compare();
+    assert_eq!(stale.freshness, PivotFreshness::Stale);
+    assert_eq!(stale.observed_refresh_unix_ms, Some(read_at));
+    host.with_session(SelectionCause::Open, |session| {
+        let revision = session.host().revision().get();
+        let definitions = session.host().model().definitions();
+        let pivot = definitions.pivots().tables().next().unwrap();
+        let part = pivot.part.clone();
+        let receipt = session.dispatch(calc_host::SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet: sheet.id(), revision, part,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+    });
+    let refreshed = compare();
+    assert_eq!(refreshed.freshness, PivotFreshness::Current);
+    assert!(refreshed.observed_refresh_unix_ms.unwrap() >= read_at);
+}

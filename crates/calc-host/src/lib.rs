@@ -163,7 +163,10 @@ pub use actions::{
     ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
     prepare_column_visibility, prepare_sort_rows, stored_axis_size,
 };
-pub use paste::{PastePlan, PasteSource, matrix_shape, prepare_paste, prepare_paste_oriented};
+pub use paste::{
+    PasteArithmetic, PasteCellOptions, PasteOptionsRefusal, PastePlan, PasteSource, matrix_shape,
+    prepare_paste, prepare_paste_oriented,
+};
 pub mod conditional;
 mod copy;
 mod entry;
@@ -287,4 +290,4 @@ mod pivot;
 mod pivot_style;
 pub use pivot_style::PivotStyleLook;
 
-pub use pivot::source_fields as pivot_source_fields;
+pub use pivot::{PivotCacheInspection, inspect_cache as inspect_pivot_cache, source_fields as pivot_source_fields};

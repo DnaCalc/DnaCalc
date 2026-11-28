@@ -554,7 +554,7 @@ impl HostState {
                 *receipt = RtdReceipt::default();
             }
             receipt.received += 1;
-            if let Some(now) = self.rtd_clock.and_then(|clock| clock()) {
+            if let Some(now) = self.observation_clock.and_then(|clock| clock()) {
                 receipt.timed_received += 1;
                 receipt.first_unix_ms = receipt.first_unix_ms.or(Some(now));
                 receipt.last_unix_ms = Some(now);

@@ -186,23 +186,10 @@ fn snapshot_stage(session: Session, document: Arc<Page>) -> AnyView {
 
 fn capture_caption(generation: u64, captured_unix_ms: Option<u64>) -> String {
     let caption = format!("Calculation {generation}");
-    captured_unix_ms.and_then(capture_time).map_or_else(
+    captured_unix_ms.and_then(dna_kit::format_utc_millis).map_or_else(
         || caption.clone(),
         |time| format!("{caption} · Captured {time}"),
     )
-}
-
-#[cfg(target_arch = "wasm32")]
-fn capture_time(unix_ms: u64) -> Option<String> {
-    use leptos::web_sys::js_sys::Date;
-    Date::new(&leptos::wasm_bindgen::JsValue::from_f64(unix_ms as f64))
-        .to_iso_string()
-        .as_string()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn capture_time(_: u64) -> Option<String> {
-    None
 }
 
 fn cost_label(label: &str, pages: u32) -> String {

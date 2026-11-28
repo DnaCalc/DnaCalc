@@ -1,7 +1,11 @@
 //! Paste preparation and revision-bound plans. Preview tokens belong to the transport;
 //! only the host can construct a plan and the host checks its revision when applying it.
-use crate::value::{CellKey, GridArea};
-use crate::{CellEdit, CopySnapshot, HostState, PasteMode};
+use crate::value::{CellKey, CoreRef, GridArea, WorksheetErrorCode};
+use crate::{
+    CellEdit, CellInput, CopySnapshot, FiniteNumber, HostState, PasteMode, ProjectedValue,
+    ProjectionRequest,
+};
+use std::collections::{HashMap, HashSet};
 
 /// Input to the host paste planner.
 pub enum PasteSource<'a> {
@@ -25,6 +29,39 @@ pub enum PasteSource<'a> {
     External(Vec<Vec<String>>),
     /// Infer values from examples on the worksheet.
     FlashFill,
+}
+
+/// Arithmetic requested by Excel's Paste Special operation field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasteArithmetic {
+    /// Add the source to the destination.
+    Add,
+    /// Subtract the source from the destination.
+    Subtract,
+    /// Multiply the destination by the source.
+    Multiply,
+    /// Divide the destination by the source.
+    Divide,
+}
+
+/// Independent cell options applied to a prepared copy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PasteCellOptions {
+    /// Preserve the destination cell and its format when the source is blank.
+    pub skip_blanks: bool,
+    /// Combine copied and destination numbers instead of replacing the destination.
+    pub arithmetic: Option<PasteArithmetic>,
+}
+
+/// Why the host could not prepare the requested Paste Special cell edits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasteOptionsRefusal {
+    /// Either the open workbook or its revision has changed.
+    WorkbookChanged,
+    /// The destination could not be projected at the prepared revision.
+    ProjectionUnavailable,
+    /// The arithmetic case lacks observed Excel behavior.
+    NotModelled(&'static str),
 }
 
 /// A prepared paste bound to the workbook and revision inspected during preview.
@@ -67,6 +104,36 @@ impl PastePlan {
     pub(crate) fn edits_mut(&mut self) -> &mut Vec<CellEdit> {
         &mut self.edits
     }
+    /// Apply Paste Special's cell options before previewing or committing a copied range.
+    pub fn with_cell_options(
+        mut self,
+        host: &HostState,
+        options: PasteCellOptions,
+    ) -> Result<Self, PasteOptionsRefusal> {
+        if !self.matches_host(host) {
+            return Err(PasteOptionsRefusal::WorkbookChanged);
+        }
+        if options.skip_blanks {
+            // Excel skips a blank source cell whole, including its formatting.
+            let blanks: Vec<_> = self
+                .edits
+                .iter()
+                .filter_map(|edit| match edit {
+                    CellEdit::Clear { area } => Some(*area),
+                    _ => None,
+                })
+                .collect();
+            self.edits.retain(|edit| match edit {
+                CellEdit::Clear { .. } => false,
+                CellEdit::SetFormat { at, .. } => !blanks.iter().any(|area| area.contains(*at)),
+                _ => true,
+            });
+        }
+        if let Some(arithmetic) = options.arithmetic {
+            apply_paste_arithmetic(host, &mut self.edits, arithmetic)?;
+        }
+        Ok(self)
+    }
     /// Return the destination after any expansion of the selected range.
     pub fn target(&self) -> GridArea {
         self.target
@@ -78,10 +145,14 @@ impl PastePlan {
     }
     /// Take the prepared edits for a host transaction at the revision inspected by the planner.
     pub fn into_edits(self, host: &HostState) -> Result<Vec<CellEdit>, String> {
-        if self.scope != Some(host.command_scope) || self.revision != host.revision().get() {
+        if !self.matches_host(host) {
             return Err("The workbook changed after the preview; paste again".into());
         }
         Ok(self.edits)
+    }
+
+    fn matches_host(&self, host: &HostState) -> bool {
+        self.scope == Some(host.command_scope) && self.revision == host.revision().get()
     }
 
     pub(crate) fn coordinates(&self) -> Option<calc_fml::reference::StructuralEdit> {
@@ -94,6 +165,77 @@ impl PastePlan {
         self.scope = (self.scope == Some(recorded_scope)).then_some(host.command_scope);
         self
     }
+}
+
+fn apply_paste_arithmetic(
+    host: &HostState,
+    edits: &mut [CellEdit],
+    operation: PasteArithmetic,
+) -> Result<(), PasteOptionsRefusal> {
+    let refuse = PasteOptionsRefusal::NotModelled;
+    let cells = edits
+        .iter()
+        .filter_map(|edit| match edit {
+            CellEdit::Set { at, .. } => Some(*at),
+            CellEdit::Clear { area } => Some(area.first()),
+            _ => None,
+        })
+        .collect();
+    let page = crate::project(host, &ProjectionRequest { cells })
+        .map_err(|_| PasteOptionsRefusal::ProjectionUnavailable)?;
+    let mut current = HashMap::new();
+    let mut dest_empty = HashSet::new();
+    for cell in page.cells() {
+        let number = match cell.value() {
+            ProjectedValue::Empty => {
+                dest_empty.insert(cell.at());
+                0.0
+            }
+            ProjectedValue::Literal(value) => match value.core_ref() {
+                CoreRef::Number(number) => number,
+                _ => return Err(refuse("onto a destination cell that is not a number")),
+            },
+            _ => return Err(refuse("onto a formula destination")),
+        };
+        current.insert(cell.at(), number);
+    }
+    for edit in edits {
+        let (at, source) = match edit {
+            CellEdit::Set { at, input } => match input {
+                CellInput::Number(source) => (*at, source.get()),
+                _ => return Err(refuse("with a source that is not a number")),
+            },
+            CellEdit::Clear { area } => {
+                let at = area.first();
+                if dest_empty.contains(&at) {
+                    continue;
+                }
+                (at, 0.0)
+            }
+            _ => continue,
+        };
+        let dest = current[&at];
+        let result = match operation {
+            PasteArithmetic::Add => dest + source,
+            PasteArithmetic::Subtract => dest - source,
+            PasteArithmetic::Multiply => dest * source,
+            PasteArithmetic::Divide if source == 0.0 => {
+                *edit = CellEdit::Set {
+                    at,
+                    input: CellInput::Error(WorksheetErrorCode::Div0),
+                };
+                continue;
+            }
+            PasteArithmetic::Divide => dest / source,
+        };
+        *edit = CellEdit::Set {
+            at,
+            input: FiniteNumber::new(result)
+                .map(CellInput::Number)
+                .unwrap_or(CellInput::Error(WorksheetErrorCode::Num)),
+        };
+    }
+    Ok(())
 }
 
 /// Validate the source and destination and prepare a paste in its original orientation.
@@ -121,7 +263,8 @@ pub fn prepare_paste_oriented(
     }
     // Excel entry alerts apply to direct/Values entry; whole-cell copy and fill can introduce
     // invalid values which Circle Invalid Data then audits against the copied rules.
-    let validate_entries = matches!(&source, PasteSource::External(_)) || mode.base() == PasteMode::Values;
+    let validate_entries =
+        matches!(&source, PasteSource::External(_)) || mode.base() == PasteMode::Values;
     let coordinates = match &source {
         PasteSource::Snapshot {
             snapshot,

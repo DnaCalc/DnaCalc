@@ -7,6 +7,137 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+
+/// Read-only comparison of one PivotTable cache with its worksheet source.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PivotCacheInspection {
+    /// Workbook name of the PivotTable.
+    pub name: String,
+    /// The bound worksheet source, when the cache supplies one.
+    pub source: Option<GridArea>,
+    /// Last refresh metadata retained by the file.
+    pub saved_refresh: Option<String>,
+    /// When this host read the current cache, if the carrier supplied a clock.
+    pub observed_refresh_unix_ms: Option<u64>,
+    /// Whether all inspected records agree, when the comparison was available.
+    pub source_matches: Option<bool>,
+    /// Why the source comparison could not be made.
+    pub unavailable: Option<String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct RefreshTime {
+    snapshot: std::sync::Weak<PivotSnapshot>,
+    unix_ms: u64,
+}
+
+fn observe_refresh(host: &HostState, snapshot: &Arc<PivotSnapshot>) {
+    let Some(unix_ms) = host.observation_clock.and_then(|clock| clock()) else { return };
+    let mut times = host.pivot_refresh_times.borrow_mut();
+    times.retain(|time| time.snapshot.strong_count() != 0);
+    if times.len() == 100 {
+        times.pop_front();
+    }
+    times.push_back(RefreshTime { snapshot: Arc::downgrade(snapshot), unix_ms });
+}
+
+/// Compare the saved cache to current workbook values without refreshing or publishing it.
+pub fn inspect_cache(
+    host: &HostState,
+    at: CellKey,
+    mut admit: impl FnMut(u64) -> bool,
+) -> Result<PivotCacheInspection, String> {
+    let pivots = host.model().definitions().pivots();
+    let table = pivots.tables().find(|table| table.area.contains(at))
+        .ok_or_else(|| fail("Select a cell inside the PivotTable"))?;
+    let cache = pivots.caches.caches.get(&table.cache_id)
+        .ok_or_else(|| fail("The PivotTable has no cache"))?;
+    let saved_refresh = cache.attributes.get("refreshedDateIso")
+        .or_else(|| cache.attributes.get("refreshedDate")).cloned();
+    let observed_refresh_unix_ms = cache.snapshot.as_ref().and_then(|snapshot| {
+        let snapshot = Arc::downgrade(snapshot);
+        host.pivot_refresh_times.borrow().iter().rev()
+            .find(|time| time.snapshot.ptr_eq(&snapshot)).map(|time| time.unix_ms)
+    });
+    let source = source_area(host, cache, table.area.first());
+    let comparison = match &source {
+        Ok(area) => compare_cache(host, cache, *area, &mut admit),
+        Err(reason) => Err(reason.clone()),
+    };
+    let (source_matches, unavailable) = match comparison {
+        Ok(matches) => (Some(matches), None),
+        Err(reason) => (None, Some(reason)),
+    };
+    Ok(PivotCacheInspection {
+        name: table.name.clone(), source: source.ok(), saved_refresh, observed_refresh_unix_ms, source_matches, unavailable,
+    })
+}
+
+fn compare_cache(
+    host: &HostState,
+    cache: &PivotCache,
+    area: GridArea,
+    admit: &mut impl FnMut(u64) -> bool,
+) -> Result<bool, String> {
+    let expected = area.row_count().saturating_sub(1) as usize;
+    let imported;
+    let records = if let Some(snapshot) = &cache.snapshot {
+        snapshot.records.as_slice()
+    } else {
+        // Decode at most the source size plus one record to detect a longer saved cache.
+        let limit = (expected + 1).min(100_000);
+        if !admit((limit as u64).saturating_mul(cache.fields.len() as u64)) {
+            return Err(fail("The saved pivot records exceed the inspection budget"));
+        }
+        imported = host.loaded().pivot_records(cache.id, limit).map_err(|issue| fail(issue.detail))?;
+        if imported.truncated && imported.records.len() > expected {
+            return Ok(false);
+        }
+        if imported.truncated || imported.declared_count.is_some_and(|n| n != imported.records.len() as u64) {
+            return Err(fail("The saved pivot records are incomplete"));
+        }
+        imported.records.as_slice()
+    };
+    if records.len() != expected {
+        return Ok(false);
+    }
+    let fields = worksheet_field_count(cache)
+        .ok_or_else(|| fail("The cache source fields are not in worksheet order"))?;
+    if fields as u32 != area.column_count() {
+        return Ok(false);
+    }
+    let charge = |admit: &mut dyn FnMut(u64) -> bool| {
+        admit(u64::from(area.column_count()))
+            .then_some(())
+            .ok_or_else(|| fail("The worksheet source exceeds the inspection budget"))
+    };
+    charge(admit)?;
+    let headers = source_names(host, area)?;
+    if headers.iter().zip(&cache.fields).any(|(name, field)| !text_equal(name, &field.name)) {
+        return Ok(false);
+    }
+    for (record, row) in records.iter().zip(area.first().row() + 1..=area.last().row()) {
+        charge(admit)?;
+        for (field, value) in read_row(host, area, row)?.iter().enumerate() {
+            if cache_record_key(cache, record, field)? != key(&item(value)?)? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn cache_record_key(cache: &PivotCache, record: &[PivotItem], field: usize) -> Result<(u8, String), String> {
+    let item = record.get(field).ok_or_else(|| fail("A cache record is missing a source field"))?;
+    match item {
+        PivotItem::Index(index) => {
+            let item = cache.fields.get(field).and_then(|field| field.items.get(*index as usize))
+                .ok_or_else(|| fail("A cache record refers to an unavailable shared item"))?;
+            key(item)
+        }
+        item => key(item),
+    }
+}
 fn fail(detail: impl AsRef<str>) -> String {
     format!("{} (dc-8wp)", detail.as_ref())
 }
@@ -143,6 +274,17 @@ fn distinct_group_labels(items: &[PivotItem]) -> bool {
         .all(|pair| compare(pair[0], pair[1]) != std::cmp::Ordering::Equal);
     unique && !undecided
 }
+fn worksheet_field_count(cache: &PivotCache) -> Option<usize> {
+    let source_field = |field: &PivotCacheField| {
+        !matches!(
+            field.attributes.get("databaseField").map(String::as_str),
+            Some("0" | "false")
+        )
+    };
+    let count = cache.fields.iter().take_while(|field| source_field(field)).count();
+    (!cache.fields[count..].iter().any(source_field)).then_some(count)
+}
+
 /// Read every source field, preserving cache item identities and recording actual values only.
 fn snapshot(
     host: &HostState,
@@ -155,28 +297,9 @@ fn snapshot(
             "Refresh exceeds its budget of 100,000 source records or 1,000,000 source cells",
         ));
     }
-    let source_count = cache
-        .fields
-        .iter()
-        .take_while(|field| {
-            !matches!(
-                field.attributes.get("databaseField").map(String::as_str),
-                Some("0" | "false")
-            )
-        })
-        .count();
-    if area.column_count() as usize != source_count
-        || cache.fields[source_count..].iter().any(|field| {
-            !matches!(
-                field.attributes.get("databaseField").map(String::as_str),
-                Some("0" | "false")
-            )
-        })
-    {
-        return Err(fail(
-            "The source column count or grouped-field order changed",
-        ));
-    }
+    let source_count = worksheet_field_count(cache)
+        .filter(|&count| count == area.column_count() as usize)
+        .ok_or_else(|| fail("The source column count or grouped-field order changed"))?;
     if host.declared_date1904()
         && cache
             .fields
@@ -437,12 +560,14 @@ fn snapshot(
         }
     }
     cache.record_count = Some(records.len() as u64);
-    cache.snapshot = Some(Arc::new(PivotSnapshot {
+    let snapshot = Arc::new(PivotSnapshot {
         records,
         origin: PivotSnapshotOrigin::SourceRead,
         source_revision: host.revision().get(),
         numeric: host.recalc_context().numeric,
-    }));
+    });
+    observe_refresh(host, &snapshot);
+    cache.snapshot = Some(snapshot);
     Ok(cache)
 }
 fn overlaps(a: GridArea, b: GridArea) -> bool {

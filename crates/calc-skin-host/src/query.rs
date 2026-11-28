@@ -354,6 +354,7 @@ pub(crate) fn invalidated(
         }
         WorkbookQuery::Deps { .. } => authored || recalculated,
         WorkbookQuery::DependencyAtlas | WorkbookQuery::CompareCells { .. } => authored || recalculated,
+        WorkbookQuery::PivotFreshness { .. } => authored || recalculated,
         WorkbookQuery::CalcState => true,
         WorkbookQuery::CalcChanges | WorkbookQuery::CalcIteration | WorkbookQuery::CalcExecution => recalculated,
         WorkbookQuery::Rules { .. } => authored || recalculated,
@@ -782,6 +783,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
         WorkbookQuery::Notes { .. } => Some("Choose one anchor"),
         WorkbookQuery::Sources => Some("Increase the source inventory budget"),
+        WorkbookQuery::PivotFreshness { .. } => Some("Increase the PivotTable source budget"),
         WorkbookQuery::Contributions { .. } => Some("Increase the contribution scan budget"),
         WorkbookQuery::TrialFor { .. } => Some("Choose a formula that reads fewer cells"),
         WorkbookQuery::FormulaNames { .. } => Some("Choose fewer formula cells"),
@@ -896,6 +898,29 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         }
         WorkbookQuery::Sources => {
             query::SourceInventory::encode(&inventory::sources(host, &mut meter)?)?
+        }
+        WorkbookQuery::PivotFreshness { at } => {
+            meter.work(0, 1, 0)?;
+            let mut refused = None;
+            let report = calc_host::inspect_pivot_cache(host, cell(*at)?, |cells| {
+                refused = meter.work(cells, 0, 0).err();
+                refused.is_none()
+            }).map_err(invalid)?;
+            if let Some(refused) = refused {
+                return Err(refused);
+            }
+            query::PivotFreshnessAt::encode(&calc_skin::PivotCacheFacts {
+                name: report.name,
+                source: report.source.map(Area::of),
+                saved_refresh: report.saved_refresh,
+                observed_refresh_unix_ms: report.observed_refresh_unix_ms,
+                freshness: match report.source_matches {
+                    Some(true) => calc_skin::PivotFreshness::Current,
+                    Some(false) => calc_skin::PivotFreshness::Stale,
+                    None => calc_skin::PivotFreshness::Unassessed,
+                },
+                unavailable: report.unavailable,
+            })?
         }
         WorkbookQuery::Deps {
             of,

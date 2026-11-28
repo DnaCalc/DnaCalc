@@ -24,6 +24,7 @@ struct Request {
     workbook: calc_skin::WorkbookId,
     scope: SourceRef,
     active: Option<Key>,
+    pivot: Option<Key>,
     instrument: Instrument,
     dossier: bool,
     trace: bool,
@@ -48,6 +49,8 @@ impl Export {
             workbook,
             scope: selection.target,
             active: selection.active,
+            pivot: state.pivot.get_untracked().filter(|(owner, _)| *owner == workbook)
+                .map(|(_, at)| at),
             instrument: state.instrument.get_untracked(),
             dossier: false,
             trace: state.tracing.get_untracked(),
@@ -168,6 +171,7 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
     let execution = session.following::<query::CalcExecution>();
     let sources = session.following::<query::SourceInventory>();
     let notes = session.following::<query::NotesOf>();
+    let pivot = session.following_with_budget::<query::PivotFreshnessAt>(INSTRUMENT_BUDGET);
     let contributions = session.following_with_budget::<query::ContributionsAt>(INSTRUMENT_BUDGET);
     let workbook_scope = request.dossier || request.instrument == Instrument::Overview;
     let scope = if workbook_scope {
@@ -228,6 +232,11 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
         let iteration = observe(iteration.at(calculation.then_some(query::CalcIteration)), stamp);
         let execution = observe(execution.at(calculation.then_some(query::CalcExecution)), stamp);
         let sources = observe(sources.at(live.then_some(query::SourceInventory)), stamp);
+        let pivot = observe(
+            pivot.at(request.pivot.filter(|_| workbook_scope)
+                .map(|at| query::PivotFreshnessAt { at })),
+            stamp,
+        );
         let notes = observe(
             notes.at(request.dossier.then_some(query::NotesOf { anchor: None })),
             stamp,
@@ -248,6 +257,7 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
             Some(iteration),
             Some(execution),
             Some(sources),
+            Some(pivot),
             Some(notes),
             Some(contributions),
         ) = (
@@ -259,6 +269,7 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
             iteration,
             execution,
             sources,
+            pivot,
             notes,
             contributions,
         )
@@ -427,6 +438,27 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
                     topic.last.value.display(),
                     topic.last.provenance
                 );
+                if let Some(receipt) = topic.receipt {
+                    let _ = writeln!(report, "{} accepted receipts", receipt.received);
+                    if let Some(time) = receipt.last_unix_ms.and_then(dna_kit::format_utc_millis) {
+                        let _ = writeln!(report, "Last received {time}");
+                    }
+                }
+            }
+        }
+        if let Some(pivot) = section(&mut report, "PivotTable cache", pivot) {
+            let _ = writeln!(report, "{} · {}", pivot.name, crate::audit::pivot_freshness_label(pivot.freshness));
+            if let Some(source) = pivot.source {
+                let _ = writeln!(report, "Source {}", area_label(session, source));
+            }
+            if let Some(time) = pivot.observed_refresh_unix_ms.and_then(dna_kit::format_utc_millis) {
+                let _ = writeln!(report, "Refresh read {time}");
+            }
+            if let Some(time) = pivot.saved_refresh {
+                let _ = writeln!(report, "Saved refresh {time}");
+            }
+            if let Some(reason) = pivot.unavailable {
+                let _ = writeln!(report, "{reason}");
             }
         }
         if let Some(notes) = section(&mut report, "Findings", notes) {
