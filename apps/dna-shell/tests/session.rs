@@ -3258,3 +3258,43 @@ fn calculation_shortcuts_reach_the_workbook_and_worksheet_route() {
         assert!(after.0 > before.0, "publication after {key}");
     }
 }
+
+
+/// Native-only: exercises the key trial over an in-process workbook session.
+#[test]
+fn isolated_studio_keys_leave_workbook_mode_and_values_alone() {
+    use dna_kit::{Invocation, commands::CommandId};
+
+    let page = Page::open();
+    let session = page.session;
+    let original = session.stamp();
+    let declaration = serde_json::json!({
+        "schema": "dna.skin/1", "id": "keys", "name": "Audit keys",
+        "theme": { "base": "cockpit-light", "density": "working" },
+        "keymap": {
+            "profile": "excel-365-win-en-us",
+            "bindings": [{
+                "when": "view:classic && mode:ready",
+                "chord": "Ctrl+Shift+E", "command": "grid.edit-cell"
+            }]
+        }
+    });
+    let skin = serde_json::from_value(declaration.clone()).unwrap();
+    let key = |name: &str, ctrl, shift| KeyInput {
+        key: name.into(), ctrl, shift, alt: false, meta: false, alt_graph: false, composing: false,
+    };
+    let mode = dna_kit::InputMode::Ready;
+    assert!(session.trial_key(&skin, &key("F2", false, false), mode).unwrap().is_none());
+    let edited = session.trial_key(&skin, &key("e", true, true), mode).unwrap().unwrap();
+    assert_eq!(edited.0.as_str(), "grid.edit-cell");
+    assert_eq!(session.mode(), mode);
+    assert_eq!(session.stamp(), original);
+    session.run(&Invocation {
+        command: CommandId::new("studio.try-on"),
+        args: serde_json::Value::String(declaration.to_string()),
+    }).unwrap();
+    assert!(!page.press("F2", Focus::Stage));
+    session.command("studio.restore-classic").unwrap();
+    assert!(page.press("F2", Focus::Stage));
+    assert_eq!(session.stamp(), original);
+}

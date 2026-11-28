@@ -2,7 +2,7 @@
 
 use super::command_button;
 use calc_skin::{
-    Batch, Change, Coverage, Level, Page, PresentationChange, SkinManifest, TryOnPayload, WorkbookId,
+    Batch, Change, Coverage, Level, Page, PresentationChange, SkinManifest, TryOnPayload, ViewId, WorkbookId,
 };
 use dna_kit::{DockSide, Invocation, Live, Seam, Session, ViewCommand, commands::CommandId};
 use dna_skin_runtime::skin::{self, Document};
@@ -10,6 +10,7 @@ use leptos::prelude::*;
 
 const OPEN: &str = "studio.open";
 const TRY: &str = "studio.try-on";
+const SUGGEST: &str = "studio.apply-accessible-colours";
 const TRY_FILE: &str = "studio.try-file";
 const TRY_AGENT: &str = "studio.try-agent";
 const DISCARD_AGENT: &str = "studio.discard-agent";
@@ -20,6 +21,7 @@ const CLEAR_PROFILE: &str = "studio.clear-personal-skin";
 const PROFILE_STORAGE: &str = "dna.workbook-skin/1";
 const DISCARD: &str = "studio.discard";
 const CLOSE: &str = "studio.close";
+const RESTORE_CLASSIC: &str = "studio.restore-classic";
 const PAGES: &str = "studio.pages";
 const OPEN_PAGE: &str = "studio.open-page";
 const CLOSE_PAGES: &str = "studio.close-pages";
@@ -166,6 +168,13 @@ impl Studio {
                 self.editor.set(true);
                 Ok(())
             }),
+            ViewCommand::global(SUGGEST, "Apply suggested accessible values", &[], move |_| {
+                let source = self.source.get_untracked();
+                let revised = skin::accessible_draft(&source).ok_or("There is no checked replacement for this draft")?;
+                self.source.set(revised);
+                self.error.set(None);
+                Ok(())
+            }),
             ViewCommand::global(TRY, "Try on a skin", &[], move |invocation| {
                 let source = match &invocation.args {
                     serde_json::Value::Null => self.source.get_untracked(),
@@ -256,6 +265,16 @@ impl Studio {
                 self.pages.set(None);
                 Ok(())
             }),
+            ViewCommand::global(RESTORE_CLASSIC, "Restore Classic", &[], move |_| {
+                session.set_skin_layer(None)?;
+                self.preview.set(None);
+                self.kept_file.set(None);
+                self.personal.set(None);
+                self.offer.set(None);
+                self.editor.set(false);
+                session.show(ViewId("classic".into()));
+                Ok(())
+            }).when("!editing"),
             ViewCommand::global(CLOSE, "Close Customisation Studio", &[], move |_| {
                 self.editor.set(false);
                 Ok(())
@@ -476,6 +495,7 @@ impl Studio {
                         {command_button(session, KEEP_ME, "Keep for me")}
                         {command_button(session, OPEN, "Edit")}
                         {command_button(session, DISCARD, "Discard")}
+                        {command_button(session, RESTORE_CLASSIC, "Restore Classic")}
                     </aside>
                 }.into_any()
             } else if let Some(offer) = session.look_offer() {
@@ -590,8 +610,16 @@ impl Studio {
                     <p role="alert">{move || self.error.get()}</p>
                     {move || {
                         let source = self.source.get();
-                        skin::review_theme(&source).ok().map(contrast_review)
+                        skin::review_theme(&source).ok().map(|report| {
+                            let suggest = report.contrast.iter().any(|reading| !reading.passes())
+                                && skin::accessible_draft(&source).is_some();
+                            view! {
+                                {contrast_review(report)}
+                                {suggest.then(|| command_button(session, SUGGEST, "Apply suggested accessible values"))}
+                            }
+                        })
                     }}
+                    {key_trial(session, self.source)}
                     {command_button(session, TRY, "Try on")}
                     {command_button(session, "proposal.open", "Agent trail")}
                     {move || self.personal.with(Option::is_some).then(|| {
@@ -613,6 +641,60 @@ fn render_skin_page(session: Session, page: Page) -> AnyView {
             <dna_kit::page::PageRenderer session=session document=page/>
         </div>
     }.into_any()
+}
+
+fn key_trial(session: Session, draft: RwSignal<String>) -> impl IntoView {
+    use dna_kit::InputMode;
+    let mode = RwSignal::new(InputMode::Ready);
+    let text = RwSignal::new(String::new());
+    let result = RwSignal::new(None::<String>);
+    view! {
+        <details open>
+            <summary>"Trial one cell's keys"</summary>
+            <label>
+                "Trial cell"
+                <input data-dnacalc="skin-key-trial" data-dna-action-field
+                    readonly=move || mode.get() == InputMode::Ready
+                    prop:value=move || {
+                        if mode.get() == InputMode::Ready { session.entry() } else { text.get() }
+                    }
+                    on:input=move |event| text.set(event_target_value(&event))
+                    on:keydown=move |event: leptos::ev::KeyboardEvent| {
+                        event.stop_propagation();
+                        let input = super::key_input(&event);
+                        let now = mode.get_untracked();
+                        if now == InputMode::Edit && matches!(input.key.as_str(), "Escape" | "Enter") {
+                            mode.set(InputMode::Ready);
+                            result.set(None);
+                            event.prevent_default();
+                            return;
+                        }
+                        let trial = skin::validate(&draft.get_untracked()).and_then(|candidate| {
+                            let Document::Skin(manifest) = candidate.document
+                                else { return Err("Use a dna.skin/1 declaration for the key trial".into()) };
+                            session.trial_key(&manifest, &input, now)
+                        });
+                        match trial {
+                            Ok(Some((command, _))) if command.as_str() == "grid.edit-cell" => {
+                                text.set(untrack(|| session.entry()));
+                                mode.set(InputMode::Edit);
+                                result.set(None);
+                                event.prevent_default();
+                            }
+                            Ok(Some((_, label))) => {
+                                result.set(Some(label));
+                                event.prevent_default();
+                            }
+                            Ok(None) if now == InputMode::Ready => result.set(None),
+                            Ok(None) => (),
+                            Err(reason) => result.set(Some(reason)),
+                        }
+                    }/>
+            </label>
+            <output data-dnacalc="skin-key-trial-mode">{move || mode.get().label()}</output>
+            <p role="status">{move || result.get()}</p>
+        </details>
+    }
 }
 
 fn contrast_review(report: skin::ThemeReview) -> impl IntoView {
