@@ -8719,8 +8719,31 @@ fn dc_oxh8w_47__range_end_follows_ctrl_arrow() {
     assert_eq!(end("B3", right), "$XFD$3");
     let bad = invoke_kind(&model, &sub("B2"), "End", InvokeKind::Get, vec![AutoValue::I4(99)]);
     assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
-    let many = invoke_kind(&model, &sub("B2:B3"), "End", InvokeKind::Get, vec![AutoValue::I4(down)]);
-    assert!(matches!(many, Err(AutoError::NotModelled { .. })), "{many:?}");
+    assert_eq!(end("B2:B3", down), "$B$4");
+}
+
+/// In Excel capture ww21, End starts at the top-left cell of the first area in the input's area order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_74_range_end_starts_at_the_first_areas_top_left_cell() {
+    let (_host, model, _) = blank_report();
+    for address in ["A1", "A2", "A3", "A4", "B2", "C2", "D2", "E2", "H7", "H8", "H9"] {
+        put_value(&model, &range(&model, address), AutoValue::R8(1.0)).unwrap();
+    }
+    let (down, right) = (-4121, -4161);
+    let cases = [
+        ("A1:A10", down, "$A$4"),
+        ("B2:C3", right, "$E$2"),
+        ("H7:H9,A1:A10", down, "$H$9"),
+        ("A1:A10,H7:H9", down, "$A$4"),
+    ];
+    let actual: Vec<_> = cases.iter()
+        .map(|(address, direction, _)| {
+            invoke_kind(&model, &range(&model, address), "End", InvokeKind::Get, vec![AutoValue::I4(*direction)])
+                .map(|landed| text(&model, &obj(landed), "Address"))
+        })
+        .collect();
+    assert_eq!(actual, cases.map(|(_, _, address)| Ok(address.to_owned())));
 }
 
 /// dc-oxh8w.47: Application.InchesToPoints converts inches to points (72 per inch); a text number is coerced,
