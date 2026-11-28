@@ -891,7 +891,8 @@ pub fn refusal_text(reason: Refusal) -> String {
         Refusal::Excel { reason }
         | Refusal::Invalid { reason }
         | Refusal::Validation { reason, .. }
-        | Refusal::Transport(reason) => reason,
+        | Refusal::Transport(reason)
+        | Refusal::Irreversible { reason } => reason,
         Refusal::Conflict { .. } => {
             "The workbook changed. Check the cell and start the edit again.".into()
         }

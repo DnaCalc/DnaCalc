@@ -252,6 +252,54 @@ fn macro_run_reports_a_denial_handled_by_vba() {
     assert_eq!(page.shown(page.at(1, 1)), "70");
 }
 
+/// Native-only: checks the host's workbook checkpoint through the macro and history carrier.
+#[test]
+fn a_faulted_macro_has_one_checkpoint_for_its_writes_and_application_settings() {
+    use calc_skin::{MacroSecurity, Operation, Refusal, Reversibility, WorkbookPort};
+
+    let page = macro_page(r#"Public Sub Fill()
+ Static runs As Long
+ runs = runs + 1
+ Range("A1").Value2 = runs
+ Range("B1").Value2 = runs * 10
+ Application.Calculation = -4135
+ Application.EnableEvents = False
+ Err.Raise 2705, "Checkpoint probe", "Intentional fault"
+End Sub
+"#);
+    let state = || page.host.with_session(SelectionCause::History, |workbook| {
+        (workbook.history_depth(), workbook.calc_mode(), workbook.workbook_events_enabled())
+    });
+    let initial = state();
+    macro_level(&page, MacroSecurity::Guarded);
+    let fault = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert!(matches!(fault.error, Some(Refusal::Excel { reason }) if reason.contains("2705")));
+    assert_eq!(page.shown(page.at(1, 1)), "1");
+    assert_eq!(page.shown(page.at(1, 2)), "10");
+    assert_eq!(state(), ((1, 0), calc_doc::CalcMode::Manual, false));
+
+    let history = page.host.with_session(SelectionCause::History, |workbook| workbook.skin_history());
+    assert_eq!(history.0.len(), 1);
+    let entry = &history.0[0];
+    assert_eq!(entry.cells_touched, 2);
+    assert!(matches!(&entry.origin, Origin::Macro { procedure, .. } if procedure == "Module1.Fill"));
+    assert!(matches!(entry.reversibility, Reversibility::Irreversible { .. }));
+    assert!(matches!(page.port.run(Operation::Undo), Err(Refusal::Irreversible { .. })));
+
+    let start = std::time::Instant::now();
+    page.port.run(Operation::RestoreCheckpoint { workbook: entry.at.workbook, entry: entry.id }).unwrap();
+    page.settle();
+    println!("checkpoint restore and publication took {:?}", start.elapsed());
+    assert_eq!(state(), initial);
+    assert_eq!(page.shown(page.at(1, 1)), "");
+    assert_eq!(page.shown(page.at(1, 2)), "");
+
+    let fault = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert!(fault.error.is_some());
+    assert_eq!(page.shown(page.at(1, 1)), "2");
+    assert_eq!(page.shown(page.at(1, 2)), "20");
+}
+
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
 #[test]
 fn a_person_moves_types_commits_and_undoes_through_commands() {
