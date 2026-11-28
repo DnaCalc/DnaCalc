@@ -408,6 +408,7 @@ pub fn map_error(failure: &AutoError) -> BatchError {
             error("ItemNotFound", "the item was not found", None, 0)
         }
         AutoError::PolicyDenied { .. } => error("AccessDenied", &failure.description(), None, 0),
+        AutoError::NotAvailableHere { .. } => error("NotSupported", &failure.description(), None, 0),
         AutoError::Excel { .. } | AutoError::Status(_) => {
             error("GeneralException", &failure.description(), None, 0)
         }

@@ -1,11 +1,65 @@
 //! Capability reach for Automation members. The caller's host supplies its level and audit sink.
 
-use crate::{AutoError, Call, descriptor::Capability};
+use crate::{
+    AutoError, Call,
+    descriptor::{Capability, Need},
+};
 use std::rc::Rc;
 
 pub use calc_macro_security::MacroSecurity;
 
-/// One decision per reaching call, including all of that member's declared capabilities.
+/// How a host supplies a facility, ordered from absent to native.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Provision {
+    /// The host cannot supply the facility.
+    Reject,
+    /// Access requires platform or user permission.
+    Mediated,
+    /// A portable implementation supplies the facility.
+    Replace,
+    /// An adapter emulates the Excel facility.
+    Shim,
+    /// The host supplies a value or UI response.
+    Host,
+    /// The workbook model supplies the facility.
+    Model,
+    /// The host supplies the facility directly.
+    Native,
+}
+
+/// The first facility a call needs that the host cannot supply.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unavailable {
+    /// The first unavailable facility.
+    pub capability: Need,
+    /// An alternative host when one is known.
+    pub route: Option<&'static str>,
+}
+
+/// Check availability without consulting the caller's authority.
+pub fn check_availability(
+    needs: &[Need],
+    provision: impl Fn(Need) -> Provision,
+) -> Result<(), Unavailable> {
+    let Some(capability) = needs
+        .iter()
+        .copied()
+        .find(|need| provision(*need) == Provision::Reject)
+    else {
+        return Ok(());
+    };
+    let route = match capability {
+        Need::Dll | Need::Xll | Need::OsCom | Need::Process | Need::Keys => {
+            Some("DNA Calc on Windows")
+        }
+        Need::Dylib => Some("DNA Calc on macOS"),
+        Need::Dialog | Need::Forms | Need::FileDialog | Need::Print => Some("DNA Calc desktop"),
+        _ => None,
+    };
+    Err(Unavailable { capability, route })
+}
+
+/// One decision per reaching or unavailable call.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PolicyAudit {
     /// Descriptor member named as `Interface.Member`.
@@ -18,6 +72,8 @@ pub struct PolicyAudit {
     pub allowed: bool,
     /// Automation error number for a denial, when present.
     pub error_number: Option<i32>,
+    /// Host facility that prevented the call from reaching the policy decision.
+    pub unavailable: Option<Unavailable>,
 }
 
 /// Checks an Automation call against the execution level supplied by its host.
@@ -25,6 +81,7 @@ pub struct PolicyAudit {
 pub struct PolicyChecker {
     level: Rc<dyn Fn() -> MacroSecurity>,
     audit: Rc<dyn Fn(PolicyAudit)>,
+    provision: Option<Rc<dyn Fn(Need) -> Provision>>,
 }
 
 impl Default for PolicyChecker {
@@ -45,13 +102,50 @@ impl PolicyChecker {
         Self {
             level: Rc::new(level),
             audit: Rc::new(audit),
+            provision: None,
         }
     }
 
-    /// Allow a call with no declared capabilities. For other calls, record the policy decision
-    /// and return an Automation error when the execution level denies access.
+    /// Use an embedder's provisions before checking authority.
+    pub fn with_provisions(mut self, provision: impl Fn(Need) -> Provision + 'static) -> Self {
+        self.provision = Some(Rc::new(provision));
+        self
+    }
+
+    /// Install the host's default provisions when the embedder supplied no overrides.
+    pub fn with_default_provisions(
+        mut self,
+        provision: impl Fn(Need) -> Provision + 'static,
+    ) -> Self {
+        if self.provision.is_none() {
+            self.provision = Some(Rc::new(provision));
+        }
+        self
+    }
+
+    /// Check the member's required facilities before consulting execution policy.
     pub fn check(&self, call: &Call<'_>) -> Result<(), AutoError> {
         let reach = &call.member.reach;
+        if let Some(provision) = &self.provision
+            && let Err(unavailable) = check_availability(&call.member.needs, |need| provision(need))
+        {
+            let subject = call.label();
+            let error = AutoError::NotAvailableHere {
+                capability: unavailable.capability,
+                route: unavailable.route,
+                subject: subject.clone(),
+            };
+            (self.audit)(PolicyAudit {
+                subject,
+                reach: reach.clone(),
+                level: (self.level)(),
+                allowed: false,
+                error_number: Some(error.number()),
+                unavailable: Some(unavailable),
+            });
+            return Err(error);
+        }
+
         let Some(first) = reach.first() else {
             return Ok(());
         };
@@ -65,6 +159,7 @@ impl PolicyChecker {
             level,
             allowed,
             error_number,
+            unavailable: None,
         });
         match error_number {
             None => Ok(()),

@@ -4370,6 +4370,81 @@ fn guarded_policy_refuses_and_audits_reaching_members_once() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn register_xll_reports_the_windows_route_on_other_targets() {
+    let (_, model) = setup();
+    let app = model.application();
+    let reply = invoke_kind(
+        &model,
+        &app,
+        "RegisterXLL",
+        InvokeKind::Method,
+        vec![AutoValue::text("portable-test.xll")],
+    );
+
+    #[cfg(windows)]
+    assert!(!matches!(reply, Err(AutoError::NotAvailableHere { .. })), "{reply:?}");
+    #[cfg(not(windows))]
+    assert!(matches!(reply, Err(AutoError::NotAvailableHere {
+        capability: calc_host::portability::Need::Xll,
+        route: Some("DNA Calc on Windows"),
+        ..
+    })), "{reply:?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn host_provisions_are_checked_before_authority() {
+    use calc_host::portability::{HostKind, HostProfile, Need, Provision};
+    use calc_object_model::policy::{MacroSecurity, PolicyChecker, check_availability};
+
+    let (host, _) = setup();
+    for kind in HostKind::ALL {
+        let profile = HostProfile::new(kind);
+        let absent = if kind == HostKind::Windows { Need::Dylib } else { Need::Xll };
+        assert_eq!(
+            check_availability(&[absent], |need| profile.provision(need))
+                .unwrap_err()
+                .capability,
+            absent,
+            "{}",
+            kind.key(),
+        );
+
+        let audit = Rc::new(RefCell::new(Vec::new()));
+        let checker = PolicyChecker::new(|| MacroSecurity::Guarded, {
+            let audit = audit.clone();
+            move |record| audit.borrow_mut().push(record)
+        }).with_provisions(move |need| profile.provision(need));
+        let model = WorkbookAutomation::with_policy(host.clone(), checker);
+        let app = model.application();
+        invoke_kind(&model, &app, "StatusBar", InvokeKind::Put, vec![AutoValue::text("working")]).unwrap();
+        assert_eq!(
+            invoke(&model, &app, "StatusBar", vec![]).unwrap().as_text().as_deref(),
+            Some("working"),
+        );
+        assert!(audit.borrow().is_empty());
+
+        let failure = invoke_kind(
+            &model, &app, "RegisterXLL", InvokeKind::Method, vec![AutoValue::text("portable-test.xll")],
+        ).unwrap_err();
+        let log = audit.borrow();
+        assert_eq!(log.len(), 1);
+        if kind == HostKind::Windows {
+            assert!(matches!(failure, AutoError::PolicyDenied { .. }), "{failure:?}");
+            assert_eq!(log[0].unavailable, None);
+        } else {
+            assert!(matches!(failure, AutoError::NotAvailableHere { capability: Need::Xll, .. }), "{failure:?}");
+            assert_eq!(log[0].unavailable.unwrap().capability, Need::Xll);
+        }
+    }
+    let profile = HostProfile::WEB_WASM
+        .with_provision(Need::Block, Provision::Shim)
+        .with_provision(Need::Dialog, Provision::Host);
+    assert_eq!(check_availability(&[Need::Dialog, Need::Block], |need| profile.provision(need)), Ok(()));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn multiple_observers_receive_ordered_events_under_one_enable_events_switch() {
     struct Listener(&'static str, Rc<RefCell<Vec<(&'static str, &'static str)>>>);
     impl Listener {

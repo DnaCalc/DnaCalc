@@ -64,6 +64,10 @@ mod value;
 /// The application supplies access, never a copied value reader. `None` means no admitted
 /// worksheet invocation; `Some(Err(..))` must never fall back to the command route.
 pub trait AutomationHost: ApplicationHost {
+    /// Facilities this application can provide to its object-model callers.
+    fn host_profile(&self) -> crate::portability::HostProfile {
+        crate::portability::HostProfile::new(crate::portability::HostKind::local())
+    }
     /// Run the callback with the currently admitted worksheet invocation, if any.
     fn with_invocation(
         &self,
@@ -239,6 +243,8 @@ impl WorkbookAutomation {
         host: Rc<dyn AutomationHost>,
         policy: calc_object_model::policy::PolicyChecker,
     ) -> Self {
+        let profile = host.host_profile();
+        let policy = policy.with_default_provisions(move |need| profile.provision(need));
         let mut handlers = Handlers::new();
         handlers.on(
             "Application",
@@ -1435,12 +1441,15 @@ impl ObjectModel for WorkbookAutomation {
         }
     }
     fn record_refusal(&self, error: &AutoError) {
-        if let AutoError::NotModelled { owner, .. } = error {
-            let _ = self.host.with_invocation(&mut |context| {
-                context.refuse_by("Automation member is not modelled", owner);
-                Ok(AutoValue::Empty)
-            });
-        }
+        let (reason, owner) = match error {
+            AutoError::NotModelled { owner, .. } => ("Automation member is not modelled", *owner),
+            AutoError::NotAvailableHere { .. } => ("Automation facility is not available here", "dc-x8vql"),
+            _ => return,
+        };
+        let _ = self.host.with_invocation(&mut |context| {
+            context.refuse_by(reason, owner);
+            Ok(AutoValue::Empty)
+        });
     }
 }
 
