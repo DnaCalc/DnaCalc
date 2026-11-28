@@ -96,13 +96,16 @@ attach_eager_family! {
     MINIFS => minifs_lifted;
 }
 
-/// A passive inspection of a conditional aggregate using the kernel's actual verdicts.
+/// A detached inspection of a conditional calculation using the kernel's verdicts.
 pub trait ConditionalObserver {
-    /// Admit the full scan before any criteria range is read. False ends the diagnostic call.
+    /// Admit the full scan before the observer receives verdicts. False ends the diagnostic call.
     fn begin(&mut self, id: super::FunctionId, ranges: &[GridArea], target: Option<GridArea>) -> bool;
 
     /// The verdict of every criterion at a row-major offset. False ends the diagnostic call.
     fn observe(&mut self, offset: u64, verdicts: &[CriterionVerdict]) -> bool;
+
+    /// The winning offset when the kernel chooses one position from its candidates.
+    fn selected(&mut self, _offset: u64) {}
 }
 
 type Kernel = fn(&[CalcValue], &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault>;

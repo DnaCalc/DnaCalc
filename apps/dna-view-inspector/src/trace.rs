@@ -8,7 +8,7 @@ use leptos::prelude::*;
 
 const PAGE_ROWS: u32 = 25;
 
-/// Identifies a set of host-inspected positions, plus its page in worksheet-row order.
+/// Identifies a set of host-inspected positions and its page along the source axis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct TraceWindow {
     pub at: Key,
@@ -39,12 +39,13 @@ pub(crate) fn mount(session: Session) -> impl IntoView {
                     }
                 };
 
+                let horizontal = horizontal_source(&data);
                 let table = result(tables.at(Some(query::Inventory { kinds: vec![InventoryKind::Tables] })), "")
                     .ok().and_then(|answer| answer.body.into_iter().find_map(|item| {
                         let InventoryItem::Table(table) = item else { return None; };
                         let Area(first, last) = table.area;
                         let Area(source, end) = data.source;
-                        (Sheet(first.0, first.1) == Sheet(source.0, source.1)
+                        (!horizontal && Sheet(first.0, first.1) == Sheet(source.0, source.1)
                             && first.2.checked_add(table.headers) == Some(source.2)
                             && last.2.checked_sub(table.totals) == Some(end.2)
                             && first.3 <= source.3 && end.3 <= last.3)
@@ -58,8 +59,10 @@ pub(crate) fn mount(session: Session) -> impl IntoView {
                         Some(criterion) => &data.criteria.get(criterion)?.failing_only_this,
                         None => &data.matching,
                     };
-                    let total = row_count(positions);
-                    let (first, last) = row_window(positions, window.offset)?;
+                    let (total, first, last) = position_window(positions, window.offset, horizontal)?;
+                    if horizontal {
+                        return Some((window, total, Area(first, last)));
+                    }
                     let (left, right) = table.as_ref().map_or((data.source.0.3, data.source.1.3),
                         |table| (table.area.0.3, table.area.1.3));
                     let area = Area(Key(first.0, first.1, first.2, left), Key(last.0, last.1, last.2, right));
@@ -74,6 +77,9 @@ pub(crate) fn mount(session: Session) -> impl IntoView {
                     <p data-inspector="trace-result"><strong>{data.result.display()}</strong>" · " {data.function.clone()}</p>
                     <p data-inspector="trace-coverage">{format!("{} inspected · {} match · {} undetermined",
                         data.inspected, data.matching_count, data.undetermined)}</p>
+                    {data.selected.map(|position| view! {
+                        <p data-inspector="trace-chosen">"Lookup selected " {reveal(session, position.0)}</p>
+                    })}
                     <p>{area_label(session, data.source)}</p>
                     {limit.map(status)}
                     {ladder(session, &data, table.as_ref())}
@@ -81,21 +87,22 @@ pub(crate) fn mount(session: Session) -> impl IntoView {
                         let heading = table.as_ref().map(|table| table.name.clone())
                             .unwrap_or_else(|| area_label(session, data.source));
                         let headers = table.as_ref().map(|table| table.columns.clone()).unwrap_or_default();
-                        let visible = u64::from(area.1.2 - area.0.2 + 1);
+                        let visible = axis_length(area.0, area.1, horizontal);
+                        let unit = if horizontal { "columns" } else { "rows" };
                         view! {
                             <div class="dna-inspector-filter" data-inspector="trace-filter">
                                 <div class="dna-inspector-actions">
                                     <strong>"View filter from Trace · " {heading}</strong>
                                     {crate::button(session, "inspector.clear-filter", "Clear filter")}
                                 </div>
-                                <p>{format!("Showing {}–{} of {total} worksheet rows", window.offset + 1, window.offset + visible)}</p>
+                                <p>{format!("Showing {}–{} of {total} worksheet {unit}", window.offset + 1, window.offset + visible)}</p>
                                 {match result(page, "") {
                                     Ok(answer) => row_table(session, answer.body, headers),
                                     Err(message) => status(message),
                                 }}
-                                {(window.offset > 0).then(|| invoke(session, "inspector.filter-page", serde_json::json!(0), "First rows".into()))}
+                                {(window.offset > 0).then(|| invoke(session, "inspector.filter-page", serde_json::json!(0), format!("First {unit}")))}
                                 {(window.offset + visible < total).then(|| invoke(session, "inspector.filter-page",
-                                    serde_json::json!(window.offset + visible), "Next rows".into()))}
+                                    serde_json::json!(window.offset + visible), format!("Next {unit}")))}
                             </div>
                         }
                     })}
@@ -122,11 +129,11 @@ fn ladder(
 ) -> impl IntoView {
     let at = data.formula;
     let criteria = data.criteria.iter().enumerate().map(|(index, criterion)| {
-        let label = table.and_then(|table| {
+        let label = criterion.label.clone().or_else(|| table.and_then(|table| {
             let col = criterion.range.0.3.checked_sub(table.area.0.3)?;
             (criterion.range.0.3 == criterion.range.1.3)
                 .then(|| table.columns.get(col as usize).cloned()).flatten()
-        }).unwrap_or_else(|| area_label(session, criterion.range));
+        })).unwrap_or_else(|| area_label(session, criterion.range));
         let count = position_count(&criterion.failing_only_this);
         view! {
             <tr data-criterion=label.clone()><th scope="row">{label.clone()}</th><td>{criterion.matching}</td><td>
@@ -141,7 +148,8 @@ fn ladder(
             <thead><tr><th scope="col">"Criterion source"</th><th scope="col">"Pass this test"</th><th scope="col">"Fail only this test"</th></tr></thead>
             <tbody>{criteria}</tbody>
         </table>
-        {(data.matching_count > 0).then(|| invoke(session, "inspector.filter", serde_json::json!([at, null]), "Show matching rows".into()))}
+        {(data.matching_count > 0).then(|| invoke(session, "inspector.filter", serde_json::json!([at, null]),
+            if horizontal_source(data) { "Show matching columns".into() } else { "Show matching rows".into() }))}
     }
 }
 
@@ -152,37 +160,49 @@ fn position_count(areas: &[Area]) -> u64 {
         .sum()
 }
 
-/// Collapse only positions on the same or adjacent worksheet rows, keeping gaps.
-fn row_runs(areas: &[Area]) -> Vec<(Key, Key)> {
+fn horizontal_source(data: &Contributions) -> bool {
+    matches!(data.function.as_str(), "FILTER" | "XLOOKUP")
+        && data.source.0.2 == data.source.1.2
+        && data.source.0.3 < data.source.1.3
+}
+
+fn coordinate(at: Key, horizontal: bool) -> u32 {
+    if horizontal { at.3 } else { at.2 }
+}
+
+fn axis_length(first: Key, last: Key, horizontal: bool) -> u64 {
+    u64::from(coordinate(last, horizontal) - coordinate(first, horizontal) + 1)
+}
+
+/// Keep gaps between runs so a page cannot include unmatched positions.
+fn position_window(areas: &[Area], mut offset: u64, horizontal: bool) -> Option<(u64, Key, Key)> {
     let mut runs: Vec<(Key, Key)> = Vec::new();
     for &Area(first, last) in areas {
         if let Some((_, end)) = runs.last_mut()
-            && first.2 <= end.2 + 1
+            && coordinate(first, horizontal) <= coordinate(*end, horizontal) + 1
         {
-            if last.2 > end.2 {
+            if coordinate(last, horizontal) > coordinate(*end, horizontal) {
                 *end = last;
             }
         } else {
             runs.push((first, last));
         }
     }
-    runs
-}
-
-fn row_count(areas: &[Area]) -> u64 {
-    row_runs(areas)
+    let total = runs
         .iter()
-        .map(|(first, last)| u64::from(last.2 - first.2 + 1))
-        .sum()
-}
-
-fn row_window(areas: &[Area], mut offset: u64) -> Option<(Key, Key)> {
-    for (mut first, mut last) in row_runs(areas) {
-        let length = u64::from(last.2 - first.2 + 1);
+        .map(|&(first, last)| axis_length(first, last, horizontal))
+        .sum();
+    for (mut first, mut last) in runs {
+        let length = axis_length(first, last, horizontal);
         if offset < length {
-            first.2 += offset as u32;
-            last.2 = last.2.min(first.2 + PAGE_ROWS - 1);
-            return Some((first, last));
+            if horizontal {
+                first.3 += offset as u32;
+                last.3 = last.3.min(first.3 + PAGE_ROWS - 1);
+            } else {
+                first.2 += offset as u32;
+                last.2 = last.2.min(first.2 + PAGE_ROWS - 1);
+            }
+            return Some((total, first, last));
         }
         offset -= length;
     }
