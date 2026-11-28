@@ -1,0 +1,104 @@
+ProductOnly	A3	s	Product Val
+ProductOnly	B3	s	Column Labels
+ProductOnly	C3	-
+ProductOnly	D3	-
+ProductOnly	A4	s	Row Labels
+ProductOnly	B4	s	A
+ProductOnly	C4	s	B
+ProductOnly	D4	s	Grand Total
+ProductOnly	A5	s	A
+ProductOnly	B5	n	404af6229e7880c2
+ProductOnly	C5	n	404a6d4767c3d716
+ProductOnly	D5	n	40a6440eb037c339
+ProductOnly	A6	s	B
+ProductOnly	B6	n	4025c095c618ca07
+ProductOnly	C6	n	405fe9953438e39e
+ProductOnly	D6	n	4095b158c6ab69bb
+ProductOnly	A7	s	Grand Total
+ProductOnly	B7	n	408253c9b8aef26b
+ProductOnly	C7	n	40ba5ac414664cbb
+ProductOnly	D7	n	414e301fb4902292
+WithSum	A3	-
+WithSum	B3	s	Column Labels
+WithSum	C3	-
+WithSum	D3	-
+WithSum	E3	-
+WithSum	F3	-
+WithSum	G3	-
+WithSum	A4	-
+WithSum	B4	s	A
+WithSum	C4	-
+WithSum	D4	s	B
+WithSum	E4	-
+WithSum	F4	s	Total Product Val
+WithSum	G4	s	Total Sum Other
+WithSum	A5	s	Row Labels
+WithSum	B5	s	Product Val
+WithSum	C5	s	Sum Other
+WithSum	D5	s	Product Val
+WithSum	E5	s	Sum Other
+WithSum	F5	-
+WithSum	G5	-
+WithSum	A6	s	A
+WithSum	B6	n	404af6229e7880c2
+WithSum	C6	n	401c000000000000
+WithSum	D6	n	404a6d4767c3d716
+WithSum	E6	n	4026000000000000
+WithSum	F6	n	40a6440eb037c339
+WithSum	G6	n	4032000000000000
+WithSum	A7	s	B
+WithSum	B7	n	4025c095c618ca07
+WithSum	C7	n	401c000000000000
+WithSum	D7	n	405fe9953438e39e
+WithSum	E7	n	4026000000000000
+WithSum	F7	n	4095b158c6ab69bb
+WithSum	G7	n	4032000000000000
+WithSum	A8	s	Grand Total
+WithSum	B8	n	408253c9b8aef26b
+WithSum	C8	n	402c000000000000
+WithSum	D8	n	40ba5ac414664cbb
+WithSum	E8	n	4036000000000000
+WithSum	F8	n	414e301fb4902292
+WithSum	G8	n	4042000000000000
+BeforeStDev	A3	-
+BeforeStDev	B3	s	Column Labels
+BeforeStDev	C3	-
+BeforeStDev	D3	-
+BeforeStDev	E3	-
+BeforeStDev	F3	-
+BeforeStDev	G3	-
+BeforeStDev	A4	-
+BeforeStDev	B4	s	A
+BeforeStDev	C4	-
+BeforeStDev	D4	s	B
+BeforeStDev	E4	-
+BeforeStDev	F4	s	Total Product Val
+BeforeStDev	G4	s	Total StDev Val
+BeforeStDev	A5	s	Row Labels
+BeforeStDev	B5	s	Product Val
+BeforeStDev	C5	s	StDev Val
+BeforeStDev	D5	s	Product Val
+BeforeStDev	E5	s	StDev Val
+BeforeStDev	F5	-
+BeforeStDev	G5	-
+BeforeStDev	A6	s	A
+BeforeStDev	B6	n	404af6229e7880c2
+BeforeStDev	C6	n	401c068b16b27a5d
+BeforeStDev	D6	n	404a6d4767c3d716
+BeforeStDev	E6	n	401d196b52c08e33
+BeforeStDev	F6	n	40a6440eb037c339
+BeforeStDev	G6	n	401753543193f54f
+BeforeStDev	A7	s	B
+BeforeStDev	B7	n	4025c095c618ca07
+BeforeStDev	C7	n	401768997895517c
+BeforeStDev	D7	n	405fe9953438e39e
+BeforeStDev	E7	n	400d6a7fe0a782f8
+BeforeStDev	F7	n	4095b158c6ab69bb
+BeforeStDev	G7	n	401599b65b1c1f44
+BeforeStDev	A8	s	Grand Total
+BeforeStDev	B8	n	408253c9b8aef26b
+BeforeStDev	C8	n	4016a26204e7021a
+BeforeStDev	D8	n	40ba5ac414664cbb
+BeforeStDev	E8	n	4013d24906d430eb
+BeforeStDev	F8	n	414e301fb4902292
+BeforeStDev	G8	n	4014d54cce96a6d5

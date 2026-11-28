@@ -8,6 +8,7 @@ pub(super) struct Total {
     product_overflowed: bool,
     unsafe_moment: bool,
     unsafe_integer_product: bool,
+    extreme_factor: bool,
     has_zero: bool,
     numbers: u64,
     nonempty: u64,
@@ -22,7 +23,8 @@ impl Total {
             calc_value::CoreRef::Number(n) => {
                 // Pivot Sum and Average keep the adjusted result of each source addition.
                 self.sum = calc_fml::adjust_final_sum(self.sum, self.sum + n);
-                self.squares += n * n;
+                let square = n * n;
+                self.squares += square;
                 self.product = if self.numbers == 0 {
                     n
                 } else {
@@ -30,6 +32,7 @@ impl Total {
                 };
                 self.product_overflowed |= !self.product.is_finite();
                 self.has_zero |= n == 0.0;
+                self.extreme_factor |= n != 0.0 && !square.is_normal();
                 self.unsafe_integer_product |= n.fract() != 0.0
                     || !self.product.is_finite()
                     || self.product.abs() > 9_007_199_254_740_992.0;
@@ -91,8 +94,37 @@ impl Total {
     pub(super) fn supports_grouped_product(&self, kind: &str) -> bool {
         kind != "product" || self.error.is_some() || !self.unsafe_integer_product
     }
-    pub(super) fn has_finite_zero_product(&self) -> bool {
-        self.has_zero && self.product == 0.0 && !self.product_overflowed
+    pub(super) fn supports_ordered(&self, kind: &str) -> bool {
+        if kind == "product" {
+            // The overflow and underflow paths need their own Excel measurements (dc-8wp.10).
+            return self.error.is_some()
+                || (!self.extreme_factor
+                    && !self.product_overflowed
+                    && (self.product.is_normal() || (self.product == 0.0 && self.has_zero)));
+        }
+        self.supports(kind)
+            || (self.numbers >= 2
+                && !self.extreme_factor
+                && self.sum.is_finite()
+                && self.squares.is_finite()
+                && self.squares - self.sum * self.sum / self.numbers as f64 >= 0.0)
+    }
+    pub(super) fn merge_ordered_row(&mut self, row: &Self) {
+        self.sum += row.sum;
+        self.squares += row.squares;
+        self.extreme_factor |= row.extreme_factor;
+        if row.numbers != 0 {
+            self.product = if self.numbers == 0 {
+                row.product
+            } else {
+                self.product * row.product
+            };
+            self.product_overflowed |= row.product_overflowed || !self.product.is_finite();
+            self.has_zero |= row.has_zero;
+        }
+        self.numbers += row.numbers;
+        self.nonempty += row.nonempty;
+        self.error = self.error.or(row.error);
     }
     pub(super) fn result(&self, kind: &str) -> CalcValue {
         // UI28 P6 and M1 err-keys: an empty set has no displayed sum or count cell.
