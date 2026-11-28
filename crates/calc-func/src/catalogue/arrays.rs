@@ -149,6 +149,49 @@ fn run(
     result(site, kernel(&args))
 }
 
+fn filter(site: &Site<'_>, args: &[CalcValue], services: &mut EvalServices<'_>) -> Step<CalcValue> {
+    source_error(args)?;
+    let prepared = prepared(site, args, services)?;
+    let mut stopped = false;
+    let output = k::eval_filter_prepared(&prepared, |columns, mask| {
+        let (Some(observer), Some(source)) =
+            (services.conditional_observer(), single_area(&args[0]))
+        else {
+            return;
+        };
+        let first = source.first();
+        let last = source.last();
+        let last = if columns {
+            CellKey::new(source.sheet(), first.row(), last.column())
+        } else {
+            CellKey::new(source.sheet(), last.row(), first.column())
+        }
+        .expect("an endpoint in the source");
+        let axis = GridArea::new(first, last).expect("an axis of the source");
+        let include = single_area(&args[1]).unwrap_or(axis);
+        stopped = !observer.begin(site.id(), &[include], Some(axis))
+            || mask.iter().enumerate().any(|(offset, &keep)| {
+                let verdict = if keep {
+                    crate::CriterionVerdict::Yes
+                } else {
+                    crate::CriterionVerdict::No
+                };
+                !observer.observe(offset as u64, &[verdict])
+            });
+    });
+    if stopped {
+        return Err(site.not_modelled(None));
+    }
+    result(site, output)
+}
+
+fn single_area(value: &CalcValue) -> Option<GridArea> {
+    let [area] = value.as_reference()?.areas() else {
+        return None;
+    };
+    Some(*area)
+}
+
 /// WRAPROWS and WRAPCOLS treat a one-cell reference to an error or blank cell as that scalar cell
 /// (Excel 16.0.20625, Touchstone sheet cases, dc-shqi1): an error cell wins over a bad count and
 /// a blank cell is #VALUE! before the count. A one-cell reference to a value stays a 1x1 array so
@@ -804,10 +847,7 @@ ported_shared_family! {
     code: CODE;
     declarations: DECLARATIONS;
     1 sequence_resume => sequence_task;
-    2 filter_fn |s, a, sv| {
-        source_error(a)?;
-        run(s, a, sv, k::eval_filter_prepared)
-    }
+    2 filter_fn |s, a, sv| { filter(s, a, sv) }
     3 sort_fn |s, a, sv| {
         sort(s, a, sv)
     }

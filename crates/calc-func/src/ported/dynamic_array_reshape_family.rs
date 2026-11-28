@@ -723,10 +723,14 @@ fn build_filter_mask(
     Err(DynamicArrayReshapeEvalError::InvalidIncludeShape)
 }
 
-pub fn eval_filter_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
+pub fn eval_filter_prepared(
+    args: &[CalcValue],
+    observe_mask: impl FnOnce(bool, &[bool]),
+) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
     let include = materialize_array_arg(&args[1]);
     let (filter_cols, mask) = build_filter_mask(&include, array.shape())?;
+    observe_mask(filter_cols, &mask);
 
     if !filter_cols {
         let selected_rows: Vec<usize> = mask

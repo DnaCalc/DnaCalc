@@ -500,7 +500,12 @@ pub(crate) fn prepare(
                 }
                 ModelChange::SaveScenario { scenario, inputs } => {
                     require_current_model(request, base.model)?;
-                    let change = save_scenario(state, scenario, inputs, &mut edits)?;
+                    let change = save_scenario(state, scenario, ScenarioCells::Bindings(inputs), &mut edits)?;
+                    scenario_changes.push(change);
+                }
+                ModelChange::SaveScenarioCells { scenario, areas } => {
+                    require_current_model(request, base.model)?;
+                    let change = save_scenario(state, scenario, ScenarioCells::Areas(areas), &mut edits)?;
                     scenario_changes.push(change);
                 }
                 ModelChange::ResetInputs { inputs } => {
@@ -949,10 +954,15 @@ fn literal_target(session: &HostSession, at: CellKey) -> Result<(), Refusal> {
     Ok(())
 }
 
+enum ScenarioCells<'a> {
+    Bindings(&'a [Bound]),
+    Areas(&'a [Area]),
+}
+
 fn save_scenario(
     state: &State,
     scenario: &ScenarioRef,
-    inputs: &[Bound],
+    source: ScenarioCells<'_>,
     edits: &mut Vec<CellEdit>,
 ) -> Result<ModelPropertyDiff, Refusal> {
     let host = state.session.host();
@@ -975,14 +985,36 @@ fn save_scenario(
         return Err(invalid("A scenario with that name already exists on the worksheet"));
     }
     let mut cells = BTreeSet::new();
-    for bound in inputs {
-        let at = crate::query::bound_cell(state, bound)?;
-        if at.sheet() == id {
-            cells.insert(at);
+    let invalid_count = || invalid("Choose 1–32 changing cells on the worksheet");
+    match source {
+        ScenarioCells::Bindings(inputs) => {
+            for bound in inputs {
+                let at = crate::query::bound_cell(state, bound)?;
+                if at.sheet() == id {
+                    cells.insert(at);
+                }
+            }
+        }
+        ScenarioCells::Areas(areas) => {
+            for &area in areas {
+                let area = grid_area(area)?;
+                if area.sheet() != id || area.cell_count() > 32 {
+                    return Err(invalid_count());
+                }
+                let (first, last) = (area.first(), area.last());
+                for row in first.row()..=last.row() {
+                    for column in first.column()..=last.column() {
+                        cells.insert(CellKey::new(id, row, column).expect("inside the selected area"));
+                        if cells.len() > 32 {
+                            return Err(invalid_count());
+                        }
+                    }
+                }
+            }
         }
     }
     if !(1..=32).contains(&cells.len()) {
-        return Err(invalid("Choose a worksheet with 1–32 changing cells on this App page"));
+        return Err(invalid_count());
     }
     let mut changing = Vec::with_capacity(cells.len());
     let mut values = Vec::with_capacity(cells.len());

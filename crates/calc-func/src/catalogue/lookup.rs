@@ -1179,13 +1179,82 @@ fn xlooked_up(
         }
         false
     };
-    let Some(at) = xsearch(site, services, line, key, mode, search)? else {
+    let chosen = xsearch(site, services, line, key, mode, search)?;
+    observe_lookup(site, services, line, return_grid, key, mode, chosen, by_row)?;
+    let Some(at) = chosen else {
         return match arguments.get(3) {
             Some(fallback) if !fallback.is_missing() => Ok(fallback.clone()),
             _ => Err(Exit::Error(WorksheetErrorCode::NA)),
         };
     };
     Ok(part(&arguments[2], return_grid, by_row, at))
+}
+
+fn observe_lookup(
+    site: &Site<'_>,
+    services: &mut EvalServices<'_>,
+    line: Line<'_>,
+    result: Grid<'_>,
+    key: Item<'_>,
+    mode: Mode,
+    chosen: Option<u64>,
+    by_row: bool,
+) -> Step<()> {
+    use crate::CriterionVerdict::{No, Unknown, Yes};
+
+    let Line::Area { area, .. } = line else {
+        return Ok(());
+    };
+    let result_line = if by_row {
+        result.column_line(0)
+    } else {
+        result.row_line(0)
+    };
+    let target_area = match result_line {
+        Line::Area { area, .. } if result_line.len() == line.len() => Some(area),
+        _ => None,
+    };
+    let Some(observer) = services.conditional_observer() else {
+        return Ok(());
+    };
+    if !observer.begin(site.id(), &[area], target_area) {
+        return Err(site.not_modelled(None));
+    }
+    let held = line.held(site, services)?;
+    let observer = services
+        .conditional_observer()
+        .expect("an admitted diagnostic call");
+    let target = Target::new(key, mode == Mode::Wildcard);
+    let mut cells = held.cells.iter().peekable();
+    for offset in 0..held.len {
+        let candidate = if cells.peek().is_some_and(|cell| cell.0 == offset) {
+            item(site, 1, &cells.next().expect("a held item").1)
+        } else {
+            Ok(Item::Blank)
+        };
+        let eligible = candidate.and_then(|candidate| {
+            if target.hits(site, candidate)? {
+                return Ok(true);
+            }
+            match mode {
+                Mode::NextSmaller => Ok(order(site, candidate, key)? == Ordering::Less),
+                Mode::NextLarger => Ok(order(site, candidate, key)? == Ordering::Greater),
+                _ => Ok(false),
+            }
+        });
+        let verdict = match eligible {
+            Ok(true) => Yes,
+            Ok(false) => No,
+            Err(_) => Unknown,
+        };
+        if !observer.observe(offset, &[verdict]) {
+            return Err(site.not_modelled(None));
+        }
+    }
+    if let Some(offset) = chosen {
+        observer.selected(offset);
+    }
+    Ok(())
 }
 
 /// Row (`by_row`) or column `at` (0-based) of a return grid: a reference into its area, or the
