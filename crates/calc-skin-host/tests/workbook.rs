@@ -2888,3 +2888,80 @@ fn pivot_cache_freshness_tracks_source_changes_and_refresh() {
     assert_eq!(refreshed.freshness, PivotFreshness::Current);
     assert!(refreshed.observed_refresh_unix_ms.unwrap() >= read_at);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn worksheet_objects_include_the_host_chart_and_its_data() {
+    let (host, sheet) = object_fixture(include_bytes!("../../calc-host/tests/fixtures/dc_6yw/charts.xlsx"));
+    let connection = port(&host);
+    let objects = read_objects(&connection, sheet);
+    assert_eq!(objects.unread_charts, 0);
+    let column = objects.charts.iter().find(|chart| chart.image.label == "Column").unwrap();
+    assert_eq!(column.image, ask(&connection, query::ChartImageOf { object: column.source.clone(), comparison: None }));
+    let plot = &column.data.plots[0];
+    assert_eq!(plot.kind, ChartPlotKind::Column);
+    assert_eq!(plot.series[0].name, "North");
+    assert_eq!(plot.series[0].categories[0], Some(RawValue::Text("Jan".encode_utf16().collect())));
+    assert_eq!(plot.series[0].values,
+        [12., 18., 9., 22., 15., 27.].map(|value: f64| Some(value.to_bits())));
+    assert!(!plot.series[0].uses_saved_values);
+    assert!(matches!(column.frame, ObjectFrame::Cells { from, to }
+        if from.cell == Key(sheet.0, sheet.1, 1, 7) && to.cell == Key(sheet.0, sheet.1, 15, 13)));
+    assert!(matches!(connection.ask(query::Objects { sheet }.request(), Budget { nodes: 0, ..BUDGET }),
+        Err(Refusal::OverBudget { .. })));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn worksheet_objects_keep_pictures_sparklines_and_linked_controls() {
+    let (host, sheet) = object_fixture(include_bytes!("../../calc-doc/tests/fixtures/drawing/pictures-paint.xlsx"));
+    let connection = port(&host);
+    let pictures = read_objects(&connection, sheet);
+    let cropped = pictures.drawings.iter().find(|drawing| drawing.name == "Pic PNG crop").unwrap();
+    assert_eq!(cropped.kind, DrawingKind::Picture);
+    assert!(cropped.frame.is_some());
+    let picture = cropped.picture.as_ref().unwrap();
+    assert_eq!(picture.crop, [25_000, 10_000, 25_000, 40_000]);
+    assert!(picture.data_url.as_ref().unwrap().starts_with("data:image/png;base64,iVBORw0KGgo"));
+    assert!(matches!(connection.ask(query::Objects { sheet }.request(), Budget { bytes: 64, ..BUDGET }),
+        Err(Refusal::OverBudget { .. })));
+
+    let (host, sheet) = object_fixture(include_bytes!("../../calc-doc/tests/fixtures/drawing/sparklines.xlsx"));
+    let objects = read_objects(&port(&host), sheet);
+    assert_eq!(objects.sparklines.len(), 7);
+    let line = objects.sparklines.iter().find(|line| line.at == Key(sheet.0, sheet.1, 2, 6)).unwrap();
+    assert_eq!(line.kind, "line");
+    assert!(line.marker_points);
+    assert_eq!(line.values, [3., 5., 2., 8., 6.].map(|value: f64| Some(value.to_bits())));
+
+    let (host, sheet) = object_fixture(include_bytes!("../../calc-doc/tests/fixtures/drawing/form-controls.xlsx"));
+    let objects = read_objects(&port(&host), sheet);
+    let check = objects.controls.iter().find(|control| control.id == 1026).unwrap();
+    assert_eq!(check.kind, "CheckBox");
+    assert_eq!(check.caption.as_deref(), Some("Include tax"));
+    assert_eq!(check.linked_cell, Some(Key(sheet.0, sheet.1, 2, 2)));
+    assert_eq!(check.linked_value, Some(RawValue::Logical(true)));
+    assert!(objects.drawings.iter().any(|shape| shape.hidden && shape.text.as_ref()
+        .is_some_and(|text| text.iter().any(|line| line == "Include tax"))));
+    let list = objects.controls.iter().find(|control| control.id == 1029).unwrap();
+    assert_eq!(list.items.len(), 4);
+    assert!(objects.controls.iter().any(|control| control.id == 1025 && control.has_macro));
+}
+
+fn object_fixture(bytes: &[u8]) -> (SkinHost, Sheet) {
+    let book = HostSession::open(
+        Arc::new(MemorySource::new(bytes.to_vec())),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    ).unwrap();
+    let sheet = Sheet::of(book.host().sheets()[0].id());
+    let host = SkinHost::new(book);
+    while host.advance() {}
+    (host, sheet)
+}
+
+fn read_objects(port: &impl WorkbookPort, sheet: Sheet) -> WorksheetObjects {
+    let budget = Budget { bytes: 8 * 1024 * 1024, millis: 2_000, ..BUDGET };
+    let reply = port.ask(query::Objects { sheet }.request(), budget).unwrap();
+    query::Objects::decode(reply).unwrap().body
+}

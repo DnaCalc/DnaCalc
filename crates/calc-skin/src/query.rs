@@ -90,6 +90,10 @@ query!(
     |q: &OutputCandidates| WorkbookQuery::OutputCandidates { scope: q.scope.clone() }
 );
 query!(
+    /// Drawing objects and linked controls on a worksheet.
+    Objects { sheet: Sheet } => crate::WorksheetObjects,
+    |q: &Objects| WorkbookQuery::Objects { sheet: q.sheet });
+query!(
     /// The workbook renderer's image of an exact worksheet chart.
     ChartImageOf { object: SourceRef, comparison: Option<crate::Bound> } => crate::ChartImage,
     |q: &ChartImageOf| WorkbookQuery::ChartImage {

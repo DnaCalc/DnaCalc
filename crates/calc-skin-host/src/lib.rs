@@ -8,6 +8,7 @@ mod effects;
 mod inventory;
 mod issues;
 mod names;
+mod objects;
 mod placement;
 mod proposal;
 mod publication;

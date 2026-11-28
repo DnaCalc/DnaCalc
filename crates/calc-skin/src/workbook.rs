@@ -235,6 +235,7 @@ pub enum WorkbookQuery {
     OutputCandidates {
         scope: SourceRef,
     },
+    Objects { sheet: Sheet },
     ChartImage {
         object: SourceRef,
         #[serde(default, skip_serializing_if = "Option::is_none")]
