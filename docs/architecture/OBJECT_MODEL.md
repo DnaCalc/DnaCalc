@@ -69,7 +69,8 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 
 - `AutoValue` (calc-object-model): Empty, Null, Missing, Bool, I2, I4, R4, R8, Currency, Date, Text
   (UTF-16, `ExcelText`), Error (CVErr number), Object (`ObjectRef`), Foreign (a client's own IDispatch,
-  borrowed for a call unless a member explicitly takes ownership), Array (2-D, 1-based).
+  borrowed for a call unless a member explicitly takes ownership), and Array (rank and lower bounds
+  preserved for Automation). Range.Value returns a 1-based matrix and chart series return 1-based vectors.
 - `ObjectRef { interface, key }`: the default interface and what it denotes. Workbook objects name session
   identities and are resolved on every call. A Range is a `StoredReference` handle of the session tracker
   (harvest finding 1), released when the last wrapper is released (`ObjectModel::released`).

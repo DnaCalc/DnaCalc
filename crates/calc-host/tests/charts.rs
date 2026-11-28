@@ -378,8 +378,8 @@ fn series_command(
         plot,
         series,
         name: name.map(str::to_owned),
-        categories: categories.map(str::to_owned),
-        values: values.map(str::to_owned),
+        categories: categories.map(Into::into),
+        values: values.map(Into::into),
         remove,
     }
 }
@@ -852,7 +852,7 @@ fn dc_971p_46__scatter_fallback_extents_validate_the_actual_display() {
         plot: 0,
         series: Some(0),
         name: None,
-        categories: Some(String::new()),
+        categories: Some("".into()),
         values: None,
         remove: false,
     };

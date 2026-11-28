@@ -176,6 +176,7 @@ pub fn to_calc(value: &AutoValue) -> Result<CalcValue, AutoError> {
             _ => return Err(AutoError::not_modelled("Automation CVErr code", OWNER)),
         }),
         AutoValue::Array(a) => {
+            let (rows, columns) = a.grid_size();
             let values = a
                 .values
                 .iter()
@@ -189,8 +190,8 @@ pub fn to_calc(value: &AutoValue) -> Result<CalcValue, AutoError> {
             CalcValue::array(
                 CalcArray::new(
                     ArrayShape {
-                        rows: a.rows as usize,
-                        cols: a.columns as usize,
+                        rows: rows as usize,
+                        cols: columns as usize,
                     },
                     values,
                 )
@@ -229,15 +230,15 @@ pub fn from_calc(value: &CalcValue) -> Result<AutoValue, AutoError> {
             WorksheetErrorCode::GettingData => 2043,
             _ => return Err(AutoError::not_modelled("Automation CVErr code", OWNER)),
         }),
-        CoreRef::Array(a) => AutoValue::Array(Box::new(AutoArray {
-            rows: a.shape().rows as u32,
-            columns: a.shape().cols as u32,
-            lower: (1, 1),
-            values: a
+        CoreRef::Array(a) => AutoValue::Array(Box::new(AutoArray::matrix(
+            a.shape().rows as u32,
+            a.shape().cols as u32,
+            (1, 1),
+            a
                 .iter_row_major()
                 .map(from_calc)
                 .collect::<Result<Vec<_>, _>>()?,
-        })),
+        ))),
         _ => return Err(AutoError::not_modelled("Automation result kind", OWNER)),
     })
 }

@@ -249,6 +249,39 @@ fn a_denial_vba_catches_is_still_recorded_and_an_unmodelled_member_is_a_typed_re
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unavailable_excel_member_stays_visible_when_vba_catches_it() {
+    let source = r#"
+Public Function Probe() As Long
+    On Error Resume Next
+    Application.RegisterXLL "pa1-nonexistent.xll"
+    Probe = Err.Number
+End Function
+
+Public Function Independent() As Boolean
+    Independent = True
+End Function
+"#;
+    for backend in backends() {
+        let (mut session, owner) = project_with(source, calc_macro_security::VbaPolicy::Full, backend);
+        let run = owner.run_procedure(&mut session, "Probe", &[]);
+        #[cfg(not(windows))]
+        assert!(matches!(
+            run.outcome,
+            Outcome::NotAvailableHere {
+                capability: calc_host::portability::Need::Xll,
+                route: Some("DNA Calc on Windows"),
+                ..
+            }
+        ), "{run:?}");
+        #[cfg(windows)]
+        assert!(!matches!(run.outcome, Outcome::NotAvailableHere { .. }), "{run:?}");
+        let independent = owner.run_procedure(&mut session, "Independent", &[]);
+        assert_eq!(independent.outcome, Outcome::Success(ProcedureResult::Bool(true)));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn application_run_runs_another_procedure_nested_and_raises_excels_error_for_a_missing_macro() {
     for backend in backends() {
         let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);

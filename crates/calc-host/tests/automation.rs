@@ -897,7 +897,10 @@ fn value2_returns_first_area_one_based_arrays_and_scalar_types() {
     let AutoValue::Array(array) = invoke(&model, &a, "Value2", vec![]).unwrap() else {
         panic!("array");
     };
-    assert_eq!((array.rows, array.columns, array.lower), (2, 2, (1, 1)));
+    assert_eq!(
+        array.shape,
+        calc_object_model::AutoArrayShape::Matrix { rows: 2, columns: 2, lower: (1, 1) }
+    );
     assert!(matches!(array.values[0], AutoValue::R8(7.)));
     assert_eq!(array.values[1].as_text().as_deref(), Some("text"));
     assert!(matches!(array.values[2], AutoValue::Bool(true)));
@@ -1834,17 +1837,17 @@ fn command_writes_use_one_automation_transaction_and_calculate_real_formulas() {
     let app = model.application();
     let block = range(&model, "A20:B21");
     let array = || {
-        AutoValue::Array(Box::new(calc_object_model::AutoArray {
-            rows: 2,
-            columns: 2,
-            lower: (1, 1),
-            values: vec![
+        AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(
+            2,
+            2,
+            (1, 1),
+            vec![
                 AutoValue::R8(7.),
                 AutoValue::text("ordinary text"),
                 AutoValue::Bool(true),
                 AutoValue::Error(2042),
             ],
-        }))
+        )))
     };
     let log = host.session.borrow().intent_log().len();
     invoke_kind(&model, &block, "Value2", InvokeKind::Put, vec![array()]).unwrap();
@@ -1867,7 +1870,11 @@ fn command_writes_use_one_automation_transaction_and_calculate_real_formulas() {
     let AutoValue::Array(mut wrong) = array() else {
         unreachable!()
     };
-    wrong.columns = 1;
+    wrong.shape = calc_object_model::AutoArrayShape::Matrix {
+        rows: 2,
+        columns: 1,
+        lower: (1, 1),
+    };
     assert!(matches!(
         invoke_kind(
             &model,
@@ -2318,7 +2325,10 @@ fn range_value_e6_workbook_formats_preserve_excel_types_rounding_and_overflow() 
     else {
         panic!("block");
     };
-    assert_eq!((array.rows, array.columns, array.lower), (8, 1, (1, 1)));
+    assert_eq!(
+        array.shape,
+        calc_object_model::AutoArrayShape::Matrix { rows: 8, columns: 1, lower: (1, 1) }
+    );
     assert_eq!(array.values.len(), 8);
     for (actual, (_, expected)) in array.values.into_iter().zip(&cases[..8]) {
         assert_e6(Ok(actual), expected);
@@ -3417,8 +3427,12 @@ fn range_value2_put_and_clear_contents_reach_every_area_of_a_multi_area_range() 
             AutoValue::R8(v) if v == expected), "{address}");
     }
     assert_eq!(text(&model, &range(&model, "B1"), "Text"), "keep");
-    let refused = invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![AutoValue::Array(Box::new(AutoArray {
-        rows: 1, columns: 1, lower: (1, 1), values: vec![AutoValue::R8(1.0)] }))]);
+    let refused = invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![AutoValue::Array(Box::new(AutoArray::matrix(
+        1,
+        1,
+        (1, 1),
+        vec![AutoValue::R8(1.0)],
+    )))]);
     assert!(matches!(refused, Err(AutoError::NotModelled { owner: "dc-1nbp.6", .. })));
     invoke_kind(&model, &union, "ClearContents", InvokeKind::Method, vec![]).unwrap();
     for address in ["A1", "C1", "C2"] {
@@ -3438,12 +3452,12 @@ fn dc_1nbp_6_e11_value2_arrays_repeat_across_areas() {
         (2, vec![1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0]),
         (1, vec![9.0], [9.0; 8]),
     ] {
-        let array = AutoValue::Array(Box::new(AutoArray {
-            rows: side,
-            columns: side,
-            lower: (1, 1),
-            values: values.into_iter().map(AutoValue::R8).collect(),
-        }));
+        let array = AutoValue::Array(Box::new(AutoArray::matrix(
+            side,
+            side,
+            (1, 1),
+            values.into_iter().map(AutoValue::R8).collect(),
+        )));
         let previous_log = host.session.borrow().intent_log().len();
         invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![array]).unwrap();
         assert_eq!(host.session.borrow().intent_log().len(), previous_log + 1);
@@ -3838,6 +3852,70 @@ fn dc_piw0_10__q17_series_unique_ids_start_at_zero_for_add_chart2_and_only_go_up
     assert_eq!(unique_ids(&mut host.session.borrow_mut()), [3]);
 }
 
+/// Excel Q17: numeric and text Values arrays become numeric literals in the SERIES formula.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11_2_chart_series_literals_survive_save_and_reopen() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "20"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(
+        &model,
+        &charts,
+        "Add",
+        InvokeKind::Method,
+        [200., 20., 300., 200.].map(AutoValue::R8).to_vec(),
+    ).unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source_by(&model, &chart, "A1:B3", Some(2));
+    let first_series = |model: &WorkbookAutomation, chart: &ObjectRef| {
+        obj(invoke_kind(model, chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap())
+    };
+    let series = first_series(&model, &chart);
+    let put = |member: &str, values| {
+        let array = AutoValue::Array(Box::new(calc_object_model::AutoArray::vector(-2, values)));
+        invoke_kind(&model, &series, member, InvokeKind::Put, vec![array]).unwrap();
+    };
+    put("Values", vec![AutoValue::I4(7), AutoValue::R8(8.)]);
+    assert_eq!(
+        text(&model, &series, "Formula"),
+        "=SERIES(Sheet1!$B$1,Sheet1!$A$2:$A$3,{7,8},1)"
+    );
+    put("Values", vec![AutoValue::text("a"), AutoValue::text("b")]);
+    assert_eq!(
+        text(&model, &series, "Formula"),
+        "=SERIES(Sheet1!$B$1,Sheet1!$A$2:$A$3,{0,0},1)"
+    );
+    put("XValues", vec![AutoValue::I4(11), AutoValue::I4(12)]);
+    assert_eq!(text(&model, &series, "Formula"), "=SERIES(Sheet1!$B$1,{11,12},{0,0},1)");
+    put("XValues", vec![AutoValue::text("North"), AutoValue::text("South")]);
+
+    let xml = saved_part(&mut host.session.borrow_mut(), "xl/charts/");
+    assert!(xml.contains("<c:strLit>"), "{xml}");
+    assert!(xml.contains("<c:numLit>"), "{xml}");
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let (_reopened, model) = setup_session(HostSession::open(
+        Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default(),
+    ).unwrap());
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let chart = obj(invoke(&model, &item(&model, &charts, 1), "Chart", vec![]).unwrap());
+    let series = first_series(&model, &chart);
+    let get = |member| {
+        let AutoValue::Array(values) = invoke(&model, &series, member, vec![]).unwrap() else {
+            panic!("expected a series array");
+        };
+        assert_eq!(values.shape, calc_object_model::AutoArrayShape::Vector { lower: 1 });
+        values.values
+    };
+    assert!(matches!(get("Values").as_slice(), [AutoValue::R8(0.), AutoValue::R8(0.)]));
+    assert_eq!(
+        get("XValues").iter().map(AutoValue::as_text).collect::<Vec<_>>(),
+        [Some("North".into()), Some("South".into())]
+    );
+}
+
 /// The `c16:uniqueId` counters of every saved chart part, per part in name order.
 fn charts_unique_ids(session: &mut HostSession) -> Vec<Vec<u32>> {
     let mut bytes = Vec::new();
@@ -4005,7 +4083,7 @@ fn dc_piw0_11__q16_spaces_around_a_range_colon_are_accepted() {
 }
 
 fn row_array(values: Vec<AutoValue>) -> AutoValue {
-    AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+    AutoValue::Array(Box::new(calc_object_model::AutoArray::vector(1, values)))
 }
 
 /// Q16 (excel-answers.md, run1 q16 and run2 q16b): Range.Formula answers a String for every kind of cell (a formula in
@@ -4037,12 +4115,12 @@ fn dc_piw0_10__q16_formula_is_a_string_arrays_fill_na_and_text_fits_the_column()
     put_formula(&model, "B1:B3", AutoValue::text("=A1*2"));
     assert_eq!(formulas(&model, "B1:B3"), ["=A1*2", "=A2*2", "=A3*2"]);
     let two_by_two = || {
-        AutoValue::Array(Box::new(calc_object_model::AutoArray {
-            rows: 2,
-            columns: 2,
-            lower: (1, 1),
-            values: ["=1+1", "2", "x", "=C1"].map(AutoValue::text).to_vec(),
-        }))
+        AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(
+            2,
+            2,
+            (1, 1),
+            ["=1+1", "2", "x", "=C1"].map(AutoValue::text).to_vec(),
+        )))
     };
     put_formula(&model, "E1:F2", two_by_two());
     assert_eq!(formulas(&model, "E1:F2"), ["=1+1", "2", "x", "=C1"]);
@@ -8361,7 +8439,7 @@ fn dc_oxh8w_43__worksheets_of_an_array_is_a_group() {
     let base = sheet_names(&host);
     assert_eq!(base.len(), 3);
     let array = |values: Vec<AutoValue>| {
-        AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+        AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(1, values.len() as u32, (1, 1), values)))
     };
     let group = obj(invoke(&model, &sheets, "Item", vec![array(vec![AutoValue::I4(3), AutoValue::I4(1), AutoValue::I4(3)])]).unwrap());
     let count = invoke(&model, &group, "Count", vec![]).unwrap();
@@ -8453,12 +8531,12 @@ fn dc_oxh8w_43__sheet_copy_names_and_group_placement() {
                 &model,
                 &sheets,
                 "Item",
-                vec![AutoValue::Array(Box::new(calc_object_model::AutoArray {
-                    rows: 1,
-                    columns: 2,
-                    lower: (1, 1),
-                    values: vec![AutoValue::text("P"), AutoValue::text("Q")],
-                }))],
+                vec![AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(
+                    1,
+                    2,
+                    (1, 1),
+                    vec![AutoValue::text("P"), AutoValue::text("Q")],
+                )))],
             )
             .unwrap(),
         );
@@ -8489,7 +8567,7 @@ fn dc_fa8cx__group_move_anchored_inside_the_group() {
     let base = sheet_names(&host);
     assert_eq!(base.len(), 4);
     let array = |values: Vec<AutoValue>| {
-        AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+        AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(1, values.len() as u32, (1, 1), values)))
     };
     let item = |i: i32| obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(i)]).unwrap());
     let app = model.application();
@@ -9733,12 +9811,12 @@ fn dc_oxh8w_43__range_auto_filter_sets_criteria() {
     assert_eq!(hidden(), vec![2, 3]);
     filter("A1:B5", vec![AutoValue::I4(2), AutoValue::I4(15)]).unwrap();
     assert_eq!(hidden(), vec![2, 4, 5]);
-    let values = AutoValue::Array(Box::new(calc_object_model::AutoArray {
-        rows: 1,
-        columns: 2,
-        lower: (1, 1),
-        values: vec![t("5"), t("35")],
-    }));
+    let values = AutoValue::Array(Box::new(calc_object_model::AutoArray::matrix(
+        1,
+        2,
+        (1, 1),
+        vec![t("5"), t("35")],
+    )));
     filter("A1:B5", vec![AutoValue::I4(2), values, AutoValue::I4(7)]).unwrap();
     assert_eq!(hidden(), vec![3, 4]);
     // Text criteria on column 1 combine with column 2.

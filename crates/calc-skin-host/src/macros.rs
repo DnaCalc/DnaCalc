@@ -1,8 +1,8 @@
 use crate::{Connection, State, invalid};
-use calc_host::portability::HostKind;
+use calc_host::portability::{HostKind, Need};
 use calc_host_vba::{Outcome, ProjectGrant, WorkbookEvents};
 use calc_skin::{
-    MacroDenial, MacroReview, MacroRun, MacroSecurity, Origin, Refusal, SelectionCause, Stamp,
+    Capability, MacroDenial, MacroReview, MacroRun, MacroSecurity, Origin, Refusal, SelectionCause, Stamp,
 };
 use std::rc::Rc;
 
@@ -213,10 +213,17 @@ impl Connection {
                 owner,
                 what: member,
             }),
-            Outcome::NotAvailableHere { member, capability } => Some(crate::unavailable(
-                "dc-6gb1m",
-                &format!("{member} with {}", capability.key()),
-            )),
+            Outcome::NotAvailableHere { capability, route, .. } => Some(Refusal::NotAvailableHere {
+                capability: match capability {
+                    Need::Dll | Need::Dylib | Need::Xll => Capability::NativeAddins,
+                    Need::OsCom => Capability::ComRtd,
+                    Need::FileDialog => Capability::NativeFileDialogs,
+                    Need::Clipboard => Capability::ExcelClipboardFormats,
+                    Need::Print => Capability::Printing,
+                    _ => Capability::Vba,
+                },
+                route: route.map(str::to_owned),
+            }),
             Outcome::NotCallable(reason) | Outcome::Failed(reason) => Some(invalid(reason)),
         };
         Ok(MacroRun {

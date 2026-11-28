@@ -953,8 +953,8 @@ pub(crate) fn prepare_series(
     plot: u32,
     series: Option<u32>,
     name: Option<String>,
-    categories: Option<String>,
-    values: Option<String>,
+    categories: Option<crate::ChartSeriesSource>,
+    values: Option<crate::ChartSeriesSource>,
     remove: bool,
 ) -> Result<Vec<crate::CellEdit>, String> {
     // Reuse the chart target, protection, format and revision checks.
@@ -1037,13 +1037,30 @@ pub(crate) fn prepare_series(
         let range = |text: &str, numeric: bool, single: bool| {
             range_data(host, origin, text, numeric, single)
         };
+        let source_data = |source: crate::ChartSeriesSource, numeric| {
+            match source {
+                crate::ChartSeriesSource::Reference(text) => range(&text, numeric, false),
+                crate::ChartSeriesSource::Literal(data) => {
+                    if data.formula.is_some()
+                        || data.cache.is_empty()
+                        || data.cache.len() > crate::validation::LIST_LIMIT
+                        || numeric && !data.numeric
+                        || data.cache.iter().flatten().any(|point| {
+                            if data.numeric {
+                                !point.parse::<f64>().is_ok_and(f64::is_finite)
+                            } else {
+                                !valid_series_text(point)
+                            }
+                        })
+                    {
+                        return Err("Unsupported chart series literal (dc-piw0)".into());
+                    }
+                    Ok(data)
+                }
+            }
+        };
         if let Some(text) = name {
-            if text.encode_utf16().count() > 32767
-                || text.chars().any(|c| {
-                    (c < ' ' && !matches!(c, '\t' | '\n' | '\r'))
-                        || matches!(c, '\u{fffe}' | '\u{ffff}')
-                })
-            {
+            if !valid_series_text(&text) {
                 return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-zjsg)".into());
             }
             changed.name = if text.is_empty() {
@@ -1057,15 +1074,14 @@ pub(crate) fn prepare_series(
                 })
             };
         }
-        if let Some(text) = categories {
-            changed.categories = if text.trim().is_empty() {
-                None
-            } else {
-                Some(range(&text, p.kind == "scatterChart", false)?)
+        if let Some(source) = categories {
+            changed.categories = match source {
+                crate::ChartSeriesSource::Reference(text) if text.trim().is_empty() => None,
+                source => Some(source_data(source, p.kind == "scatterChart")?),
             };
         }
-        if let Some(text) = values {
-            changed.values = Some(range(&text, true, false)?);
+        if let Some(source) = values {
+            changed.values = Some(source_data(source, true)?);
         }
         if changed.values.is_none() {
             return Err("Choose a values range for the new series (dc-zjsg)".into());
@@ -1086,6 +1102,13 @@ pub(crate) fn prepare_series(
         return Ok(Vec::new());
     }
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+
+fn valid_series_text(text: &str) -> bool {
+    text.encode_utf16().count() <= 32767
+        && !text.chars().any(|c| {
+            (c < ' ' && !matches!(c, '\t' | '\n' | '\r')) || matches!(c, '\u{fffe}' | '\u{ffff}')
+        })
 }
 
 /// Return automatic linear bounds and major tick spacing as `(minimum, maximum, step)`.
