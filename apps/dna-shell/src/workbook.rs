@@ -707,6 +707,7 @@ pub fn workbook(
                     {command_button(session, "calc.calculate", "Calculate")}
                     {command_button(session, "shell.details", "Details")}
                     {command_button(session, "studio.open", "Customise")}
+                    {chrome.studio.page_button(session)}
                     {dock_buttons}
                 </div>
                 <button type="button" data-command="shell.toggle-deck" aria-keyshortcuts="Control+F1"
@@ -793,6 +794,7 @@ pub fn workbook(
                 <div class="dna-book-work">
                     {stage}
                     {chrome.studio.editor(session)}
+                    {chrome.studio.page_drawer(session)}
                     {chrome.proposals.panel(session)}
                     <Show when=move || chrome.side_pane.get() == Some(SidePane::Details)>
                     <aside class="dna-book-details">
@@ -805,8 +807,8 @@ pub fn workbook(
                         {shortcut_help(session)}
                     </Show>
                 </div>
-                <div class="dna-book-dock-right">{right_docks}</div>
-                <div class="dna-book-dock-bottom">{bottom_docks}</div>
+                <div class="dna-book-dock-right">{right_docks}{chrome.studio.dock_pages(session, DockSide::Right)}</div>
+                <div class="dna-book-dock-bottom">{bottom_docks}{chrome.studio.dock_pages(session, DockSide::Bottom)}</div>
             </main>
             <nav class="dna-book-sheets" aria-label="Worksheets">
                 {move || session.summary().into_iter().flat_map(|book| book.sheets)
