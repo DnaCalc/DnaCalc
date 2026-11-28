@@ -1373,6 +1373,8 @@ pub enum Action {
     FormulaLink(&'static str),
     /// Types these keys into the element, without clearing it.
     Keys(&'static str, &'static str),
+    /// Holds a modifier while pressing a key in the focused control.
+    KeyChord(&'static str, &'static str),
     /// Chooses the option with this value in the select element.
     Choose(&'static str, &'static str),
     /// Clears the field and types this into it.
@@ -2680,6 +2682,18 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             }
             Ok(())
         }
+        Action::KeyChord(modifier, key) => session.post("/actions", json!({
+            "actions": [{
+                "type": "key",
+                "id": "keyboard",
+                "actions": [
+                    {"type": "keyDown", "value": modifier},
+                    {"type": "keyDown", "value": key},
+                    {"type": "keyUp", "value": key},
+                    {"type": "keyUp", "value": modifier},
+                ],
+            }],
+        })).map(|_| ()),
         Action::Click(name) => act_click(app, session, name),
         Action::CtrlClick(name) => {
             if renderer::cell_rect(app, session, name)?.is_some() {

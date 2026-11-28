@@ -425,7 +425,7 @@ fn key_tip_deck(session: Session, chrome: Chrome, stage: NodeRef<leptos::html::M
                                     session.choose_key_tip(key);
                                     tip_path_changed(session, chrome.tips, stage, path);
                                 }>
-                                <kbd>{key}</kbd>{tip.label}
+                                <kbd>{key}</kbd>{session.key_tip_label(tip)}
                             </button>
                         }
                     }).collect_view()}

@@ -756,11 +756,42 @@ impl Session {
         let Some(path) = self.key_tip_path() else {
             return Vec::new();
         };
+        self.skin.track();
         self.inner().keymap.borrow().key_tips(&self.view()).iter()
             .copied()
             .filter(|tip| tip.path.rsplit_once(' ').map_or("", |(parent, _)| parent) == path)
             .filter(|tip| !tip.hidden)
+            .filter(|tip| tip.action != KeyTipAction::QuickAccess
+                || self.quick_access_command(tip.key()).is_some())
             .collect()
+    }
+
+    pub fn key_tip_label(self, tip: KeyTip) -> String {
+        if tip.action == KeyTipAction::QuickAccess
+            && let Some(command) = self.quick_access_command(tip.key())
+            && let Some(spec) = self.inner().commands.borrow().spec(&command)
+        {
+            return spec.label.to_string();
+        }
+        tip.label.into()
+    }
+
+    fn quick_access_command(self, digit: &str) -> Option<CommandId> {
+        let mut context = self.context();
+        context.mode = InputMode::Ready;
+        let input = KeyInput {
+            key: digit.into(),
+            alt: true,
+            ctrl: false,
+            shift: false,
+            meta: false,
+            alt_graph: false,
+            composing: false,
+        };
+        match self.inner().keymap.borrow().resolve(&input, &context) {
+            Resolution::Command(command) => Some(command),
+            Resolution::Text | Resolution::Unbound => None,
+        }
     }
 
     pub fn step_back_key_tips(self) -> bool {
@@ -798,6 +829,12 @@ impl Session {
                 KeyTipAction::Command(id) => {
                     self.dismiss_key_tips();
                     let _ = self.command(id);
+                }
+                KeyTipAction::QuickAccess => {
+                    if let Some(command) = self.quick_access_command(tip.key()) {
+                        self.dismiss_key_tips();
+                        let _ = self.run(&Invocation::of(command));
+                    }
                 }
                 KeyTipAction::NotModelled { owner } => {
                     self.dismiss_key_tips();

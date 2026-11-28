@@ -1743,6 +1743,39 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Quick Access uses the installed Alt digits in the Deck",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-command='studio.open']"),
+            Action::Into("skin-source", r#"{
+                "schema":"dna.skin/1","id":"quick-access","name":"Quick Access","extends":"dna:default",
+                "theme":{"base":"cockpit-dark","density":"working"},
+                "keymap":{"profile":"excel-365-win-en-us","bindings":[
+                    {"when":"view:classic && mode:ready","chord":"Alt+1","command":"grid.move-right"},
+                    {"when":"view:classic && mode:ready","chord":"Alt+9","command":"grid.move-down"}
+                ]}
+            }"#),
+            Action::Click("[data-command='studio.try-on']"),
+            Action::Wait(Check::Rendered("skin-try-on", true)),
+            Action::Click("[data-cell=A1]"),
+            Action::KeyChord("\u{e00a}", "1"),
+            Action::Wait(Check::Value("name-box", "B1")),
+            Action::Keys("grid", "\u{e03a}"),
+            Action::Wait(Check::TextContains("[data-key-tip='1']", "Move right")),
+            Action::Wait(Check::Absent("[data-key-tip='2']")),
+            Action::Keys("grid", "1"),
+            Action::Wait(Check::Value("name-box", "C1")),
+            Action::Keys("grid", "\u{e03a}"),
+            Action::Wait(Check::TextContains("[data-key-tip='9']", "Move down")),
+            Action::Click("[data-key-tip='9']"),
+        ],
+        checks: &[
+            Check::Value("name-box", "C2"),
+            Check::Text("mode", "Ready"),
+            Check::Js("Quick Access only moved the selection", "window.__dnaProbe().stamp.model === 0"),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2272,8 +2305,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "inspector-dependencies",
+        name: "classic-quick-access",
         start: 70,
+        end: 71,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-dependencies",
+        start: 71,
         end: PREVIEW_CASES.len() - 7,
         core: 2,
         setup: &[],

@@ -575,6 +575,53 @@ fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     assert!(!page.press("F10", Focus::Editor));
 }
 
+/// Native-only: drives Classic's Deck and the installed skin bindings through the shell.
+#[test]
+fn classic_numbered_key_tips_run_the_same_commands_as_alt_digits() {
+    let page = Page::open();
+    let session = page.session;
+    let key_tips = || session.key_tip_choices().into_iter().map(|tip| tip.key()).collect::<Vec<_>>();
+    assert!(page.press("F10", Focus::Stage));
+    assert!(!key_tips().contains(&"1"));
+    assert!(page.press("Escape", Focus::Stage));
+
+    let skin = serde_json::from_value(serde_json::json!({
+        "schema": "dna.skin/1",
+        "id": "quick-access",
+        "name": "Quick Access",
+        "level": "workbook",
+        "extends": "dna:default",
+        "theme": { "base": "cockpit-dark", "density": "working" },
+        "keymap": {
+            "profile": "excel-365-win-en-us",
+            "bindings": [
+                { "when": "view:classic && mode:ready", "chord": "Alt+1", "command": "grid.move-right" },
+                { "when": "view:classic && mode:ready", "chord": "Alt+9", "command": "grid.move-down" }
+            ]
+        }
+    })).unwrap();
+    session.set_skin_layer(Some(&skin)).unwrap();
+    assert!(page.press("Alt+1", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(1, 2)));
+
+    assert!(page.press("F10", Focus::Stage));
+    let available = key_tips();
+    assert!(available.contains(&"1"));
+    assert!(available.contains(&"9"));
+    assert!(!available.contains(&"2"));
+    assert!(page.press("1", Focus::KeyTip));
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert_eq!(session.active(), Some(page.at(1, 3)));
+
+    assert!(page.press("F10", Focus::Stage));
+    session.choose_key_tip("9");
+    page.settle();
+    assert_eq!(session.active(), Some(page.at(2, 3)));
+    session.set_skin_layer(None).unwrap();
+    assert!(!page.press("Alt+1", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(2, 3)));
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {

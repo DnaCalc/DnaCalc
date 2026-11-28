@@ -20,6 +20,15 @@ const fn command(path: &'static str, label: &'static str, id: &'static str) -> K
     }
 }
 
+const fn quick_access(path: &'static str) -> KeyTip {
+    KeyTip {
+        path,
+        label: "Quick Access",
+        action: KeyTipAction::QuickAccess,
+        hidden: false,
+    }
+}
+
 const fn pending(path: &'static str, label: &'static str) -> KeyTip {
     KeyTip {
         path,
@@ -39,6 +48,15 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     group("R", "Review"),
     group("W", "View"),
     group("L", "Developer"),
+    quick_access("1"),
+    quick_access("2"),
+    quick_access("3"),
+    quick_access("4"),
+    quick_access("5"),
+    quick_access("6"),
+    quick_access("7"),
+    quick_access("8"),
+    quick_access("9"),
     command("Q", "Command Search", "shell.search"),
     group("H V", "Paste"),
     command("H V V", "Paste Values", "classic.paste-values"),
