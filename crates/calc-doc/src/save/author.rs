@@ -1601,18 +1601,19 @@ pub(super) fn plan(
             if was == now {
                 continue;
             }
-            let previous = was.map_or(&[][..], |records| records.entries.as_slice());
-            let added = now
-                .filter(|records| records.unread == 0 && was.is_none_or(|old| old.unread == 0))
-                .and_then(|records| records.entries.strip_prefix(previous))
-                .filter(|records| !records.is_empty())
-                .ok_or_else(|| SaveRefusal::InvalidPart {
+            if was.is_some_and(|records| records.unread != 0)
+                || now.is_some_and(|records| records.unread != 0)
+            {
+                return Err(SaveRefusal::InvalidPart {
                     part: sheet.part().name().to_owned(),
-                    detail: "Only appending complete Excel scenarios is supported (dc-zh096)".into(),
-                })?;
+                    detail: "Editing unread Excel scenarios is unavailable (dc-s2xup)".into(),
+                });
+            }
+            let previous = was.map_or(&[][..], |records| records.entries.as_slice());
+            let next = now.map_or(&[][..], |records| records.entries.as_slice());
             let original = super::sheets::read_sheet(package, sheet.part().name())?;
             let current = out.rewritten.remove(sheet.part().name()).map(|bytes| original.with_bytes(bytes));
-            let bytes = super::scenario::append(current.as_ref().unwrap_or(&original), added)?;
+            let bytes = super::scenario::rewrite(current.as_ref().unwrap_or(&original), previous, next)?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }
