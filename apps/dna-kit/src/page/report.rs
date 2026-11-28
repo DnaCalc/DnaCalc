@@ -10,7 +10,7 @@ use calc_skin::{
 use leptos::prelude::*;
 
 const ROWS_PER_SCHEDULE_PAGE: u32 = 36;
-const ROWS_PER_READ: u32 = ROWS_PER_SCHEDULE_PAGE * 5;
+const CELLS_PER_SCHEDULE_READ: u32 = 512;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PageReport {
@@ -173,15 +173,12 @@ pub(super) fn schedule_windows(
     session: Session,
     source: SourceRef,
     matched_rows: u32,
+    columns: u32,
 ) -> impl Iterator<Item = Memo<Live<RowPage>>> {
-    (0..matched_rows.div_ceil(ROWS_PER_READ)).map(move |index| {
-        rows(
-            session,
-            source.clone(),
-            index * ROWS_PER_READ,
-            ROWS_PER_READ,
-        )
-    })
+    // Keep each projection small as the schedule gets wider.
+    let window = (CELLS_PER_SCHEDULE_READ / columns.max(1)).max(1);
+    (0..matched_rows.div_ceil(window))
+        .map(move |index| rows(session, source.clone(), index * window, window))
 }
 
 fn schedule_read(title: &'static str, mut read: RowPage) -> Vec<AnyView> {

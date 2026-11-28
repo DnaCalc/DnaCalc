@@ -253,8 +253,9 @@ fn pivot_freshness(session: Session) -> impl IntoView {
         let workbook = session.stamp().map(|stamp| stamp.workbook);
         let target = selected.get().filter(|(owner, _)| workbook == Some(*owner));
         let answer = read.at(target.map(|(_, at)| query::PivotFreshnessAt { at }));
-        target.map(|_| match result(answer, "") {
+        target.map(|(_, at)| match result(answer, "") {
             Ok(answer) => {
+                let expected = answer.stamp;
                 let report = answer.body;
                 let label = pivot_freshness_label(report.freshness);
                 view! {
@@ -269,6 +270,8 @@ fn pivot_freshness(session: Session) -> impl IntoView {
                             })}
                         {report.saved_refresh.map(|date| view! { <p>"Saved refresh " {date}</p> })}
                         {report.unavailable.map(status)}
+                        {(report.freshness == calc_skin::PivotFreshness::Stale).then(||
+                            crate::invoke(session, "inspector.refresh-pivot", serde_json::json!((at, expected)), "Refresh PivotTable".into()))}
                     </section>
                 }.into_any()
             }

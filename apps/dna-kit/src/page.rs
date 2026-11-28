@@ -720,13 +720,13 @@ fn schedule(session: Session, source: SourceRef, summary: Option<Bound>) -> AnyV
                 && let (Some(source), Some((total, columns))) = (source.get(), size.get())
                 && u64::from(total) * u64::from(columns) <= crate::PAGE_BUDGET.cells
             {
-                let parts = report::schedule_windows(session, source, total)
+                let parts = report::schedule_windows(session, source, total, columns)
                     .map(move |read| move || match read.get() {
                         Live::Ready(page) => {
                             let caption = row_caption(&page);
                             rows_table(page, caption).into_any()
                         }
-                        Live::Refused(_) => view! { <p>"Rows unavailable"</p> }.into_any(),
+                        Live::Refused(reason) => view! { <p role="status">{crate::refusal_text(reason)}</p> }.into_any(),
                         _ => view! { <p aria-busy="true">"Reading rows…"</p> }.into_any(),
                     })
                     .collect_view();

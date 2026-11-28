@@ -220,6 +220,7 @@ pub enum Interest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkbookQuery {
     Summary,
+    CloseSummary,
     Census {
         scope: SourceRef,
     },
@@ -351,6 +352,15 @@ pub struct WorkbookSummary {
     #[serde(default)]
     pub pending_proposals: u64,
     pub capabilities: Capabilities,
+}
+
+/// Authored changes compared with the open workbook.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloseSummary {
+    pub has_changes: bool,
+    pub changed_inputs: u64,
+    pub added_scenarios: u64,
+    pub layout_edited: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -546,6 +556,8 @@ pub enum ModelChange {
     ToggleAutoFilter {
         selected: Area,
     },
+    /// Refresh the workbook cache used by the PivotTable at this cell.
+    RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.
     SortRows {
         selected: Area,
@@ -720,6 +732,7 @@ pub enum ModelProperty {
     ColumnVisibility,
     ColumnWidths,
     AutoFilter,
+    PivotCache,
     Charts,
     Shapes,
 }

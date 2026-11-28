@@ -185,6 +185,26 @@ impl View for Inspector {
                 });
                 Ok(())
             }),
+            ViewCommand::global("inspector.refresh-pivot", "Refresh PivotTable", &["Alt+F5"], move |invocation| {
+                let (at, expected) = if invocation.args.is_null() {
+                    let at = session.active().ok_or("Choose a cell in a PivotTable.")?;
+                    let expected = session.stamp().ok_or("Open the workbook first.")?;
+                    (at, expected)
+                } else {
+                    serde_json::from_value(invocation.args.clone())
+                        .map_err(|_| "Choose a PivotTable to refresh.")?
+                };
+                session.submit(Batch {
+                    id: String::new(),
+                    workbook: Some(expected.workbook),
+                    base: Some(expected.model),
+                    expects: vec![cell_source(at)],
+                    selection_seq: None,
+                    label: Some("Refresh PivotTable".into()),
+                    changes: vec![Change::Model(ModelChange::RefreshPivot { at, expected })],
+                });
+                Ok(())
+            }).when("writable && !editing"),
             ViewCommand::global(
                 "inspector.calculate-observed",
                 "Calculate and record order",
