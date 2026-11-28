@@ -97,7 +97,7 @@ mod browser {
                         if let Some(file) = file {
                             wasm_bindgen_futures::spawn_local(async move {
                                 match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
-                                    Ok(bytes) => state.open(file.name(), js_sys::Uint8Array::new(&bytes).to_vec()),
+                                    Ok(bytes) => dna_kit::workbook_open::request(state, file.name(), js_sys::Uint8Array::new(&bytes).to_vec()),
                                     Err(_) => state.refuse(Refusal::Transport("Could not read the workbook file".into())),
                                 }
                             });

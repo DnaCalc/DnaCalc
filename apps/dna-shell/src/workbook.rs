@@ -159,6 +159,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
     };
     register(session, chrome, &views);
     session.install(vec![dna_kit::page::clock::command(session)]);
+    session.install(dna_kit::workbook_open::commands(session));
     chrome.studio.install(session);
     registry.install_commands(session);
     chrome
@@ -749,6 +750,7 @@ pub fn workbook(
                 </button>
                 {key_tip_deck(session, chrome, stage_node)}
             </nav>
+            {dna_kit::workbook_open::mount(session)}
             <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {
                 let id = session.view();
                 chrome.views.with_value(|views| views.iter().any(|view| view.spec().id == id && !view.cell_editor()))

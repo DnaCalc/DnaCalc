@@ -2888,3 +2888,48 @@ fn pivot_cache_freshness_tracks_source_changes_and_refresh() {
     assert_eq!(refreshed.freshness, PivotFreshness::Current);
     assert!(refreshed.observed_refresh_unix_ms.unwrap() >= read_at);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn close_summary_counts_distinct_inputs_and_added_native_scenarios() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let principal = Key(sheet.0, sheet.1, 2, 2);
+    let rate = Key(sheet.0, sheet.1, 3, 2);
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary::default());
+    operator.commit(batch(1, vec![enter(principal, "90000"), enter(rate, "0.1")])).unwrap();
+    let stamp = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    operator.commit(Batch {
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        ..batch(2, vec![Change::Model(ModelChange::SaveScenarioCells {
+            scenario: ScenarioRef { sheet, name: "Audit assumptions".into() },
+            areas: vec![Area(principal, rate)],
+        })])
+    }).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary {
+        has_changes: true,
+        changed_inputs: 2,
+        added_scenarios: 1,
+        layout_edited: false,
+    });
+
+    operator.commit(batch(3, vec![enter(rate, "0.12")])).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf).changed_inputs, 2);
+    operator.run(Operation::Undo).unwrap();
+    operator.run(Operation::Undo).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary {
+        has_changes: true,
+        changed_inputs: 2,
+        added_scenarios: 0,
+        layout_edited: false,
+    });
+    operator.run(Operation::Undo).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary::default());
+
+    operator.commit(batch(4, vec![enter(principal, "=40+2")])).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary {
+        has_changes: true,
+        ..CloseSummary::default()
+    });
+}
