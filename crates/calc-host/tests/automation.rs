@@ -7786,6 +7786,38 @@ fn merge_area_address(model: &WorkbookAutomation, address: &str) -> String {
     text(model, &area, "Address")
 }
 
+/// Excel ww23 d/Merge.overlap and Merge.single.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_39_overlapping_merge_expands_to_the_bounding_rectangle() {
+    let (host, model, _) = blank_report();
+    merge_call(&model, "A1", "Merge", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(merged(&model, "A1"), AutoValue::Bool(false)));
+    merge_call(&model, "B2", "Value2", InvokeKind::Put, vec![AutoValue::R8(1.)]).unwrap();
+    merge_call(&model, "B2:C3", "Merge", InvokeKind::Method, vec![]).unwrap();
+    merge_call(&model, "C3:D4", "Merge", InvokeKind::Method, vec![]).unwrap();
+    for address in ["B2", "C3", "D4"] {
+        assert_eq!(merge_area_address(&model, address), "$B$2:$D$4");
+    }
+    assert!(matches!(cell_text(&model, "B2"), AutoValue::R8(1.)));
+    let reopened = reopen_formatting(&host);
+    assert_eq!(merge_area_address(&reopened, "D4"), "$B$2:$D$4");
+    assert!(matches!(cell_text(&reopened, "B2"), AutoValue::R8(1.)));
+}
+
+/// Excel ww23 d/MergeCells.text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_39_merge_cells_rejects_text_with_the_property_error() {
+    let (_host, model, _) = blank_report();
+    let result = merge_call(&model, "B2:C3", "MergeCells", InvokeKind::Put, vec![AutoValue::text("x")]);
+    assert_eq!(
+        excel_error(result),
+        (1004, "Unable to set the MergeCells property of the Range class".to_owned())
+    );
+    assert!(matches!(merged(&model, "B2:C3"), AutoValue::Bool(false)));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oc78o_merge_keeps_the_upper_left_value_and_survives_reopen() {

@@ -86,7 +86,9 @@ impl WorkbookAutomation {
 
     fn range_put_merge_cells(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         format_arity(call, 1)?;
-        let merge = flag(call.arg(0))?;
+        let merge = flag(call.arg(0)).map_err(|_| {
+            AutoError::excel(1004, "Unable to set the MergeCells property of the Range class")
+        })?;
         self.merge_through(target, call, merge.then_some(false))
     }
 
