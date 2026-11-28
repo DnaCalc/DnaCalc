@@ -544,7 +544,7 @@ impl HostServices for SpreadsheetHost {
         self.base.console()
     }
     fn ui(&self) -> &dyn UiInteractionHal {
-        self.base.ui()
+        self
     }
     fn events(&self) -> &dyn EventPumpHal {
         self
@@ -569,6 +569,30 @@ impl HostServices for SpreadsheetHost {
     }
     fn diag(&self) -> &dyn DiagnosticsHal {
         self.base.diag()
+    }
+}
+
+impl UiInteractionHal for SpreadsheetHost {
+    fn msg_box_variant(&self, prompt: Variant, style: Variant) -> HalResult<Variant> {
+        match crate::dialog::msgbox(&prompt, &style) {
+            Some(answer) => Ok(answer),
+            None => self.base.ui().msg_box_variant(prompt, style),
+        }
+    }
+
+    fn input_box_variant(&self, prompt: Variant, default: Variant) -> HalResult<Variant> {
+        match crate::dialog::inputbox(&prompt) {
+            Some(answer) => Ok(answer),
+            None => self.base.ui().input_box_variant(prompt, default),
+        }
+    }
+
+    fn send_keys_variant(&self, keys: Variant, wait: Variant) -> HalResult<Variant> {
+        self.base.ui().send_keys_variant(keys, wait)
+    }
+
+    fn app_activate_variant(&self, title: Variant, wait: Variant) -> HalResult<Variant> {
+        self.base.ui().app_activate_variant(title, wait)
     }
 }
 

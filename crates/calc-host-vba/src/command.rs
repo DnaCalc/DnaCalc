@@ -4,9 +4,10 @@
 //! the run needed that is not modelled. The execution policy's denials of the call are recorded
 //! whether or not VBA caught the error. A procedure call is not an automatic event: events have
 //! their own delivery records (`HostSession::workbook_event_failures`).
-use super::WorkbookEvents;
+use super::{DialogAnswers, DialogCall, WorkbookEvents};
 use calc_host::automation::BookTarget;
 use calc_host::HostSession;
+use calc_host::portability::Need;
 pub use calc_vba::events::{
     ProcedureArg, ProcedureEntry, ProcedureError, ProcedureKind, ProcedureResult,
 };
@@ -42,6 +43,8 @@ pub enum Outcome {
     /// A host member the run needed is not modelled. `member` is the descriptor member as the
     /// refusal names it; `owner` is the work package that owns it.
     Refused { member: String, owner: String, reason: String },
+    /// A headless invocation reached a dialog for which it had no answer.
+    NotAvailableHere { member: &'static str, capability: Need },
     /// The run exceeded its step budget or the backend failed.
     Failed(String),
 }
@@ -56,6 +59,8 @@ pub struct InvocationRecord {
     pub denials: Vec<Denial>,
     /// Requests the policy allowed (the audit total less the denials), for the Guarded/Full record.
     pub allowed: u64,
+    /// Dialog calls made by this invocation when the caller supplied a headless answer source.
+    pub dialogs: Vec<DialogCall>,
 }
 
 /// `DNA Calc does not model {what} yet ({owner})` back into its parts.
@@ -119,6 +124,27 @@ impl WorkbookEvents {
         request: &str,
         arguments: &[ProcedureArg],
     ) -> InvocationRecord {
+        self.run_procedure_inner(session, request, arguments, None)
+    }
+
+    /// Run a command with explicit answers, recording even unanswered dialogs caught in VBA.
+    pub fn run_procedure_with_dialog_answers(
+        self: &Rc<Self>,
+        session: &mut HostSession,
+        request: &str,
+        arguments: &[ProcedureArg],
+        answers: &DialogAnswers,
+    ) -> InvocationRecord {
+        self.run_procedure_inner(session, request, arguments, Some(answers))
+    }
+
+    fn run_procedure_inner(
+        self: &Rc<Self>,
+        session: &mut HostSession,
+        request: &str,
+        arguments: &[ProcedureArg],
+        answers: Option<&DialogAnswers>,
+    ) -> InvocationRecord {
         let record = match self.resolve(request) {
             Err(why) => InvocationRecord {
                 entry: request.to_owned(),
@@ -126,23 +152,26 @@ impl WorkbookEvents {
                 outcome: Outcome::NotCallable(why),
                 denials: vec![],
                 allowed: 0,
+                dialogs: vec![],
             },
             Ok(entry) => {
                 if let Some(audit) = &self.audit {
                     let _ = audit.drain();
                 }
-                let (result, object_denials) = self.automation.with_event_session(
-                    session,
-                    self.file_project,
-                    || {
+                let mut execute = || {
+                    self.automation.with_event_session(session, self.file_project, || {
                         self.project.run_procedure_recorded(
                             &entry.module,
                             &entry.name,
                             arguments,
                             self.max_steps,
                         )
-                    },
-                );
+                    })
+                };
+                let ((result, object_denials), dialogs) = match answers {
+                    Some(answers) => answers.capture(execute),
+                    None => (execute(), vec![]),
+                };
                 let audit = self.audit.as_ref().map(|a| a.drain()).unwrap_or_default();
                 let mut denials: Vec<Denial> = audit
                     .records
@@ -180,12 +209,20 @@ impl WorkbookEvents {
                     }
                     Err(ProcedureError::Backend(why)) => Outcome::Failed(why),
                 };
+                let outcome = match dialogs.iter().find(|dialog| dialog.answer.is_none()) {
+                    Some(dialog) => Outcome::NotAvailableHere {
+                        member: dialog.member,
+                        capability: Need::Dialog,
+                    },
+                    None => outcome,
+                };
                 InvocationRecord {
                     entry: format!("{}.{}", entry.module, entry.name),
                     kind: InvocationKind::Command,
                     outcome,
                     allowed: audit.total.saturating_sub(audit.denied),
                     denials,
+                    dialogs,
                 }
             }
         };

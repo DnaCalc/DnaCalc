@@ -45,6 +45,8 @@ pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   set    <book> <cell> <text> [<cell> <text>]... [--out <file>]   enter cells as typed, recalculate, save with --out
   run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   run a public VBA Sub or Function of the file's project
   run    <book> --all [--fixtures] [--steps <n>]   run every public entry, each in its own session; --fixtures gives required scalar arguments a documented value (Number 1, Boolean True, Text 1); --steps <n> is the most steps one VBA call may take (default 50000000)
+         --answers <file>  JSON answers for VBA command calls. Prompts match by exact text.
+             {\"msgbox\":{\"Continue?\":6},\"inputbox\":{\"Name?\":\"Alice\"}}
   portability <book> [--host windows|macos|linux|server|web-hosted|web-wasm|wasi|all]   inspect VBA procedures and references
 workbook options: --json  one JSON document on stdout;  --macro-level off|guarded|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
@@ -80,6 +82,7 @@ pub(crate) struct Cli {
     pub(crate) steps: u64,
     pub(crate) locale: String,
     pub(crate) portability_host: Option<String>,
+    pub(crate) dialog_answers: Option<String>,
 }
 
 fn parse(args: &[String]) -> Result<Cli, Failure> {
@@ -100,6 +103,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
         steps: session::MAX_VBA_STEPS,
         locale: "en-US".into(),
         portability_host: None,
+        dialog_answers: None,
     };
     let mut books = Vec::new();
     while let Some(arg) = rest.next() {
@@ -125,6 +129,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
             "--arg" => cli.macro_args.push(value("a value")?),
             "--locale" => cli.locale = value("a culture such as en-US")?,
             "--host" if cli.command == "portability" => cli.portability_host = Some(value("a host kind or all")?),
+            "--answers" if cli.command == "run" => cli.dialog_answers = Some(value("a JSON file")?),
             "--macro-level" => {
                 let text = value("off, guarded or unguarded")?;
                 cli.level = calc_macro_security::MacroSecurity::parse(&text).ok_or_else(|| {
