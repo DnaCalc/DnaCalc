@@ -556,6 +556,8 @@ pub enum ModelChange {
     ToggleAutoFilter {
         selected: Area,
     },
+    /// Refresh the workbook cache used by the PivotTable at this cell.
+    RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.
     SortRows {
         selected: Area,
@@ -729,6 +731,7 @@ pub enum ModelProperty {
     ColumnVisibility,
     ColumnWidths,
     AutoFilter,
+    PivotCache,
     Charts,
     Shapes,
 }

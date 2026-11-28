@@ -2874,19 +2874,32 @@ fn pivot_cache_freshness_tracks_source_changes_and_refresh() {
     let stale = compare();
     assert_eq!(stale.freshness, PivotFreshness::Stale);
     assert_eq!(stale.observed_refresh_unix_ms, Some(read_at));
-    host.with_session(SelectionCause::Open, |session| {
-        let revision = session.host().revision().get();
-        let definitions = session.host().model().definitions();
-        let pivot = definitions.pivots().tables().next().unwrap();
-        let part = pivot.part.clone();
-        let receipt = session.dispatch(calc_host::SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-            sheet: sheet.id(), revision, part,
-        }));
-        assert!(receipt.accepted(), "{receipt:?}");
-    });
+    let before = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let mut request = batch(3, vec![Change::Model(ModelChange::RefreshPivot { at: at(3, 13), expected: before })]);
+    request.base = Some(before.model);
+    request.workbook = Some(before.workbook);
+    request.label = Some("Refresh PivotTable".into());
+    let review = connection.preview(&request, PreviewDepth::WritesOnly).unwrap();
+    assert!(review.refusal.is_none(), "{review:?}");
+    assert_eq!(review.base, before);
+    assert!(review.properties.iter().any(|change| matches!(change, ModelPropertyDiff::Scope {
+        source: SourceRef::Cells { areas, .. }, property: ModelProperty::PivotCache,
+    } if areas.iter().any(|area| area.0 == at(3, 13)))));
+    assert_eq!(compare(), stale);
+    assert_eq!(connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp, before);
+    let committed = connection.commit(request.clone()).unwrap();
+    assert!(committed.model > before.model);
+    assert_eq!(connection.commit(request).unwrap(), committed);
+    while host.advance() {}
     let refreshed = compare();
     assert_eq!(refreshed.freshness, PivotFreshness::Current);
     assert!(refreshed.observed_refresh_unix_ms.unwrap() >= read_at);
+    connection.run(Operation::Undo).unwrap();
+    while host.advance() {}
+    assert_eq!(compare(), stale);
+    connection.run(Operation::Redo).unwrap();
+    while host.advance() {}
+    assert_eq!(compare(), refreshed);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

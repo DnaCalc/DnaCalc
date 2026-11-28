@@ -1419,6 +1419,16 @@ impl HostSession {
         crate::names::prepare(&self.host, edit).map_err(IntentError::Workbook)
     }
 
+    /// Prepare the existing PivotTable refresh for a workbook transaction.
+    pub fn prepare_pivot_refresh(
+        &self,
+        sheet: calc_value::SheetId,
+        part: &str,
+    ) -> Result<Vec<CellEdit>, IntentError> {
+        crate::pivot::prepare_refresh(&self.host, sheet, self.host.revision().get(), part)
+            .map_err(IntentError::Workbook)
+    }
+
     /// Plan a worksheet insertion without assigning its identity or changing the workbook.
     pub fn prepare_worksheet_insert(
         &self,
@@ -1455,7 +1465,7 @@ impl HostSession {
         Ok((sheet, edits.pop().expect("adding a worksheet prepares one edit")))
     }
 
-    /// Stage worksheet insertion, cell contents, worksheet properties and view-part edits as for commit.
+    /// Stage worksheet insertion, cell contents, worksheet properties, PivotTable caches and view-part edits as for commit.
     /// The returned root is for inspection only; the live model, history and calculation stay put.
     pub fn preview_edits(&mut self, edits: &[CellEdit]) -> Result<Arc<calc_doc_model::ModelRoot>, IntentError> {
         if edits.iter().any(|edit| {
@@ -1470,6 +1480,7 @@ impl HostSession {
                     | CellEdit::Merges { .. }
                     | CellEdit::AutoFilter { .. }
                     | CellEdit::Tables(_)
+                    | CellEdit::Pivots(_)
                     | CellEdit::ConditionalRules { .. }
                     | CellEdit::Validations { .. }
                     | CellEdit::Scenarios { .. }
@@ -1485,7 +1496,7 @@ impl HostSession {
             )
         }) {
             return Err(IntentError::Workbook(
-                "Preview supports worksheet insertion, cell contents, worksheet properties and view-part edits".into(),
+                "Preview supports worksheet insertion, cell contents, worksheet properties, PivotTable caches and view-part edits".into(),
             ));
         }
         let edits = self.authored_edits(edits.to_vec());

@@ -389,6 +389,7 @@ pub(crate) fn prepare(
     let mut areas = Vec::new();
     let mut ranges_with_metadata = Vec::new();
     let mut filter_sheets = BTreeSet::new();
+    let mut pivot_cache = None;
     let mut inserted = None;
     let mut presentation = Vec::new();
     let mut warnings = Vec::new();
@@ -738,6 +739,20 @@ pub(crate) fn prepare(
                         .map_err(|reason| Refusal::Excel { reason })?);
                     filter_sheets.insert(selected.sheet());
                 }
+                ModelChange::RefreshPivot { at, expected } => {
+                    require_current_model(request, base.model)?;
+                    if expected.workbook != base.workbook || expected.calc != base.calc || expected.model != base.model {
+                        return Err(invalid("The workbook or calculation changed. Review the PivotTable again."));
+                    }
+                    if request.changes.len() != 1 {
+                        return Err(invalid("Refresh the PivotTable cache in a single workbook change"));
+                    }
+                    let at = cell(*at)?;
+                    let table = before.definitions().pivots().tables().find(|table| table.area.contains(at))
+                        .ok_or_else(|| invalid("Choose a cell inside the PivotTable"))?;
+                    edits.extend(state.session.prepare_pivot_refresh(at.sheet(), &table.part).map_err(refusal)?);
+                    pivot_cache = Some(table.cache_id);
+                }
                 ModelChange::SortRows { selected, keys, header, case_sensitive } => {
                     require_current_model(request, base.model)?;
                     let selected = grid_area(*selected)?;
@@ -945,6 +960,17 @@ pub(crate) fn prepare(
         }
         properties.extend(names.into_iter().filter_map(|name| name.diff(&after)));
         properties.extend(column_properties(&before, &after, &edits));
+        if let Some(cache_id) = pivot_cache {
+            let affected: BTreeMap<_, _> = [&before, &after].into_iter()
+                .flat_map(|root| root.definitions().pivots().tables())
+                .filter(|table| table.cache_id == cache_id)
+                .map(|table| ((table.area.first(), table.area.last()), table.area))
+                .collect();
+            properties.extend(affected.into_values().map(|area| ModelPropertyDiff::Scope {
+                source: source_area(area),
+                property: ModelProperty::PivotCache,
+            }));
+        }
         for sheet in filter_sheets {
             let old = before.definitions();
             let new = after.definitions();

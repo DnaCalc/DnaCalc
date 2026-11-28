@@ -1840,6 +1840,11 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Wait(Check::Text("[data-cell=D3]", "999")),
             Action::Click("[data-command='view.inspector']"),
             Action::Wait(Check::TextContains("[data-inspector='pivot-freshness']", "Stale cache")),
+            Action::Click("[data-command='inspector.refresh-pivot']"),
+            Action::WaitWorkbook(Check::TextContains("[data-inspector='pivot-freshness']", "Refresh read")),
+            Action::Wait(Check::TextContains("[data-inspector='pivot-freshness']", "Cache matches the worksheet source")),
+            Action::Click("[data-command='edit.undo']"),
+            Action::WaitWorkbook(Check::TextContains("[data-inspector='pivot-freshness']", "Stale cache")),
             Action::Click("[data-command='edit.undo']"),
         ],
         checks: &[
