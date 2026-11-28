@@ -3,14 +3,16 @@
 use crate::{Live, Seam, Session, ViewCommand};
 use calc_skin::grid::{Area, Sheet};
 use calc_skin::{
-    Batch, Change, InventoryItem, InventoryKind, ModelChange, ScenarioRef, SourceRef, ViewId,
-    WorkbookId, address, query,
+    Batch, Change, InventoryItem, InventoryKind, ModelChange, ScenarioChange, ScenarioRef,
+    SourceRef, ViewId, WorkbookId, address, query,
 };
 use leptos::prelude::*;
 
 pub const OPEN: &str = "classic.scenarios";
 const SAVE: &str = "classic.save-scenario";
 const SHOW: &str = "classic.show-scenario";
+const RENAME: &str = "classic.rename-scenario";
+const DELETE: &str = "classic.delete-scenario";
 
 #[derive(Clone, PartialEq, Eq)]
 struct Target {
@@ -27,7 +29,7 @@ struct ScenarioManager {
     element: NodeRef<leptos::html::Dialog>,
 }
 
-pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 3] {
+pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 5] {
     let manager = session.local::<ScenarioManager>();
     [
         ViewCommand::new(view, OPEN, "Scenario Manager", &[], move |_| {
@@ -77,23 +79,58 @@ pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 3] {
         )
         .when("mode:ready && writable"),
         ViewCommand::new(view, SHOW, "Show a worksheet scenario", &[], move |_| {
-            let target = manager
-                .target
-                .get_untracked()
-                .ok_or("Open Scenario Manager first.")?;
-            let scenario = manager
-                .selected
-                .get_untracked()
-                .ok_or("Choose the scenario to show.")?;
+            let (workbook, scenario) = manager.chosen()?;
             let label = format!("Show scenario {}", scenario.name);
             ScenarioManager::submit(
                 session,
-                target.workbook,
+                workbook,
                 label,
                 ModelChange::ShowScenario { scenario },
                 || {},
             )
         })
+        .when("mode:ready && writable"),
+        ViewCommand::new(
+            view,
+            RENAME,
+            "Rename a worksheet scenario",
+            &[],
+            move |_| {
+                let (workbook, scenario) = manager.chosen()?;
+                let to = manager.name.get_untracked();
+                let label = format!("Rename scenario {} to {to}", scenario.name);
+                let next = ScenarioRef {
+                    sheet: scenario.sheet,
+                    name: to.clone(),
+                };
+                let change = ModelChange::EditScenario {
+                    scenario,
+                    change: ScenarioChange::Rename { to },
+                };
+                ScenarioManager::submit(session, workbook, label, change, move || {
+                    manager.selected.set(Some(next))
+                })
+            },
+        )
+        .when("mode:ready && writable"),
+        ViewCommand::new(
+            view,
+            DELETE,
+            "Delete a worksheet scenario",
+            &[],
+            move |_| {
+                let (workbook, scenario) = manager.chosen()?;
+                let label = format!("Delete scenario {}", scenario.name);
+                let change = ModelChange::EditScenario {
+                    scenario,
+                    change: ScenarioChange::Remove,
+                };
+                ScenarioManager::submit(session, workbook, label, change, move || {
+                    manager.name.set(String::new());
+                    manager.selected.set(None);
+                })
+            },
+        )
         .when("mode:ready && writable"),
     ]
 }
@@ -125,6 +162,18 @@ pub fn mount(session: Session) -> impl IntoView {
 }
 
 impl ScenarioManager {
+    fn chosen(self) -> Result<(WorkbookId, ScenarioRef), String> {
+        let target = self
+            .target
+            .get_untracked()
+            .ok_or("Open Scenario Manager first.")?;
+        let scenario = self
+            .selected
+            .get_untracked()
+            .ok_or("Choose a worksheet scenario.")?;
+        Ok((target.workbook, scenario))
+    }
+
     fn submit(
         session: Session,
         workbook: WorkbookId,
@@ -200,10 +249,14 @@ impl ScenarioManager {
                     {scenarios.into_iter().map(|scenario| {
                         let target = scenario.clone();
                         let label = scenario.name.clone();
+                        let name = label.clone();
                         let chosen = move || self.selected.with(|item| item.as_ref() == Some(&target));
                         view! { <li>
-                            <button type="button" aria-pressed=move || chosen().to_string()
-                                on:click=move |_| self.selected.set(Some(scenario.clone()))>
+                            <button type="button" data-scenario=name aria-pressed=move || chosen().to_string()
+                                on:click=move |_| {
+                                    self.name.set(scenario.name.clone());
+                                    self.selected.set(Some(scenario.clone()));
+                                }>
                                 {label}
                             </button>
                         </li> }
@@ -217,6 +270,16 @@ impl ScenarioManager {
                     .summary()
                     .is_some_and(|book| book.capabilities.read_only)
         };
+        let no_record = move || unavailable() || self.selected.with(Option::is_none);
+        let cannot_rename = move || {
+            unavailable()
+                || self.selected.with(|scenario| {
+                    scenario.as_ref().is_none_or(|scenario| {
+                        self.name
+                            .with(|name| name.is_empty() || name == &scenario.name)
+                    })
+                })
+        };
         view! {
             <dialog class="dna-workbook-dialog dna-scenario-manager" node_ref=self.element
                 data-dnacalc="scenario-manager" data-dna-action-field aria-labelledby="dna-scenario-title"
@@ -227,8 +290,10 @@ impl ScenarioManager {
                 <h2 id="dna-scenario-title">"Scenario Manager"</h2>
                 <div data-dnacalc="scenario-list">{items}</div>
                 <button type="button" data-command=SHOW data-dnacalc="scenario-show"
-                    disabled=move || unavailable() || self.selected.with(Option::is_none)
+                    disabled=no_record
                     on:click=move |_| { let _ = session.command(SHOW); }>"Show"</button>
+                <button type="button" data-command=DELETE data-dnacalc="scenario-delete" disabled=no_record
+                    on:click=move |_| { let _ = session.command(DELETE); }>"Delete"</button>
                 <p>"Changing cells " <code>{addresses}</code></p>
                 <form on:submit=move |event| { event.prevent_default(); let _ = session.command(SAVE); }>
                     <label>"Scenario name"
@@ -238,6 +303,8 @@ impl ScenarioManager {
                     </label>
                     <button type="submit" data-command=SAVE data-dnacalc="scenario-save"
                         disabled=unavailable>"Save selected cells"</button>
+                    <button type="button" data-command=RENAME data-dnacalc="scenario-rename" disabled=cannot_rename
+                        on:click=move |_| { let _ = session.command(RENAME); }>"Rename selected scenario"</button>
                 </form>
                 <button type="button" on:click=move |_| { close(session); }>"Close"</button>
             </dialog>

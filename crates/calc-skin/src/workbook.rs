@@ -512,6 +512,8 @@ pub enum ModelChange {
         scenario: crate::ScenarioRef,
         areas: Vec<Area>,
     },
+    /// Rename or remove a native Scenario Manager record.
+    EditScenario { scenario: crate::ScenarioRef, change: ScenarioChange },
     /// Restore the exact authored literals from the open workbook to the chosen bound inputs.
     ResetInputs { inputs: Vec<Bound> },
     ClearContents {
@@ -685,6 +687,7 @@ pub enum ModelPropertyDiff {
         scenario: crate::ScenarioRef,
         values: Vec<(Key, String)>,
     },
+    EditedScenario { scenario: crate::ScenarioRef, change: ScenarioChange },
     WorksheetInserted { sheet: Sheet, name: String },
     CellFormat {
         at: Key,
@@ -698,6 +701,12 @@ pub enum ModelPropertyDiff {
 pub struct DefinedNameText {
     pub name: String,
     pub formula: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ScenarioChange {
+    Rename { to: String },
+    Remove,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

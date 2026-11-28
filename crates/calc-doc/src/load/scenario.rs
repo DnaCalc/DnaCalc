@@ -30,6 +30,7 @@ fn scenario(
     events: &mut Events<'_>,
     sheet: SheetId,
     element: XmlElement,
+    source_index: usize,
 ) -> Result<Option<WorksheetScenario>, LoadError> {
     let name = element
         .attribute("name")
@@ -66,6 +67,7 @@ fn scenario(
         return Ok(None);
     }
     Ok(name.map(|name| WorksheetScenario {
+        source_index: Some(source_index),
         name,
         hidden: flag(&element, "hidden"),
         locked: flag(&element, "locked"),
@@ -82,7 +84,8 @@ pub(super) fn read(
     loop {
         match events.next()? {
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "scenario") => {
-                if let Some(entry) = scenario(events, sheet, element)?
+                let source_index = scenarios.entries.len() + scenarios.unread;
+                if let Some(entry) = scenario(events, sheet, element, source_index)?
                     && names.insert(fold_workbook_name(&entry.name))
                 {
                     scenarios.entries.push(entry);

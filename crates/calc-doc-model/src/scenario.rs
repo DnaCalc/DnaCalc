@@ -14,6 +14,8 @@ pub struct ScenarioInput {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct WorksheetScenario {
+    /// Zero-based record index in the opened worksheet, kept through renames and Undo.
+    pub source_index: Option<usize>,
     pub name: String,
     pub hidden: bool,
     pub locked: bool,

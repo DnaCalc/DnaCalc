@@ -78,6 +78,10 @@ fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
             }).collect::<Vec<_>>().join(", ");
             format!("Save scenario {} · {values}", scenario.name)
         }
+        ModelPropertyDiff::EditedScenario { scenario, change } => match change {
+            calc_skin::ScenarioChange::Rename { to } => format!("Rename scenario {} to {to}", scenario.name),
+            calc_skin::ScenarioChange::Remove => format!("Delete scenario {}", scenario.name),
+        },
         ModelPropertyDiff::WorksheetInserted { name, .. } => format!("Add worksheet {name}"),
         ModelPropertyDiff::CellFormat { at, before, after } => {
             let style =
