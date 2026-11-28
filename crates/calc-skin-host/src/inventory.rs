@@ -156,17 +156,24 @@ pub(crate) fn sources(
     }
     for (topic, entry) in host.rtd_topics() {
         meter.work(0, 1, 0)?;
+        let receipt = host.rtd_receipt(topic, entry.lease).map(|receipt| calc_skin::LiveTopicReceipt {
+            received: receipt.received,
+            timed_received: receipt.timed_received,
+            first_unix_ms: receipt.first_unix_ms,
+            last_unix_ms: receipt.last_unix_ms,
+        });
         answer.topics.push(calc_skin::LiveTopic {
             progid: topic.progid.clone(),
             server: topic.server.clone(),
             strings: topic.strings.clone(),
             lease: entry.lease.0,
             sequence: entry.sequence,
+            receipt,
             last: calc_skin::Shown {
                 value: crate::query::raw(&entry.value),
                 provenance: calc_skin::Provenance::External {
                     source: topic.progid.clone(),
-                    observed_at: None,
+                    observed_at: receipt.and_then(|receipt| receipt.last_unix_ms),
                 },
             },
         });

@@ -2768,3 +2768,37 @@ fn calculation_changes_identify_a_stable_workbook_name_for_the_changed_cell() {
     assert_eq!(change.after.value, Some(RawValue::Number { bits: 6f64.to_bits() }));
     assert_eq!(change.aliases, [query::ResultAlias { name: "AliasValue".into(), scope: NameScope::Workbook }]);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn live_topics_count_host_admissions_independently_of_the_provider_sequence() {
+    let (host, _) = workbook();
+    let connection = port(&host);
+    let topic = calc_host::TopicKey::new("DnaCalc.Price", "", &["LARK".into(), "last".into()]);
+    let lease = calc_host::RtdLease(1);
+    host.with_session(SelectionCause::Open, |session| {
+        for (sequence, disposition) in [
+            (3, calc_host::RtdDisposition::Accepted),
+            (5, calc_host::RtdDisposition::Accepted),
+            (4, calc_host::RtdDisposition::StaleSequence),
+        ] {
+            let update = session.update_rtd(topic.clone(), lease, sequence, calc_host::value::CalcValue::number(sequence as f64));
+            assert_eq!(update, disposition);
+        }
+    });
+    host.with_session(SelectionCause::Open, |session| {
+        assert_eq!(session.retire_rtd(topic.clone(), calc_host::RtdLease(0)), calc_host::RtdDisposition::Accepted);
+    });
+    let request = query::SourceInventory;
+    let answer = query::SourceInventory::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    let [source] = answer.body.topics.as_slice() else { panic!("one connected topic") };
+    assert_eq!(source.sequence, 5);
+    let receipt = source.receipt.unwrap();
+    assert_eq!(receipt.received, 2);
+    assert_eq!(receipt.timed_received, 2);
+    assert!(receipt.first_unix_ms.unwrap() <= receipt.last_unix_ms.unwrap());
+    host.with_session(SelectionCause::Open, |session| {
+        let accepted = session.take_rtd_admissions();
+        assert_eq!(accepted.iter().map(|record| record.sequence).collect::<Vec<_>>(), [3, 5]);
+    });
+}
