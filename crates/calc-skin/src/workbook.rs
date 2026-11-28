@@ -412,6 +412,29 @@ pub struct WorkbookCell {
     pub text: String,
     pub spill: Option<SpillExtent>,
     pub style: u32,
+    #[serde(default, skip_serializing_if = "CellBorders::is_empty")]
+    pub borders: CellBorders,
+}
+
+/// The visible thin, continuous edges of a cell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CellBorders {
+    pub top: Option<ThinBorder>,
+    pub right: Option<ThinBorder>,
+    pub bottom: Option<ThinBorder>,
+    pub left: Option<ThinBorder>,
+}
+
+impl CellBorders {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ThinBorder {
+    Automatic,
+    Rgb([u8; 3]),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -565,6 +588,9 @@ pub enum ModelChange {
     SetValidation {
         selected: Area,
         settings: ValidationSettings,
+    },
+    SetAllBorders {
+        selected: Area,
     },
     /// Refresh the workbook cache used by the PivotTable at this cell.
     RefreshPivot { at: Key, expected: Stamp },

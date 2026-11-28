@@ -622,6 +622,44 @@ fn classic_numbered_key_tips_run_the_same_commands_as_alt_digits() {
     assert_eq!(session.active(), Some(page.at(2, 3)));
 }
 
+/// Native-only: drives Home Borders through Classic and checks authored workbook styles.
+#[test]
+fn classic_all_borders_authors_each_edge_and_undoes_in_one_step() {
+    let page = Page::open();
+    let session = page.session;
+    let before = session.stamp().unwrap().model;
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    for key in ["F10", "h", "b", "a"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert!(session.stamp().unwrap().model > before);
+    let four_edges = |at| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let styles = host.styles();
+            let style = host.cell_style(at);
+            styles.cell_formats.get(style as usize)
+                .and_then(|format| format.border_id)
+                .and_then(|id| styles.borders.get(id as usize))
+                .is_some_and(|border| [&border.top, &border.right, &border.bottom, &border.left]
+                    .into_iter().all(|edge| edge.as_ref().and_then(|edge| edge.style.as_deref()) == Some("thin")))
+        })
+    };
+    for row in 2..=3 {
+        for column in 2..=3 {
+            assert!(four_edges(page.at(row, column).cell().unwrap()));
+        }
+    }
+    assert!(!four_edges(page.at(4, 4).cell().unwrap()));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(!four_edges(page.at(2, 2).cell().unwrap()));
+    assert!(!four_edges(page.at(3, 3).cell().unwrap()));
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {
