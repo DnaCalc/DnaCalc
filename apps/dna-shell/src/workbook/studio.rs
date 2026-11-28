@@ -10,6 +10,7 @@ use leptos::prelude::*;
 
 const OPEN: &str = "studio.open";
 const TRY: &str = "studio.try-on";
+const SUGGEST: &str = "studio.apply-accessible-colours";
 const TRY_FILE: &str = "studio.try-file";
 const TRY_AGENT: &str = "studio.try-agent";
 const DISCARD_AGENT: &str = "studio.discard-agent";
@@ -164,6 +165,13 @@ impl Studio {
         session.install(vec![
             ViewCommand::global(OPEN, "Customisation Studio", &[], move |_| {
                 self.editor.set(true);
+                Ok(())
+            }),
+            ViewCommand::global(SUGGEST, "Apply suggested accessible values", &[], move |_| {
+                let source = self.source.get_untracked();
+                let revised = skin::accessible_draft(&source).ok_or("There is no checked replacement for this draft")?;
+                self.source.set(revised);
+                self.error.set(None);
                 Ok(())
             }),
             ViewCommand::global(TRY, "Try on a skin", &[], move |invocation| {
@@ -590,7 +598,14 @@ impl Studio {
                     <p role="alert">{move || self.error.get()}</p>
                     {move || {
                         let source = self.source.get();
-                        skin::review_theme(&source).ok().map(contrast_review)
+                        skin::review_theme(&source).ok().map(|report| {
+                            let suggest = report.contrast.iter().any(|reading| !reading.passes())
+                                && skin::accessible_draft(&source).is_some();
+                            view! {
+                                {contrast_review(report)}
+                                {suggest.then(|| command_button(session, SUGGEST, "Apply suggested accessible values"))}
+                            }
+                        })
                     }}
                     {command_button(session, TRY, "Try on")}
                     {command_button(session, "proposal.open", "Agent trail")}
