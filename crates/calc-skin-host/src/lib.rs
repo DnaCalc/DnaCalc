@@ -80,6 +80,7 @@ struct CalculationChanges {
 
 struct State {
     session: HostSession,
+    host_profile: calc_host::portability::HostProfile,
     selection_seq: u64,
     selection: HostSelection,
     selection_cause: SelectionCause,
@@ -350,7 +351,17 @@ impl SkinHost {
         Self::with_read_only(session, false)
     }
 
-    pub fn with_read_only(mut session: HostSession, read_only: bool) -> Self {
+    pub fn with_read_only(session: HostSession, read_only: bool) -> Self {
+        use calc_host::portability::{HostKind, HostProfile};
+        Self::with_host_profile(session, read_only, HostProfile::new(HostKind::local()))
+    }
+
+    /// Open a skin connection using the embedder's provisions.
+    pub fn with_host_profile(
+        mut session: HostSession,
+        read_only: bool,
+        host_profile: calc_host::portability::HostProfile,
+    ) -> Self {
         session.observe_result_differences();
         session.set_observation_clock(snapshot::captured_unix_ms);
         Self::initial_selection(&mut session);
@@ -360,6 +371,7 @@ impl SkinHost {
             state: Rc::new(RefCell::new(State {
                 selection: session.selection().clone(),
                 session,
+                host_profile,
                 selection_seq: 1,
                 selection_cause: SelectionCause::Open,
                 selection_sender: None,

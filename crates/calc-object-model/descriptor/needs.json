@@ -62,7 +62,13 @@
     "_Worksheet.PasteSpecial (Method)": ["clipboard.internal"],
     "_Worksheet.PrintOut (Method)": ["print"],
     "_Worksheet.PrintPreview (Method)": ["print", "ui.dialog"],
-    "_Worksheet.SaveAs (Method)": ["fs", "path.windows"]
+    "_Worksheet.SaveAs (Method)": ["fs", "path.windows"],
+    "_Application.ClipboardFormats (Get)": ["clipboard"],
+    "Range.CopyPicture (Method)": ["clipboard"],
+    "ChartObjects.CopyPicture (Method)": ["clipboard"],
+    "ChartObject.CopyPicture (Method)": ["clipboard"],
+    "_Chart.CopyPicture (Method)": ["clipboard"],
+    "Shape.CopyPicture (Method)": ["clipboard"]
   },
   "xlc": {},
   "xlf": {}

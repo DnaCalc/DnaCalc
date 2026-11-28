@@ -146,27 +146,30 @@ impl PolicyChecker {
             return Err(error);
         }
 
-        let Some(first) = reach.first() else {
+        if reach.is_empty() {
             return Ok(());
-        };
+        }
         let subject = call.label();
         let level = (self.level)();
-        let allowed = level == MacroSecurity::Unguarded;
-        let error_number = (!allowed).then_some(70);
+        let denied = reach.iter().copied().find(|capability| match level {
+            MacroSecurity::Off => true,
+            MacroSecurity::Guarded => !capability.allowed_in_guarded(),
+            MacroSecurity::Unguarded => false,
+        });
         (self.audit)(PolicyAudit {
             subject: subject.clone(),
             reach: reach.clone(),
             level,
-            allowed,
-            error_number,
+            allowed: denied.is_none(),
+            error_number: denied.map(|_| 70),
             unavailable: None,
         });
-        match error_number {
+        match denied {
             None => Ok(()),
-            Some(number) => Err(AutoError::PolicyDenied {
-                capability: first.key(),
+            Some(capability) => Err(AutoError::PolicyDenied {
+                capability: capability.key(),
                 subject,
-                number,
+                number: 70,
             }),
         }
     }
