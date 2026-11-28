@@ -2,7 +2,7 @@ use crate::{State, batch, invalid, inventory::table_info, query::QueryWork, quer
 use calc_doc_model::{CellInput, FormulaForm, SheetKind, SheetVisibility};
 use calc_host::value::{CellKey, GridArea};
 use calc_skin::grid::{Area, Key};
-use calc_skin::{FormulaRun, InputCandidate, InputSignal, Refusal, SourceRef, Structure};
+use calc_skin::{FormulaRun, InputCandidate, InputSignal, NamedPort, Refusal, SourceRef, Structure};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn structure(
@@ -27,7 +27,8 @@ pub(crate) fn structure(
 
     let mut columns: BTreeMap<_, Vec<RunCell>> = BTreeMap::new();
     let mut seen = BTreeSet::new();
-    for area in areas {
+    let mut formulas = 0;
+    for &area in &areas {
         meter.work(0, 0, 0)?;
         for (at, input) in model.cells(area).into_iter().flatten() {
             let added = seen.insert(at);
@@ -35,6 +36,8 @@ pub(crate) fn structure(
             if !added {
                 continue;
             }
+            let formula = matches!(input, CellInput::Formula(_));
+            formulas += u64::from(formula);
             let template = match input {
                 CellInput::Formula(formula) => {
                     host.formula_r1c1(at).map(|text| (text, formula.form()))
@@ -44,16 +47,42 @@ pub(crate) fn structure(
             columns
                 .entry((at.sheet(), at.column()))
                 .or_default()
-                .push(RunCell { at, template });
+                .push(RunCell { at, template, formula });
         }
     }
     let mut runs = Vec::new();
+    let mut standalone = BTreeSet::new();
     for cells in columns.values_mut() {
         cells.sort_unstable_by_key(|cell| cell.at);
-        column_runs(cells, &mut runs, meter)?;
+        column_runs(cells, &mut runs, &mut standalone, meter)?;
     }
     runs.sort_unstable_by_key(|run| run.extent.0);
-    Ok(Structure { tables, runs })
+
+    let mut ports = Vec::new();
+    let mut port_count = 0;
+    let names = model.definitions().name_table();
+    for definition in host.defined_names() {
+        meter.work(0, 0, 0)?;
+        if definition.hidden {
+            continue;
+        }
+        let Some((target, _)) = names.lookup(definition.scope, &definition.name)
+            .and_then(|node| host.stable_name_source(node.id()))
+        else { continue };
+        if areas.iter().any(|area| area.intersection(target).is_some()) {
+            port_count += 1;
+            if ports.len() < 200 {
+                meter.work(0, 1, 0)?;
+                ports.push(NamedPort {
+                    name: definition.name.clone(),
+                    scope: crate::inventory::name_scope(definition.scope),
+                    area: Area::of(target),
+                });
+            }
+        }
+    }
+    meter.work(0, standalone.len() as u64, 0)?;
+    Ok(Structure { tables, runs, formulas, standalone: standalone.into_iter().collect(), ports, port_count })
 }
 
 pub(crate) fn inputs(
@@ -163,17 +192,29 @@ pub(crate) fn outputs(
 struct RunCell {
     at: CellKey,
     template: Option<(String, FormulaForm)>,
+    formula: bool,
+}
+
+fn remember_standalone(cell: &RunCell, standalone: &mut BTreeSet<Key>) {
+    if cell.formula {
+        standalone.insert(Key::of(cell.at));
+        if standalone.len() > 200 {
+            standalone.pop_last();
+        }
+    }
 }
 
 fn column_runs(
     cells: &[RunCell],
     runs: &mut Vec<FormulaRun>,
+    standalone: &mut BTreeSet<Key>,
     meter: &mut QueryWork,
 ) -> Result<(), Refusal> {
     let mut first = 0;
     while let Some(start) = cells.get(first) {
         meter.work(0, 0, 0)?;
         let Some(template) = &start.template else {
+            remember_standalone(start, standalone);
             first += 1;
             continue;
         };
@@ -202,6 +243,7 @@ fn column_runs(
                 }
                 members.push(area(segment, prev));
                 exceptions.push(Key::of(cell.at));
+                remember_standalone(cell, standalone);
                 segment = cells[next + 1].at;
             }
             next += 1;
@@ -216,6 +258,8 @@ fn column_runs(
                 members,
                 exceptions,
             });
+        } else {
+            remember_standalone(start, standalone);
         }
         first = next;
     }

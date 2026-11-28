@@ -109,6 +109,44 @@ pub enum InventoryItem {
 pub struct Structure {
     pub tables: Vec<TableInfo>,
     pub runs: Vec<FormulaRun>,
+    /// Authored formula anchors in the scope, including singleton and exceptional formulas.
+    #[serde(default)]
+    pub formulas: u64,
+    /// At most 200 formulas outside run membership, in worksheet order.
+    #[serde(default)]
+    pub standalone: Vec<Key>,
+    /// Visible names resolving to cells or areas in this scope.
+    #[serde(default)]
+    pub ports: Vec<NamedPort>,
+    #[serde(default)]
+    pub port_count: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NamedPort {
+    pub name: String,
+    pub scope: NameScope,
+    pub area: Area,
+}
+
+/// An exact source interval in equals-prefixed formula text, in UTF-16 code units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OperandSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReferenceOperand {
+    pub span: OperandSpan,
+    pub text: String,
+    pub at: Key,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReferenceOperands {
+    pub formula: String,
+    pub operands: Vec<ReferenceOperand>,
 }
 
 /// Authored Excel evidence that a worksheet cell is intended for entry.
@@ -236,6 +274,12 @@ pub struct DependencyAtlas {
     pub links: Vec<DependencyAtlasLink>,
     /// Name edges with no fixed worksheet in the retained binding.
     pub unattributed_names: u64,
+    /// Bound graph reference records that stay within one worksheet.
+    #[serde(default)]
+    pub local_references: u64,
+    /// Local, cross-sheet and unattributed records; 3D reads count once per worksheet.
+    #[serde(default)]
+    pub total_references: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -243,6 +287,10 @@ pub struct DependencyAtlasSheet {
     pub sheet: Sheet,
     pub formulas: u64,
     pub unbound: u64,
+    #[serde(default)]
+    pub local_references: u64,
+    #[serde(default)]
+    pub unattributed_names: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

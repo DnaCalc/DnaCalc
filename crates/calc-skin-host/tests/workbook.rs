@@ -1006,6 +1006,10 @@ fn structure_reports_exact_run_members_around_an_override() {
             at: answer.stamp,
             body: Structure {
                 tables: Vec::new(),
+                formulas: 4,
+                standalone: Vec::new(),
+                ports: Vec::new(),
+                port_count: 0,
                 runs: vec![FormulaRun {
                     extent: Area(b1, b5),
                     r1c1: "=RC[-1]*2".into(),
@@ -3142,4 +3146,72 @@ fn input_editors_follow_linked_controls_and_excel_validation() {
     });
     assert_eq!(rows.rows[0].cells[0].shown.value, RawValue::Text("001".encode_utf16().collect()));
 
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn map_overview_counts_local_cross_sheet_and_unattributed_references() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    connection.commit(batch(1, vec![
+        enter(at(1, 1), "2"),
+        enter(at(2, 1), "=A1+1"),
+        enter(at(2, 2), "=A2*2"),
+    ])).unwrap();
+    while host.advance() {}
+    let answer = connection.ask(query::DependencyAtlasOf.request(), BUDGET).unwrap();
+    let atlas = query::DependencyAtlasOf::decode(answer).unwrap();
+    let Evidence::Derived { body, .. } = atlas.body else { panic!("expected derived dependencies") };
+    assert_eq!(body.local_references, 2);
+    assert_eq!(body.total_references, 2);
+    assert!(body.links.is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn replace_reference_rewrites_only_the_chosen_utf16_operand_and_undoes() {
+    use calc_skin::query::{Formula, ReferenceOperandsOf};
+
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    let caller = at(3, 3);
+    let before = r#"=IF("🌍"="🌍",$A1+$A1,$B$2)"#;
+    let after = r#"=IF("🌍"="🌍",$A1+$B$1,$B$2)"#;
+    connection.commit(batch(1, vec![
+        enter(at(1, 1), "2"), enter(at(1, 2), "5"), enter(at(2, 2), "10"),
+        enter(caller, before),
+    ])).unwrap();
+    while host.advance() {}
+    let operands = ReferenceOperandsOf::decode(
+        connection.ask(ReferenceOperandsOf { at: caller }.request(), BUDGET).unwrap(),
+    ).unwrap();
+    assert_eq!(operands.body.formula, before);
+    assert_eq!(operands.body.operands.iter().map(|item| item.text.as_str()).collect::<Vec<_>>(),
+        ["$A1", "$A1", "$B$2"]);
+    let occurrence = operands.body.operands[1].span;
+    let set = |id, occurrence, with: &str| Batch {
+        base: Some(operands.stamp.model),
+        ..batch(id, vec![Change::Model(ModelChange::ReplaceReference {
+            at: caller, expected_old: before.into(), occurrence, with: with.into(),
+        })])
+    };
+    let edit = set(2, occurrence, "$B$1");
+    let preview = connection.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+    assert_eq!(preview.writes.len(), 1);
+    assert_eq!(preview.writes[0].at, caller);
+    assert!(connection.preview(&set(3, occurrence, "0"), PreviewDepth::WritesOnly).unwrap().refusal.is_some());
+    assert!(connection.preview(&set(4, OperandSpan {start: 0, end: 1}, "$B$1"), PreviewDepth::WritesOnly).unwrap().refusal.is_some());
+    let formula = || Formula::decode(connection.ask(Formula { at: caller }.request(), BUDGET).unwrap())
+        .unwrap().body.authored.unwrap();
+    assert_eq!(formula(), before);
+    connection.commit(edit).unwrap();
+    assert_eq!(formula(), after);
+    assert!(matches!(
+        connection.preview(&set(5, occurrence, "$B$2"), PreviewDepth::WritesOnly).unwrap().refusal,
+        Some(Refusal::Conflict { .. }),
+    ));
+    connection.run(Operation::Undo).unwrap();
+    assert_eq!(formula(), before);
 }

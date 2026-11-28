@@ -132,6 +132,58 @@ impl ReferenceCatalog for SelectedName<'_> {
     }
 }
 impl DetachedFormula {
+    /// Scalar operands that can be replaced without changing their enclosing Excel expression.
+    pub fn scalar_reference_sites(
+        inputs: &ModelRoot,
+        at: CellKey,
+        text: &str,
+        callables: &calc_fml::CallableBindings,
+    ) -> Vec<(TextSpan, CellKey)> {
+        let Some(calc_doc_model::CellInput::Formula(original)) = inputs.cell(at) else {
+            return Vec::new();
+        };
+        let tree = calc_fml::parse_formula(text);
+        if !tree.diagnostics().is_empty() {
+            return Vec::new();
+        }
+        let mut spill_ranges = Vec::new();
+        let mut stack = vec![tree.root()];
+        while let Some(node) = stack.pop() {
+            if spill_operand(node).is_some() {
+                spill_ranges.push(node.span());
+            } else {
+                stack.extend(node.child_nodes());
+            }
+        }
+        let plain = |span: TextSpan| !spill_ranges.iter()
+            .any(|spill| spill.start <= span.start && spill.end() >= span.end());
+        let anchor = FormulaAnchor::new(at);
+        let catalog = SnapshotCatalog::new(inputs);
+        let mut sites: Vec<_> = bind_references(&tree, ReferenceNotation::A1, anchor, &catalog)
+            .into_iter()
+            .filter(|site| !site.structured && !site.this_row && plain(site.span))
+            .filter_map(|site| {
+                let area = site.binding.ok()?.instantiate(anchor).ok()?;
+                (area.cell_count() == 1).then_some((site.span, area.first()))
+            })
+            .collect();
+        if let Ok(analysis) = calc_fml::analyze_loaded_names(
+            &tree, ReferenceNotation::A1, anchor, &catalog, &mut calc_fml::PlanCache::new(),
+            original.form(), callables,
+        ) {
+            sites.extend(analysis.uses.into_iter().filter_map(|usage| {
+                if usage.context.definition.is_some() || !plain(usage.span) {
+                    return None;
+                }
+                let (area, spill) = Self::stable_name_source(inputs, usage.resolved?.id)?;
+                (!spill && area.cell_count() == 1).then_some((usage.span, area.first()))
+            }));
+        }
+        sites.sort_unstable_by_key(|(span, _)| (span.start, span.end()));
+        sites.dedup();
+        sites
+    }
+
     /// A bare single-cell worksheet reference whose value is the formula result.
     pub fn direct_reference(inputs: &ModelRoot, at: CellKey) -> Option<CellKey> {
         let calc_doc_model::CellInput::Formula(formula) = inputs.cell(at)? else {
