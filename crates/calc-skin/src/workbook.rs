@@ -342,6 +342,8 @@ pub struct WorkbookSummary {
     pub layout_edited: bool,
     pub date1904: bool,
     pub macros: bool,
+    #[serde(default)]
+    pub pending_proposals: u64,
     pub capabilities: Capabilities,
 }
 

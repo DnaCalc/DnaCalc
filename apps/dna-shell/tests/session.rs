@@ -3157,3 +3157,69 @@ fn keeping_an_agent_app_page_changes_the_view_part_once() {
     assert!(undone.body.documents.is_empty());
     assert_eq!(session.stamp().unwrap().model, before.model);
 }
+
+/// Native-only: drives the installed shell commands and the workbook carrier together.
+#[test]
+fn operator_reviews_and_accepts_the_selected_proposal_from_the_shell() {
+    use calc_skin::{
+        Batch, Change, ModelChange, Operation, Proposal, ProposalId, ProposalStatus,
+        ProposalUnit, UnitId, WorkbookPort, query,
+    };
+    use dna_kit::{Invocation, Live, commands::CommandId};
+
+    let page = Page::open();
+    let session = page.session;
+    let a = page.at(1, 1);
+    let b = page.at(1, 2);
+    let initial = session.stamp().unwrap();
+    let enter = |at, text: &str| Change::Model(ModelChange::Enter { at, text: text.into() });
+    let batch = |stamp: calc_skin::Stamp, changes| Batch {
+        id: String::new(),
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        expects: Vec::new(),
+        selection_seq: None,
+        label: None,
+        changes,
+    };
+    session.submit(batch(initial, vec![enter(a, "3"), enter(b, "=A1*2")]));
+    page.settle();
+    let before = session.stamp().unwrap();
+    let proposals = session.watch(query::Proposals);
+    let agent = page.host.connect(
+        Origin::Agent { agent: "Planner assistant".into(), proposal: "edit-assumptions".into() },
+        WritePolicy::Propose,
+    );
+    let proposal = ProposalId("edit-assumptions".into());
+    let selected = UnitId("try-4".into());
+    agent.run(Operation::Propose(Proposal {
+        at: before,
+        intent: "Review a different assumption".into(),
+        units: vec![ProposalUnit {
+            id: selected.clone(),
+            needs: Vec::new(),
+            batch: batch(before, vec![enter(a, "4")]),
+        }],
+    })).unwrap();
+    page.settle();
+    let run = |command, args| session.run(&Invocation {
+        command: CommandId::new(command),
+        args,
+    });
+    run("proposal.open", serde_json::to_value(&proposal).unwrap()).unwrap();
+    page.settle();
+    run("proposal.toggle-unit", serde_json::to_value(&selected).unwrap()).unwrap();
+    session.command("proposal.preview").unwrap();
+    page.settle();
+    assert_eq!(session.stamp(), Some(before));
+    session.command("proposal.accept").unwrap();
+    page.settle();
+    let after = session.stamp().unwrap();
+    assert_eq!(after.model.0, before.model.0 + 1);
+    assert_eq!(after.view, before.view);
+    let Live::Ready(proposals) = session.read(proposals) else { panic!("no proposal answer") };
+    assert_eq!(proposals.body[0].units[0].status, ProposalStatus::Accepted);
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(session.stamp().unwrap().model.0, after.model.0 + 1);
+}

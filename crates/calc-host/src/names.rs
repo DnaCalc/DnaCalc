@@ -363,6 +363,11 @@ impl HostState {
     pub fn dependency_spellings(&self, at: CellKey) -> Vec<calc_engine::DependencySpelling> {
         calc_engine::DetachedFormula::dependency_spellings(&self.model, at)
     }
+
+    /// The single worksheet cell a bare reference formula returns.
+    pub fn direct_reference(&self, at: CellKey) -> Option<CellKey> {
+        calc_engine::DetachedFormula::direct_reference(&self.model, at)
+    }
     /// Explicit diagnostic evaluation, with a real name identity and caller anchor. No
     /// authored cell or shared name value is created, and no file cache is accepted as current.
     pub fn evaluate_name(

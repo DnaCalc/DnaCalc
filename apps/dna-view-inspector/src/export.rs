@@ -303,14 +303,22 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
             for root in issues.roots {
                 if let Ok(idx) = issues.errors.binary_search_by_key(&root.at, |item| item.at) {
                     let error = &issues.errors[idx];
+                    let origin = match error.origin {
+                        calc_skin::ErrorOrigin::Literal => "Literal",
+                        _ if error.exact_root == Some(root.at) => "Evaluated root",
+                        _ => "Root candidate",
+                    };
                     let _ = writeln!(
                         report,
-                        "{} {} · {:?} · {} potentially affected",
+                        "{} {} · {origin} · {} potentially affected",
                         cell_label(session, root.at),
                         error.code,
-                        error.origin,
                         root.affected
                     );
+                    for name in &error.named_errors {
+                        let source = SourceRef::Name { scope: name.scope.clone(), name: name.name.clone() };
+                        let _ = writeln!(report, "{} returned {} · {}", source_label(session, &source), error.code, name.formula);
+                    }
                 }
             }
         }

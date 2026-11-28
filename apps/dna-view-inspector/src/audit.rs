@@ -206,21 +206,43 @@ fn issues(session: Session) -> impl IntoView {
                 let count = issues.errors.len();
                 let unresolved = issues.errors.iter().filter(|item| matches!(item.origin, ErrorOrigin::Unresolved)).count();
                 let errors: BTreeMap<_,_> = issues.errors.into_iter().map(|item| (item.at, item)).collect();
+                let named = session.active().and_then(|at| errors.get(&at)).into_iter()
+                    .flat_map(|issue| &issue.named_errors)
+                    .map(|name| {
+                        view! { <li data-inspector="named-error"><strong>{name.name.clone()}</strong>
+                            " " <code>{name.formula.clone()}</code></li> }
+                    }).collect_view();
                 let rows = issues.roots.iter().take(100).map(|root| {
                     let item = &errors[&root.at];
-                    let origin = if item.origin == ErrorOrigin::Literal { "Literal" } else { "Root candidate" };
+                    let origin = if item.origin == ErrorOrigin::Literal {
+                        "Literal"
+                    } else if item.exact_root == Some(root.at) {
+                        "Evaluated root"
+                    } else {
+                        "Root candidate"
+                    };
                     view! { <tr><th scope="row">{reveal(session, root.at)}</th><td>{item.code.clone()}</td><td>{origin}</td><td>{root.affected}</td></tr> }.into_any()
                 }).chain(errors.values().filter(|item| item.origin == ErrorOrigin::Unresolved).take(100).map(|item| {
                     view! { <tr><th scope="row">{reveal(session, item.at)}</th><td>{item.code.clone()}</td><td>"Unresolved"</td><td>"—"</td></tr> }.into_any()
                 })).collect_view();
+                let proven = session.active().and_then(|at| {
+                    let root = errors.get(&at)?.exact_root?;
+                    (root != at).then_some(root)
+                });
                 view! {
-                    <p data-inspector="issues-count">{format!("{count} {} · {} root candidates and literals · {unresolved} unresolved",
+                    <p data-inspector="issues-count">{format!("{count} {} · {} roots and candidates · {unresolved} unresolved",
                         if count == 1 { "error" } else { "errors" }, issues.roots.len())}</p>
                     {limit.map(status)}
+                    {proven.map(|root| view! {
+                        <p data-inspector="proven-error-root">"Error root " {reveal(session, root)}</p>
+                    })}
                     {(issues.roots.len() > 100 || unresolved > 100).then(|| view! { <p>"Showing up to 100 per origin group."</p> })}
                     {(count > 0).then(|| view! {
-                        <table><thead><tr><th scope="col">"Cell"</th><th scope="col">"Error"</th><th scope="col">"Origin"</th><th scope="col">"Other affected cells"</th></tr></thead>
+                        <table><thead><tr><th scope="col">"Cell"</th><th scope="col">"Error"</th><th scope="col">"Origin"</th><th scope="col">"Possibly affected cells"</th></tr></thead>
                         <tbody>{rows}</tbody></table>
+                    })}
+                    {(!named.is_empty()).then(|| view! {
+                        <h3>"Defined names that returned this error"</h3><ul>{named}</ul>
                     })}
                 }.into_any()
             }}

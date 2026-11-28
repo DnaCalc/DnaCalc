@@ -1,8 +1,10 @@
-use crate::{State, invalid, query::QueryWork, survey};
+use crate::{State, invalid, inventory::name_scope, query::QueryWork, survey};
 use calc_host::value::{CellKey, WorksheetErrorCode};
-use calc_host::{ProjectedValue, ProjectionRequest, ResultStamp};
+use calc_host::{NameResultKind, ProjectedValue, ProjectionRequest, ResultStamp};
 use calc_skin::grid::Key;
-use calc_skin::{ErrorIssue, ErrorOrigin, ErrorRoot, Issues, Refusal, SourceRef};
+use calc_skin::{
+    ErrorIssue, ErrorOrigin, ErrorRoot, Issues, NamedErrorEvidence, Refusal, SourceRef,
+};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 struct Error<'a> {
@@ -54,6 +56,8 @@ pub(crate) fn issues(
     let mut children: BTreeMap<CellKey, Vec<CellKey>> = BTreeMap::new();
     let mut queue = VecDeque::new();
     let mut roots_by_cell: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
+    let mut direct_sources = BTreeMap::new();
+    let mut exact_roots = BTreeMap::new();
     for (&at, error) in &errors {
         let mut inputs = BTreeSet::new();
         if let Some(certificate) = error.certificate {
@@ -71,10 +75,28 @@ pub(crate) fn issues(
                     }
                 }
             }
+            if inputs.len() == 1
+                && let Some(source) = host.direct_reference(at)
+                && inputs.contains(&source)
+            {
+                direct_sources.insert(at, source);
+            }
         }
         if inputs.is_empty() && (error.literal || error.certificate.is_some()) {
             roots_by_cell.insert(at, BTreeSet::from([at]));
             queue.push_back(at);
+            if error.literal
+                || error.certificate.is_some_and(|proof| {
+                    proof.reads.dependencies.is_empty()
+                        && proof.reads.name_invocations.is_empty()
+                        && proof.reads.omitted_name_invocations == 0
+                        && proof.reads.external_inputs.is_empty()
+                        && proof.reads.linked_inputs.is_none()
+                        && proof.reads.invocations.is_empty()
+                })
+            {
+                exact_roots.insert(at, at);
+            }
         }
         pending.insert(at, inputs.len());
     }
@@ -92,6 +114,13 @@ pub(crate) fn issues(
                 ErrorOrigin::RootCandidate
             }
         } else {
+            if let Some(root) = direct_sources
+                .get(&at)
+                .and_then(|source| exact_roots.get(source))
+                .copied()
+            {
+                exact_roots.insert(at, root);
+            }
             for root in &roots {
                 *affected.entry(*root).or_insert(0) += 1;
             }
@@ -115,15 +144,40 @@ pub(crate) fn issues(
         }
     }
 
-    Ok(Issues {
-        errors: errors
-            .into_iter()
-            .map(|(at, error)| ErrorIssue {
+    let errors = errors
+        .into_iter()
+        .map(|(at, error)| {
+            let mut names = BTreeSet::new();
+            let mut named_errors = Vec::new();
+            if let Some(certificate) = error.certificate {
+                for invocation in &certificate.reads.name_invocations {
+                    meter.work(0, 0, 0)?;
+                    if invocation.result == NameResultKind::Error(error.code)
+                        && names.insert(invocation.definition.id)
+                        && let Some(node) = host.name_node(invocation.definition.id)
+                        && node.binding_version() == invocation.definition.version
+                    {
+                        meter.work(0, 0, 1)?;
+                        let definition = node.definition();
+                        named_errors.push(NamedErrorEvidence {
+                            name: definition.name.clone(),
+                            scope: name_scope(definition.scope),
+                            formula: definition.formula.clone(),
+                        });
+                    }
+                }
+            }
+            Ok(ErrorIssue {
                 at: Key::of(at),
                 code: error.code.excel_spelling().into(),
                 origin: origins.remove(&at).unwrap_or(ErrorOrigin::Unresolved),
+                exact_root: exact_roots.get(&at).copied().map(Key::of),
+                named_errors,
             })
-            .collect(),
+        })
+        .collect::<Result<_, Refusal>>()?;
+    Ok(Issues {
+        errors,
         roots: affected
             .into_iter()
             .map(|(at, affected)| ErrorRoot {
