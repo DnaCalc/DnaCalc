@@ -1888,6 +1888,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Fill Right uses the cell to the left of a single selected cell",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "5"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "5")),
+            Action::Click("[data-cell=B1]"),
+            Action::Into("formula-bar", "99"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "99")),
+            Action::Click("[data-cell=B1]"),
+            Action::Keys("grid", "\u{e009}r\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "5")),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "99")),
+            Action::Keys("grid", "\u{e03a}hfir"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=A1]", "5"),
+            Check::Text("[data-cell=B1]", "5"),
+            Check::Value("name-box", "B1"),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2566,8 +2590,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "inspector-dependencies",
+        name: "classic-single-fill-right",
         start: 74,
+        end: 75,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-dependencies",
+        start: BEFORE_MAP - 9,
         end: BEFORE_MAP - 7,
         core: 2,
         setup: &[],
