@@ -698,12 +698,12 @@ pub(crate) fn vba_to_auto(value: &Value) -> Result<AutoValue, AutoError> {
                 .iter()
                 .map(vba_to_auto)
                 .collect::<Result<Vec<_>, _>>()?;
-            AutoValue::Array(Box::new(AutoArray {
-                rows: *rows,
-                columns: *columns,
-                lower: (1, 1),
+            AutoValue::Array(Box::new(AutoArray::matrix(
+                *rows,
+                *columns,
+                (1, 1),
                 values,
-            }))
+            )))
         }
     })
 }
@@ -723,14 +723,15 @@ pub(crate) fn auto_to_vba(value: &AutoValue) -> Result<Value, AutoError> {
         ),
         AutoValue::Error(code) => Value::Error(*code),
         AutoValue::Array(a) => {
+            let (rows, columns) = a.grid_size();
             let cells = a
                 .values
                 .iter()
                 .map(auto_to_vba)
                 .collect::<Result<Vec<_>, _>>()?;
             Value::Array {
-                rows: a.rows,
-                columns: a.columns,
+                rows,
+                columns,
                 cells,
             }
         }

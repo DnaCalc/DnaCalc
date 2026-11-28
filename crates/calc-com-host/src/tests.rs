@@ -143,12 +143,12 @@ fn result_fixture(projection: &Projection, value: AutoValue) -> Rc<ResultFixture
     model
 }
 fn array(values: Vec<AutoValue>) -> AutoValue {
-    AutoValue::Array(Box::new(AutoArray {
-        rows: 1,
-        columns: values.len() as u32,
-        lower: (1, 1),
+    AutoValue::Array(Box::new(AutoArray::matrix(
+        1,
+        values.len() as u32,
+        (1, 1),
         values,
-    }))
+    )))
 }
 
 /// Native-only: discarded, partly converted and successfully delivered acquisitions use the real COM routes.
@@ -720,12 +720,12 @@ impl ObjectModel for WorkbookFixture {
             (ObjectKey::Range(_), "Row", _) => Ok(AutoValue::I4(1)),
             (ObjectKey::Range(_), "Count", _) => Ok(AutoValue::I4(4)),
             (ObjectKey::Range(_), "Value" | "Value2", _) => {
-                Ok(AutoValue::Array(Box::new(AutoArray {
-                    rows: 2,
-                    columns: 3,
-                    lower: (1, 1),
-                    values: (10..16).map(|n| AutoValue::R8(f64::from(n))).collect(),
-                })))
+                Ok(AutoValue::Array(Box::new(AutoArray::matrix(
+                    2,
+                    3,
+                    (1, 1),
+                    (10..16).map(|n| AutoValue::R8(f64::from(n))).collect(),
+                ))))
             }
             _ => self.fallback.invoke(target, call),
         }
@@ -1523,6 +1523,38 @@ fn automation_values_preserve_types_bits_and_unpaired_utf16() {
     }
 }
 
+/// Native-only: inspect rank, bounds and values through the OLE SAFEARRAY API.
+#[test]
+fn automation_safearrays_preserve_rank_bounds_and_index_order() {
+    let _apartment = Apartment::new();
+    let data = || (7..13).map(AutoValue::I4).collect();
+    for (input, counts, indexed) in [
+        (AutoArray::vector(-2, data()), vec![(-2, 3)], vec![2]),
+        (AutoArray::matrix(2, 3, (-3, 4), data()), vec![(-3, -2), (4, 6)], vec![-2, 5]),
+    ] {
+        let shape = input.shape;
+        let variant = values::to_variant(&values::NoObjects, &AutoValue::Array(Box::new(input))).unwrap();
+        assert_eq!(variant.vt(), VT_ARRAY | VT_VARIANT);
+        let array = unsafe { variant.Anonymous.Anonymous.Anonymous.parray };
+        assert_eq!(unsafe { SafeArrayGetDim(array) } as usize, counts.len());
+        for (dimension, (lower, upper)) in (1..).zip(counts) {
+            assert_eq!(unsafe { SafeArrayGetLBound(array, dimension) }.unwrap(), lower);
+            assert_eq!(unsafe { SafeArrayGetUBound(array, dimension) }.unwrap(), upper);
+        }
+        let mut element = VARIANT::default();
+        unsafe {
+            SafeArrayGetElement(array, indexed.as_ptr(), (&mut element as *mut VARIANT).cast())
+        }
+        .unwrap();
+        assert!(matches!(values::from_variant(&values::NoObjects, &element).unwrap(), AutoValue::I4(11)));
+        let AutoValue::Array(decoded) = values::from_variant(&values::NoObjects, &variant).unwrap() else {
+            panic!("expected an Automation array");
+        };
+        assert_eq!(decoded.shape, shape);
+        assert!(decoded.values.iter().zip(7..13).all(|(value, expected)| matches!(value, AutoValue::I4(n) if *n == expected)));
+    }
+}
+
 /// Native-only: legal SAFEARRAY forms the profile cannot represent must record a refusal,
 /// including before member dispatch, so swallowing 1004 cannot hide an unmodelled UDF input.
 #[test]
@@ -1541,7 +1573,7 @@ fn unsupported_safearray_forms_record_e11_refusals_before_value2_put() {
         )
         .unwrap(),
     );
-    for (rank, kind) in [(1, VT_VARIANT), (3, VT_VARIANT), (2, VT_R8)] {
+    for (rank, kind) in [(3, VT_VARIANT), (2, VT_R8)] {
         let bounds = vec![
             SAFEARRAYBOUND {
                 cElements: 2,
@@ -1596,7 +1628,7 @@ fn unsupported_safearray_forms_record_e11_refusals_before_value2_put() {
         assert!(description.contains("SAFEARRAY"), "{description}");
         assert!(description.contains("dc-1nbp.6"), "{description}");
     }
-    assert_eq!(model.refusals.get(), 3);
+    assert_eq!(model.refusals.get(), 2);
 }
 
 #[windows::core::interface("00024412-0000-0000-C000-000000000046")]
