@@ -349,6 +349,7 @@ impl SkinHost {
 
     pub fn with_read_only(mut session: HostSession, read_only: bool) -> Self {
         session.observe_result_differences();
+        session.observe_rtd_receipt_times(snapshot::captured_unix_ms);
         Self::initial_selection(&mut session);
         let opened_at = session.host().skin_stamp();
         Self {
@@ -1220,6 +1221,7 @@ impl Connection {
         })?;
         session.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
         session.observe_result_differences();
+        session.observe_rtd_receipt_times(snapshot::captured_unix_ms);
         let clock = use_clock.then(|| session.install_model_clock());
         SkinHost::initial_selection(&mut session);
         let stamp = session.host().skin_stamp();

@@ -42,7 +42,7 @@ impl Signal {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Sequence {
     Cell,
-    Topic(u64),
+    Topic { published: u64, received: Option<u64> },
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +57,9 @@ struct Series {
     target: Signal,
     samples: VecDeque<Sample>,
     observed: u64,
+    coalesced: u64,
+    previous_receipt: Option<u64>,
+    last_admission: Option<u64>,
 }
 
 #[derive(Default)]
@@ -86,10 +89,14 @@ impl Recording {
                     target,
                     samples: VecDeque::new(),
                     observed: 0,
+                    coalesced: 0,
+                    previous_receipt: None,
+                    last_admission: None,
                 });
                 self.series.len() - 1
             });
         self.selected = Some(index);
+        self.series[index].previous_receipt = None;
     }
 
     fn selected(&self) -> Option<&Series> {
@@ -106,11 +113,24 @@ impl Recording {
                 .back()
                 .is_some_and(|sample| match (sample.sequence, sequence) {
                     (Sequence::Cell, Sequence::Cell) => sample.value == value,
-                    (Sequence::Topic(previous), Sequence::Topic(current)) => previous == current,
+                    (Sequence::Topic { published: previous, .. }, Sequence::Topic { published: current, .. }) => previous == current,
                     _ => false,
                 });
         if repeated {
+            if series.previous_receipt.is_none()
+                && let Sequence::Topic { received, .. } = sequence
+            {
+                series.previous_receipt = received;
+            }
             return;
+        }
+        if let Sequence::Topic { received, .. } = sequence {
+            if let Some((previous, received)) = series.previous_receipt.zip(received) {
+                series.coalesced = series.coalesced.saturating_add(
+                    received.saturating_sub(previous).saturating_sub(1),
+                );
+            }
+            series.previous_receipt = received;
         }
         if series.samples.len() == RETAINED {
             series.samples.pop_front();
@@ -145,9 +165,10 @@ pub(crate) fn commands(session: Session) -> Vec<ViewCommand> {
         let target = Memo::new(move |_| {
             let workbook = session.stamp()?.workbook;
             recording.with(|recording| {
-                (recording.workbook == Some(workbook) && recording.capturing)
-                    .then(|| recording.selected().map(|series| series.target.clone()))
-                    .flatten()
+                let series = recording.selected().filter(|_| recording.workbook == Some(workbook))?;
+                let capturing = recording.capturing;
+                (capturing || matches!(series.target, Signal::Topic { .. }))
+                    .then(|| (series.target.clone(), capturing))
             })
         });
         let cell = session.following::<query::Cells>();
@@ -156,23 +177,31 @@ pub(crate) fn commands(session: Session) -> Vec<ViewCommand> {
         Effect::new(move |_| {
             let target = target.get();
             let selected_cell = match target {
-                Some(Signal::Cell(at)) => Some(at),
+                Some((Signal::Cell(at), _)) => Some(at),
                 _ => None,
             };
             let cells = cell.at(selected_cell.map(|at| query::Cells {
                 interest: Interest::Area(Area(at, at)),
             }));
             let topics = sources
-                .at(matches!(target, Some(Signal::Topic { .. })).then_some(query::SourceInventory));
+                .at(matches!(target, Some((Signal::Topic { .. }, _))).then_some(query::SourceInventory));
             let sample = match target {
-                Some(Signal::Cell(at)) => result(cells, "")
+                Some((Signal::Cell(at), _)) => result(cells, "")
                     .ok()
                     .and_then(|answer| sampled_cell(answer, at)),
-                Some(target) => result(topics, "").ok().and_then(|answer| {
-                    answer.body.topics.into_iter().find_map(|topic| {
-                        (Signal::topic(&topic) == target)
-                            .then_some((Sequence::Topic(topic.sequence), topic.last.value))
-                    })
+                Some((target, capturing)) => result(topics, "").ok().and_then(|answer| {
+                    let topic = answer.body.topics.into_iter().find(|topic| Signal::topic(topic) == target)?;
+                    if let Some(time) = topic.receipt.and_then(|receipt| receipt.last_unix_ms) {
+                        recording.update(|recording| {
+                            if let Some(series) = recording.selected.and_then(|index| recording.series.get_mut(index)) {
+                                series.last_admission = Some(time);
+                            }
+                        });
+                    }
+                    capturing.then_some((Sequence::Topic {
+                        published: topic.sequence,
+                        received: topic.receipt.map(|receipt| receipt.received),
+                    }, topic.last.value))
                 }),
                 None => None,
             };
@@ -235,7 +264,12 @@ pub(crate) fn commands(session: Session) -> Vec<ViewCommand> {
             "Pause signal capture",
             &[],
             move |_| {
-                recording.update(|recording| recording.capturing = false);
+                recording.update(|recording| {
+                    recording.capturing = false;
+                    if let Some(series) = recording.selected.and_then(|index| recording.series.get_mut(index)) {
+                        series.previous_receipt = None;
+                    }
+                });
                 Ok(())
             },
         ),
@@ -251,6 +285,8 @@ pub(crate) fn commands(session: Session) -> Vec<ViewCommand> {
                     {
                         series.samples.clear();
                         series.observed = 0;
+                        series.coalesced = 0;
+                        series.previous_receipt = None;
                     }
                     recording.replay = None;
                 });
@@ -292,8 +328,19 @@ fn sample_range(samples: &[Sample]) -> Option<(f64, f64)> {
     }))
 }
 
-pub(crate) fn recording(session: Session) -> impl IntoView {
+pub(crate) fn recording(
+    session: Session,
+    topics: dna_kit::Following<query::SourceInventory>,
+) -> impl IntoView {
     let recording = session.local::<State>().recording;
+    let time = RwSignal::new(now());
+    #[cfg(target_arch = "wasm32")]
+    if let Ok(timer) = leptos::leptos_dom::helpers::set_interval_with_handle(
+        move || time.set(now()),
+        std::time::Duration::from_secs(1),
+    ) {
+        on_cleanup(move || timer.clear());
+    }
     view! {
         <section class="dna-inspector-card">
             <h2>"Signal recorder"</h2>
@@ -335,9 +382,36 @@ pub(crate) fn recording(session: Session) -> impl IntoView {
                 let count = series.samples.len();
                 let observed = series.observed;
                 let capture = if recording.capturing { "Recording" } else { "Capture paused" };
+                let telemetry = if matches!(series.target, Signal::Topic { .. }) {
+                    let answer = result(topics.at(Some(query::SourceInventory)), "").ok();
+                    let last_sample = samples.last().map(|sample| sample.time);
+                    answer.map(|answer| {
+                        let source = answer.body.topics.into_iter().find(|topic| Signal::topic(topic) == series.target);
+                        let receipt = source.as_ref().and_then(|topic| topic.receipt);
+                        let received_rate = receipt.and_then(|receipt| rate(receipt.timed_received,
+                            receipt.first_unix_ms, receipt.last_unix_ms));
+                        let sample_rate = rate(samples.len() as u64,
+                            samples.first().map(|sample| sample.time), last_sample);
+                        let coalesced = series.coalesced;
+                        view! {
+                            <p data-inspector="topic-coverage">
+                                {receipt.map(|receipt| format!("{} received in this lease · ", receipt.received))}
+                                {format!("{observed} observed · {coalesced} coalesced")}
+                            </p>
+                            {received_rate.map(|rate| view! { <p>{format!("Received {rate:.2}/s")}</p> })}
+                            {sample_rate.map(|rate| view! { <p>{format!("Sampled {rate:.2}/s in the displayed window")}</p> })}
+                            {(source.is_none()).then(|| {
+                                series.last_admission.map(|received| format!("Disconnected · stale {} s",
+                                    time.get().saturating_sub(received) / 1000))
+                                    .unwrap_or_else(|| "Disconnected · stale age unavailable".into())
+                            })}
+                        }
+                    })
+                } else { None };
                 view! {
                     <p><strong>{label}</strong>" · " {capture}</p>
                     <p data-inspector="recording-count">{format!("{observed} observed · {count} retained")}</p>
+                    {telemetry}
                     {last.map(|last| view! { <p data-inspector="recording-last">"Last " {last}</p> })}
                     {sample_range(&samples).map(|(min, max)| {
                         let series = plot(&samples, min, max);
@@ -358,6 +432,11 @@ pub(crate) fn recording(session: Session) -> impl IntoView {
             })}
         </section>
     }
+}
+
+fn rate(count: u64, first: Option<u64>, last: Option<u64>) -> Option<f64> {
+    let elapsed = last?.checked_sub(first?)?;
+    (count > 1 && elapsed > 0).then(|| (count - 1) as f64 * 1000.0 / elapsed as f64)
 }
 
 pub(crate) fn topic_button(session: Session, topic: &LiveTopic) -> impl IntoView + use<> {

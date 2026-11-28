@@ -133,7 +133,17 @@ pub struct LiveTopic {
     pub lease: u64,
     /// Latest sequence admitted by the owner for this lease.
     pub sequence: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt: Option<LiveTopicReceipt>,
     pub last: crate::Shown<crate::RawValue>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveTopicReceipt {
+    pub received: u64,
+    pub timed_received: u64,
+    pub first_unix_ms: Option<u64>,
+    pub last_unix_ms: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

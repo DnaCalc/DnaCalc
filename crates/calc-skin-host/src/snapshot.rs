@@ -55,7 +55,7 @@ pub(crate) fn capture(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn captured_unix_ms() -> Option<u64> {
+pub(crate) fn captured_unix_ms() -> Option<u64> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
@@ -65,7 +65,7 @@ fn captured_unix_ms() -> Option<u64> {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn captured_unix_ms() -> Option<u64> {
+pub(crate) fn captured_unix_ms() -> Option<u64> {
     let time = js_sys::Date::now();
     (time.is_finite() && time >= 0.0).then_some(time as u64)
 }

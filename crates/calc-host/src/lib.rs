@@ -193,7 +193,7 @@ pub use project::{
     StaleValue, project,
 };
 pub use recalc::{
-    HostProgress, RecalcFailed, RtdAdmission, RtdDisposition, calculate, calculate_full, step,
+    HostProgress, RecalcFailed, RtdAdmission, RtdDisposition, RtdReceipt, calculate, calculate_full, step,
 };
 pub use save::{
     BeforeSaveHandler, BeforeSaveOutcome, ExcelSaveContext, PreparedSave, SaveCachePolicy,

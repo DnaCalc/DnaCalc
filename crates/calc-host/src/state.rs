@@ -167,6 +167,8 @@ pub struct HostState {
     pub(crate) rtd_connected: crate::recalc::ConnectedQueue,
     /// Every RTD value admitted since the owner last asked, in admission order.
     pub(crate) rtd_admissions: Vec<crate::RtdAdmission>,
+    pub(crate) rtd_receipts: std::collections::BTreeMap<calc_fml::TopicKey, (calc_fml::RtdLease, crate::RtdReceipt)>,
+    pub(crate) rtd_clock: Option<fn() -> Option<u64>>,
     pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
     pub(crate) full_calculate_requested: bool,
@@ -261,6 +263,11 @@ impl HostState {
     /// Iterates over the latest admitted values without connecting to any provider.
     pub fn rtd_topics(&self) -> impl Iterator<Item = (&calc_fml::TopicKey, &calc_fml::RtdEntry)> {
         self.rtd_inputs.entries()
+    }
+
+    /// Read admission counts without consuming the native event stream.
+    pub fn rtd_receipt(&self, topic: &calc_fml::TopicKey, lease: calc_fml::RtdLease) -> Option<crate::RtdReceipt> {
+        self.rtd_receipts.get(topic).filter(|(held, _)| *held == lease).map(|(_, receipt)| *receipt)
     }
 
     /// The authored formula at a cell in the workbook context's R1C1 notation.
@@ -424,6 +431,8 @@ impl HostState {
             user_view: None,
             rtd_connected: Default::default(),
             rtd_admissions: Vec::new(),
+            rtd_receipts: Default::default(),
+            rtd_clock: None,
             references: calc_fml::reference::ReferenceTracker::new(),
             calculation_interest: Vec::new(),
             full_calculate_requested: false,

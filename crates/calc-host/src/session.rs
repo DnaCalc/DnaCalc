@@ -802,6 +802,11 @@ impl HostSession {
         self.host.engine.observe_result_differences();
     }
 
+    /// Provide the carrier's clock for RTD admissions. The count is retained without a clock.
+    pub fn observe_rtd_receipt_times(&mut self, clock: fn() -> Option<u64>) {
+        self.host.rtd_clock = Some(clock);
+    }
+
     /// Borrows the current selection and its active cell.
     pub fn selection(&self) -> &Selection {
         &self.selection
