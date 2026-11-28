@@ -7,11 +7,11 @@
 
 use calc_skin::grid::{Key, Sheet};
 use calc_skin::query::{self, Census};
-use calc_skin::{ModelProperty, ModelPropertyDiff, Operation, SourceRef, ViewId, address};
+use calc_skin::{ModelProperty, ModelPropertyDiff, Operation, Origin, SourceRef, ViewId, address};
 use dna_kit::commands::{CommandId, CommandSpec, Layer, When};
 use dna_kit::name_manager::NameManager;
 use dna_kit::{
-    DockSide, Fit, Focus, Invocation, KeyInput, Live, Located, Registry, Seam, Session, View,
+    DockSide, Fit, Focus, Invocation, KeyInput, Live, Located, Registry, Seam, Session, View, Watch,
 };
 use leptos::{leptos_dom::helpers::request_animation_frame, prelude::*, wasm_bindgen::JsCast};
 use std::rc::Rc;
@@ -48,6 +48,7 @@ pub struct Chrome {
     studio: Studio,
     proposals: Proposals,
     macros: macros::MacroCard,
+    history: Watch<query::History>,
     name_manager: NameManager,
     tips: NodeRef<leptos::html::Div>,
 }
@@ -159,6 +160,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         studio: Studio::new(),
         proposals: Proposals::install(session),
         macros: macros::MacroCard::install(session),
+        history: session.watch(query::History),
         name_manager: NameManager::install(session),
         tips: NodeRef::new(),
     };
@@ -171,7 +173,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
 }
 
 fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
-    let history = session.watch(query::History);
+    let history = chrome.history;
     let step = move |operation: Operation| {
         let entry = match session.read(history) {
             Live::Ready(history) => match operation {
@@ -768,6 +770,24 @@ pub fn workbook(
             </nav>
             {dna_kit::workbook_open::mount(session)}
             {chrome.macros.mount(session)}
+            {move || {
+                let Live::Ready(history) = session.read(chrome.history) else { return None; };
+                let entry = history.body.undo.into_iter().next()
+                    .filter(|entry| matches!(entry.origin, Origin::Macro { .. }))?;
+                let name = entry.label;
+                let operation = Operation::RestoreCheckpoint {
+                    workbook: history.stamp.workbook, entry: entry.id,
+                };
+                Some(view! {
+                    <section class="dna-book-review" data-dnacalc="macro-checkpoint">
+                        <button type="button" disabled=move || session.mode().editing()
+                            on:click=move |_| {
+                                session.operate(operation.clone(), Some("Restored the workbook checkpoint".into()));
+                            }>{format!("Restore workbook before {name}")}</button>
+                        <p>"Restores the workbook, Calculation, EnableEvents and ScreenUpdating. VBA Static and module state and outside effects remain."</p>
+                    </section>
+                })
+            }}
             <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {
                 let id = session.view();
                 chrome.views.with_value(|views| views.iter().any(|view| view.spec().id == id && !view.cell_editor()))

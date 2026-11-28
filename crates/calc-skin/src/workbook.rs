@@ -1011,6 +1011,7 @@ pub enum Operation {
     Revert(EntryId),
     SetMacroSecurity(crate::MacroSecurity),
     RunMacro { approval: u64 },
+    RestoreCheckpoint { workbook: WorkbookId, entry: EntryId },
     /// Stage model changes from an agent without changing the workbook.
     Propose(Proposal),
     /// Resolve exactly these pending units as an operator.

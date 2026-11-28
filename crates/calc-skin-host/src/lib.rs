@@ -882,6 +882,16 @@ impl WorkbookPort for Connection {
                 let receipt = self.run_macro(&mut state, approval)?;
                 return receipt.error.map_or(Ok(receipt.stamp), Err);
             }
+            Operation::RestoreCheckpoint { workbook, entry } => {
+                self.check_write(&state)?;
+                if !matches!(self.origin, Origin::User { .. }) {
+                    return Err(Refusal::PolicyRefused);
+                }
+                if workbook != before.workbook {
+                    return Err(invalid("This macro checkpoint belongs to another workbook."));
+                }
+                SkinIntent::RestoreMacroCheckpoint(entry)
+            }
             Operation::Propose(declaration) => {
                 return proposal::offer(&mut state, &self.origin, self.policy, declaration);
             }

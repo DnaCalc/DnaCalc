@@ -31,7 +31,7 @@
 
 use crate::command::{CellEdit, CommandError, CommandReceipt, dispatch_slice};
 use crate::entry::{EntryRefusal, interpret_entry_in};
-use crate::history::{History, Inverse, Irreversible, Selection, Step, inverse};
+use crate::history::{History, Inverse, Irreversible, MacroCheckpoint, Selection, Step, inverse};
 use crate::project::{ProjectedCell, ProjectedValue, ProjectionRequest, project};
 use crate::recalc::{HostProgress, calculate, step};
 use crate::save::SaveFailed;
@@ -187,6 +187,8 @@ pub enum SkinIntent {
     EditAxis(AxisEdit),
     /// Takes back the last edit not yet undone, as a new transaction.
     Undo,
+    /// Restore the authored state and supported application settings before the last macro.
+    RestoreMacroCheckpoint(calc_skin::EntryId),
     /// Commits again the last edit undone, as a new transaction.
     Redo,
     /// Recalculates the workbook now, whatever the calculation mode ([`crate::calculate`]: what
@@ -260,6 +262,8 @@ pub enum IntentError {
     NothingToRedo,
     /// The step an undo would take back cannot be undone; it stays the last step.
     Irreversible(Irreversible),
+    /// The macro left a checkpoint that the operator can restore explicitly.
+    MacroCheckpointRequired(String),
     /// No subscription of this session has this identity.
     UnknownSubscription(SubscriptionId),
     /// The workbook holds no sheet with this identity.
@@ -281,6 +285,9 @@ impl fmt::Display for IntentError {
             IntentError::NothingToRedo => f.write_str("there is nothing to redo"),
             IntentError::Irreversible(irreversible) => {
                 write!(f, "the last edit cannot be undone: {irreversible}")
+            }
+            IntentError::MacroCheckpointRequired(procedure) => {
+                write!(f, "Use Restore workbook before {procedure}.")
             }
             IntentError::UnknownSubscription(id) => {
                 write!(f, "the session has no subscription {}", id.get())
@@ -836,6 +843,62 @@ impl HostSession {
         self.history.skin_entry_for_restore(redo)
     }
 
+    /// Keep the macro's Excel mutations as they happen, with one pre-run workbook checkpoint.
+    /// The caller receives the original result, including a fault after partial writes.
+    pub fn with_macro_history<R>(
+        &mut self,
+        run: String,
+        procedure: &str,
+        invoke: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        if !self.history.begin_macro() {
+            return invoke(self);
+        }
+        let stamp = self.host.skin_stamp();
+        let before = self.selection.clone();
+        let checkpoint = MacroCheckpoint {
+            model: self.host.model.clone(),
+            axis_edits: self.host.axis_edits.clone(),
+            calc_mode: self.host.options.calc_mode,
+            enable_events: self.workbook_events_enabled(),
+            screen_updating: self.screen_updating(),
+        };
+        let result = invoke(self);
+        let writes = self.history.end_macro();
+        let after = self.host.skin_stamp();
+        let kind = match (after.model != stamp.model, after.view != stamp.view) {
+            (false, false) => return result,
+            (true, false) => calc_skin::ChangeKind::Model,
+            (false, true) => calc_skin::ChangeKind::Presentation,
+            (true, true) => calc_skin::ChangeKind::Both,
+        };
+        let (cells_touched, targets) = writes.finish();
+        self.history.record(Step {
+            skin: Some(calc_skin::HistoryEntry {
+                id: calc_skin::EntryId(0),
+                at: after,
+                label: procedure.to_owned(),
+                origin: calc_skin::Origin::Macro { run, procedure: procedure.to_owned() },
+                kind,
+                targets,
+                cells_touched,
+                reversibility: calc_skin::Reversibility::Irreversible {
+                    reason: "The checkpoint restores the workbook and selected settings. VBA state and outside effects remain.".into(),
+                },
+                group: None,
+                proposal_unit: None,
+                unreviewed: false,
+            }),
+            forward: Vec::new(),
+            coordinates: None,
+            imported: None,
+            inverse: Ok(Inverse::MacroCheckpoint(checkpoint)),
+            before,
+            after: self.selection.clone(),
+        });
+        result
+    }
+
     /// The selection `sheet` held when it was last left, if it was ever the active sheet with one.
     pub fn remembered_selection(&self, sheet: SheetId) -> Option<&Selection> {
         self.sheet_selections.get(&sheet)
@@ -1283,7 +1346,8 @@ impl HostSession {
                     Err(refusal) => Err(IntentError::Copy(refusal)),
                 }
             }
-            SkinIntent::Undo => self.undo(&mut receipt),
+            SkinIntent::Undo => self.undo(None, &mut receipt),
+            SkinIntent::RestoreMacroCheckpoint(id) => self.undo(Some(id), &mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),
             SkinIntent::Recalculate => {
                 calculate(&mut self.host);
@@ -2081,7 +2145,17 @@ impl HostSession {
         }
     }
 
-    fn undo(&mut self, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
+    fn undo(&mut self, checkpoint: Option<calc_skin::EntryId>, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
+        if self.history.macro_running() {
+            return Err(IntentError::Workbook("Workbook history is unavailable during a macro run.".into()));
+        }
+        if let Some(id) = checkpoint
+            && !self.history.skin_entry_for_restore(false).is_some_and(|entry| {
+                entry.id == id && matches!(entry.origin, calc_skin::Origin::Macro { .. })
+            })
+        {
+            return Err(IntentError::Workbook("The macro checkpoint is no longer the last workbook change.".into()));
+        }
         let step = self.history.pop_undo().ok_or(IntentError::NothingToUndo)?;
         let inverse = match &step.inverse {
             Ok(inverse) => inverse.clone(),
@@ -2104,29 +2178,19 @@ impl HostSession {
                 model,
                 axis_edits,
                 source,
-            } => {
-                let refreshed = source.is_some();
-                let model = self.retain_trail_on_restore(model.view_part())
-                    .map_or(model.clone(), |part| model.with_view_part(part));
-                let result = if let Some(source) = &source {
-                    crate::command::restore_package_source(&mut self.host, &model, source)
-                } else {
-                    crate::command::restore(&mut self.host, &model, axis_edits.clone())
-                };
-                match result {
-                    Ok(committed) => {
-                        if let Some(source) = source {
-                            self.host.loaded = source;
-                            self.host.axis_edits = axis_edits;
-                        }
-                        let revision = committed.revision();
-                        receipt.committed = Some(committed);
-                        receipt.deltas +=
-                            self.deliver_changes(DeltaCause::Committed { revision }, refreshed);
-                        Ok(())
-                    }
-                    Err(error) => Err(IntentError::Command(error)),
+            } => self.restore_history_model(model, axis_edits, source, receipt),
+            Inverse::MacroCheckpoint(saved) => {
+                if checkpoint.is_none() {
+                    let label = step.skin.as_ref().expect("a macro has a history entry").label.clone();
+                    self.history.restore_undo(step);
+                    return Err(IntentError::MacroCheckpointRequired(label));
                 }
+                self.restore_history_model(saved.model, saved.axis_edits, None, receipt)
+                    .map(|()| {
+                        self.host.options.calc_mode = saved.calc_mode;
+                        self.set_workbook_events_enabled(saved.enable_events);
+                        self.set_screen_updating(saved.screen_updating);
+                    })
             }
         };
         if let Err(error) = undone {
@@ -2134,13 +2198,43 @@ impl HostSession {
             return Err(error);
         }
         let selection = step.before.clone();
-        self.history.undone(step);
+        if checkpoint.is_none() {
+            self.history.undone(step);
+        }
         self.select_quietly(selection, receipt);
         self.after_commit(receipt);
         Ok(())
     }
 
+    fn restore_history_model(
+        &mut self,
+        model: Arc<calc_doc_model::ModelRoot>,
+        axis_edits: Vec<AxisEdit>,
+        source: Option<calc_doc::LoadedWorkbook>,
+        receipt: &mut IntentReceipt,
+    ) -> Result<(), IntentError> {
+        let refreshed = source.is_some();
+        let model = self.retain_trail_on_restore(model.view_part())
+            .map_or(model.clone(), |part| model.with_view_part(part));
+        let committed = if let Some(source) = &source {
+            crate::command::restore_package_source(&mut self.host, &model, source)
+        } else {
+            crate::command::restore(&mut self.host, &model, axis_edits.clone())
+        }.map_err(IntentError::Command)?;
+        if let Some(source) = source {
+            self.host.loaded = source;
+            self.host.axis_edits = axis_edits;
+        }
+        let revision = committed.revision();
+        receipt.committed = Some(committed);
+        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refreshed);
+        Ok(())
+    }
+
     fn redo(&mut self, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
+        if self.history.macro_running() {
+            return Err(IntentError::Workbook("Workbook history is unavailable during a macro run.".into()));
+        }
         let step = self.history.pop_redo().ok_or(IntentError::NothingToRedo)?;
         let result = if let Some(source) = &step.imported {
             self.restore_template_source(source.clone(), receipt)

@@ -24,6 +24,9 @@ pub(crate) fn refusal(error: IntentError) -> Refusal {
         IntentError::Irreversible(error) => Refusal::Irreversible {
             reason: error.to_string(),
         },
+        error @ IntentError::MacroCheckpointRequired(_) => Refusal::Irreversible {
+            reason: error.to_string(),
+        },
         IntentError::Command(CommandError::NotModelled { owner, what }) => Refusal::NotModelled {
             owner: owner.into(),
             what: what.into(),
