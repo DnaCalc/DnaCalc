@@ -7,9 +7,40 @@ use calc_fml::reference::{
     AxisRef, BoundName, ExternalBookRef, FormulaAnchor, NameBindingProof, NameDefinition, NameScope,
     ReferenceCatalog, ReferenceNotation, ReferenceShape, SheetTarget, TableLookup, bind_references,
 };
-use calc_fml::syntax::{SyntaxChild, SyntaxKind, TokenKind};
+use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, TextSpan, TokenKind};
 use calc_value::{CellKey, GridArea, NameId, SheetId};
 use std::cell::Cell;
+use std::collections::HashSet;
+
+/// A spelling whose source identity would be lost if displayed only as its bound area.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DependencySpelling {
+    /// The area the ordinary reference binder placed for this source.
+    pub area: GridArea,
+    /// Worksheet spelling of the structured or spill reference.
+    pub spelling: String,
+    /// Whether the area identifies a spill anchor.
+    pub spill: bool,
+}
+
+fn spill_operand(node: &SyntaxNode) -> Option<&SyntaxNode> {
+    match node.children() {
+        [SyntaxChild::Node(operand), SyntaxChild::Token(operator)]
+            if node.kind() == SyntaxKind::PostfixExpr && operator.kind() == TokenKind::Hash =>
+        {
+            Some(operand)
+        }
+        [SyntaxChild::Token(callee), SyntaxChild::Node(arguments)]
+            if node.kind() == SyntaxKind::CallExpr
+                && callee.text().eq_ignore_ascii_case("_xlfn.ANCHORARRAY") =>
+        {
+            let mut operands = arguments.child_nodes();
+            let operand = operands.next()?;
+            operands.next().is_none().then_some(operand)
+        }
+        _ => None,
+    }
+}
 
 struct SelectedName<'a> {
     base: SnapshotCatalog<'a>,
@@ -101,6 +132,63 @@ impl ReferenceCatalog for SelectedName<'_> {
     }
 }
 impl DetachedFormula {
+    /// Binds explicit table and spill operands in an authored formula for graph display.
+    /// The published graph still determines which reads and areas are connected.
+    pub fn dependency_spellings(inputs: &ModelRoot, at: CellKey) -> Vec<DependencySpelling> {
+        let Some(calc_doc_model::CellInput::Formula(formula)) = inputs.cell(at) else {
+            return Vec::new();
+        };
+        let rendered = formula.rendered();
+        let units = rendered.utf16_code_units();
+        let Ok(text) = String::from_utf16(units) else {
+            return Vec::new();
+        };
+        if !text.contains(['[', '#']) && !text.to_ascii_uppercase().contains("ANCHORARRAY") {
+            return Vec::new();
+        }
+        let tree = calc_fml::parse_formula(&text);
+        if !tree.diagnostics().is_empty() {
+            return Vec::new();
+        }
+        let mut spills: HashSet<TextSpan> = HashSet::new();
+        let mut pending = vec![tree.root()];
+        while let Some(node) = pending.pop() {
+            if let Some(mut operand) = spill_operand(node) {
+                while operand.kind() == SyntaxKind::GroupingExpr {
+                    let Some(child) = operand.child_nodes().next() else {
+                        break;
+                    };
+                    operand = child;
+                }
+                spills.insert(operand.span());
+            }
+            pending.extend(node.child_nodes());
+        }
+        let anchor = FormulaAnchor::new(at);
+        let catalog = SnapshotCatalog::new(inputs);
+        bind_references(&tree, ReferenceNotation::A1, anchor, &catalog)
+            .into_iter()
+            .filter_map(|site| {
+                let area = site.binding.ok()?.instantiate(anchor).ok()?;
+                let spill = area.cell_count() == 1 && spills.contains(&site.span);
+                if !spill && !site.structured {
+                    return None;
+                }
+                let mut spelling =
+                    String::from_utf16(units.get(site.span.start..site.span.end())?).ok()?;
+                if spill {
+                    // Workbook storage uses ANCHORARRAY for the worksheet's # operator.
+                    spelling.push('#');
+                }
+                Some(DependencySpelling {
+                    area,
+                    spelling,
+                    spill,
+                })
+            })
+            .collect()
+    }
+
     /// The literal range, or spill anchor, named by a stable workbook definition.
     /// The second field identifies a spill. Relative or calculated targets have no stable area.
     pub fn stable_name_source(inputs: &ModelRoot, id: NameId) -> Option<(GridArea, bool)> {
@@ -124,22 +212,11 @@ impl DetachedFormula {
         while reference.kind() == SyntaxKind::GroupingExpr {
             reference = reference.child_nodes().next()?;
         }
-        let spill = match reference.children() {
-            [SyntaxChild::Node(operand), SyntaxChild::Token(operator)]
-                if reference.kind() == SyntaxKind::PostfixExpr && operator.kind() == TokenKind::Hash =>
-            {
-                reference = operand;
-                true
-            }
-            [SyntaxChild::Token(callee), SyntaxChild::Node(arguments)]
-                if reference.kind() == SyntaxKind::CallExpr && callee.text().eq_ignore_ascii_case("_xlfn.ANCHORARRAY") =>
-            {
-                let mut operands = arguments.child_nodes();
-                reference = operands.next()?;
-                if operands.next().is_some() { return None; }
-                true
-            }
-            _ => false,
+        let spill = if let Some(operand) = spill_operand(reference) {
+            reference = operand;
+            true
+        } else {
+            false
         };
         let sites = bind_references(&tree, ReferenceNotation::A1, anchor, &catalog);
         let [site] = sites.as_slice() else { return None };

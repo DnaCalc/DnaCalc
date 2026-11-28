@@ -17,6 +17,7 @@
 mod calculation;
 #[path = "detached_name.rs"]
 mod name_inspection;
+pub use name_inspection::DependencySpelling;
 pub use calculation::{NameCalculationProgress, NameCalculationResult, NameCalculationWork};
 
 use crate::read::{Progress, RecalcView, SnapshotCatalog, WorkbookReader};

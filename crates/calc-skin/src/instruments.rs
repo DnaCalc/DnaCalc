@@ -184,9 +184,22 @@ pub struct Dependencies {
     pub roots: Vec<usize>,
     pub nodes: Vec<DependencyTarget>,
     pub edges: Vec<DependencyEdge>,
+    /// Authored table and spill operands behind bound graph edges.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<DependencyReference>,
     pub sheets: Vec<DependencySheetGroup>,
     /// Formula cells for which the host has no bound edges yet.
     pub unbound: Vec<Key>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyReference {
+    pub edge: DependencyEdge,
+    pub spelling: String,
+    /// The cells of a structured reference or the anchor of a spill.
+    pub source: SourceRef,
+    /// A spill operand's last published extent. The graph can also contain its dynamic read.
+    pub published_extent: Option<Area>,
 }
 
 /// A sheet-tier summary of the workbook's bound dependency graph.

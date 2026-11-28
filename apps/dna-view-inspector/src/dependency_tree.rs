@@ -23,6 +23,7 @@ struct Row {
     parent: Option<usize>,
     children: Vec<usize>,
     level: usize,
+    operands: Vec<String>,
 }
 
 struct Tree {
@@ -43,6 +44,7 @@ impl Tree {
                 parent: None,
                 children: Vec::new(),
                 level: 0,
+                operands: Vec::new(),
             })
             .collect::<Vec<_>>();
         let mut edges = vec![Vec::new(); rows.len()];
@@ -67,6 +69,9 @@ impl Tree {
                 if rows[child].level == 0 {
                     rows[child].level = rows[parent].level + 1;
                     rows[child].parent = Some(parent);
+                    rows[child].operands.extend(graph.references.iter().filter(|reference| {
+                        reference.edge.from == parent && reference.edge.to == child
+                    }).map(|reference| reference.spelling.clone()));
                     rows[parent].children.push(child);
                     queue.push_back(child);
                 }
@@ -331,7 +336,12 @@ pub(crate) fn mount(session: Session, scope: Scope, graph: &Dependencies, shown:
     });
     let rows = tree.order.iter().copied().map(|node| {
         let row = &tree.rows[node];
-        let label = target_label(session, &row.target);
+        let target = target_label(session, &row.target);
+        let label = if row.operands.is_empty() {
+            target
+        } else {
+            format!("{} · {target}", row.operands.join(", "))
+        };
         let level = row.level;
         let branch = !row.children.is_empty();
         // A row can render while its dock's query owner is being replaced by the bench.
