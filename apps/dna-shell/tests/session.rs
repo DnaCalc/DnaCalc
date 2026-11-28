@@ -502,6 +502,33 @@ fn classic_fill_down_and_right_translate_formulas_as_separate_undo_steps() {
     assert_eq!(page.shown(page.at(4, 3)), "");
 }
 
+/// Native-only: drives the single-cell Fill Right shortcut and Deck action through the workbook service.
+#[test]
+fn classic_fill_right_on_one_cell_uses_the_cell_to_its_left() {
+    let page = Page::open();
+    let session = page.session;
+    for (column, text) in [(1, "5"), (2, "99")] {
+        session.begin_edit(page.at(1, column), Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    let target = page.at(1, 2);
+    session.select_cell(target);
+    page.settle();
+    assert!(page.press("Ctrl+r", Focus::Stage));
+    assert_eq!(page.shown(target), "5");
+    assert_eq!(session.active(), Some(target));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(target), "99");
+
+    for key in ["F10", "h", "f", "i", "r"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(page.shown(target), "5");
+    assert_eq!(page.shown(page.at(1, 1)), "5");
+    assert_eq!(session.active(), Some(target));
+}
+
 /// Native-only: drives the Classic key-tip commands through the real workbook service.
 #[test]
 fn classic_fill_menu_copies_from_the_bottom_and_right_edges() {

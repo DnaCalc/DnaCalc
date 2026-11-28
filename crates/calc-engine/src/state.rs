@@ -1109,6 +1109,14 @@ impl EngineState {
         if inputs.revision() != self.revision {
             return None;
         }
+        if self.pending.len() == self.by_anchor.len() {
+            // Every live node is already a root. There are no more readers to discover.
+            let mut cells: Vec<_> = self.by_anchor.keys().chain(&self.retired).copied().collect();
+            if !self.retired.is_empty() {
+                cells.sort();
+            }
+            return Some(cells);
+        }
         // A pending dynamic array's next result may spill anywhere below and right of its anchor,
         // past the area it last filled, so every formula reading a cell there may read it: those
         // readers are stale too, until the recalculation settles the spill.

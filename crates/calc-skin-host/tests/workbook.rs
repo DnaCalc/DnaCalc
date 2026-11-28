@@ -912,6 +912,25 @@ fn census_counts_sparse_scopes_and_current_errors_without_calculating() {
         ),
         Err(Refusal::OverBudget { .. })
     ));
+
+    let workbook = CensusOf { scope: SourceRef::Workbook };
+    let read_workbook = || CensusOf::decode(port.ask(workbook.request(), BUDGET).unwrap()).unwrap();
+    let full = read_workbook();
+    assert_eq!(full.body.formulas, 2);
+    assert_eq!(read_workbook(), full);
+    assert!(matches!(
+        port.ask(workbook.request(), Budget { cells: 1, ..BUDGET }),
+        Err(Refusal::OverBudget { counts, .. }) if counts.cells == 2
+    ));
+
+    port.commit(batch(2, vec![enter(z9, "17")])).unwrap();
+    port.run(Operation::Calculate { scope: SourceRef::Workbook }).unwrap();
+    while host.advance() {}
+    let updated = read_workbook();
+    assert!(updated.stamp.model > full.stamp.model);
+    assert_eq!(updated.body.formulas, 1);
+    assert_eq!(updated.body.literals, 2);
+    assert_eq!(updated.body.sheets[0].errors, [("#DIV/0!".into(), 1)].into());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

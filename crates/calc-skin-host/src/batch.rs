@@ -694,6 +694,10 @@ pub(crate) fn prepare(
                             (first, key(last.row(), first.column())),
                             (key(first.row(), first.column() + 1), last),
                         ),
+                        FillDirection::Right if selected.cell_count() == 1 && first.column() > 1 => {
+                            let left = key(first.row(), first.column() - 1);
+                            ((left, left), (first, last))
+                        }
                         FillDirection::Up if first.row() < last.row() => (
                             (key(last.row(), first.column()), last),
                             (first, key(last.row() - 1, last.column())),

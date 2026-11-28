@@ -230,63 +230,13 @@ pub fn project(
     host: &HostState,
     request: &ProjectionRequest,
 ) -> Result<ProjectionPage, ProjectionError> {
-    if let Some(at) = request
-        .cells
-        .iter()
-        .find(|at| host.model.sheet_by_id(at.sheet()).is_none())
-    {
-        return Err(ProjectionError { sheet: at.sheet() });
-    }
-    let stale = host
-        .engine
-        .stale(&host.model)
-        .expect("the host keeps its authored revision and its engine state at one revision");
-    let cause = match &host.last_failure {
-        Some((revision, _)) if *revision == host.model.revision() => StaleCause::RecalcFailed,
-        _ => StaleCause::AwaitingRecalc,
-    };
+    let values = ValueProjection::new(host, request)?;
     let cells = request
         .cells
         .iter()
         .map(|&at| {
             let input = host.model.cell(at).cloned();
-            let value =
-                if let Some((value, calculation)) = host.engine.pivot_results().cells.get(&at) {
-                    ProjectedValue::Calculated {
-                        value: value.clone(),
-                        calculation: calculation.clone(),
-                    }
-                } else {
-                    match &input {
-                        None => filled_value(host, at, &stale, cause),
-                        Some(CellInput::Number(number)) => {
-                            ProjectedValue::Literal(CalcValue::number(number.get()))
-                        }
-                        Some(CellInput::Text(text)) => {
-                            ProjectedValue::Literal(CalcValue::text(text.text().clone()))
-                        }
-                        Some(CellInput::Logical(logical)) => {
-                            ProjectedValue::Literal(CalcValue::logical(*logical))
-                        }
-                        Some(CellInput::Error(code)) => {
-                            ProjectedValue::Literal(CalcValue::error(*code))
-                        }
-                        Some(input @ CellInput::Formula(_)) => {
-                            let is_stale = stale.binary_search(&at).is_ok();
-                            // Whether a file cache is the package's result for the formula now in the
-                            // cell: the loaded revision held that formula there.
-                            let formula_as_opened = host.loaded.model().cell(at) == Some(input);
-                            let file_cache_stands = !host.inputs_changed_since_open;
-                            formula_value(
-                                host.engine.result(at),
-                                is_stale,
-                                cause,
-                                formula_as_opened,
-                                file_cache_stands,
-                            )
-                        }
-                    }
-                };
+            let value = values.read(at, input.as_ref());
             let spill = if let ProjectedValue::Calculated { value, .. } = &value {
                 let attempt = matches!(
                     value.core_ref(),
@@ -320,6 +270,88 @@ pub fn project(
             .map(|(_, failure)| failure.clone()),
         cells,
     })
+}
+
+/// Projects the same values as [`project`], for consumers that need no cell formatting or spill
+/// geometry. Reads one value for each requested cell, in request order.
+pub fn project_values<'a>(
+    host: &'a HostState,
+    request: &'a ProjectionRequest,
+) -> Result<impl Iterator<Item = ProjectedValue> + 'a, ProjectionError> {
+    let values = ValueProjection::new(host, request)?;
+    Ok(request
+        .cells
+        .iter()
+        .map(move |&at| values.read(at, host.model.cell(at))))
+}
+
+struct ValueProjection<'a> {
+    host: &'a HostState,
+    stale: Vec<CellKey>,
+    cause: StaleCause,
+}
+
+impl<'a> ValueProjection<'a> {
+    fn new(host: &'a HostState, request: &ProjectionRequest) -> Result<Self, ProjectionError> {
+        let mut previous = None;
+        for at in &request.cells {
+            let sheet = at.sheet();
+            if previous != Some(sheet) {
+                if host.model.sheet_by_id(sheet).is_none() {
+                    return Err(ProjectionError { sheet });
+                }
+                previous = Some(sheet);
+            }
+        }
+        let stale = host
+            .engine
+            .stale(&host.model)
+            .expect("the host keeps its authored revision and its engine state at one revision");
+        let cause = match &host.last_failure {
+            Some((revision, _)) if *revision == host.model.revision() => StaleCause::RecalcFailed,
+            _ => StaleCause::AwaitingRecalc,
+        };
+        Ok(Self { host, stale, cause })
+    }
+
+    fn read(&self, at: CellKey, input: Option<&CellInput>) -> ProjectedValue {
+        let host = self.host;
+        if let Some((value, calculation)) = host.engine.pivot_results().cells.get(&at) {
+            ProjectedValue::Calculated {
+                value: value.clone(),
+                calculation: calculation.clone(),
+            }
+        } else {
+            match input {
+                None => filled_value(host, at, &self.stale, self.cause),
+                Some(CellInput::Number(number)) => {
+                    ProjectedValue::Literal(CalcValue::number(number.get()))
+                }
+                Some(CellInput::Text(text)) => {
+                    ProjectedValue::Literal(CalcValue::text(text.text().clone()))
+                }
+                Some(CellInput::Logical(logical)) => {
+                    ProjectedValue::Literal(CalcValue::logical(*logical))
+                }
+                Some(CellInput::Error(code)) => ProjectedValue::Literal(CalcValue::error(*code)),
+                Some(input @ CellInput::Formula(_)) => {
+                    let is_stale = self.stale.binary_search(&at).is_ok();
+                    let result = host.engine.result(at);
+                    let file_cache_stands = !host.inputs_changed_since_open;
+                    let formula_as_opened = !file_cache_stands
+                        && matches!(result, Some(FormulaResult::FileCached(_)))
+                        && host.loaded.model().cell(at) == Some(input);
+                    formula_value(
+                        result,
+                        is_stale,
+                        self.cause,
+                        formula_as_opened,
+                        file_cache_stands,
+                    )
+                }
+            }
+        }
+    }
 }
 
 fn formula_value(

@@ -1888,6 +1888,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Fill Right uses the cell to the left of a single selected cell",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Into("formula-bar", "5"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=A1]", "5")),
+            Action::Click("[data-cell=B1]"),
+            Action::Into("formula-bar", "99"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "99")),
+            Action::Click("[data-cell=B1]"),
+            Action::Keys("grid", "\u{e009}r\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "5")),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+            Action::Wait(Check::Text("[data-cell=B1]", "99")),
+            Action::Keys("grid", "\u{e03a}hfir"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=A1]", "5"),
+            Check::Text("[data-cell=B1]", "5"),
+            Check::Value("name-box", "B1"),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2249,6 +2273,58 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Model map distinguishes a cross-sheet cycle and rewires a clocked input",
+        actions: &[
+            Action::WriteCast("StockLinks"),
+            Action::UploadDownloadTo("StockLinks.xlsx", "open-file"),
+            Action::Wait(Check::TextContains("[aria-label='Worksheets']", "Forecast")),
+            Action::Click("[data-command='view.map']"),
+            Action::Wait(Check::Attr("[data-map-node-count]", "data-map-edge-count", "4")),
+            Action::Click("[data-command='map.connections']"),
+            Action::Wait(Check::TextContains("[aria-label='Cross-sheet connections']", "Demand Plan → Stock (ticked)")),
+            Action::Click("[data-map-node='sheet'][data-map-name='Demand Plan']"),
+            Action::Into("name-box", "B5"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::WaitWorkbook(Check::Rendered("[data-map-cycle='iteration']", true)),
+            Action::Wait(Check::TextContains("[aria-label='Selected formula connections']", "Demand Plan!B4")),
+            Action::Wait(Check::Absent("[data-map-lag='prior-row']")),
+            Action::Click("[data-map-open='workbook']"),
+            Action::Click("[data-map-node='sheet'][data-map-name='Stock (ticked)']"),
+            Action::Click("[data-clock-action='Step']"),
+            Action::Click("[data-map-node='port'][data-map-name='Stock.State']"),
+            Action::WaitWorkbook(Check::TextContains("[data-map-cycle='delay']", "tick 1")),
+            Action::Into("name-box", "B3"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Wait(Check::Value("formula-bar", "=Demand.Base")),
+            Action::Click("[data-command='map.rewire']"),
+            Action::Wait(Check::Rendered("[data-map-rewire] select", true)),
+            Action::Into("[data-map-rewire] input", "Forecast!$B$3"),
+            Action::Click("[data-map-rewire] button"),
+            Action::Wait(Check::Rendered("[data-command='edit.apply-review']", true)),
+            Action::Wait(Check::Value("formula-bar", "=Demand.Base")),
+            Action::Click("[data-command='edit.apply-review']"),
+            Action::WaitWorkbook(Check::Value("formula-bar", "=Forecast!$B$3")),
+            Action::Wait(Check::Text("[data-map-reading] strong", "40")),
+            Action::Click("[data-map-open='workbook']"),
+            Action::Wait(Check::TextContains("[aria-label='Cross-sheet connections']", "Forecast → Stock (ticked)")),
+            Action::Click("[data-command='edit.undo']"),
+            Action::WaitWorkbook(Check::Value("formula-bar", "=Demand.Base")),
+            Action::Wait(Check::TextContains("[aria-label='Cross-sheet connections']", "Demand Plan → Stock (ticked)")),
+            Action::Click("[data-command='edit.redo']"),
+            Action::WaitWorkbook(Check::Value("formula-bar", "=Forecast!$B$3")),
+            Action::Click("[data-map-node='sheet'][data-map-name='Stock (ticked)']"),
+            Action::Click("[data-map-node='port'][data-map-name='Stock.OnHand']"),
+            Action::Wait(Check::Text("[data-map-reading] strong", "300")),
+            Action::Click("[data-clock-action='Step']"),
+            Action::WaitWorkbook(Check::Text("[data-map-reading] strong", "260")),
+            Action::Click("[data-map-node='port'][data-map-name='Prev.Stock']"),
+        ],
+        checks: &[
+            Check::Text("[data-map-reading] strong", "300"),
+            Check::Absent("[data-map-cycle='iteration']"),
+        ],
+    },
+    Case {
         name: "M03 Inherited opens at 40 sheet nodes and explains the exact expand-all limit",
         actions: &[
             Action::WriteCast("Inherited"),
@@ -2298,7 +2374,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
     },
 ];
 
-const BEFORE_MAP: usize = PREVIEW_CASES.len() - 6;
+const BEFORE_MAP: usize = PREVIEW_CASES.len() - 7;
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
@@ -2582,8 +2658,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "inspector-dependencies",
+        name: "classic-single-fill-right",
         start: 74,
+        end: 75,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-dependencies",
+        start: BEFORE_MAP - 9,
         end: BEFORE_MAP - 7,
         core: 2,
         setup: &[],
@@ -2645,8 +2728,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "map-inherited",
+        name: "map-links",
         start: BEFORE_MAP + 3,
+        end: BEFORE_MAP + 4,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "map-inherited",
+        start: BEFORE_MAP + 4,
         end: PREVIEW_CASES.len(),
         core: 3,
         setup: &[],

@@ -31,7 +31,14 @@ pub fn template_key(text: &str, anchor: FormulaAnchor) -> Option<String> {
 /// decodes a stored formula's UTF-16 text into characters once, for its template and, when the
 /// template is new, its compilation).
 pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<String> {
+    template_placement_key(chars, anchor).map(|(key, _)| key)
+}
+
+/// The same template together with whether its spelling has the same key at any
+/// position on the anchor's worksheet.
+pub fn template_placement_key(chars: &[char], anchor: FormulaAnchor) -> Option<(String, bool)> {
     let tokens = lex_chars(chars);
+    let mut position_independent = true;
     let mut key = String::with_capacity(chars.len() + 16);
     let mut word = String::new();
     let significant = |index: usize, step: isize| -> Option<TokenKind> {
@@ -87,15 +94,19 @@ pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<St
                 match spelled {
                     Spelled::Cell(cell) => {
                         key.push('c');
+                        position_independent &= matches!(cell.row, AxisRef::Absolute(_))
+                            && matches!(cell.column, AxisRef::Absolute(_));
                         push_axis(&mut key, cell.row);
                         push_axis(&mut key, cell.column);
                     }
                     Spelled::Row(row) => {
                         key.push('r');
+                        position_independent &= matches!(row, AxisRef::Absolute(_));
                         push_axis(&mut key, row);
                     }
                     Spelled::Column(column) => {
                         key.push('k');
+                        position_independent &= matches!(column, AxisRef::Absolute(_));
                         push_axis(&mut key, column);
                     }
                     Spelled::OutsideGrid(_) => unreachable!("kept as written"),
@@ -109,7 +120,7 @@ pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<St
             }
         }
     }
-    Some(key)
+    Some((key, position_independent))
 }
 
 /// Appends an axis to a template: `$` and the coordinate, or `~` and the offset, in decimal
@@ -165,6 +176,19 @@ mod tests {
             push_axis(&mut key, AxisRef::Relative(offset));
             assert_eq!(key, format!("~{offset}"));
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn position_independence_requires_absolute_axes() {
+        let at = anchor(15, 4);
+        let inspect =
+            |formula: &str| template_placement_key(&formula.chars().collect::<Vec<_>>(), at);
+        assert!(inspect("ROW()*4+15").unwrap().1);
+        assert!(inspect("Data!$A$1").unwrap().1);
+        assert!(!inspect("Data!$A1").unwrap().1);
+        assert!(!inspect("R2(10)").unwrap().1);
+        assert!(inspect("SUM(1:3)").is_none());
     }
 
     /// A filled formula has one template down its column; an absolute reference, another

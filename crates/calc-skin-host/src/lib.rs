@@ -92,6 +92,8 @@ struct State {
     calculation_changes: Option<CalculationChanges>,
     execution: Option<(Stamp, calc_skin::query::ExecutionReport)>,
     iteration: Option<(Stamp, IterationFacts)>,
+    workbook_census: RefCell<Option<query::SurveyAnswer>>,
+    dependency_atlas: RefCell<Option<query::SurveyAnswer>>,
     read_only: bool,
     opened_at: Stamp,
     baseline: Option<comparison::Baseline>,
@@ -401,6 +403,8 @@ impl SkinHost {
                 calculation_changes: None,
                 execution: None,
                 iteration: None,
+                workbook_census: RefCell::new(None),
+                dependency_atlas: RefCell::new(None),
                 read_only,
                 opened_at,
                 baseline: None,
@@ -1284,6 +1288,8 @@ impl Connection {
         state.calculation_changes = None;
         state.execution = None;
         state.iteration = None;
+        *state.workbook_census.get_mut() = None;
+        *state.dependency_atlas.get_mut() = None;
         state.baseline = None;
         state.update_selection(SelectionCause::Open);
         self.local.borrow_mut().copied = None;
