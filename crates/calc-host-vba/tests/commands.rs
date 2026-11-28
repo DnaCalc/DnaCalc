@@ -186,6 +186,65 @@ fn cell(session: &HostSession, row: u32, column: u32) -> Option<calc_host::CellI
         .cloned()
 }
 
+/// Replay the actual authored report macro through the workbook command used by the desktop.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_4_build_report_macro_saves_a_two_chart_workbook() {
+    let exported = include_str!("../../calc-host/tests/fixtures/macro-report/BuildReport.bas");
+    let (_, source) = exported.split_once('\n').expect("the exported module has a name attribute");
+    let input = calc_doc::source_vba_package(&[calc_doc::SourceModule {
+        name: "BuildReport",
+        kind: calc_doc::SourceModuleKind::Standard,
+        source,
+    }])
+    .unwrap();
+    let grant = calc_host_vba::ProjectGrant::person_enabled(calc_host_vba::FileOrigin::Local).unwrap();
+    for backend in backends() {
+        let mut session = opened(&input);
+        let owner = calc_host_vba::prepare_file_project_with_events(
+            &grant, session.host(), "cmd.xlsm", 100_000, Some(backend), true,
+        )
+        .unwrap()
+        .unwrap();
+        owner.clone().install(&mut session);
+        let build = owner.run_procedure(&mut session, "BuildReport.Build", &[]);
+        assert_eq!(build.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?}: {build:?}");
+        assert!(build.denials.is_empty(), "{build:?}");
+        let sheet = session.host().sheets()[0].id();
+        let totals = calc_host::project(session.host(), &calc_host::ProjectionRequest {
+            cells: (2..=6).map(|row| calc_value::CellKey::new(sheet, row, 4).unwrap()).collect(),
+        })
+        .unwrap();
+        for (cell, expected) in totals.cells().iter().zip([30., 70., 110., 150., 190.]) {
+            assert!(matches!(cell.value(), calc_host::ProjectedValue::Calculated { value, .. }
+                if value.as_number() == Some(expected)), "{backend:?}: {:?}", cell.value());
+        }
+        let mut saved = Vec::new();
+        session.save(&calc_host::SavePolicy::default(), &mut saved).unwrap();
+        let reopened = opened(&saved);
+        let sheet = reopened.host().sheets()[0].id();
+        let definitions = reopened.host().model().definitions();
+        assert!(reopened.host().loaded().has_vba_project());
+        assert_eq!(definitions.tables().len(), 1);
+        assert_eq!(definitions.tables()[0].name, "Sales");
+        assert_eq!(definitions.shapes(sheet).len(), 5);
+        let charts: Vec<_> = definitions.charts(sheet).iter()
+            .map(|chart| (chart.name.as_str(), chart.plots[0].kind.as_str(), chart.plots[0].series.len()))
+            .collect();
+        assert_eq!(charts, [("SalesChart", "barChart", 2), ("SalesTrend", "lineChart", 1)], "{backend:?}");
+        eprintln!("{backend:?} report: 1 table, 2 charts, 3 series, 5 drawing shapes, 5 calculated totals");
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(dir) = std::env::var_os("DNACALC_REPORT_OUTPUT_DIR") {
+            let dir = std::path::PathBuf::from(dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("report-source.xlsm"), &input).unwrap();
+            let name = format!("report-{backend:?}.xlsm").to_ascii_lowercase();
+            std::fs::write(dir.join(name), &saved).unwrap();
+        }
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_sub_mutates_the_workbook_and_a_function_returns() {
