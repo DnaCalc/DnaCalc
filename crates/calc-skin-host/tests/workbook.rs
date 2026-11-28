@@ -1372,7 +1372,9 @@ fn issues_retain_distinct_error_origins_and_count_possible_affected_cells() {
         ErrorIssue {
             at: a1,
             code: "#DIV/0!".into(),
-            origin: ErrorOrigin::RootCandidate
+            origin: ErrorOrigin::RootCandidate,
+            exact_root: Some(a1),
+            named_errors: Vec::new(),
         }
     );
     for at in [a2, a3] {
@@ -1380,8 +1382,59 @@ fn issues_retain_distinct_error_origins_and_count_possible_affected_cells() {
             at,
             code: "#DIV/0!".into(),
             origin: ErrorOrigin::CandidatePropagation { roots: vec![a1] },
+            exact_root: (at == a2).then_some(a1),
+            named_errors: Vec::new(),
         }));
     }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn issues_report_only_names_that_produced_the_error_during_evaluation() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let direct = Key(sheet.0, sheet.1, 1, 1);
+    let independent = Key(sheet.0, sheet.1, 2, 1);
+    let stamp = connection
+        .ask(WorkbookQuery::Summary, BUDGET)
+        .unwrap()
+        .stamp;
+    let mut changes = batch(
+        1,
+        vec![
+            Change::Model(ModelChange::Name {
+                scope: NameScope::Workbook,
+                change: NameChange::Define {
+                    name: "Broken".into(),
+                    formula: "=#REF!".into(),
+                },
+            }),
+            enter(direct, "=Broken"),
+            enter(independent, "=IF(FALSE,Broken,#REF!)"),
+        ],
+    );
+    changes.base = Some(stamp.model);
+    connection.commit(changes).unwrap();
+    while host.advance() {}
+    let request = query::IssuesIn {
+        scope: SourceRef::Workbook,
+    };
+    let answer =
+        query::IssuesIn::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body, .. } = answer.body else {
+        panic!("worksheet error evidence")
+    };
+    assert_eq!(body.errors.len(), 2);
+    let error = &body.errors[0];
+    assert_eq!(error.at, direct);
+    assert_eq!(error.code, "#REF!");
+    let [name] = error.named_errors.as_slice() else {
+        panic!("one executed definition")
+    };
+    assert_eq!(name.name, "Broken");
+    assert_eq!(name.scope, NameScope::Workbook);
+    assert_eq!(body.errors[1].at, independent);
+    assert!(body.errors[1].named_errors.is_empty());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

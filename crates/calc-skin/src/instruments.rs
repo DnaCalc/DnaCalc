@@ -241,6 +241,19 @@ pub struct ErrorIssue {
     pub at: Key,
     pub code: String,
     pub origin: ErrorOrigin,
+    /// Endpoint when the producing calculation proves a direct error chain.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact_root: Option<Key>,
+    /// Definition bodies that actually returned this error in the producing evaluation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub named_errors: Vec<NamedErrorEvidence>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NamedErrorEvidence {
+    pub name: String,
+    pub scope: NameScope,
+    pub formula: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -169,6 +169,10 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
                 "[data-inspector='issues-count']",
                 "1 error",
             )),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='named-error']",
+                "Revenue.Window",
+            )),
             Action::Click("[data-inspector-tab='Overview'] [data-command='inspector.reveal']"),
             Action::Click("[data-command='inspector.precedents']"),
         ],
