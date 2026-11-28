@@ -1811,6 +1811,39 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::TextContains("[data-inspector='pivot-freshness']", "Cache matches the worksheet source"),
         ],
     },
+    Case {
+        name: "U05 Loan trials calculate and enforce Excel Stop without applying",
+        actions: &[
+            Action::WriteCast("Loan"),
+            Action::UploadDownloadTo("Loan.xlsx", "open-file"),
+            Action::Wait(Check::Js("Loan opened", "document.querySelector('.dna-book-title')?.textContent === 'Loan.xlsx'")),
+            Action::Click("[data-command='studio.open']"),
+            Action::Into("[data-dnacalc=skin-source]", r#"{
+                "schema":"dna.page/1","title":"Loan trial","root":{"kind":"row","children":[
+                    {"kind":"part","id":"rate","component":"input","bind":{"value":{"anchor":"00000000-0000-0000-0000-000000000002","address":"Loan!B3"}}},
+                    {"kind":"part","id":"payment","component":"value","bind":{"value":{"anchor":"00000000-0000-0000-0000-000000000004","address":"Loan!B6"}}}
+                ]}
+            }"#),
+            Action::Click("[data-command='studio.try-on']"),
+            Action::Wait(Check::TextContains("[data-dnacalc=app-trial-inputs] details", "Write Loan!B3")),
+            Action::Wait(Check::TextContains("[data-dnacalc=app-trial-inputs] details", "Read Loan!B6")),
+            Action::Into("[data-dnacalc=app-trial-inputs] input[data-trial-address='Loan!B3']", "12%"),
+            Action::Click("[data-command='app.preview-inputs']"),
+            Action::Wait(Check::TextContains("[data-dnacalc=app-trial-effects] [data-trial-address='Loan!B6']", "9147.39 → 10286.13")),
+            Action::Wait(Check::Js(
+                "the preview and its trial leave the workbook unchanged",
+                "__dnaProbe().stamp.model === 0 && __dnaProbe().stamp.view === 0 && !document.querySelector('[data-page-part=rate] input:not([disabled])')",
+            )),
+            Action::Into("[data-dnacalc=app-trial-inputs] input[data-trial-address='Loan!B3']", "101%"),
+            Action::Click("[data-command='app.preview-inputs']"),
+            Action::Wait(Check::TextContains("[data-dnacalc=app-trial-inputs] [role=alert]", "Enter an annual rate between 0% and 100%.")),
+            Action::Click("[data-command='app.discard-preview']"),
+        ],
+        checks: &[
+            Check::Absent("[data-dnacalc=app-trial-inputs]"),
+            Check::Js("Discard keeps the opened workbook unchanged", "__dnaProbe().stamp.model === 0 && __dnaProbe().stamp.view === 0"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -2048,26 +2081,33 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "inspector-dependencies",
         start: 67,
-        end: PREVIEW_CASES.len() - 4,
+        end: PREVIEW_CASES.len() - 5,
         core: 2,
         setup: &[],
     },
     CaseGroup {
         name: "inspector-comparison",
-        start: PREVIEW_CASES.len() - 4,
-        end: PREVIEW_CASES.len() - 3,
+        start: PREVIEW_CASES.len() - 5,
+        end: PREVIEW_CASES.len() - 4,
         core: 1,
         setup: &[],
     },
     CaseGroup {
         name: "inspector-contributions",
-        start: PREVIEW_CASES.len() - 3,
-        end: PREVIEW_CASES.len() - 1,
+        start: PREVIEW_CASES.len() - 4,
+        end: PREVIEW_CASES.len() - 2,
         core: 2,
         setup: &[],
     },
     CaseGroup {
         name: "inspector-pivot",
+        start: PREVIEW_CASES.len() - 2,
+        end: PREVIEW_CASES.len() - 1,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "loan-trial",
         start: PREVIEW_CASES.len() - 1,
         end: PREVIEW_CASES.len(),
         core: 1,
