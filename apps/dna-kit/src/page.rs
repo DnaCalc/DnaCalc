@@ -16,6 +16,7 @@ pub mod clock;
 pub use dna_skin_runtime::skin::validate_page;
 /// Preview a typed page in the installed App view.
 pub const TRY_APP_PAGE: &str = "app.try-page";
+mod editor;
 mod reader;
 mod report;
 pub use reader::live_values;
@@ -436,15 +437,6 @@ pub fn bound_input(
     }
 }
 
-fn writable_literal(session: Session, at: Key, read: Memo<Option<WorkbookCell>>) -> impl Fn() -> bool + Copy + 'static {
-    let rules = session.following::<query::Rules>();
-    move || {
-        matches!(rules.at(Some(query::Rules { at })),
-            Live::Ready(answer) if answer.coverage == Coverage::Complete && answer.body.refusal.is_none())
-            && read.get().is_some_and(|cell| !cell.input.starts_with('='))
-    }
-}
-
 fn render_chart(chart: ChartImage) -> AnyView {
     view! {
         <figure class="dna-page-chart-frame">
@@ -623,46 +615,7 @@ fn scalar(
         }
         .into_any();
     };
-    let can_write = writable_literal(session, at, read);
-    let bound = StoredValue::new(bound);
-    let focused = RwSignal::new(false);
-    view! {
-        <form on:submit=move |event: leptos::ev::SubmitEvent| {
-            event.prevent_default();
-            let _ = session.run(&Invocation {
-                command: CommandId::new(input.command),
-                args: serde_json::to_value(bound.get_value()).expect("a binding serializes"),
-            });
-        }>
-            <label>
-                <strong>{label}</strong>
-                <input data-dna-action-field="" disabled=move || !can_write()
-                    prop:value=move || (input.draft)(session, &bound.get_value())
-                        .or_else(|| read.get().map(|cell| cell.input)).unwrap_or_default()
-                    on:focus=move |_| {
-                        focused.set(true);
-                        (input.focus)(session, Some(bound.get_value()));
-                    }
-                    on:blur=move |_| {
-                        focused.set(false);
-                        (input.focus)(session, None);
-                    }
-                    on:input=move |event| {
-                        let _ = session.run(&Invocation {
-                            command: CommandId::new(input.draft_command),
-                            args: serde_json::to_value((bound.get_value(), event_target_value(&event)))
-                                .expect("the input draft serializes"),
-                        });
-                    }/>
-            </label>
-            <Show when=move || focused.get()>
-                <small>{move || format!("Model change · {}", bound.get_value().address)}</small>
-            </Show>
-            {move || (input.error)(session, &bound.get_value(), at).map(|error| view! {
-                <p class="dna-page-error" role="alert">{error}</p>
-            })}
-        </form>
-    }.into_any()
+    editor::mount(session, label, bound, at, read, input)
 }
 
 fn schedule(session: Session, source: SourceRef, summary: Option<Bound>) -> AnyView {

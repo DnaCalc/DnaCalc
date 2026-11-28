@@ -47,6 +47,10 @@ pub struct ValidationRule {
     pub style: ErrorStyle,
     /// Whether the cell shows a drop-down (a list whose file does not hide it).
     pub dropdown: bool,
+    /// Whether the rule reports an invalid entry.
+    pub show_error: bool,
+    /// Whether the rule permits clearing the entry.
+    pub allow_blank: bool,
     /// The input message, when the rule shows one: its title and text.
     pub prompt: Option<(String, String)>,
 }
@@ -179,6 +183,8 @@ impl HostState {
             kind: validation.kind.clone(),
             style: style_of(validation),
             dropdown: validation.kind == "list" && validation.in_cell_dropdown,
+            show_error: validation.show_error,
+            allow_blank: validation.allow_blank,
             prompt: validation
                 .show_input
                 .then(|| {

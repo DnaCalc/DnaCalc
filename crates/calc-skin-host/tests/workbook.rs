@@ -3010,3 +3010,77 @@ fn read_objects(port: &impl WorkbookPort, sheet: Sheet) -> WorksheetObjects {
     let reply = port.ask(query::Objects { sheet }.request(), budget).unwrap();
     query::Objects::decode(reply).unwrap().body
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn input_editors_follow_linked_controls_and_excel_validation() {
+    use query::{InputChoice, InputEditor};
+
+    let (host, sheet) =
+        object_fixture(include_bytes!("../../calc-doc/tests/fixtures/drawing/form-controls.xlsx"));
+    let operator = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    let editor = |at| ask(&operator, query::Rules { at }).input_editor;
+    assert_eq!(editor(at(2, 2)), InputEditor::Checkbox);
+    assert_eq!(editor(at(3, 2)), InputEditor::Field);
+    assert_eq!(
+        editor(at(5, 2)),
+        InputEditor::Slider { min: 0, max: 100, step: 1 }
+    );
+    assert_eq!(
+        editor(at(6, 2)),
+        InputEditor::Stepper { min: 1, max: 10, step: 1 }
+    );
+    assert_eq!(
+        editor(at(7, 2)),
+        InputEditor::Choices(["North", "South", "East", "West"].iter().enumerate()
+            .map(|(index, label)| InputChoice {
+                label: (*label).into(),
+                entry: (index + 1).to_string(),
+            })
+            .collect())
+    );
+    host.with_session(SelectionCause::History, |session| {
+        let receipt = session.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Validations {
+                sheet: sheet.id(),
+                rules: vec![calc_doc_model::Validation {
+                    areas: vec![(9, 2, 9, 2)],
+                    kind: "list".into(),
+                    in_cell_dropdown: true,
+                    show_error: true,
+                    error_style: "stop".into(),
+                    formula1: Some(r#""North,001,=East""#.into()),
+                    authored_copy: false,
+                    source: None,
+                    operator: "between".into(),
+                    allow_blank: false,
+                    show_input: false,
+                    error_title: None,
+                    error: None,
+                    prompt_title: None,
+                    prompt: None,
+                    formula2: None,
+                }],
+            }],
+        });
+        assert!(receipt.accepted(), "{receipt:?}");
+    });
+    assert_eq!(
+        editor(at(9, 2)),
+        InputEditor::Choices(["North", "001", "=East"].iter().map(|label| InputChoice {
+            label: (*label).into(),
+            entry: format!("'{label}"),
+        }).collect())
+    );
+    let list = at(9, 2);
+    operator.commit(batch(1, vec![enter(list, "'001")])).unwrap();
+    let rows = ask(&operator, query::Rows {
+        source: target(list),
+        filter: Vec::new(),
+        sort: Vec::new(),
+        window: RowWindow { offset: 0, limit: 1 },
+    });
+    assert_eq!(rows.rows[0].cells[0].shown.value, RawValue::Text("001".encode_utf16().collect()));
+
+}
