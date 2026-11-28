@@ -508,6 +508,20 @@ pub struct RtdAdmission {
     /// Accepted worksheet value.
     pub value: calc_doc_model::value::CalcValue,
 }
+
+/// Admissions observed by the workbook owner for one subscription lease.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RtdReceipt {
+    /// Number of accepted values in this lease.
+    pub received: u64,
+    /// Number of accepted values for which the carrier supplied a timestamp.
+    pub timed_received: u64,
+    /// First observed receipt time, as Unix milliseconds.
+    pub first_unix_ms: Option<u64>,
+    /// Most recent observed receipt time, as Unix milliseconds.
+    pub last_unix_ms: Option<u64>,
+}
+
 impl HostState {
     /// RTD advances a topic's input. Manual mode waits for explicit demand; a current command is
     /// superseded at its next owner step, never completed by this event. The admission rules are
@@ -534,6 +548,17 @@ impl HostState {
             self.engine
                 .invalidate_rtd_topic(&self.model, &topic, lease, sequence);
             self.published = None;
+            let (held, receipt) = self.rtd_receipts.entry(topic.clone()).or_insert((lease, RtdReceipt::default()));
+            if *held != lease {
+                *held = lease;
+                *receipt = RtdReceipt::default();
+            }
+            receipt.received += 1;
+            if let Some(now) = self.rtd_clock.and_then(|clock| clock()) {
+                receipt.timed_received += 1;
+                receipt.first_unix_ms = receipt.first_unix_ms.or(Some(now));
+                receipt.last_unix_ms = Some(now);
+            }
             self.rtd_admissions.push(RtdAdmission {
                 topic,
                 lease,
@@ -560,6 +585,9 @@ impl HostState {
         );
         if disposition == RtdDisposition::Accepted {
             self.rtd_inputs = std::rc::Rc::new(next);
+            if self.rtd_receipts.get(&topic).is_some_and(|(held, _)| *held == lease) {
+                self.rtd_receipts.remove(&topic);
+            }
             self.engine
                 .invalidate_rtd_topic(&self.model, &topic, lease, 0);
             self.published = None;

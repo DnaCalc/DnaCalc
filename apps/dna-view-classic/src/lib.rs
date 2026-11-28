@@ -37,7 +37,11 @@ impl View for Classic {
 
     fn mount(&self, session: Session) -> MountedView {
         MountedView::exact(leptos::view! {
-            {dna_grid::mount(session)}
+            {dna_grid::mount_with_tints(session, move || {
+                session.view_setting(ID, "provenance_tints")
+                    .and_then(|setting| setting.as_bool())
+                    .unwrap_or(false)
+            })}
             {dna_kit::paste_special::mount(session)}
             {dna_kit::sort_dialog::mount(session)}
             {dna_kit::scenario_manager::mount(session)}

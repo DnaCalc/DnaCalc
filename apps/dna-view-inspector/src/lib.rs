@@ -84,12 +84,37 @@ impl Instrument {
 struct State {
     instrument: RwSignal<Instrument>,
     dock: RwSignal<Option<DockSide>>,
+    skin_dock: RwSignal<Option<(u64, Option<DockSide>)>>,
     back: RwSignal<Option<(calc_skin::WorkbookId, Key)>>,
     tracing: RwSignal<bool>,
     trace_window: RwSignal<Option<trace::TraceWindow>>,
     details: RwSignal<bool>,
     notes: RwSignal<bool>,
     recording: RwSignal<live::Recording>,
+}
+
+const TRACE_PANEL: &str = "inspector.trace";
+
+impl State {
+    fn dock_placement(self, session: Session) -> Option<(DockSide, Option<u16>, bool)> {
+        if let Some((revision, side, width)) = session.skin_panel(TRACE_PANEL) {
+            let side = self
+                .skin_dock
+                .get()
+                .filter(|(chosen, _)| *chosen == revision)
+                .map_or(Some(side), |(_, side)| side);
+            return side.map(|side| (side, width, true));
+        }
+        self.dock.get().map(|side| (side, None, false))
+    }
+
+    fn place_dock(self, session: Session, side: Option<DockSide>) {
+        if let Some((revision, _, _)) = untrack(|| session.skin_panel(TRACE_PANEL)) {
+            self.skin_dock.set(Some((revision, side)));
+        } else {
+            self.dock.set(side);
+        }
+    }
 }
 
 pub fn install(registry: &mut Registry) {
@@ -126,9 +151,8 @@ impl View for Inspector {
             .collect::<Vec<_>>();
         commands.extend([
             ViewCommand::global("inspector.dock", "Inspector panel", &[], move |_| {
-                state
-                    .dock
-                    .update(|side| *side = side.is_none().then_some(DockSide::Right));
+                let closed = untrack(|| state.dock_placement(session)).is_none();
+                state.place_dock(session, closed.then_some(DockSide::Right));
                 Ok(())
             }),
             ViewCommand::global(
@@ -136,12 +160,12 @@ impl View for Inspector {
                 "Move Inspector panel",
                 &[],
                 move |_| {
-                    state.dock.update(|side| {
-                        *side = Some(match side {
-                            Some(DockSide::Right) => DockSide::Bottom,
-                            _ => DockSide::Right,
-                        });
-                    });
+                    let placement = untrack(|| state.dock_placement(session));
+                    let next = match placement.map(|(side, _, _)| side) {
+                        Some(DockSide::Right) => DockSide::Bottom,
+                        _ => DockSide::Right,
+                    };
+                    state.place_dock(session, Some(next));
                     Ok(())
                 },
             ),
@@ -239,13 +263,39 @@ impl View for Inspector {
 
 fn dock(session: Session, side: DockSide) -> AnyView {
     let state = session.local::<State>();
+    let placement = Memo::new(move |_| {
+        state.dock_placement(session)
+            .filter(|(position, _, _)| *position == side)
+    });
     view! {
-        <Show when=move || session.view().0 != ID && state.dock.get() == Some(side)>
-            <aside class="dna-inspector-dock" aria-label="Inspector panel" data-inspector-dock=side.label()>
-                {bench(session, true)}
+        <Show when=move || session.view().0 != ID && placement.with(Option::is_some)>
+            <aside class="dna-inspector-dock" aria-label="Inspector panel" data-inspector-dock=side.label()
+                style:width=move || placement.get().and_then(|(_, width, _)| width)
+                    .filter(|_| side == DockSide::Right).map(|width| format!("{width}px"))>
+                {move || match placement.get() {
+                    Some((_, _, true)) => trace_panel(session).into_any(),
+                    _ => bench(session, true).into_any(),
+                }}
             </aside>
         </Show>
     }.into_any()
+}
+
+fn trace_panel(session: Session) -> impl IntoView {
+    view! {
+        <section class="dna-inspector" data-dnacalc="inspector-trace" aria-label="Inspector contributions">
+            <header class="dna-inspector-head">
+                <div><h1>"Contributions"</h1>
+                    <span class="dna-inspector-address">{move || session.active().map(|at| cell_label(session, at))}</span>
+                </div>
+                <div class="dna-inspector-actions">
+                    {button(session, "inspector.dock-side", "Move panel")}
+                    {button(session, "inspector.dock", "Close panel")}
+                </div>
+            </header>
+            <section class="dna-inspector-instrument">{trace::mount(session)}</section>
+        </section>
+    }
 }
 
 fn bench(session: Session, docked: bool) -> impl IntoView {

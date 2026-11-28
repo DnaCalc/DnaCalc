@@ -178,6 +178,15 @@
 .dna-sheet .dna-active { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
 .dna-sheet .dna-number { text-align: end; }
 .dna-sheet .dna-error { color: var(--dna-red-ink); }
+.dna-sheet[data-provenance-tints="true"] [data-provenance="literal"] {
+    box-shadow: inset 3px 0 var(--dna-ink-3);
+}
+.dna-sheet[data-provenance-tints="true"] [data-provenance="calculated"] {
+    box-shadow: inset 3px 0 var(--dna-accent-ink);
+}
+.dna-sheet[data-provenance-tints="true"] :is([data-provenance="file-cache"], [data-provenance="stale"]) {
+    box-shadow: inset 3px 0 var(--dna-amber-ink);
+}
 .dna-sheet [data-provenance="refused"]::after { content: "Refused"; color: var(--dna-red-ink); }
 .dna-sheet-loading { margin: var(--dna-gap-3); color: var(--dna-ink-2); }
 .dna-book-details {
