@@ -53,6 +53,8 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 - `tools/com-descriptor` (Rust, Windows) reads a type library through `LoadRegTypeLib`/`ITypeLib` and writes
   the listed types to JSON. Lists: `descriptor/<library>.interfaces.txt`. Libraries: Excel 1.9 (EXCEL.EXE
   16.0.20527), Office 2.8 (MSO.DLL), Add-in Designer 1.0 (MSADDNDR.OLB). The file version is recorded.
+  The exporter reads every enumeration and member from the library independently of the selected
+  interface list. CalcVBA uses the generated enum types and constants when the descriptor has them.
 - For a dual interface the JSON holds the vtable view: every parameter in order, `slot = oVft / 8` (x64),
   `vtable_slots` counting IUnknown and IDispatch. A dispinterface has DISPIDs only and 7 slots.
 - Names and ABI facts only, no documentation strings. These are the facts any client compiled against

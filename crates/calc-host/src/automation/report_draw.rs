@@ -4,7 +4,7 @@
 
 use super::report::{report, text_arg};
 use super::*;
-use crate::{Points, ShapeChange, WorkbookCommand};
+use crate::{ChartSeriesSource, Points, ShapeChange, WorkbookCommand};
 use calc_doc_model::{ChartAnchor, Shape, ShapeColour, ShapeFill, ShapeKind, ShapeLine};
 use calc_object_model::ReportItem;
 
@@ -52,6 +52,39 @@ fn rgb_to_colour(value: i64) -> Result<ShapeColour, AutoError> {
 fn colour_to_rgb(hex: u32) -> i64 {
     let v = i64::from(hex);
     ((v >> 16) & 0xFF) | (v & 0xFF00) | ((v & 0xFF) << 16)
+}
+
+fn literal_series_source(array: &AutoArray, values: bool) -> Result<ChartSeriesSource, AutoError> {
+    let unsupported = || {
+        AutoError::not_modelled("Series.Values/XValues literal shape or element type", CHARTS)
+    };
+    if !matches!(array.shape, calc_object_model::AutoArrayShape::Vector { .. }) || array.values.is_empty() {
+        return Err(unsupported());
+    }
+    let numeric = values || array.values.iter().all(|point| !matches!(point, AutoValue::Text(_)));
+    let cache = array.values.iter()
+        .map(|point| {
+            let text = match point {
+                // Q17: Excel stores text passed to Values as numeric zero.
+                AutoValue::Text(_) if values => "0".to_owned(),
+                AutoValue::Text(text) => {
+                    String::from_utf16(text.utf16_code_units()).map_err(|_| unsupported())?
+                }
+                point if numeric => number(point)
+                    .ok()
+                    .filter(|v| v.is_finite())
+                    .ok_or_else(unsupported)?
+                    .to_string(),
+                _ => return Err(unsupported()),
+            };
+            Ok(Some(text))
+        })
+        .collect::<Result<Vec<_>, AutoError>>()?;
+    Ok(ChartSeriesSource::Literal(calc_doc_model::ChartData {
+        formula: None,
+        cache,
+        numeric,
+    }))
 }
 
 impl WorkbookAutomation {
@@ -692,21 +725,40 @@ impl WorkbookAutomation {
         })?;
         Ok(AutoValue::text(&name))
     }
-    /// `=SERIES(name, categories, values, order)` over the references the series holds.
+    /// `=SERIES(name, categories, values, order)` over the references and literals the series holds.
     pub(super) fn series_formula(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let (place, series) = self.series_at(target)?;
-        let part = |d: &Option<calc_doc_model::ChartData>| {
-            d.as_ref()
-                .and_then(|d| d.formula.as_deref())
-                .map(Self::excel_reference)
+        let part = |source: Option<&calc_doc_model::ChartData>, allow_literal: bool| {
+            let Some(data) = source else {
+                return String::new();
+            };
+            if let Some(formula) = &data.formula {
+                return Self::excel_reference(formula);
+            }
+            if !allow_literal || data.cache.is_empty() {
+                return String::new();
+            }
+            let points = data.cache.iter()
+                .map(|point| {
+                    point.as_ref().map(|point| {
+                        if data.numeric {
+                            point.clone()
+                        } else {
+                            format!("\"{}\"", point.replace('"', "\"\""))
+                        }
+                    })
+                })
+                .collect::<Option<Vec<_>>>();
+            points
+                .map(|points| format!("{{{}}}", points.join(",")))
                 .unwrap_or_default()
         };
         Ok(AutoValue::text(&format!(
             "=SERIES({},{},{},{})",
-            part(&series.name),
-            part(&series.categories),
-            part(&series.values),
+            part(series.name.as_ref(), false),
+            part(series.categories.as_ref(), true),
+            part(series.values.as_ref(), true),
             place + 1
         )))
     }
@@ -739,35 +791,31 @@ impl WorkbookAutomation {
     pub(super) fn series_xvalues_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.series_points(target, call, false)
     }
-    /// A put of a Range (or of the reference text a SERIES formula holds) re-points the series
-    /// through the chart editor's series command; literal arrays are not modelled.
+    /// Replace the series source through the same chart edit as the chart controls.
     fn series_points_put(&self, target: &ObjectRef, call: &Call<'_>, values: bool) -> Reply {
         let (place, _) = self.series_at(target)?;
         let part = Self::chart_token(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
         let arg = call.args.last().ok_or_else(geometry::bad_count)?;
-        let reference = match arg {
+        let (reference, source) = match arg {
             AutoValue::Object(_) => {
                 let range = self.source_range(target, arg, sheet)?;
                 if range.area_count() != 1 {
                     return Err(AutoError::excel(1004, ""));
                 }
-                Some(range.areas()[0])
+                (Some(range.areas()[0]), None)
             }
-            AutoValue::Text(_) => None,
+            AutoValue::Text(text) => (None, Some(ChartSeriesSource::Reference(text.to_string_lossy()))),
+            AutoValue::Array(array) => (None, Some(literal_series_source(array, values)?)),
             _ => {
                 return Err(AutoError::not_modelled(
-                    "Series.Values/XValues put of an array of literals",
-                    "dc-piw0",
+                    "Series.Values/XValues put of this type",
+                    CHARTS,
                 ));
             }
         };
-        let text = match arg {
-            AutoValue::Text(t) => Some(t.to_string_lossy()),
-            _ => None,
-        };
         self.command(call, |s| {
-            let reference = match (&reference, &text) {
+            let source = match (&reference, &source) {
                 (Some(area), _) => {
                     let name = s
                         .host()
@@ -776,13 +824,13 @@ impl WorkbookAutomation {
                         .map(|x| x.name().text().to_string_lossy())
                         .ok_or_else(geometry::type_mismatch)?;
                     let qualifier = format!("'{}'!", name.replace('\'', "''"));
-                    geometry::address(
+                    ChartSeriesSource::Reference(geometry::address(
                         &ReferenceLike::area(*area),
                         AddressOptions::default(),
                         Some(&qualifier),
-                    )?
+                    )?)
                 }
-                (None, Some(text)) => text.clone(),
+                (None, Some(source)) => source.clone(),
                 _ => return Err(geometry::type_mismatch()),
             };
             let chart = Self::charts_of(s, sheet)
@@ -799,6 +847,7 @@ impl WorkbookAutomation {
                 at -= plot.series.len();
             }
             let (plot, index) = found.ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            let (categories, values) = if values { (None, Some(source)) } else { (Some(source), None) };
             Ok(WorkbookCommand::ChartSeries {
                 sheet,
                 revision: s.host().revision().get(),
@@ -806,8 +855,8 @@ impl WorkbookAutomation {
                 plot,
                 series: Some(index),
                 name: None,
-                categories: if values { None } else { Some(reference.clone()) },
-                values: if values { Some(reference) } else { None },
+                categories,
+                values,
                 remove: false,
             })
         })

@@ -7,10 +7,10 @@
 //! com-descriptor --facts <facts.json> --out <descriptor.json> [--constants-out <table.rs>]
 //! ```
 //!
-//! Every coclass and dispinterface of the root library is written, with its members; enumerations
-//! become the constants table (name, value), since the descriptor holds interfaces only. Output is
-//! deterministic: types in library order, members in their recorded order.
+//! Every coclass, dispinterface and enumeration of the root library is written with its members.
+//! The optional Rust constants table remains available to the FM20 importer.
 
+use super::{EnumMember, Enumeration};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeSet;
 
@@ -82,7 +82,7 @@ pub fn convert(root: &Value) -> Result<(Value, String), String> {
     let lib_name = text(&library["documentation"], "name").to_owned();
     let mut types = Vec::new();
     let mut constants: Vec<(String, String, i64)> = Vec::new();
-    let mut enums: Vec<String> = Vec::new();
+    let mut enums = Vec::new();
     for ty in library["types"].as_array().ok_or("types is missing")? {
         if text(ty, "view") != "primary" {
             continue;
@@ -91,15 +91,20 @@ pub fn convert(root: &Value) -> Result<(Value, String), String> {
         let name = text(&ty["documentation"], "name");
         match kind {
             "TKIND_ENUM" => {
-                enums.push(name.to_owned());
+                let mut members = Vec::new();
                 for var in ty["variables"].as_array().into_iter().flatten() {
                     let value = &var["union_value"]["value"];
                     let n = value["value"]
                         .as_i64()
                         .ok_or_else(|| format!("{name}: an enumeration member has no integer value"))?;
-                    let member = names(var).first().copied().unwrap_or("").to_owned();
-                    constants.push((name.to_owned(), member, n));
+                    let member = names(var)
+                        .first()
+                        .ok_or_else(|| format!("{name}: an enumeration member has no name"))?
+                        .to_string();
+                    constants.push((name.to_owned(), member.clone(), n));
+                    members.push(EnumMember { name: member, value: n });
                 }
+                enums.push(Enumeration { name: name.to_owned(), members });
             }
             "TKIND_COCLASS" => types.push(coclass(ty)),
             "TKIND_DISPATCH" | "TKIND_INTERFACE" => types.push(dispatch(&lib_name, ty)),
@@ -119,6 +124,7 @@ pub fn convert(root: &Value) -> Result<(Value, String), String> {
             "file_version": text(source, "file_version"),
         },
         "types": types,
+        "enums": enums,
     });
     let mut seen = BTreeSet::new();
     let mut table = String::from(
@@ -138,11 +144,48 @@ pub fn convert(root: &Value) -> Result<(Value, String), String> {
     }
     table.push_str("];\n\n// The enumeration type names (`Dim a As fmAction` holds a Long).\n");
     table.push_str("pub(crate) const MSFORMS_ENUM_NAMES: &[&str] = &[\n");
-    for name in enums {
-        table.push_str(&format!("    {name:?},\n"));
+    for enumeration in enums {
+        table.push_str(&format!("    {:?},\n", enumeration.name));
     }
     table.push_str("];\n");
     Ok((descriptor, table))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enumeration_members_are_emitted_in_the_library_descriptor() {
+        let root = json!({
+            "root_library_key": "excel",
+            "libraries": [{
+                "key": "excel",
+                "documentation": {"name": "Excel"},
+                "attributes": {"major_version": 1, "minor_version": 9},
+                "types": [{
+                    "view": "primary",
+                    "attributes": {"typekind_name": "TKIND_ENUM"},
+                    "documentation": {"name": "XlProbe"},
+                    "variables": [
+                        {"names": ["xlNegative"], "union_value": {"value": {"value": -4162}}},
+                        {"names": ["xlZero"], "union_value": {"value": {"value": 0}}},
+                        {"names": ["xlAlias"], "union_value": {"value": {"value": -4162}}}
+                    ]
+                }]
+            }]
+        });
+        let (descriptor, _) = convert(&root).unwrap();
+        assert_eq!(descriptor["types"], json!([]));
+        assert_eq!(descriptor["enums"], json!([{
+            "name": "XlProbe",
+            "members": [
+                {"name": "xlNegative", "value": -4162},
+                {"name": "xlZero", "value": 0},
+                {"name": "xlAlias", "value": -4162}
+            ]
+        }]));
+    }
 }
 
 fn coclass(ty: &Value) -> Value {

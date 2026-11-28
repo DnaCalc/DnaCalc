@@ -3852,6 +3852,70 @@ fn dc_piw0_10__q17_series_unique_ids_start_at_zero_for_add_chart2_and_only_go_up
     assert_eq!(unique_ids(&mut host.session.borrow_mut()), [3]);
 }
 
+/// Excel Q17: numeric and text Values arrays become numeric literals in the SERIES formula.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_11_2_chart_series_literals_survive_save_and_reopen() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "20"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(
+        &model,
+        &charts,
+        "Add",
+        InvokeKind::Method,
+        [200., 20., 300., 200.].map(AutoValue::R8).to_vec(),
+    ).unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source_by(&model, &chart, "A1:B3", Some(2));
+    let first_series = |model: &WorkbookAutomation, chart: &ObjectRef| {
+        obj(invoke_kind(model, chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap())
+    };
+    let series = first_series(&model, &chart);
+    let put = |member: &str, values| {
+        let array = AutoValue::Array(Box::new(calc_object_model::AutoArray::vector(-2, values)));
+        invoke_kind(&model, &series, member, InvokeKind::Put, vec![array]).unwrap();
+    };
+    put("Values", vec![AutoValue::I4(7), AutoValue::R8(8.)]);
+    assert_eq!(
+        text(&model, &series, "Formula"),
+        "=SERIES(Sheet1!$B$1,Sheet1!$A$2:$A$3,{7,8},1)"
+    );
+    put("Values", vec![AutoValue::text("a"), AutoValue::text("b")]);
+    assert_eq!(
+        text(&model, &series, "Formula"),
+        "=SERIES(Sheet1!$B$1,Sheet1!$A$2:$A$3,{0,0},1)"
+    );
+    put("XValues", vec![AutoValue::I4(11), AutoValue::I4(12)]);
+    assert_eq!(text(&model, &series, "Formula"), "=SERIES(Sheet1!$B$1,{11,12},{0,0},1)");
+    put("XValues", vec![AutoValue::text("North"), AutoValue::text("South")]);
+
+    let xml = saved_part(&mut host.session.borrow_mut(), "xl/charts/");
+    assert!(xml.contains("<c:strLit>"), "{xml}");
+    assert!(xml.contains("<c:numLit>"), "{xml}");
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let (_reopened, model) = setup_session(HostSession::open(
+        Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default(),
+    ).unwrap());
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let chart = obj(invoke(&model, &item(&model, &charts, 1), "Chart", vec![]).unwrap());
+    let series = first_series(&model, &chart);
+    let get = |member| {
+        let AutoValue::Array(values) = invoke(&model, &series, member, vec![]).unwrap() else {
+            panic!("expected a series array");
+        };
+        assert_eq!(values.shape, calc_object_model::AutoArrayShape::Vector { lower: 1 });
+        values.values
+    };
+    assert!(matches!(get("Values").as_slice(), [AutoValue::R8(0.), AutoValue::R8(0.)]));
+    assert_eq!(
+        get("XValues").iter().map(AutoValue::as_text).collect::<Vec<_>>(),
+        [Some("North".into()), Some("South".into())]
+    );
+}
+
 /// The `c16:uniqueId` counters of every saved chart part, per part in name order.
 fn charts_unique_ids(session: &mut HostSession) -> Vec<Vec<u32>> {
     let mut bytes = Vec::new();
