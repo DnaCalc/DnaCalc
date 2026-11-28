@@ -1,5 +1,6 @@
 //! Loading a type library and turning the listed types into the descriptor.
 
+use super::{EnumMember, Enumeration};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -7,7 +8,8 @@ use windows::Win32::Storage::FileSystem::{
     GetFileVersionInfoSizeW, GetFileVersionInfoW, VS_FIXEDFILEINFO, VerQueryValueW,
 };
 use windows::Win32::System::Com::{
-    COINIT_APARTMENTTHREADED, CoInitializeEx, ITypeInfo, ITypeLib, TYPEATTR, TYPEDESC,
+    COINIT_APARTMENTTHREADED, CoInitializeEx, ITypeInfo, ITypeLib, TKIND_ENUM, TYPEATTR, TYPEDESC,
+    VAR_CONST, VARDESC,
 };
 use windows::Win32::System::Ole::{
     LoadRegTypeLib, LoadTypeLibEx, QueryPathOfRegTypeLib, REGKIND_NONE, VarBstrFromDec,
@@ -22,6 +24,8 @@ const PTR: u32 = 8;
 struct Descriptor {
     library: Library,
     types: Vec<TypeEntry>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    enums: Vec<Enumeration>,
 }
 
 #[derive(Serialize)]
@@ -216,6 +220,7 @@ fn execute(args: &Args) -> Result<i32, String> {
     let lib_name = lib_doc_name(&lib, -1)?;
     let count = unsafe { lib.GetTypeInfoCount() };
     let mut index = HashMap::new();
+    let mut enums = Vec::new();
     for i in 0..count {
         let name = lib_doc_name(&lib, i as i32)?;
         if args.list {
@@ -227,6 +232,14 @@ fn execute(args: &Args) -> Result<i32, String> {
                 ""
             };
             println!("{}{}\t{}", kind_name(a.typekind.0), dual, name);
+        } else {
+            let kind = unsafe { lib.GetTypeInfoType(i) }
+                .map_err(|e| format!("GetTypeInfoType({name}): {e}"))?;
+            if kind == TKIND_ENUM {
+                let ti = unsafe { lib.GetTypeInfo(i) }
+                    .map_err(|e| format!("GetTypeInfo({name}): {e}"))?;
+                enums.push(read_enum(&ti, &name)?);
+            }
         }
         index.insert(name, i);
     }
@@ -268,6 +281,7 @@ fn execute(args: &Args) -> Result<i32, String> {
             file_version,
         },
         types,
+        enums,
     };
     let out_path = args.out.as_deref().unwrap_or_default();
     let mut buf = Vec::new();
@@ -379,6 +393,36 @@ fn type_attr(ti: &ITypeInfo) -> Result<TYPEATTR, String> {
         ti.ReleaseTypeAttr(p);
         Ok(a)
     }
+}
+
+fn read_enum(ti: &ITypeInfo, name: &str) -> Result<Enumeration, String> {
+    let count = type_attr(ti)?.cVars;
+    let mut members = Vec::with_capacity(count.into());
+    for index in 0..u32::from(count) {
+        let desc = unsafe { ti.GetVarDesc(index) }
+            .map_err(|e| format!("{name}: GetVarDesc({index}): {e}"))?;
+        // GetVarDesc holds the constant VARIANT through ReleaseVarDesc.
+        let result = unsafe { read_enum_member(ti, &*desc) };
+        unsafe { ti.ReleaseVarDesc(desc) };
+        members.push(result.map_err(|e| format!("{name} member {index}: {e}"))?);
+    }
+    Ok(Enumeration { name: name.to_owned(), members })
+}
+
+unsafe fn read_enum_member(ti: &ITypeInfo, desc: &VARDESC) -> Result<EnumMember, String> {
+    if desc.varkind != VAR_CONST {
+        return Err("expected VAR_CONST".into());
+    }
+    let value = unsafe { desc.Anonymous.lpvarValue.as_ref() }
+        .ok_or("constant has no value")?;
+    let value = unsafe { variant_json(value) }
+        .as_i64()
+        .ok_or("constant is not a signed 64-bit integer")?;
+    let mut name = BSTR::default();
+    let mut context = 0;
+    unsafe { ti.GetDocumentation(desc.memid, Some(&mut name), None, &mut context, None) }
+        .map_err(|e| format!("ITypeInfo::GetDocumentation: {e}"))?;
+    Ok(EnumMember { name: name.to_string(), value })
 }
 
 fn kind_name(k: i32) -> &'static str {

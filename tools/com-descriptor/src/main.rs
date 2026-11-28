@@ -2,7 +2,7 @@
 //!
 //! The descriptor is the source of Excel's object-model interface facts (IIDs, DISPIDs, vtable
 //! slots and exact parameter lists) from which DnaCalc generates its Rust COM projection. It
-//! carries names and ABI facts only: no documentation strings, help contexts or help files.
+//! carries names, ABI facts and every enumeration constant in the library.
 //!
 //! ```text
 //! com-descriptor (--library <LIBID>,<major.minor> | --file <path>) --interfaces <list> --out <json>
@@ -13,6 +13,7 @@
 //! LoadTypeLibEx(REGKIND_NONE). Nothing is ever registered. The interface list is plain text, one
 //! type name per line, `#` starting a comment. A listed name the library does not define is
 //! reported on stderr and the run exits 1 after writing the descriptor of the names it found.
+//! Enumerations are included independently of the interface list.
 //!
 //! `--facts <facts.json> --out <json> [--constants-out <rs>]` writes a descriptor from a recorded
 //! type-library fact file instead (any platform; see `facts.rs`).
@@ -25,6 +26,18 @@ compile_error!("com-descriptor is native-only and must not be built for wasm32")
 mod facts;
 #[cfg(windows)]
 mod typelib;
+
+#[derive(serde::Serialize)]
+struct Enumeration {
+    name: String,
+    members: Vec<EnumMember>,
+}
+
+#[derive(serde::Serialize)]
+struct EnumMember {
+    name: String,
+    value: i64,
+}
 
 #[cfg(windows)]
 fn main() {
