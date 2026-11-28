@@ -1308,6 +1308,96 @@ fn contributions_scan_every_position_and_use_the_formula_kernels_matches() {
     assert_eq!(answer.stamp.calc, committed.calc);
 }
 
+fn contribution_fixture() -> (SkinHost, Sheet) {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let changes = [
+        (key(1, 1), "5"),
+        (key(2, 1), "8"),
+        (key(3, 1), "5"),
+        (key(4, 1), "7"),
+        (key(1, 2), "10"),
+        (key(2, 2), "20"),
+        (key(3, 2), "30"),
+        (key(4, 2), "40"),
+        (key(1, 4), "=FILTER(B1:B4,A1:A4=5)"),
+        (key(1, 5), "=XLOOKUP(5,A1:A4,B1:B4,,0,-1)"),
+        (key(6, 1), "5"),
+        (key(6, 2), "7"),
+        (key(6, 3), "5"),
+        (key(6, 4), "8"),
+        (key(7, 1), "10"),
+        (key(7, 2), "20"),
+        (key(7, 3), "30"),
+        (key(7, 4), "40"),
+        (key(8, 1), "=FILTER(A7:D7,A6:D6=5)"),
+    ];
+    port.commit(batch(
+        1,
+        changes
+            .into_iter()
+            .map(|(at, text)| enter(at, text))
+            .collect(),
+    ))
+    .unwrap();
+    while host.advance() {}
+
+    (host, sheet)
+}
+
+fn contribution_at(host: &SkinHost, at: Key) -> Contributions {
+    let query = query::ContributionsAt { at };
+    let reply =
+        query::ContributionsAt::decode(port(host).ask(query.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body, .. } = reply.body else {
+        panic!("a kernel contribution report")
+    };
+    body
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn filter_contributions_report_the_kernel_mask() {
+    let (host, sheet) = contribution_fixture();
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let filter = contribution_at(&host, key(1, 4));
+    assert_eq!(filter.function, "FILTER");
+    assert_eq!(filter.selected, None);
+    assert_eq!((filter.inspected, filter.matching_count), (4, 2));
+    assert_eq!(
+        filter.matching,
+        [Area(key(1, 2), key(1, 2)), Area(key(3, 2), key(3, 2))]
+    );
+    let column_filter = contribution_at(&host, key(8, 1));
+    assert_eq!(column_filter.source, Area(key(7, 1), key(7, 4)));
+    assert_eq!(
+        column_filter.matching,
+        [Area(key(7, 1), key(7, 1)), Area(key(7, 3), key(7, 3))]
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lookup_contributions_distinguish_matches_and_the_selected_position() {
+    let (host, sheet) = contribution_fixture();
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let lookup = contribution_at(&host, key(1, 5));
+    assert_eq!(lookup.function, "XLOOKUP");
+    assert_eq!(lookup.selected, Some(Area(key(3, 2), key(3, 2))));
+    assert_eq!((lookup.inspected, lookup.matching_count), (4, 2));
+    assert_eq!(
+        lookup.matching,
+        [Area(key(1, 2), key(1, 2)), Area(key(3, 2), key(3, 2))]
+    );
+    assert_eq!(
+        lookup.result,
+        RawValue::Number {
+            bits: 30f64.to_bits()
+        }
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn anchored_note_uses_one_undo_entry_and_round_trips_as_presentation() {

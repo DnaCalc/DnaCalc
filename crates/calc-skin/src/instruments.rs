@@ -260,6 +260,9 @@ pub struct Contributions {
     pub matching_count: u64,
     /// Disjoint row or column spans of positions that pass every criterion.
     pub matching: Vec<Area>,
+    /// Position chosen by a lookup when the calculation returned a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected: Option<Area>,
     pub undetermined: u64,
     pub criteria: Vec<ContributionCriterion>,
     /// The result from the same detached inspection, over the host's current values.
@@ -269,6 +272,8 @@ pub struct Contributions {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContributionCriterion {
     pub range: Area,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub matching: u64,
     /// Disjoint spans of positions whose only failed criterion was this one.
     pub failing_only_this: Vec<Area>,
