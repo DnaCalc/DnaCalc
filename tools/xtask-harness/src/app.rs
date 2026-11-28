@@ -140,8 +140,8 @@ pub struct App {
     /// The package and binary of the browser entry.
     pub package: &'static str,
     pub entry: &'static str,
-    /// Optional separate worker package and binary, built into the same asset folder.
-    pub worker: Option<(&'static str, &'static str)>,
+    /// Worker packages and binaries built into the same asset folder.
+    pub workers: &'static [(&'static str, &'static str)],
     /// The page, relative to the workspace root.
     pub page: &'static str,
     /// The wasm shadow stack of the page's module, in bytes (see [`PAGE_STACK_BYTES`]).
@@ -187,7 +187,7 @@ pub static APPS: [App; 3] = [
         label: "ONECALC",
         package: "dna-onecalc",
         entry: "dna-onecalc-web",
-        worker: None,
+        workers: &[],
         page: "apps/dna-onecalc/web/index.html",
         stack_bytes: PAGE_STACK_BYTES,
         scripts: &[],
@@ -210,7 +210,7 @@ pub static APPS: [App; 3] = [
         label: "DNACALC",
         package: "dna-calc",
         entry: "dna-calc-web",
-        worker: Some(("dna-calc-worker", "dna-calc-worker-web")),
+        workers: &[("dna-calc-worker", "dna-calc-worker-web")],
         page: "apps/dna-calc/web/index.html",
         stack_bytes: PAGE_STACK_BYTES,
         scripts: &["apps/dna-calc/web/worker.js"],
@@ -264,10 +264,16 @@ pub static APPS: [App; 3] = [
         label: "CLASSIC PREVIEW",
         package: "dna-calc-preview",
         entry: "dna-calc-preview-web",
-        worker: Some(("dna-calc-preview-worker", "dna-calc-preview-worker-web")),
+        workers: &[
+            ("dna-calc-preview-worker", "dna-calc-preview-worker-web"),
+            ("dna-ext-sdk", "dna-ext-worker-web"),
+        ],
         page: "apps/dna-calc-preview/web/index.html",
         stack_bytes: PAGE_STACK_BYTES,
-        scripts: &["apps/dna-calc-preview/web/worker.js"],
+        scripts: &[
+            "apps/dna-calc-preview/web/worker.js",
+            "apps/dna-calc-preview/web/extension-worker.js",
+        ],
         files: &[],
         styles: &["apps/dna-kit/web/formula.css", "apps/dna-kit/web/page.css"],
         default_out: "target/classic-preview-bundle",
@@ -621,7 +627,7 @@ pub(crate) fn bind_web_entry(
 /// Builds the bundle into `out` and returns its files with their sizes.
 pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
     let bindgen = web_bindgen()?;
-    for (package, entry) in std::iter::once((app.package, app.entry)).chain(app.worker) {
+    for (package, entry) in std::iter::once((app.package, app.entry)).chain(app.workers.iter().copied()) {
         println!(
             "{} building {} for {WASM_TARGET} (profile {PROFILE})",
             app.label, entry
@@ -685,7 +691,7 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
             .filter_map(|p| Path::new(p).file_name())
             .map(|n| n.to_string_lossy().into_owned()),
     );
-    if let Some((_, entry)) = app.worker {
+    for (_, entry) in app.workers {
         names.extend([format!("{entry}.js"), format!("{entry}_bg.wasm")]);
     }
     for name in names {

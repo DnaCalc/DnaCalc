@@ -828,7 +828,7 @@ fn notices(ws: &Workspace, apps: &[&App]) -> Result<String, String> {
         ])
         .current_dir(&ws.root);
     for app in apps {
-        for root in std::iter::once(app.package).chain(app.worker.map(|(package, _)| package)) {
+        for root in std::iter::once(app.package).chain(app.workers.iter().map(|&(package, _)| package)) {
             command.args(["--package", root]);
         }
     }

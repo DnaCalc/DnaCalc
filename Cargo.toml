@@ -32,6 +32,7 @@ members = [
     "apps/dna-formula-ui",
     "apps/dna-skin-runtime",
     "apps/dna-kit",
+    "apps/dna-ext-sdk",
     "apps/dna-shell",
     "apps/dna-grid",
     "apps/dna-view-classic",
