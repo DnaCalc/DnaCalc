@@ -1049,9 +1049,20 @@ mod tests {
                     .into(),
             })],
         };
-        let preview = port.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+        let preview = port.preview(&edit, PreviewDepth::WithEffects {
+            budget: Budget { cells: 800_000, nodes: 800_000, edges: 200_000, millis: 8000, ..budget },
+        }).unwrap();
+        assert!(preview.refusal.is_none(), "{:?}", preview.refusal);
         assert_eq!(preview.writes.len(), 1);
         assert_eq!(preview.writes[0].at, formula);
+        let effect = preview.effects.iter().find(|effect| effect.at == formula).unwrap();
+        eprintln!(
+            "Sales repair preview {} → {} across {} staged writes",
+            effect.before.value.display(), effect.after.value.display(), preview.writes.len(),
+        );
+        assert_eq!(effect.before.value, RawValue::Number { bits: 128_450.0f64.to_bits() });
+        assert_eq!(effect.after.value, RawValue::Number { bits: 124_250.0f64.to_bits() });
+        assert_eq!(read().result, effect.before.value);
         port.commit(edit).unwrap();
         while host.advance() {}
 

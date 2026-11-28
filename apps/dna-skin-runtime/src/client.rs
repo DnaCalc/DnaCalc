@@ -116,6 +116,7 @@ enum Submission {
     Draft,
     Direct,
     Review,
+    ReviewWithEffects(Budget),
 }
 
 enum Pending {
@@ -528,6 +529,11 @@ impl Client {
         self.submit_batch(batch, Submission::Review)
     }
 
+    /// Review the staged writes and the effects calculated within the supplied budget.
+    pub fn submit_for_review_with_effects(&mut self, batch: Batch, budget: Budget) -> Changes {
+        self.submit_batch(batch, Submission::ReviewWithEffects(budget))
+    }
+
     fn submit_batch(&mut self, batch: Batch, submission: Submission) -> Changes {
         if !matches!(self.seam(), Seam::Idle) {
             return self.say("Finish the change in progress first.");
@@ -556,7 +562,10 @@ impl Client {
         self.send(
             WorkbookRequest::Preview {
                 batch: batch.clone(),
-                depth: PreviewDepth::WritesOnly,
+                depth: match submission {
+                    Submission::ReviewWithEffects(budget) => PreviewDepth::WithEffects { budget },
+                    _ => PreviewDepth::WritesOnly,
+                },
             },
             None,
             Pending::Preview,
@@ -784,19 +793,32 @@ impl Client {
             return Changes::default();
         };
         let refusal = match result {
-            Ok(WorkbookReply::Preview(preview)) => match preview.refusal.clone() {
-                Some(reason) => reason,
-                None if submission != Submission::Review && preview.warnings.is_empty() => {
-                    return self.commit(batch, submission);
+            Ok(WorkbookReply::Preview(mut preview)) => {
+                if matches!(submission, Submission::ReviewWithEffects(_))
+                    && preview.kind().is_some()
+                    && let Some(refusal) = preview.refusal.take()
+                {
+                    preview.warnings.push(format!(
+                        "Calculation effects unavailable · {}",
+                        refusal_text(refusal),
+                    ));
                 }
-                None => {
-                    self.seam = Some((Seam::Review(preview), batch, submission));
-                    return Changes {
-                        seam: true,
-                        ..Changes::default()
-                    };
+                match preview.refusal.take() {
+                    Some(reason) => reason,
+                    None if matches!(submission, Submission::Draft | Submission::Direct)
+                        && preview.warnings.is_empty() =>
+                    {
+                        return self.commit(batch, submission);
+                    }
+                    None => {
+                        self.seam = Some((Seam::Review(preview), batch, submission));
+                        return Changes {
+                            seam: true,
+                            ..Changes::default()
+                        };
+                    }
                 }
-            },
+            }
             Ok(_) => Refusal::Transport("Expected a preview reply".into()),
             Err(reason) => reason,
         };

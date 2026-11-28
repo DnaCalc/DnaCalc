@@ -574,6 +574,10 @@ impl Session {
         self.update(|client| client.submit_for_review(batch));
     }
 
+    pub fn submit_for_review_with_effects(self, batch: Batch, budget: Budget) {
+        self.update(|client| client.submit_for_review_with_effects(batch, budget));
+    }
+
     pub fn apply_review(self) {
         self.update(Client::apply_review);
     }

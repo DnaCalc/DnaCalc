@@ -54,17 +54,41 @@ fn a1(at: Key) -> String {
     format!("{}{}", address::column_letters(at.3), at.2)
 }
 
+fn workbook_address(session: Session, at: Key) -> String {
+    session.summary()
+        .and_then(|summary| {
+            summary.sheets.into_iter().find(|sheet| sheet.sheet == Sheet(at.0, at.1))
+        })
+        .map_or_else(
+            || a1(at),
+            |sheet| format!("{}!{}", address::quoted_sheet(&sheet.name), a1(at)),
+        )
+}
+
+fn effect_line(session: Session, effect: calc_skin::ValueEffect) -> impl IntoView {
+    let delta = match (&effect.before.value, &effect.after.value) {
+        (calc_skin::RawValue::Number { bits: before }, calc_skin::RawValue::Number { bits: after }) => {
+            let delta = f64::from_bits(*after) - f64::from_bits(*before);
+            delta.is_finite().then(|| format!(" · change {delta:+}"))
+        }
+        _ => None,
+    };
+    view! {
+        <span class="dna-book-review-write" data-dnacalc="preview-effect">
+            "Calculated preview " <strong>{workbook_address(session, effect.at)}</strong>
+            <code>{effect.before.value.display()}</code> " → " <code>{effect.after.value.display()}</code>
+            {delta}
+        </span>
+    }
+}
+
 fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
     match diff {
-        ModelPropertyDiff::CellMoved { from, to } => {
-            let summary = session.summary();
-            let label = |at: Key| {
-                summary.as_ref().and_then(|book| book.sheets.iter().find(|sheet| {
-                    sheet.sheet == Sheet(at.0, at.1)
-                })).map_or_else(|| a1(at), |sheet| format!("{}!{}", address::quoted_sheet(&sheet.name), a1(at)))
-            };
-            format!("Move {} to {}", label(from), label(to))
-        }
+        ModelPropertyDiff::CellMoved { from, to } => format!(
+            "Move {} to {}",
+            workbook_address(session, from),
+            workbook_address(session, to),
+        ),
         ModelPropertyDiff::DefinedName { before, after, .. } => {
             let label = |name: Option<calc_skin::DefinedNameText>| {
                 name.map_or_else(|| "—".into(), |entry| format!("{} {}", entry.name, entry.formula))
@@ -748,6 +772,7 @@ pub fn workbook(
                             {preview.properties.into_iter().map(|property| view! {
                                 <span class="dna-book-review-write">{model_property_text(session, property)}</span>
                             }).collect_view()}
+                            {preview.effects.into_iter().map(|effect| effect_line(session, effect)).collect_view()}
                             {preview.warnings.join(" · ")}
                             {command_button(session, "edit.apply-review", "Apply")}
                             {command_button(session, "edit.cancel", "Cancel")}

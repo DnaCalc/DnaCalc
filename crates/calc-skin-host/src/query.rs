@@ -425,7 +425,7 @@ impl QueryWork {
         )
     }
 
-    fn scan(limit: Budget, alternative: &'static str) -> Self {
+    pub(crate) fn scan(limit: Budget, alternative: &'static str) -> Self {
         Self {
             limit: Budget {
                 bytes: limit
