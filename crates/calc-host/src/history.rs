@@ -520,6 +520,11 @@ impl History {
         (entries(&self.undo), entries(&self.redo))
     }
 
+    pub(crate) fn skin_entry_for_restore(&self, redo: bool) -> Option<&calc_skin::HistoryEntry> {
+        let steps = if redo { &self.redo } else { &self.undo };
+        steps.last()?.skin.as_ref()
+    }
+
     pub(crate) fn undo_depth(&self) -> usize {
         self.undo.len()
     }

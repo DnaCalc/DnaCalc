@@ -502,6 +502,7 @@ impl Studio {
                         skin::review_theme(&source).ok().map(contrast_review)
                     }}
                     {command_button(session, TRY, "Try on")}
+                    {command_button(session, "proposal.open", "Agent trail")}
                     {move || self.personal.with(Option::is_some).then(|| {
                         command_button(session, CLEAR_PROFILE, "Clear my saved skin")
                     })}
