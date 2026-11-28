@@ -163,7 +163,10 @@ pub use actions::{
     ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
     prepare_column_visibility, prepare_sort_rows, stored_axis_size,
 };
-pub use paste::{PastePlan, PasteSource, matrix_shape, prepare_paste, prepare_paste_oriented};
+pub use paste::{
+    PasteArithmetic, PasteCellOptions, PasteOptionsRefusal, PastePlan, PasteSource, matrix_shape,
+    prepare_paste, prepare_paste_oriented,
+};
 pub mod conditional;
 mod copy;
 mod entry;

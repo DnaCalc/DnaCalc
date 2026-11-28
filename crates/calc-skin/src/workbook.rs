@@ -579,7 +579,14 @@ pub enum PasteContents {
     Values,
     Formulas,
     AllTransposed,
-    Special { part: PastePart, transpose: bool },
+    Special {
+        part: PastePart,
+        transpose: bool,
+        #[serde(default)]
+        skip_blanks: bool,
+        #[serde(default)]
+        arithmetic: Option<PasteArithmetic>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -596,6 +603,14 @@ pub enum PastePart {
     FormulasAndNumberFormats,
     ValuesAndNumberFormats,
     AllMergingConditionalFormats,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PasteArithmetic {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
