@@ -1,6 +1,6 @@
 //! The member dispatch every projection calls, and the registry profiles fill.
 
-use crate::descriptor::{Descriptor, InterfaceId, InvokeKind, Member};
+use crate::descriptor::{Descriptor, InterfaceId, InvokeKind, Member, Need};
 use crate::object::ObjectRef;
 use crate::value::AutoValue;
 use std::collections::HashMap;
@@ -64,6 +64,15 @@ pub enum AutoError {
         /// Error number reported to the caller.
         number: i32,
     },
+    /// The host profile cannot supply a facility required by this call.
+    NotAvailableHere {
+        /// The first unavailable facility.
+        capability: Need,
+        /// An alternative host when one is known.
+        route: Option<&'static str>,
+        /// The descriptor member that requested the facility.
+        subject: String,
+    },
     /// A COM status a projection passes through unchanged (E_INVALIDARG, DISP_E_TYPEMISMATCH, ...).
     Status(i32),
     /// The object's workbook or projection is gone (CO_E_OBJNOTCONNECTED on COM).
@@ -89,6 +98,9 @@ impl AutoError {
     pub fn number(&self) -> i32 {
         match self {
             AutoError::NotModelled { .. } => 1004,
+            // Generic Automation failure until the member's unavailable-facility case is
+            // measured in Excel (dc-2r0xe).
+            AutoError::NotAvailableHere { .. } => 1004,
             AutoError::Excel { number, .. } | AutoError::PolicyDenied { number, .. } => *number,
             AutoError::Status(status) => *status,
             AutoError::Disconnected => 0x8004_0201u32 as i32,
@@ -107,6 +119,13 @@ impl AutoError {
                 ..
             } => {
                 format!("Execution policy denied {capability} for {subject}")
+            }
+            AutoError::NotAvailableHere { capability, route, subject } => {
+                let capability = capability.key();
+                match route {
+                    Some(route) => format!("{capability} is not available here for {subject}. Use {route}."),
+                    None => format!("{capability} is not available here for {subject}."),
+                }
             }
             AutoError::Status(status) => format!("COM status {status:#x}"),
             AutoError::Disconnected => "the object is no longer connected".into(),

@@ -5,7 +5,7 @@
 //! file). Names and ABI facts only: no documentation strings. To advertise another interface,
 //! add its name to `descriptor/<library>.interfaces.txt` and regenerate; never hand-edit the JSON.
 
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -162,6 +162,58 @@ impl Capability {
     }
 }
 
+macro_rules! needs {
+    ($($variant:ident => $key:literal),+ $(,)?) => {
+        /// An Excel facility required by an object-model or C API member.
+        #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+        pub enum Need {
+            $(#[doc = concat!("Descriptor need `", $key, "`.")]
+              #[serde(rename = $key)]
+              $variant),+
+        }
+
+        impl Need {
+            /// Stable spelling used in descriptors and portability reports.
+            pub const fn key(self) -> &'static str {
+                match self { $(Self::$variant => $key),+ }
+            }
+        }
+    };
+}
+
+needs! {
+    FileTree => "fs",
+    PersonalDisk => "fs.personal",
+    WindowsPath => "path.windows",
+    FileAttributes => "fs.attributes",
+    Environment => "env",
+    Settings => "settings",
+    Process => "process",
+    Dll => "native.code:dll",
+    Xll => "native.code:xll",
+    Dylib => "native.code:dylib",
+    OsCom => "com.os",
+    PortableClass => "com.portable",
+    Network => "network",
+    Dialog => "ui.dialog",
+    Forms => "ui.forms",
+    FileDialog => "ui.filedialog",
+    Clipboard => "clipboard",
+    InternalClipboard => "clipboard.internal",
+    Print => "print",
+    OpenExternal => "open.external",
+    Block => "block",
+    Keys => "ui.keys",
+    Codegen => "codegen",
+    Clock => "clock",
+    Identity => "identity",
+    Locale => "locale",
+    Codepage => "codepage",
+    Status => "ui.status",
+    CommandBars => "ui.commandbars",
+    EventLoop => "event-loop",
+}
+
 #[derive(Clone, Debug, Deserialize)]
 /// Metadata for one method or property invocation form.
 pub struct Member {
@@ -174,6 +226,9 @@ pub struct Member {
     /// Outside capabilities from the committed reach overlay.
     #[serde(skip)]
     pub reach: Vec<Capability>,
+    /// Host facilities from the committed needs overlay.
+    #[serde(skip)]
+    pub needs: Vec<Need>,
     /// vtable slot index (x64 `oVft / 8`); `None` for a dispinterface member.
     #[serde(default)]
     pub slot: Option<u16>,
@@ -398,6 +453,8 @@ pub struct Descriptor {
     /// `Font`, `Page`, `Pages` beside Excel's), which `by_name` resolves to the first library.
     by_library_name: HashMap<(usize, String), InterfaceId>,
     xlc_reach: HashMap<String, Vec<Capability>>,
+    xlc_needs: HashMap<String, Vec<Need>>,
+    xlf_needs: HashMap<String, Vec<Need>>,
 }
 
 // Raw bytes, not include_str!: the descriptor is data, and os-imports does not follow include_str! into a file it cannot scan.
@@ -408,12 +465,15 @@ const ACCESSIBILITY: &[u8] = include_bytes!("../descriptor/accessibility.json");
 const MSFORMS: &[u8] = include_bytes!("../descriptor/msforms.json");
 
 const REACH: &[u8] = include_bytes!("../descriptor/reach.json");
+const NEEDS: &[u8] = include_bytes!("../descriptor/needs.json");
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ReachOverlay {
-    members: HashMap<String, Vec<Capability>>,
-    xlc: HashMap<String, Vec<Capability>>,
+#[serde(deny_unknown_fields, bound(deserialize = "T: Deserialize<'de>"))]
+struct Overlay<T> {
+    members: HashMap<String, Vec<T>>,
+    xlc: HashMap<String, Vec<T>>,
+    #[serde(default)]
+    xlf: HashMap<String, Vec<T>>,
 }
 
 impl Descriptor {
@@ -432,7 +492,13 @@ impl Descriptor {
                 text(MSFORMS),
             ])
             .expect("committed object-model descriptor is valid JSON");
-            descriptor.load_reach(REACH).expect("committed reach overlay matches the descriptor");
+            let reach = descriptor.load_overlay(REACH, "reach", |member, values| member.reach = values)
+                .expect("committed reach overlay matches the descriptor");
+            descriptor.xlc_reach = reach.xlc;
+            let needs = descriptor.load_overlay(NEEDS, "needs", |member, values| member.needs = values)
+                .expect("committed needs overlay matches the descriptor");
+            descriptor.xlc_needs = needs.xlc;
+            descriptor.xlf_needs = needs.xlf;
             descriptor
         })
     }
@@ -449,6 +515,8 @@ impl Descriptor {
             by_guid: HashMap::new(),
             by_library_name: HashMap::new(),
             xlc_reach: HashMap::new(),
+            xlc_needs: HashMap::new(),
+            xlf_needs: HashMap::new(),
         };
         for text in files {
             let file: LibraryFile = serde_json::from_str(text).map_err(|why| why.to_string())?;
@@ -471,28 +539,45 @@ impl Descriptor {
         Ok(descriptor)
     }
 
-    fn load_reach(&mut self, json: &[u8]) -> Result<(), String> {
-        let mut overlay: ReachOverlay = serde_json::from_slice(json).map_err(|why| why.to_string())?;
+    fn load_overlay<T: DeserializeOwned>(
+        &mut self,
+        json: &[u8],
+        name: &str,
+        assign: impl Fn(&mut Member, Vec<T>),
+    ) -> Result<Overlay<T>, String> {
+        let mut overlay: Overlay<T> = serde_json::from_slice(json).map_err(|why| why.to_string())?;
         for ty in &mut self.types {
             for member in &mut ty.members {
                 let key = format!("{}.{} ({:?})", ty.name, member.name, member.invoke);
-                if let Some(reach) = overlay.members.remove(&key) {
-                    member.reach = reach;
+                if let Some(values) = overlay.members.remove(&key) {
+                    assign(member, values);
                 }
             }
         }
         if !overlay.members.is_empty() {
-            return Err(format!("unknown descriptor members in reach overlay: {:?}", overlay.members.keys()));
+            return Err(format!("unknown descriptor members in {name} overlay: {:?}", overlay.members.keys()));
         }
-        self.xlc_reach = overlay.xlc.into_iter()
-            .map(|(name, reach)| (name.to_ascii_lowercase(), reach))
-            .collect();
-        Ok(())
+        let fold_names = |entries: HashMap<String, Vec<T>>| {
+            entries.into_iter().map(|(key, values)| (key.to_ascii_lowercase(), values)).collect()
+        };
+        overlay.xlc = fold_names(overlay.xlc);
+        overlay.xlf = fold_names(overlay.xlf);
+        Ok(overlay)
     }
 
     /// Capabilities for commands that have no object-model member to inherit from.
     pub fn xlc_reach(&self, name: &str) -> &[Capability] {
         self.xlc_reach.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
+    }
+
+    /// Required facilities for a C API command.
+    pub fn xlc_needs(&self, name: &str) -> &[Need] {
+        self.xlc_needs.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
+    }
+
+    /// Required facilities for a C API function.
+    pub fn xlf_needs(&self, name: &str) -> &[Need] {
+        self.xlf_needs.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
     }
 
     /// A type by name. A library-qualified name (`Office.CommandBars`) is looked up by its

@@ -260,6 +260,10 @@ fn map_auto_error(model: &dyn ObjectModel, error: AutoError) -> api::TypedFault 
             crate::events::record_object_denial(capability, subject.clone());
             fault(*number, error.description())
         }
+        AutoError::NotAvailableHere { .. } => {
+            model.record_refusal(&error);
+            fault(error.number(), error.description())
+        }
         AutoError::Status(hr) => {
             let number = match *hr {
                 DISP_E_TYPEMISMATCH => 13,
