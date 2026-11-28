@@ -541,6 +541,7 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
         return fail(WorksheetErrorCode::Value);
     }
     let mut keys = Vec::with_capacity(indices.len());
+    let mut used_orders = HashMap::new();
     for (n, index) in indices.iter().enumerate() {
         let at = match sort_integer(site, Some(index))? {
             None => 0,
@@ -548,6 +549,13 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
             Some(_) => return fail(WorksheetErrorCode::Value),
         };
         let down = descending(site, orders.get(if orders.len() == 1 { 0 } else { n }))?;
+        // Excel rejects conflicting directions for a repeated index when the key list
+        // exceeds the axis width (dc-j9k.232).
+        if indices.len() > width
+            && used_orders.insert(at, down).is_some_and(|previous| previous != down)
+        {
+            return fail(WorksheetErrorCode::Value);
+        }
         let key: Vec<CalcValue> = (0..len)
             .map(|i| {
                 let (r, c) = if by_col { (at, i) } else { (i, at) };

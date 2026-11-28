@@ -15,6 +15,19 @@ mod witness_call;
 use crate::x87_cpu;
 use calc_verdict::WitnessSet;
 
+/// Touchstone Excel 16.0.20625.20108, pz1 sortby-controls control-8.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_rejects_conflicting_orders_for_the_same_index() {
+    let args = serde_json::json!([
+        [["0x403e000000000000"], ["0x4024000000000000"], ["0x4034000000000000"]],
+        [["0x3ff0000000000000"], ["0x3ff0000000000000"]],
+        [["0xbff0000000000000"], ["0x3ff0000000000000"]],
+    ]);
+    let actual = witness_call::calculate("SORT", args.as_array().unwrap(), None, None, true);
+    assert_eq!(actual, "error:Value");
+}
+
 /// Touchstone Excel 16.0.20625.20108, pz1 FILTERXML character references.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
