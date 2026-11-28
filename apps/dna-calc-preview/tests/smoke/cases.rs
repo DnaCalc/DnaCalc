@@ -1178,6 +1178,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         actions: &[
             Action::WriteCast("Budget"),
             Action::UploadDownloadTo("Budget.xlsx", "open-file"),
+            Action::DiscardReplacement,
             Action::Wait(Check::Text("[class~='dna-book-title']", "Budget.xlsx")),
             Action::Click("[data-command='view.notebook']"),
             Action::Click("[data-command='notebook.new-function']"),
@@ -1200,6 +1201,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         actions: &[
             Action::WriteCast("SalesBlocked"),
             Action::UploadDownloadTo("SalesBlocked.xlsx", "open-file"),
+            Action::DiscardReplacement,
             Action::Wait(Check::Text("[class~='dna-book-title']", "SalesBlocked.xlsx")),
             Action::Click("[data-command='view.notebook']"),
             Action::WaitWorkbook(Check::TextContains("[data-notebook-output-name='scopeTotal'] [data-notebook-output]", "4200")),
