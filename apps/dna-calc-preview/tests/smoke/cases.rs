@@ -1833,7 +1833,11 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
                 r#"(() => {
                     const first = getComputedStyle(document.querySelector('[data-cell=B2]'));
                     const last = getComputedStyle(document.querySelector('[data-cell=C3]'));
-                    return first.borderTopStyle === 'solid' && first.borderLeftStyle === 'solid'
+                    const above = getComputedStyle(document.querySelector('[data-cell=B1]'));
+                    const left = getComputedStyle(document.querySelector('[data-cell=A2]'));
+                    return above.borderBottomColor !== 'rgba(0, 0, 0, 0)'
+                        && left.borderRightColor !== 'rgba(0, 0, 0, 0)'
+                        && first.borderTopStyle === 'none' && first.borderLeftStyle === 'none'
                         && first.borderRightColor !== 'rgba(0, 0, 0, 0)'
                         && first.borderBottomColor !== 'rgba(0, 0, 0, 0)'
                         && last.borderRightColor !== 'rgba(0, 0, 0, 0)'
@@ -1847,7 +1851,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Attr("[data-cell=B2]", "data-provenance", "calculated"),
             Check::Js(
                 "one Undo removed the authored borders",
-                r#"getComputedStyle(document.querySelector('[data-cell=B2]')).borderTopStyle === 'none'
+                r#"getComputedStyle(document.querySelector('[data-cell=B1]')).borderBottomColor === 'rgba(0, 0, 0, 0)'
+                    && getComputedStyle(document.querySelector('[data-cell=A2]')).borderRightColor === 'rgba(0, 0, 0, 0)'
                     && getComputedStyle(document.querySelector('[data-cell=C3]')).borderBottomColor === 'rgba(0, 0, 0, 0)'"#,
             ),
         ],
@@ -1868,7 +1873,11 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
                     const first = getComputedStyle(document.querySelector('[data-cell=B2]'));
                     const middle = getComputedStyle(document.querySelector('[data-cell=C3]'));
                     const last = getComputedStyle(document.querySelector('[data-cell=D4]'));
-                    return first.borderTopStyle === 'solid' && first.borderLeftStyle === 'solid'
+                    const above = getComputedStyle(document.querySelector('[data-cell=B1]'));
+                    const left = getComputedStyle(document.querySelector('[data-cell=A2]'));
+                    return above.borderBottomColor !== 'rgba(0, 0, 0, 0)'
+                        && left.borderRightColor !== 'rgba(0, 0, 0, 0)'
+                        && first.borderTopStyle === 'none' && first.borderLeftStyle === 'none'
                         && last.borderRightColor !== 'rgba(0, 0, 0, 0)'
                         && last.borderBottomColor !== 'rgba(0, 0, 0, 0)'
                         && middle.borderTopStyle === 'none' && middle.borderLeftStyle === 'none'
@@ -1882,7 +1891,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Text("[data-cell=C3]", ""),
             Check::Js(
                 "one Undo removed the outline",
-                r#"getComputedStyle(document.querySelector('[data-cell=B2]')).borderTopStyle === 'none'
+                r#"getComputedStyle(document.querySelector('[data-cell=B1]')).borderBottomColor === 'rgba(0, 0, 0, 0)'
+                    && getComputedStyle(document.querySelector('[data-cell=A2]')).borderRightColor === 'rgba(0, 0, 0, 0)'
                     && getComputedStyle(document.querySelector('[data-cell=D4]')).borderBottomColor === 'rgba(0, 0, 0, 0)'"#,
             ),
         ],
@@ -2011,6 +2021,43 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Rendered("[data-cell=B1]", true),
             Check::Rendered("[data-cell=A1]", true),
             Check::Rendered("[data-cell=C1]", true),
+        ],
+    },
+    Case {
+        name: "Classic Home Outside Borders paints the shared outline and undoes it once",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}wvg"),
+            Action::Wait(Check::Rendered("[class~='dna-sheet-gridlines-hidden']", true)),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e008}\u{e014}\u{e014}\u{e015}\u{e015}\u{e000}"),
+            Action::Wait(Check::Attr("[data-cell=D4]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}hbs"),
+            Action::Wait(Check::Js(
+                "the shared outline is painted on all four sides without inside edges",
+                r#"(() => {
+                    const cell = address => getComputedStyle(document.querySelector('[data-cell='+address+']'));
+                    const ink = color => color !== 'rgba(0, 0, 0, 0)';
+                    const inside = cell('C3'), bottomRight = cell('D4');
+                    return ink(cell('B1').borderBottomColor) && ink(cell('A2').borderRightColor)
+                        && ink(bottomRight.borderRightColor) && ink(bottomRight.borderBottomColor)
+                        && inside.borderTopStyle === 'none' && inside.borderLeftStyle === 'none'
+                        && !ink(inside.borderRightColor) && !ink(inside.borderBottomColor);
+                })()"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Js(
+                "Undo removed the outline from the selection and adjacent cells",
+                r#"(() => {
+                    const cell = address => getComputedStyle(document.querySelector('[data-cell='+address+']'));
+                    return cell('B1').borderBottomColor === 'rgba(0, 0, 0, 0)'
+                        && cell('A2').borderRightColor === 'rgba(0, 0, 0, 0)'
+                        && cell('D4').borderRightColor === 'rgba(0, 0, 0, 0)'
+                        && cell('D4').borderBottomColor === 'rgba(0, 0, 0, 0)';
+                })()"#,
+            ),
         ],
     },
     Case {
@@ -2791,6 +2838,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         name: "classic-unhide-columns",
         start: 78,
         end: 79,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-outside-borders",
+        start: 79,
+        end: 80,
         core: 1,
         setup: &[],
     },

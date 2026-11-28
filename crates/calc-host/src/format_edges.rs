@@ -1,6 +1,7 @@
 //! Border edge changes keyed by Excel's line style and weight, for `Range.Borders` (dc-oxh8w.33).
 use crate::FillColor;
 use calc_doc_model::{Border, BorderEdge};
+use calc_value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS};
 
 /// Excel's `XlLineStyle` families.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,6 +63,64 @@ pub struct EdgesPatch {
     pub diagonal_up: Option<EdgeChange>,
     /// Diagonal from the upper left to the lower right (`xlDiagonalDown`).
     pub diagonal_down: Option<EdgeChange>,
+}
+
+/// A side of a rectangular cell range with a corresponding side on its neighbour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BorderSide {
+    Left,
+    Top,
+    Bottom,
+    Right,
+}
+
+impl BorderSide {
+    pub(crate) const ALL: [Self; 4] = [Self::Left, Self::Top, Self::Bottom, Self::Right];
+
+    pub(crate) fn strips(self, area: GridArea) -> (GridArea, Option<(GridArea, Self)>) {
+        let first = area.first();
+        let last = area.last();
+        let (top, left, bottom, right) = (first.row(), first.column(), last.row(), last.column());
+        let rows = (top, bottom);
+        let columns = (left, right);
+        match self {
+            Self::Left => (
+                span(area, rows, (left, left)),
+                (left > 1).then(|| (span(area, rows, (left - 1, left - 1)), Self::Right)),
+            ),
+            Self::Top => (
+                span(area, (top, top), columns),
+                (top > 1).then(|| (span(area, (top - 1, top - 1), columns), Self::Bottom)),
+            ),
+            Self::Bottom => (
+                span(area, (bottom, bottom), columns),
+                (bottom < MAX_ROWS)
+                    .then(|| (span(area, (bottom + 1, bottom + 1), columns), Self::Top)),
+            ),
+            Self::Right => (
+                span(area, rows, (right, right)),
+                (right < MAX_COLUMNS)
+                    .then(|| (span(area, rows, (right + 1, right + 1)), Self::Left)),
+            ),
+        }
+    }
+
+    pub(crate) fn patch(self, change: EdgeChange) -> EdgesPatch {
+        let mut edges = EdgesPatch::default();
+        let slot = match self {
+            Self::Left => &mut edges.left,
+            Self::Top => &mut edges.top,
+            Self::Bottom => &mut edges.bottom,
+            Self::Right => &mut edges.right,
+        };
+        *slot = Some(change);
+        edges
+    }
+}
+
+pub(crate) fn span(area: GridArea, rows: (u32, u32), columns: (u32, u32)) -> GridArea {
+    let key = |row, column| CellKey::new(area.sheet(), row, column).expect("strip inside the grid");
+    GridArea::new(key(rows.0, columns.0), key(rows.1, columns.1)).expect("one sheet")
 }
 
 const TABLE: &[(&str, EdgeLine, EdgeWeight)] = &[

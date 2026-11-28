@@ -782,8 +782,11 @@ pub(crate) fn prepare(
                     }
                     let selected = grid_area(*selected)?;
                     let host = state.session.host();
-                    if host.merged_areas(selected.sheet()).iter().any(|area| area.intersection(selected).is_some()) {
-                        return Err(unavailable("dc-s2xup", "Applying borders to merged cells"));
+                    let affected = calc_host::border_affected_areas(selected);
+                    if host.merged_areas(selected.sheet()).iter().any(|merge| {
+                        affected.iter().any(|area| merge.intersection(*area).is_some())
+                    }) {
+                        return Err(unavailable("dc-s2xup", "Applying borders at merged cells"));
                     }
                     let border_edits = if matches!(change, ModelChange::SetOutlineBorder { .. }) {
                         calc_host::prepare_outline_border(host, selected)
@@ -791,8 +794,8 @@ pub(crate) fn prepare(
                         calc_host::prepare_all_borders(host, selected)
                     };
                     edits.extend(border_edits.map_err(|reason| Refusal::Excel { reason })?);
-                    areas.push(selected);
-                    ranges_with_metadata.push(selected);
+                    areas.extend(affected.iter().copied());
+                    ranges_with_metadata.extend(affected);
                 }
                 ModelChange::RefreshPivot { at, expected } => {
                     require_current_model(request, base.model)?;

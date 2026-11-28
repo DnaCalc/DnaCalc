@@ -857,15 +857,75 @@ fn classic_outline_border_keeps_inside_borders_and_undoes_once() {
                 })
         })
     };
+    assert_eq!(edges(1, 2), [false, false, true, false]);
     assert_eq!(edges(2, 2), [true, false, false, true]);
-    assert_eq!(edges(2, 3), [true, false, false, false]);
+    assert_eq!(edges(2, 3), [true, false, true, false]);
     assert_eq!(edges(4, 4), [false, true, true, false]);
     assert_eq!(edges(3, 3), [true; 4]);
     assert_eq!(edges(1, 1), [false; 4]);
     assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(1, 2), [false; 4]);
     assert_eq!(edges(2, 2), [false; 4]);
     assert_eq!(edges(4, 4), [false; 4]);
+    assert_eq!(edges(2, 3), [false, false, true, false]);
     assert_eq!(edges(3, 3), [true; 4]);
+}
+
+/// Native-only: checks the shared edge authored on both cells through the Classic Deck.
+#[test]
+fn classic_home_outside_borders_updates_and_restores_neighbour_edges() {
+    use calc_host::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, FillColor, FormatPatch, WorkbookCommand};
+    use calc_host::value::GridArea;
+
+    let page = Page::open();
+    let old_edge = page.at(1, 2).cell().unwrap();
+    page.host.with_session(SelectionCause::History, |book| {
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::cell(old_edge)],
+            patch: FormatPatch {
+                edges: Some(EdgesPatch {
+                    bottom: Some(EdgeChange {
+                        line: Some(EdgeLine::Continuous),
+                        weight: Some(EdgeWeight::Thick),
+                        color: Some(FillColor::Rgb("CC2200".into())),
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        }));
+        assert!(receipt.error.is_none());
+    });
+    let edges = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or_else(|| [None, None, None, None], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.clone()))
+                })
+        })
+    };
+    assert_eq!(edges(1, 2)[2].as_deref(), Some("thick"));
+    page.session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown", "Shift+ArrowDown", "F10", "h", "b", "s"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(edges(2, 2)[0].as_deref(), Some("thin"));
+    assert_eq!(edges(1, 2)[2].as_deref(), Some("thin"));
+    assert_eq!(edges(2, 1)[1].as_deref(), Some("thin"));
+    assert_eq!(edges(3, 5)[3].as_deref(), Some("thin"));
+    assert_eq!(edges(5, 3)[0].as_deref(), Some("thin"));
+    assert_eq!(edges(3, 3), [None, None, None, None]);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(1, 2)[2].as_deref(), Some("thick"));
+    assert_eq!(edges(2, 2), [None, None, None, None]);
+    assert_eq!(edges(2, 1), [None, None, None, None]);
+    assert_eq!(edges(3, 5), [None, None, None, None]);
+    assert_eq!(edges(5, 3), [None, None, None, None]);
 }
 
 /// Native-only: drives workbook clipboard commands through the real host.
