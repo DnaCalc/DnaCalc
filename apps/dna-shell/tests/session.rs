@@ -1114,6 +1114,69 @@ fn classic_home_hide_columns_updates_worksheet_geometry_and_undo() {
     assert!(!hidden(2) && !hidden(4));
 }
 
+/// Native-only: drives Classic row visibility through the shell and real worksheet geometry.
+#[test]
+fn classic_visibility_hides_and_unhides_disjoint_rows_in_one_edit_each() {
+    use calc_skin::{Selection, SourceRef, grid::Area};
+
+    let page = Page::open();
+    let session = page.session;
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    let (first, second, fourth, fifth) = (page.at(1, 1), page.at(2, 1), page.at(4, 1), page.at(5, 1));
+    let select = |active, areas| {
+        session.select(Selection {
+            seq: 0,
+            target: SourceRef::Cells { sheet: page.sheet, areas },
+            active: Some(active),
+            grouped: Vec::new(),
+            item: None,
+        });
+        page.settle();
+    };
+    let hidden = |row| {
+        let Live::Ready(answer) = session.read(geometry) else {
+            panic!("worksheet geometry did not arrive");
+        };
+        answer.body.rows.iter().any(|&(index, _, hidden)| index == row && hidden)
+    };
+    select(second, vec![Area(second, second), Area(fourth, fourth)]);
+    assert!(page.press("Ctrl+9", Focus::Stage));
+    assert!(hidden(2) && !hidden(3) && hidden(4));
+    select(first, vec![Area(first, fifth)]);
+    assert!(page.press("Ctrl+Shift+(", Focus::Stage));
+    assert!(!hidden(2) && !hidden(4));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(hidden(2) && !hidden(3) && hidden(4));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(!hidden(2) && !hidden(4));
+}
+
+/// Native-only: drives the column reveal chord after a Classic Deck hide using the live geometry.
+#[test]
+fn classic_visibility_unhides_columns_inside_the_selection() {
+    let page = Page::open();
+    let session = page.session;
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    let hidden = || {
+        let Live::Ready(answer) = session.read(geometry) else {
+            panic!("worksheet geometry did not arrive");
+        };
+        answer.body.columns.iter().any(|&(first, last, _, hidden)| (first..=last).contains(&2) && hidden)
+    };
+    for key in ["F10", "h", "o", "u", "c"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(hidden());
+    session.go_to("A1:C1".into());
+    page.settle();
+    assert!(page.press("Ctrl+Shift+)", Focus::Stage));
+    assert!(!hidden());
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert!(hidden());
+}
+
 /// Native-only: drives the real workbook host through packets.
 #[test]
 fn classic_shift_selects_a_rectangle_and_delete_clears_it_in_one_step() {

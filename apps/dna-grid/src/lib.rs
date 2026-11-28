@@ -295,6 +295,36 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         })
         .when("mode:ready && writable")
     };
+    let visibility = |id, label, chords: &[&'static str], rows, hidden| {
+        ViewCommand::new(view, id, label, chords, move |_| {
+            let Some(SourceRef::Cells { sheet, areas }) =
+                session.selection().map(|selection| selection.target)
+            else {
+                return Err("Select worksheet cells first.".into());
+            };
+            let stamp = session.stamp().filter(|_| !areas.is_empty())
+                .ok_or("Select worksheet cells first.")?;
+            let bands = areas.into_iter().map(|Area(first, last)| {
+                if rows { (first.2, last.2) } else { (first.3, last.3) }
+            }).collect();
+            let change = if rows {
+                ModelChange::SetRowsHidden { sheet, bands, hidden }
+            } else {
+                ModelChange::SetColumnsHidden { sheet, bands, hidden }
+            };
+            session.submit(Batch {
+                id: String::new(),
+                workbook: Some(stamp.workbook),
+                base: Some(stamp.model),
+                expects: Vec::new(),
+                selection_seq: None,
+                label: Some(label.into()),
+                changes: vec![Change::Model(change)],
+            });
+            Ok(())
+        })
+        .when("mode:ready && writable")
+    };
     let mut commands = vec![
         moves("grid.move-down", "Move down", &["ArrowDown"], 1, 0),
         moves("grid.move-up", "Move up", &["ArrowUp"], -1, 0),
@@ -355,31 +385,10 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
-        ViewCommand::new(view, "grid.hide-columns", "Hide Columns", &["Ctrl+0"], move |_| {
-            let Some(SourceRef::Cells { sheet, areas }) =
-                session.selection().map(|selection| selection.target)
-            else {
-                return Err("Select worksheet columns to hide.".into());
-            };
-            let stamp = session.stamp().filter(|_| !areas.is_empty())
-                .ok_or("Select worksheet columns to hide.")?;
-            let bands = areas.into_iter().map(|Area(first, last)| (first.3, last.3)).collect();
-            session.submit(Batch {
-                id: String::new(),
-                workbook: Some(stamp.workbook),
-                base: Some(stamp.model),
-                expects: Vec::new(),
-                selection_seq: None,
-                label: Some("Hide Columns".into()),
-                changes: vec![Change::Model(ModelChange::SetColumnsHidden {
-                    sheet,
-                    bands,
-                    hidden: true,
-                })],
-            });
-            Ok(())
-        })
-        .when("mode:ready && writable"),
+        visibility("grid.hide-columns", "Hide Columns", &["Ctrl+0"], false, true),
+        visibility("grid.hide-rows", "Hide Rows", &["Ctrl+9"], true, true),
+        visibility("grid.unhide-rows", "Unhide Rows", &["Ctrl+Shift+("], true, false),
+        visibility("grid.unhide-columns", "Unhide Columns", &["Ctrl+Shift+)"], false, false),
         ViewCommand::new(view, "grid.toggle-gridlines", "Toggle Gridlines", &[], move |_| {
             let (Some(at), Some(stamp)) = (session.active(), session.stamp()) else {
                 return Err("No worksheet is selected.".into());

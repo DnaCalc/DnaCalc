@@ -582,6 +582,12 @@ pub enum ModelChange {
         bands: Vec<(u32, u32)>,
         hidden: bool,
     },
+    SetRowsHidden {
+        sheet: Sheet,
+        /// Inclusive first and last row in each band.
+        bands: Vec<(u32, u32)>,
+        hidden: bool,
+    },
     ToggleAutoFilter {
         selected: Area,
     },
@@ -781,6 +787,8 @@ pub enum ModelProperty {
     Notes,
     Hyperlinks,
     RichText,
+    RowVisibility,
+    RowHeights,
     ColumnVisibility,
     ColumnWidths,
     AutoFilter,

@@ -125,6 +125,8 @@ fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
                 ModelProperty::Notes => "Notes",
                 ModelProperty::Hyperlinks => "Hyperlinks",
                 ModelProperty::RichText => "Rich text",
+                ModelProperty::RowVisibility => "Row visibility",
+                ModelProperty::RowHeights => "Row heights",
                 ModelProperty::ColumnVisibility => "Column visibility",
                 ModelProperty::ColumnWidths => "Column widths",
                 ModelProperty::AutoFilter => "AutoFilter",

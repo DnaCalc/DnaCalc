@@ -5,7 +5,7 @@ use calc_host::{
     Axis, CellEdit, CommandError, HostSession, IntentError, PasteArithmetic as HostPasteArithmetic,
     PasteCellOptions, PasteMode, PasteOptionsRefusal, PasteSource, SortKey, SortOptions,
     prepare_column_visibility, prepare_filter_toggle, prepare_paste, prepare_paste_column_widths,
-    prepare_paste_oriented, prepare_sort_rows,
+    prepare_paste_oriented, prepare_row_visibility, prepare_sort_rows,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
@@ -169,38 +169,41 @@ fn range_properties(
     properties
 }
 
-fn column_properties(
+fn axis_properties(
     before: &ModelRoot,
     after: &ModelRoot,
     edits: &[CellEdit],
 ) -> Vec<ModelPropertyDiff> {
     let before = before.definitions();
     let after = after.definitions();
-    let mut sheets = BTreeMap::<_, (bool, bool)>::new();
+    let mut sheets = BTreeMap::<_, ((bool, bool), (bool, bool))>::new();
     for edit in edits {
         let CellEdit::AxisFormat(edit) = edit else { continue };
-        if edit.axis() != Axis::Columns {
-            continue;
-        }
         let layout = |root: &calc_doc_model::Definitions| {
-            root.axis_layouts().get(edit.sheet(), Axis::Columns, edit.index())
+            root.axis_layouts().get(edit.sheet(), edit.axis(), edit.index())
         };
         let old = layout(before);
         let new = layout(after);
         let visibility = old.hidden() != new.hidden();
-        let width = old.size() != new.size() || old.custom() != new.custom();
-        if visibility || width {
-            let changed = sheets.entry(edit.sheet()).or_default();
-            changed.0 |= visibility;
-            changed.1 |= width;
+        let size = old.size() != new.size() || old.custom() != new.custom();
+        if visibility || size {
+            let (rows, columns) = sheets.entry(edit.sheet()).or_default();
+            let (changed_visibility, changed_size) = match edit.axis() {
+                Axis::Rows => rows,
+                Axis::Columns => columns,
+            };
+            *changed_visibility |= visibility;
+            *changed_size |= size;
         }
     }
     let mut properties = Vec::new();
-    for (sheet, (visibility, width)) in sheets {
+    for (sheet, ((row_visibility, row_height), (column_visibility, column_width))) in sheets {
         let source = SourceRef::Sheet(Sheet::of(sheet));
         for (property, changed) in [
-            (ModelProperty::ColumnVisibility, visibility),
-            (ModelProperty::ColumnWidths, width),
+            (ModelProperty::RowVisibility, row_visibility),
+            (ModelProperty::RowHeights, row_height),
+            (ModelProperty::ColumnVisibility, column_visibility),
+            (ModelProperty::ColumnWidths, column_width),
             (ModelProperty::Charts, before.charts(sheet) != after.charts(sheet)),
             (ModelProperty::Shapes, before.shapes(sheet) != after.shapes(sheet)),
         ] {
@@ -745,12 +748,16 @@ pub(crate) fn prepare(
                     edits.extend(plan.into_edits(host).map_err(excel)?);
                     warnings.push("Flash Fill writes literal text.".into());
                 }
-                ModelChange::SetColumnsHidden { sheet, bands, hidden } => {
+                ModelChange::SetColumnsHidden { sheet, bands, hidden }
+                | ModelChange::SetRowsHidden { sheet, bands, hidden } => {
                     require_current_model(request, base.model)?;
-                    edits.extend(
-                        prepare_column_visibility(state.session.host(), sheet.id(), bands, *hidden)
-                            .map_err(|reason| Refusal::Excel { reason })?,
-                    );
+                    let host = state.session.host();
+                    let visibility = if matches!(change, ModelChange::SetRowsHidden { .. }) {
+                        prepare_row_visibility(host, sheet.id(), bands, *hidden)
+                    } else {
+                        prepare_column_visibility(host, sheet.id(), bands, *hidden)
+                    };
+                    edits.extend(visibility.map_err(|reason| Refusal::Excel { reason })?);
                 }
                 ModelChange::ToggleAutoFilter { selected } => {
                     require_current_model(request, base.model)?;
@@ -1010,7 +1017,7 @@ pub(crate) fn prepare(
             properties.extend(range_properties(&before, &after, &ranges_with_metadata, &edits));
         }
         properties.extend(names.into_iter().filter_map(|name| name.diff(&after)));
-        properties.extend(column_properties(&before, &after, &edits));
+        properties.extend(axis_properties(&before, &after, &edits));
         if let Some(cache_id) = pivot_cache {
             let affected: BTreeMap<_, _> = [&before, &after].into_iter()
                 .flat_map(|root| root.definitions().pivots().tables())
