@@ -242,6 +242,7 @@ pub enum WorkbookQuery {
     },
     NumericComparison { bound: Bound },
     Sources,
+    PivotFreshness { at: Key },
     Deps {
         of: SourceRef,
         dir: crate::DependencyDirection,
