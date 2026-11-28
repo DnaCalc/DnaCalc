@@ -263,3 +263,58 @@ fn plot_kind(kind: ChartKind) -> ChartPlotKind {
         ChartKind::Other(name) => ChartPlotKind::Other(name),
     }
 }
+
+/// Describe the literal editor for an unambiguous, linked worksheet control.
+pub(crate) fn input_editor(
+    host: &HostState,
+    at: calc_host::value::CellKey,
+    meter: &mut QueryWork,
+) -> Result<calc_skin::query::InputEditor, Refusal> {
+    use calc_skin::query::{InputChoice, InputEditor};
+
+    let mut linked = None;
+    for sheet in host.sheets() {
+        for (control, cell) in host.form_control_links(sheet.id()) {
+            meter.work(0, 1, 0)?;
+            if cell == at {
+                if linked.is_some() || control.macro_name.is_some() {
+                    return Ok(InputEditor::Field);
+                }
+                linked = Some((sheet.id(), control));
+            }
+        }
+    }
+    let Some((sheet, control)) = linked else { return Ok(InputEditor::Field) };
+    Ok(match control.kind.as_str() {
+        "CheckBox" if control.checked.as_deref() != Some("Mixed") => InputEditor::Checkbox,
+        "Scroll" | "Spin" => {
+            // MS-XLSX §2.6.65 supplies defaults for min and inc.
+            let min = control.min.unwrap_or(0);
+            let step = control.increment.unwrap_or(1);
+            let Some(max) = control.max.filter(|max| min < *max && *max <= 30_000) else {
+                return Ok(InputEditor::Field);
+            };
+            if min < 0 || !(1..=30_000).contains(&step) {
+                return Ok(InputEditor::Field);
+            }
+            if control.kind == "Scroll" {
+                InputEditor::Slider { min, max, step }
+            } else {
+                InputEditor::Stepper { min, max, step }
+            }
+        }
+        "Drop" => {
+            let Some(view) = host.form_controls(sheet).into_iter().find(|view| view.control.id == control.id) else {
+                return Ok(InputEditor::Field);
+            };
+            meter.work(view.items.len() as u64, 0, 0)?;
+            if view.items.is_empty() {
+                return Ok(InputEditor::Field);
+            }
+            InputEditor::Choices(view.items.into_iter().enumerate().map(|(index, label)| {
+                InputChoice { label, entry: (index + 1).to_string() }
+            }).collect())
+        }
+        _ => InputEditor::Field,
+    })
+}

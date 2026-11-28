@@ -66,6 +66,9 @@ query!(
     /// The workbook's name, state, sheets and what this host can do.
     Summary => WorkbookSummary, |_: &Summary| WorkbookQuery::Summary);
 query!(
+    /// Opening-to-current workbook edits, read when the operator asks to close.
+    CloseSummaryOf => crate::CloseSummary, |_: &CloseSummaryOf| WorkbookQuery::CloseSummary);
+query!(
     /// Counts taken without calculating; what `View::fit` decides from.
     CensusOf { scope: SourceRef } => Census, |q: &CensusOf| WorkbookQuery::Census { scope: q.scope.clone() });
 query!(
@@ -384,6 +387,26 @@ pub struct CellRules {
     /// Why the cell cannot be edited now, if it cannot.
     pub refusal: Option<Refusal>,
     pub validation: Option<String>,
+    #[serde(default)]
+    pub input_editor: InputEditor,
+}
+
+/// A literal editor described by the workbook's validation or a linked form control.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InputEditor {
+    #[default]
+    Field,
+    Checkbox,
+    Slider { min: i64, max: i64, step: i64 },
+    Stepper { min: i64, max: i64, step: i64 },
+    Choices(Vec<InputChoice>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InputChoice {
+    pub label: String,
+    /// Excel entry text for this choice, including a text prefix when needed.
+    pub entry: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

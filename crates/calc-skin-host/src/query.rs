@@ -81,6 +81,32 @@ pub(crate) fn checked_sheet(
     Ok(id)
 }
 
+fn validation_editor(
+    host: &calc_host::HostState,
+    at: CellKey,
+    allow_blank: bool,
+    meter: &mut QueryWork,
+) -> Result<query::InputEditor, Refusal> {
+    let Some(list) = host.validation_list(at) else {
+        return Ok(query::InputEditor::Field);
+    };
+    let mut choices = Vec::with_capacity(list.len());
+    for value in list {
+        meter.work(1, 0, 0)?;
+        let RawValue::Text(value) = raw(&value) else {
+            return Ok(query::InputEditor::Field);
+        };
+        let Ok(label) = String::from_utf16(&value) else {
+            return Ok(query::InputEditor::Field);
+        };
+        choices.push(query::InputChoice { entry: format!("'{label}"), label });
+    }
+    if allow_blank {
+        choices.push(query::InputChoice { label: "Blank".into(), entry: String::new() });
+    }
+    Ok(if choices.is_empty() { query::InputEditor::Field } else { query::InputEditor::Choices(choices) })
+}
+
 pub(crate) fn raw(value: &CalcValue) -> RawValue {
     match value.core() {
         CoreValue::Number(value) => RawValue::Number {
@@ -340,7 +366,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::ResolveBound { .. } => authored || presentation,
         WorkbookQuery::ConsistentBindings { .. } => authored || presentation || recalculated || rtd_changed,
         WorkbookQuery::BoundInput { .. } => authored || presentation || recalculated,
-        WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
+        WorkbookQuery::Summary | WorkbookQuery::CloseSummary | WorkbookQuery::History => authored || presentation,
         WorkbookQuery::Proposals => false,
         WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
@@ -804,6 +830,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::Contributions { .. } => Some("Increase the contribution scan budget"),
         WorkbookQuery::TrialFor { .. } => Some("Choose a formula that reads fewer cells"),
         WorkbookQuery::FormulaNames { .. } => Some("Choose fewer formula cells"),
+        WorkbookQuery::CloseSummary => Some("Review remaining edits before closing"),
         _ => None,
     };
     let mut meter = QueryWork::scan(
@@ -840,6 +867,9 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             }).count() as u64,
             capabilities: capabilities(state),
         })?,
+        WorkbookQuery::CloseSummary => query::CloseSummaryOf::encode(
+            &close_summary(state, &mut meter)?
+        )?,
         WorkbookQuery::Census { scope } => {
             query::CensusOf::encode(&survey::census(state, scope, &mut meter)?)?
         }
@@ -1080,10 +1110,18 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             } else {
                 batch::rules(&state.session, at).err()
             };
-            let validation = host.validation(at).map(|rule| format!("{rule:?}"));
+            let validation = host.validation(at);
+            let input_editor = if let Some(rule) = validation.as_ref().filter(|rule| {
+                rule.dropdown && rule.show_error && rule.style == calc_host::ErrorStyle::Stop
+            }) {
+                validation_editor(host, at, rule.allow_blank, &mut meter)?
+            } else {
+                crate::objects::input_editor(host, at, &mut meter)?
+            };
             query::Rules::encode(&query::CellRules {
                 refusal,
-                validation,
+                validation: validation.map(|rule| format!("{rule:?}")),
+                input_editor,
             })?
         }
         WorkbookQuery::CalcState => query::CalcState::encode(&query::CalcStatus {
@@ -1413,6 +1451,70 @@ fn attach_result_aliases(
         }
     }
     Ok(())
+}
+
+fn close_summary(state: &State, meter: &mut QueryWork) -> Result<CloseSummary, Refusal> {
+    let stamp = state.stamp();
+    let host = state.session.host();
+    let after = host.model();
+    let before = host.loaded().model();
+    let mut result = CloseSummary {
+        layout_edited: stamp.view != state.opened_at.view && after.view_part() != before.view_part(),
+        ..CloseSummary::default()
+    };
+    result.has_changes = result.layout_edited;
+    if stamp.model == state.opened_at.model {
+        return Ok(result);
+    }
+    let literal = |input: &calc_doc_model::CellInput| !matches!(input, calc_doc_model::CellInput::Formula(_));
+    let mut retained = BTreeSet::new();
+    for sheet in after.sheets() {
+        for (at, input) in after.sheet_cells(sheet.id()).into_iter().flatten() {
+            meter.work(1, 0, 0)?;
+            result.has_changes |= before.cell(at) != Some(input);
+            if literal(input) {
+                let original = host.source_at_open(at);
+                if let Some(original) = original {
+                    retained.insert(original);
+                }
+                let earlier = original.and_then(|at| before.cell(at));
+                result.changed_inputs += u64::from(earlier != Some(input));
+            }
+        }
+    }
+    for sheet in before.sheets() {
+        for (at, input) in before.sheet_cells(sheet.id()).into_iter().flatten() {
+            meter.work(1, 0, 0)?;
+            result.has_changes |= after.cell(at).is_none();
+            if literal(input) && !retained.contains(&at) {
+                result.changed_inputs += 1;
+            }
+        }
+    }
+    for (sheet, scenarios) in after.definitions().all_scenarios() {
+        let prior = after.sheet_by_id(sheet)
+            .and_then(|sheet| before.sheet_by_key(sheet.key()))
+            .and_then(|sheet| before.definitions().scenarios(sheet.id()));
+        let mut existing = BTreeSet::new();
+        for scenario in prior.into_iter().flat_map(|record| &record.entries) {
+            meter.work(0, 1, 0)?;
+            existing.insert((scenario.source_index, scenario.source_index.is_none()
+                .then(|| scenario.name.to_ascii_lowercase())));
+        }
+        for scenario in &scenarios.entries {
+            meter.work(0, 1, 0)?;
+            let identity = (scenario.source_index, scenario.source_index.is_none()
+                .then(|| scenario.name.to_ascii_lowercase()));
+            result.added_scenarios += u64::from(!existing.contains(&identity));
+        }
+    }
+    result.has_changes |= result.changed_inputs != 0
+        || result.added_scenarios != 0
+        || after.sheets() != before.sheets()
+        || after.definitions() != before.definitions()
+        || after.layout() != before.layout();
+    meter.check()?;
+    Ok(result)
 }
 
 fn trail_facts(trail: &calc_doc_model::ViewTrail) -> TrailFacts {

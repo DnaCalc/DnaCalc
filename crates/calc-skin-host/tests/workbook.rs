@@ -2874,19 +2874,77 @@ fn pivot_cache_freshness_tracks_source_changes_and_refresh() {
     let stale = compare();
     assert_eq!(stale.freshness, PivotFreshness::Stale);
     assert_eq!(stale.observed_refresh_unix_ms, Some(read_at));
-    host.with_session(SelectionCause::Open, |session| {
-        let revision = session.host().revision().get();
-        let definitions = session.host().model().definitions();
-        let pivot = definitions.pivots().tables().next().unwrap();
-        let part = pivot.part.clone();
-        let receipt = session.dispatch(calc_host::SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-            sheet: sheet.id(), revision, part,
-        }));
-        assert!(receipt.accepted(), "{receipt:?}");
-    });
+    let before = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let mut request = batch(3, vec![Change::Model(ModelChange::RefreshPivot { at: at(3, 13), expected: before })]);
+    request.base = Some(before.model);
+    request.workbook = Some(before.workbook);
+    request.label = Some("Refresh PivotTable".into());
+    let review = connection.preview(&request, PreviewDepth::WritesOnly).unwrap();
+    assert!(review.refusal.is_none(), "{review:?}");
+    assert_eq!(review.base, before);
+    assert!(review.properties.iter().any(|change| matches!(change, ModelPropertyDiff::Scope {
+        source: SourceRef::Cells { areas, .. }, property: ModelProperty::PivotCache,
+    } if areas.iter().any(|area| area.0 == at(3, 13)))));
+    assert_eq!(compare(), stale);
+    assert_eq!(connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp, before);
+    let committed = connection.commit(request.clone()).unwrap();
+    assert!(committed.model > before.model);
+    assert_eq!(connection.commit(request).unwrap(), committed);
+    while host.advance() {}
     let refreshed = compare();
     assert_eq!(refreshed.freshness, PivotFreshness::Current);
     assert!(refreshed.observed_refresh_unix_ms.unwrap() >= read_at);
+    connection.run(Operation::Undo).unwrap();
+    while host.advance() {}
+    assert_eq!(compare(), stale);
+    connection.run(Operation::Redo).unwrap();
+    while host.advance() {}
+    assert_eq!(compare(), refreshed);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn close_summary_counts_distinct_inputs_and_added_native_scenarios() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let principal = Key(sheet.0, sheet.1, 2, 2);
+    let rate = Key(sheet.0, sheet.1, 3, 2);
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary::default());
+    operator.commit(batch(1, vec![enter(principal, "90000"), enter(rate, "0.1")])).unwrap();
+    let stamp = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    operator.commit(Batch {
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        ..batch(2, vec![Change::Model(ModelChange::SaveScenarioCells {
+            scenario: ScenarioRef { sheet, name: "Audit assumptions".into() },
+            areas: vec![Area(principal, rate)],
+        })])
+    }).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary {
+        has_changes: true,
+        changed_inputs: 2,
+        added_scenarios: 1,
+        layout_edited: false,
+    });
+
+    operator.commit(batch(3, vec![enter(rate, "0.12")])).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf).changed_inputs, 2);
+    operator.run(Operation::Undo).unwrap();
+    operator.run(Operation::Undo).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary {
+        has_changes: true,
+        changed_inputs: 2,
+        added_scenarios: 0,
+        layout_edited: false,
+    });
+    operator.run(Operation::Undo).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary::default());
+
+    operator.commit(batch(4, vec![enter(principal, "=40+2")])).unwrap();
+    assert_eq!(ask(&operator, query::CloseSummaryOf), CloseSummary {
+        has_changes: true,
+        ..CloseSummary::default()
+    });
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -2964,4 +3022,78 @@ fn read_objects(port: &impl WorkbookPort, sheet: Sheet) -> WorksheetObjects {
     let budget = Budget { bytes: 8 * 1024 * 1024, millis: 2_000, ..BUDGET };
     let reply = port.ask(query::Objects { sheet }.request(), budget).unwrap();
     query::Objects::decode(reply).unwrap().body
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn input_editors_follow_linked_controls_and_excel_validation() {
+    use query::{InputChoice, InputEditor};
+
+    let (host, sheet) =
+        object_fixture(include_bytes!("../../calc-doc/tests/fixtures/drawing/form-controls.xlsx"));
+    let operator = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    let editor = |at| ask(&operator, query::Rules { at }).input_editor;
+    assert_eq!(editor(at(2, 2)), InputEditor::Checkbox);
+    assert_eq!(editor(at(3, 2)), InputEditor::Field);
+    assert_eq!(
+        editor(at(5, 2)),
+        InputEditor::Slider { min: 0, max: 100, step: 1 }
+    );
+    assert_eq!(
+        editor(at(6, 2)),
+        InputEditor::Stepper { min: 1, max: 10, step: 1 }
+    );
+    assert_eq!(
+        editor(at(7, 2)),
+        InputEditor::Choices(["North", "South", "East", "West"].iter().enumerate()
+            .map(|(index, label)| InputChoice {
+                label: (*label).into(),
+                entry: (index + 1).to_string(),
+            })
+            .collect())
+    );
+    host.with_session(SelectionCause::History, |session| {
+        let receipt = session.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Validations {
+                sheet: sheet.id(),
+                rules: vec![calc_doc_model::Validation {
+                    areas: vec![(9, 2, 9, 2)],
+                    kind: "list".into(),
+                    in_cell_dropdown: true,
+                    show_error: true,
+                    error_style: "stop".into(),
+                    formula1: Some(r#""North,001,=East""#.into()),
+                    authored_copy: false,
+                    source: None,
+                    operator: "between".into(),
+                    allow_blank: false,
+                    show_input: false,
+                    error_title: None,
+                    error: None,
+                    prompt_title: None,
+                    prompt: None,
+                    formula2: None,
+                }],
+            }],
+        });
+        assert!(receipt.accepted(), "{receipt:?}");
+    });
+    assert_eq!(
+        editor(at(9, 2)),
+        InputEditor::Choices(["North", "001", "=East"].iter().map(|label| InputChoice {
+            label: (*label).into(),
+            entry: format!("'{label}"),
+        }).collect())
+    );
+    let list = at(9, 2);
+    operator.commit(batch(1, vec![enter(list, "'001")])).unwrap();
+    let rows = ask(&operator, query::Rows {
+        source: target(list),
+        filter: Vec::new(),
+        sort: Vec::new(),
+        window: RowWindow { offset: 0, limit: 1 },
+    });
+    assert_eq!(rows.rows[0].cells[0].shown.value, RawValue::Text("001".encode_utf16().collect()));
+
 }
