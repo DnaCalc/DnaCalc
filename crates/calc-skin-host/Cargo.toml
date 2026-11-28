@@ -13,6 +13,7 @@ portability = "portable"
 base64 = "=0.22.1"
 calc-chart-render = { path = "../calc-chart-render" }
 calc-host = { path = "../calc-host" }
+calc-host-vba = { path = "../calc-host-vba" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-formula-kernel = { path = "../calc-formula-kernel" }
 calc-formula-host = { path = "../calc-formula-host" }

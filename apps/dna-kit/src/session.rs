@@ -592,6 +592,36 @@ impl Session {
         });
     }
 
+    pub fn review_macro(
+        self, procedure: Option<String>,
+        complete: impl FnOnce(Result<calc_skin::MacroReview, Refusal>) + 'static,
+    ) {
+        self.update(|client| {
+            client.review_macro(procedure, complete);
+            Changes::default()
+        });
+    }
+
+    pub fn set_macro_security(
+        self, mode: calc_skin::MacroSecurity,
+        complete: impl FnOnce(Result<Stamp, Refusal>) + 'static,
+    ) {
+        self.update(|client| {
+            client.set_macro_security(mode, complete);
+            Changes::default()
+        });
+    }
+
+    pub fn run_macro(
+        self, approval: u64,
+        complete: impl FnOnce(Result<calc_skin::MacroRun, Refusal>) + 'static,
+    ) {
+        self.update(|client| {
+            client.run_macro(approval, complete);
+            Changes::default()
+        });
+    }
+
     /// Review the exact chosen proposal units through the workbook carrier.
     pub fn preview_proposal(
         self, proposal: calc_skin::ProposalId, units: Vec<calc_skin::UnitId>, depth: calc_skin::PreviewDepth,

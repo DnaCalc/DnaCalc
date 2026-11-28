@@ -218,6 +218,42 @@ impl Client {
         });
     }
 
+    pub fn review_macro(
+        &mut self, procedure: Option<String>,
+        complete: impl FnOnce(Result<calc_skin::MacroReview, Refusal>) + 'static,
+    ) {
+        self.complete(WorkbookRequest::ReviewMacro { procedure }, move |result| {
+            complete(result.and_then(|reply| match reply {
+                WorkbookReply::MacroReview(review) => Ok(review),
+                _ => Err(Refusal::Transport("Expected a macro review".into())),
+            }));
+        });
+    }
+
+    pub fn set_macro_security(
+        &mut self, mode: calc_skin::MacroSecurity,
+        complete: impl FnOnce(Result<Stamp, Refusal>) + 'static,
+    ) {
+        self.complete(WorkbookRequest::Run(Operation::SetMacroSecurity(mode)), move |result| {
+            complete(result.and_then(|reply| match reply {
+                WorkbookReply::Stamp(stamp) => Ok(stamp),
+                _ => Err(Refusal::Transport("Expected a macro policy receipt".into())),
+            }));
+        });
+    }
+
+    pub fn run_macro(
+        &mut self, approval: u64,
+        complete: impl FnOnce(Result<calc_skin::MacroRun, Refusal>) + 'static,
+    ) {
+        self.complete(WorkbookRequest::Run(Operation::RunMacro { approval }), move |result| {
+            complete(result.and_then(|reply| match reply {
+                WorkbookReply::MacroRun(run) => Ok(run),
+                _ => Err(Refusal::Transport("Expected a macro run receipt".into())),
+            }));
+        });
+    }
+
     fn complete(&mut self, request: WorkbookRequest, callback: impl FnOnce(Result<WorkbookReply, Refusal>) + 'static) {
         self.send(request, None, Pending::Complete(Box::new(callback)));
     }

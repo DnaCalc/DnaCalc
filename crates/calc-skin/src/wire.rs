@@ -40,6 +40,7 @@ pub enum WorkbookRequest {
         client_seq: u64,
     },
     Navigate(Target),
+    ReviewMacro { procedure: Option<String> },
     Preview {
         batch: Batch,
         depth: PreviewDepth,
@@ -60,6 +61,8 @@ pub enum WorkbookReply {
     Answer(Answer<serde_json::Value>),
     Watching(WatchId),
     Preview(Preview),
+    MacroReview(crate::MacroReview),
+    MacroRun(crate::MacroRun),
     Stamp(Stamp),
     Accepted,
     Formula(FormulaAnswer),

@@ -164,6 +164,15 @@ fn read_file_project(
         .transpose()
 }
 
+/// Read the named VBA module for review without preparing or executing the project.
+pub fn file_module_source(host: &HostState, name: &str) -> Result<Option<String>, FileProjectError> {
+    Ok(read_file_project(host)?.and_then(|(project, _)| {
+        project.modules().iter()
+            .find(|module| module.name.eq_ignore_ascii_case(name))
+            .map(|module| module.source.clone())
+    }))
+}
+
 /// Inspect the saved workbook's VBA source for the requested profiles.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn file_portability(

@@ -1002,6 +1002,8 @@ pub enum Operation {
     Undo,
     Redo,
     Revert(EntryId),
+    SetMacroSecurity(crate::MacroSecurity),
+    RunMacro { approval: u64 },
     /// Stage model changes from an agent without changing the workbook.
     Propose(Proposal),
     /// Resolve exactly these pending units as an operator.
