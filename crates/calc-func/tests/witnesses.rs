@@ -15,6 +15,35 @@ mod witness_call;
 use crate::x87_cpu;
 use calc_verdict::WitnessSet;
 
+/// Touchstone Excel 16.0.20625.20108, pz1 XMATCH match_mode 3.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xmatch_regex_mode_validates_lookup_array_shape() {
+    let two_columns = serde_json::json!([
+        ["0x3ff0000000000000", "0x4024000000000000"],
+        ["0x4000000000000000", "0x4034000000000000"],
+        ["0x4008000000000000", "0x403e000000000000"],
+    ]);
+    let cases = [
+        serde_json::json!([
+            "0xc0476d90aad54b5b",
+            [
+                ["0x3ff0000000000000", "0x4000000000000000", "0x4008000000000000"],
+                ["0x4024000000000000", "0x4034000000000000", "0x403e000000000000"],
+            ],
+            "0x4008000000000000",
+            "0xc000000000000000",
+        ]),
+        serde_json::json!(["ß", two_columns, "0x4008000000000000"]),
+        serde_json::json!([true, two_columns, "0x4008000000000000"]),
+    ];
+    let results: Vec<_> = cases
+        .iter()
+        .map(|args| witness_call::calculate("XMATCH", args.as_array().unwrap(), None, None, true))
+        .collect();
+    assert_eq!(results, ["error:Value"; 3]);
+}
+
 /// Touchstone Excel 16.0.20625.20108, pz1 sortby-controls control-8.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
