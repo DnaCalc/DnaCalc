@@ -260,8 +260,12 @@ fn map_auto_error(model: &dyn ObjectModel, error: AutoError) -> api::TypedFault 
             crate::events::record_object_denial(capability, subject.clone());
             fault(*number, error.description())
         }
-        AutoError::NotAvailableHere { .. } => {
+        AutoError::NotAvailableHere { capability, route, subject } => {
             model.record_refusal(&error);
+            crate::events::record_event_unavailable(
+                calc_object_model::policy::Unavailable { capability: *capability, route: *route },
+                subject.clone(),
+            );
             fault(error.number(), error.description())
         }
         AutoError::Status(hr) => {
