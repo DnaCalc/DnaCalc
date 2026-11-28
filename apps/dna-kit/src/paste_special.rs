@@ -10,6 +10,7 @@ use leptos::prelude::*;
 
 pub const OPEN: &str = "classic.paste-special";
 const APPLY: &str = "classic.apply-paste-special";
+const LINK: &str = "classic.paste-link";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Destination {
@@ -63,6 +64,21 @@ impl Clipboard {
             to: single_range(session)?,
         })
     }
+
+    fn apply(self, session: Session, label: &str, contents: PasteContents) -> Result<(), String> {
+        let to = self
+            .destination
+            .get_untracked()
+            .filter(|target| {
+                session
+                    .stamp()
+                    .is_some_and(|stamp| stamp.workbook == target.workbook)
+            })
+            .ok_or("Open Paste Special for the current workbook.")?;
+        close(session);
+        session.submit(to.batch(label, contents));
+        Ok(())
+    }
 }
 
 fn single_range(session: Session) -> Result<Area, String> {
@@ -75,7 +91,7 @@ fn single_range(session: Session) -> Result<Area, String> {
     Err("Select one rectangular range of worksheet cells.".into())
 }
 
-pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 6] {
+pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 7] {
     let clipboard = session.local::<Clipboard>();
     let paste = |id, label, chords: &[&'static str], contents| {
         ViewCommand::new(view, id, label, chords, move |_| {
@@ -146,24 +162,17 @@ pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 6] {
         })
         .when("mode:ready && writable"),
         ViewCommand::new(view, APPLY, "Apply Paste Special", &[], move |_| {
-            let to = clipboard
-                .destination
-                .get_untracked()
-                .filter(|target| {
-                    session
-                        .stamp()
-                        .is_some_and(|stamp| stamp.workbook == target.workbook)
-                })
-                .ok_or("Open Paste Special for the current workbook.")?;
             let contents = PasteContents::Special {
                 part: clipboard.part.get_untracked(),
                 transpose: clipboard.transpose.get_untracked(),
                 skip_blanks: clipboard.skip_blanks.get_untracked(),
                 arithmetic: clipboard.arithmetic.get_untracked(),
             };
-            close(session);
-            session.submit(to.batch("Paste Special", contents));
-            Ok(())
+            clipboard.apply(session, "Paste Special", contents)
+        })
+        .when("mode:ready && writable"),
+        ViewCommand::new(view, LINK, "Paste Link", &[], move |_| {
+            clipboard.apply(session, "Paste Link", PasteContents::Link)
         })
         .when("mode:ready && writable"),
     ]
@@ -368,6 +377,8 @@ fn dialog(session: Session, clipboard: Clipboard) -> impl IntoView {
                     "Transpose" <kbd>"E"</kbd>
                 </label>
                 <footer>
+                    <button type="button" data-dnacalc="paste-special-link" data-command=LINK
+                        on:click=move |_| { let _ = session.command(LINK); }>"Paste Link"</button>
                     <button type="submit" data-dnacalc="paste-special-apply" data-command=APPLY>"OK"</button>
                     <button type="button" data-dnacalc="paste-special-cancel"
                         on:click=move |_| { close(session); }>"Cancel"</button>

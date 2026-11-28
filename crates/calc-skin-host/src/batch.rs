@@ -600,6 +600,7 @@ pub(crate) fn prepare(
                         PasteContents::Values => (Some(PasteMode::Values), false, plain),
                         PasteContents::Formulas => (Some(PasteMode::Formulas), false, plain),
                         PasteContents::AllTransposed => (Some(PasteMode::All), true, plain),
+                        PasteContents::Link => (Some(PasteMode::Formulas), false, plain),
                         PasteContents::Special { part, transpose, skip_blanks, arithmetic } => {
                             let mode = match part {
                                 PastePart::All | PastePart::AllUsingSourceTheme => Some(PasteMode::All),
@@ -637,16 +638,14 @@ pub(crate) fn prepare(
                         continue;
                     };
                     let excel = |reason| Refusal::Excel { reason };
-                    let plan = prepare_paste_oriented(
-                        host,
-                        PasteSource::Snapshot {
+                    let source = match contents {
+                        PasteContents::Link => PasteSource::Link(&copied.snapshot),
+                        _ => PasteSource::Snapshot {
                             snapshot: &copied.snapshot,
                             cut: false,
                         },
-                        to,
-                        mode,
-                        transpose,
-                    )
+                    };
+                    let plan = prepare_paste_oriented(host, source, to, mode, transpose)
                     .map_err(excel)?
                     .with_cell_options(host, options)
                     .map_err(|reason| match reason {

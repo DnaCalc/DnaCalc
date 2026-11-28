@@ -3834,6 +3834,10 @@ fn run_skin_workbook(
         "return window.__dnaProbe?.().view === 'classic' && !!document.querySelector('.dna-sheet tbody tr');",
         "Classic did not show the worksheet"
     )?;
+    wait_skin(session,
+        "return document.querySelector('[data-dnacalc=calculation]')?.dataset.running === 'false';",
+        "The opening calculation did not finish"
+    )?;
     let out = ws.root.join("target/app-smoke-skins").join(std::process::id().to_string()).join(browser);
     fs::create_dir_all(&out).map_err(|error| error.to_string())?;
     let after = skin_trial(session, &out, &source, "declared", &skin.theme.base, &before)?;
