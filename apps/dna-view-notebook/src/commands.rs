@@ -19,6 +19,7 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
     vec![
         command("notebook.inserter", "Open or close block inserter", &["/"], |state, _| {
             let book = state.session.stamp().map(|stamp| stamp.workbook);
+            state.chart_sheet.set(None);
             state.inserter.update(|current| *current = if *current == book { None } else { book });
             Ok(())
         }).when("mode:notebook-command && writable"),
@@ -32,6 +33,9 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
         }).when("mode:notebook-command && writable"),
         command("notebook.add-chart", "Add linked chart", &[], |state, action| {
             blocks::add_chart(state, argument(action)?)
+        }).when("mode:notebook-command && writable"),
+        command("notebook.chart-sheet", "Choose chart worksheet", &[], |state, action| {
+            blocks::choose_chart_sheet(state, argument(action)?)
         }).when("mode:notebook-command && writable"),
         command(
             "notebook.move-obstruction",

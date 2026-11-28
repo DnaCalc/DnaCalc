@@ -87,6 +87,7 @@ struct State {
     formula_editor: StoredValue<Option<dna_formula_ui::formula_field::FormulaAssist>, LocalStorage>,
     function_form: RwSignal<Option<calc_skin::WorkbookId>>,
     inserter: RwSignal<Option<calc_skin::WorkbookId>>,
+    chart_sheet: RwSignal<Option<(calc_skin::WorkbookId, Sheet)>>,
     tree: RwSignal<Option<(calc_skin::WorkbookId, AnchorId)>>,
     rows: RwSignal<BTreeMap<(calc_skin::WorkbookId, AnchorId), RowControls>>,
 }
@@ -208,6 +209,7 @@ impl State {
             formula_editor: StoredValue::new_local(None),
             function_form: RwSignal::new(None),
             inserter: RwSignal::new(None),
+            chart_sheet: RwSignal::new(None),
             tree: RwSignal::new(None),
             rows: RwSignal::new(BTreeMap::new()),
         }

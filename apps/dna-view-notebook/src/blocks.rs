@@ -29,16 +29,21 @@ impl InputControl {
 }
 
 fn source(session: Session, address: &str) -> Result<SourceRef, String> {
-    let sheets = session.summary().ok_or("Loading workbook sources…")?.sheets;
-    let book = AddressBook {
-        sheets: sheets
+    let book = address_book(session).ok_or("Loading workbook sources…")?;
+    SourceRef::parse(address, Notation::A1, &book)
+        .map_err(|_| "Enter a qualified workbook source.".into())
+}
+
+fn address_book(session: Session) -> Option<AddressBook> {
+    Some(AddressBook {
+        sheets: session
+            .summary()?
+            .sheets
             .into_iter()
             .map(|sheet| (sheet.sheet, sheet.name))
             .collect(),
         ..AddressBook::default()
-    };
-    SourceRef::parse(address, Notation::A1, &book)
-        .map_err(|_| "Enter a qualified workbook source.".into())
+    })
 }
 
 pub(super) fn add_control(
@@ -97,7 +102,7 @@ pub(super) fn inserter(state: State) -> impl IntoView {
                 {stage::button(session, "notebook.new-function", "Function")}
                 {control_form(session, false)}
                 {control_form(session, true)}
-                {chart_form(session)}
+                {chart_form(state)}
                 {stage::button(session, "notebook.inserter", "Close inserter")}
             </section>
         </Show>
@@ -147,8 +152,49 @@ fn control_form(session: Session, numeric: bool) -> impl IntoView {
     }
 }
 
-fn chart_form(session: Session) -> impl IntoView {
+pub(super) fn choose_chart_sheet(state: State, name: String) -> Result<(), String> {
+    let workbook = state.session.stamp().map(|stamp| stamp.workbook)
+        .filter(|workbook| state.inserter.get() == Some(*workbook))
+        .ok_or("Open the block inserter first.")?;
+    let sheet = state.session.summary()
+        .and_then(|summary| summary.sheets.into_iter().find(|sheet| sheet.name == name))
+        .ok_or("Choose a workbook worksheet.")?;
+    state.chart_sheet.set(Some((workbook, sheet.sheet)));
+    Ok(())
+}
+
+fn chart_form(state: State) -> impl IntoView {
+    let session = state.session;
     let address = NodeRef::<leptos::html::Input>::new();
+    let book = Memo::new(move |_| address_book(session));
+    let worksheet = Memo::new(move |_| {
+        let book = book.get()?;
+        let active = state.chart_sheet.get()
+            .filter(|(owner, _)| session.stamp().is_some_and(|stamp| stamp.workbook == *owner))
+            .map(|(_, sheet)| sheet)
+            .or_else(|| session.active().map(|at| Sheet(at.0, at.1)));
+        book.sheets
+            .iter()
+            .find(|(sheet, _)| Some(*sheet) == active)
+            .or_else(|| book.sheets.first())
+            .map(|(sheet, _)| *sheet)
+    });
+    let objects = session.following::<query::Objects>();
+    let charts = Memo::new(move |_| {
+        let result = objects.at(worksheet.get().map(|sheet| query::Objects { sheet }));
+        let (Some(book), Live::Ready(answer)) = (book.get(), result) else {
+            return Vec::new();
+        };
+        answer
+            .body
+            .charts
+            .into_iter()
+            .filter_map(|chart| {
+                let address = chart.source.display(&book)?;
+                Some((address, chart.image.label))
+            })
+            .collect::<Vec<_>>()
+    });
     view! {
         <form aria-label="Add chart" class="dna-notebook-tools" on:submit=move |event| {
             event.prevent_default();
@@ -156,7 +202,25 @@ fn chart_form(session: Session) -> impl IntoView {
                 commands::invoke(session, "notebook.add-chart", field.value());
             }
         }>
-            <label>"Workbook chart" <input required node_ref=address placeholder="obj:Analysis/SalesByRegion" /></label>
+            <label>"Chart worksheet" <select data-command="notebook.chart-sheet" on:change=move |event| {
+                commands::invoke(session, "notebook.chart-sheet", event_target_value(&event));
+            }>
+                {move || {
+                    let active = worksheet.get();
+                    book.get().into_iter().flat_map(|book| book.sheets).map(|(sheet, name)| {
+                        let value = name.clone();
+                        let selected = active == Some(sheet);
+                        view! { <option value=value selected=selected>{name}</option> }
+                    }).collect_view()
+                }}
+            </select></label>
+            <label>"Workbook chart" <input required node_ref=address
+                list="notebook-charts" placeholder="Analysis!\"SalesByRegion\"" /></label>
+            <datalist id="notebook-charts">
+                {move || charts.get().into_iter().map(|(address, label)| {
+                    view! { <option value=address label=label /> }
+                }).collect_view()}
+            </datalist>
             <button type="submit" data-command="notebook.add-chart">"Add chart"</button>
         </form>
     }

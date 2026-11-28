@@ -1058,6 +1058,10 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Click("[title='scopeTotal'][data-command='notebook.follow-source']"),
             Action::Wait(Check::Attr("[data-notebook-output-name='scopeTotal']", "aria-current", "true")),
             Action::Click("[data-notebook-output-name='byRegion'] [data-notebook-formula] [data-command='notebook.follow-source']"),
+            Action::Click("[data-command='notebook.inserter']"),
+            Action::Choose("form[aria-label='Add chart'] select", "Analysis"),
+            Action::WaitWorkbook(Check::Attr("#notebook-charts option[label='Sales by region']", "value", "Analysis!\"SalesByRegion\"")),
+            Action::Click("section[aria-label='Insert Notebook block'] [data-command='notebook.inserter']"),
         ],
         checks: &[
             Check::Attr("[data-notebook-output-name='scopeOrders'] [data-notebook-rows]", "data-notebook-rows", "4147"),
