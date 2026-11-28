@@ -6,9 +6,9 @@ use calc_host::value::{CellKey, GridArea, NameId};
 use calc_host::{HostState, Prerequisite};
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::{
-    DependencyAtlas, DependencyAtlasLink, DependencyAtlasSheet,
-    Dependencies, DependencyDirection, DependencyEdge, DependencyGrouping, DependencyKind,
-    DependencySheetGroup, DependencyTarget, NameScope, Refusal, SourceRef,
+    Dependencies, DependencyAtlas, DependencyAtlasLink, DependencyAtlasSheet, DependencyDirection,
+    DependencyEdge, DependencyGrouping, DependencyKind, DependencyReference, DependencySheetGroup,
+    DependencyTarget, NameScope, Refusal, SourceRef,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
@@ -193,13 +193,37 @@ impl Graph<'_> {
         target: Node,
         kind: DependencyKind,
         left: u16,
-    ) -> Result<(), Refusal> {
+    ) -> Result<Option<DependencyEdge>, Refusal> {
         let to = self.add(target, left)?;
         let edge = DependencyEdge { from, to, kind };
         if self.edges.insert(edge) {
             self.meter.work(0, 0, 1)?;
             self.output.edges.push(edge);
+            return Ok(Some(edge));
         }
+        Ok(None)
+    }
+
+    fn reference(
+        &mut self,
+        edge: DependencyEdge,
+        spelling: calc_host::DependencySpelling,
+        extent: Option<GridArea>,
+    ) -> Result<(), Refusal> {
+        let source = if spelling.spill {
+            SourceRef::Spill {
+                anchor: Key::of(spelling.area.first()),
+            }
+        } else {
+            source_area(spelling.area)
+        };
+        self.meter.work(0, 0, 1)?;
+        self.output.references.push(DependencyReference {
+            edge,
+            spelling: spelling.spelling,
+            source,
+            published_extent: extent.map(Area::of),
+        });
         Ok(())
     }
 
@@ -214,6 +238,11 @@ impl Graph<'_> {
                     }
                     return Ok(());
                 };
+                let mut spellings: HashMap<GridArea, Vec<_>> = HashMap::new();
+                for spelling in self.host.dependency_spellings(at) {
+                    self.meter.work(0, 0, 0)?;
+                    spellings.entry(spelling.area).or_default().push(spelling);
+                }
                 for (prerequisite, kind) in placed
                     .iter()
                     .map(|p| (p, DependencyKind::Placed))
@@ -226,7 +255,17 @@ impl Graph<'_> {
                         Prerequisite::SheetSpan(span) => (Node::Span(span), kind),
                         Prerequisite::Name(name) => (Node::Name(name), DependencyKind::Name),
                     };
-                    self.connect(id, related, kind, left)?;
+                    if let Some(edge) = self.connect(id, related, kind, left)?
+                        && let (DependencyKind::Placed, Node::Area(area)) = (kind, related)
+                    {
+                        for spelling in spellings.remove(&area).into_iter().flatten() {
+                            let extent = spelling
+                                .spill
+                                .then(|| self.host.spill_area(area.first()))
+                                .flatten();
+                            self.reference(edge, spelling, extent)?;
+                        }
+                    }
                 }
             }
             Node::Area(area) => {
@@ -259,12 +298,25 @@ impl Graph<'_> {
             Node::Area(area) => {
                 for at in self.host.dependency_readers(area) {
                     self.meter.work(0, 0, 0)?;
-                    self.connect(
+                    let Some(edge) = self.connect(
                         id,
                         Node::Area(GridArea::cell(at)),
                         DependencyKind::Reader,
                         left,
-                    )?;
+                    )?
+                    else {
+                        continue;
+                    };
+                    for spelling in self.host.dependency_spellings(at) {
+                        self.meter.work(0, 0, 0)?;
+                        let extent = spelling
+                            .spill
+                            .then(|| self.host.spill_area(spelling.area.first()))
+                            .flatten();
+                        if extent.unwrap_or(spelling.area).intersection(area).is_some() {
+                            self.reference(edge, spelling, extent)?;
+                        }
+                    }
                 }
             }
             Node::Name(name) => {

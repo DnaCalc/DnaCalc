@@ -327,6 +327,12 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
                     edge.kind
                 );
             }
+            for reference in &deps.references {
+                let _ = writeln!(report, "{} · {}", reference.spelling, source_label(session, &reference.source));
+                if let Some(area) = reference.published_extent {
+                    let _ = writeln!(report, "Published spill {}", crate::area_label(session, area));
+                }
+            }
         }
         if let Some(evidence) = section(&mut report, "Formula value changes", changes) {
             match evidence {

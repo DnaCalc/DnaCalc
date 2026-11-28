@@ -353,6 +353,10 @@ fn graph_view(
             {edges.into_iter().map(|edge| {
                 let from = labels[edge.from].clone();
                 let to = labels[edge.to].clone();
+                let operands = graph.references.iter().filter(|item| item.edge == *edge).map(|item| {
+                    let extent = item.published_extent.map(|area| format!(" · Published spill {}", area_label(session, area)));
+                    view! { <span data-inspector="dependency-operand"><code>{item.spelling.clone()}</code>{extent}</span> }
+                }).collect_view();
                 let target = match &graph.nodes[edge.to] {
                     DependencyTarget::Source(SourceRef::Cells { areas, .. }) => areas.first().map(|area| area.0),
                     _ => None,
@@ -362,7 +366,7 @@ fn graph_view(
                         Some(at) => reveal(session, at).into_any(),
                         None => to.into_any(),
                     }}
-                    <small>{format!("{:?}", edge.kind)}</small></li> }
+                    <small>{format!("{:?}", edge.kind)}</small>{operands}</li> }
             }).collect_view()}
         </ol>
         {graph.edges.is_empty().then(|| view! { <p>"No bound edges at this depth."</p> })}
