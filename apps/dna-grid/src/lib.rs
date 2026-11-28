@@ -237,8 +237,8 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         .when("!mode:key-tips && !mode:object")
         .in_editor()
     };
-    let fill = |id, label, chord, direction| {
-        ViewCommand::new(view, id, label, &[chord], move |_| {
+    let fill = |id, label, chords: &[&'static str], direction| {
+        ViewCommand::new(view, id, label, chords, move |_| {
             let areas = selected_areas(session);
             let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
                 return Err("Select one worksheet range to fill.".into());
@@ -269,8 +269,10 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         extend("grid.extend-up", "Extend up", "Shift+ArrowUp", -1, 0),
         extend("grid.extend-left", "Extend left", "Shift+ArrowLeft", 0, -1),
         extend("grid.extend-right", "Extend right", "Shift+ArrowRight", 0, 1),
-        fill("grid.fill-down", "Fill Down", "Ctrl+D", FillDirection::Down),
-        fill("grid.fill-right", "Fill Right", "Ctrl+R", FillDirection::Right),
+        fill("grid.fill-down", "Fill Down", &["Ctrl+D"], FillDirection::Down),
+        fill("grid.fill-right", "Fill Right", &["Ctrl+R"], FillDirection::Right),
+        fill("grid.fill-up", "Fill Up", &[], FillDirection::Up),
+        fill("grid.fill-left", "Fill Left", &[], FillDirection::Left),
         ViewCommand::new(view, "grid.add-selection", "Add cell to selection", &[], move |invocation| {
             let at = serde_json::from_value(invocation.args.clone()).map_err(|_| "Choose a worksheet cell.")?;
             tab_run.set_value(None);

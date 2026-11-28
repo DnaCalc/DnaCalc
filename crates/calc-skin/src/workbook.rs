@@ -579,6 +579,8 @@ pub enum PasteContents {
 pub enum FillDirection {
     Down,
     Right,
+    Up,
+    Left,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

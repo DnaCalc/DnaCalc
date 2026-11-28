@@ -618,27 +618,37 @@ pub(crate) fn prepare(
                     let key = |row, column| {
                         CellKey::new(selected.sheet(), row, column).expect("inside the selection")
                     };
-                    let (seed_end, target_start) = match direction {
+                    let (seed, destination) = match direction {
                         FillDirection::Down if first.row() < last.row() => (
-                            key(first.row(), last.column()),
-                            key(first.row() + 1, first.column()),
+                            (first, key(first.row(), last.column())),
+                            (key(first.row() + 1, first.column()), last),
                         ),
                         FillDirection::Right if first.column() < last.column() => (
-                            key(last.row(), first.column()),
-                            key(first.row(), first.column() + 1),
+                            (first, key(last.row(), first.column())),
+                            (key(first.row(), first.column() + 1), last),
+                        ),
+                        FillDirection::Up if first.row() < last.row() => (
+                            (key(last.row(), first.column()), last),
+                            (first, key(last.row() - 1, last.column())),
+                        ),
+                        FillDirection::Left if first.column() < last.column() => (
+                            (key(first.row(), last.column()), last),
+                            (first, key(last.row(), last.column() - 1)),
                         ),
                         FillDirection::Down => return Err(invalid("Select at least two rows to fill down.")),
                         FillDirection::Right => return Err(invalid("Select at least two columns to fill right.")),
+                        FillDirection::Up => return Err(invalid("Select at least two rows to fill up.")),
+                        FillDirection::Left => return Err(invalid("Select at least two columns to fill left.")),
                     };
-                    let from = GridArea::new(first, seed_end).expect("an ordered seed range");
-                    let target = GridArea::new(target_start, last).expect("an ordered fill range");
+                    let from = GridArea::new(seed.0, seed.1).expect("an ordered seed range");
+                    let target = GridArea::new(destination.0, destination.1).expect("an ordered fill range");
                     let host = state.session.host();
                     let excel = |reason| Refusal::Excel { reason };
                     let plan = prepare_paste_oriented(
                         host,
                         PasteSource::Fill {
                             from,
-                            down: *direction == FillDirection::Down,
+                            down: matches!(direction, FillDirection::Down | FillDirection::Up),
                             series: false,
                         },
                         target,
