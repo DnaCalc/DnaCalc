@@ -74,7 +74,7 @@ impl HostKind {
             Need::WindowsPath | Need::FileAttributes | Need::Environment | Need::Settings => {
                 [Native, Shim, Shim, Shim, Shim, Shim, Shim]
             }
-            Need::Process | Need::Dll | Need::Xll | Need::OsCom | Need::Keys => {
+            Need::Process | Need::Dll | Need::Xll | Need::OsCom | Need::Keys | Need::Dde | Need::Mail => {
                 [Native, Reject, Reject, Reject, Reject, Reject, Reject]
             }
             Need::Dylib => [Reject, Native, Reject, Reject, Reject, Reject, Reject],

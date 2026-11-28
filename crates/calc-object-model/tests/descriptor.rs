@@ -105,3 +105,30 @@ fn descriptor_reach_overlay_resolves_every_entry() {
     assert_eq!(descriptor.xlc_reach("xlcExec")[0].key(), "process");
     assert!(descriptor.xlc_reach("xlcCalculateNow").is_empty());
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9x1fr_c_api_commands_declare_reach_and_needs() {
+    use calc_object_model::descriptor::{Capability, Need};
+    let descriptor = Descriptor::get();
+    assert_eq!(descriptor.xlc_needs("XLCEXEC"), &[Need::Process]);
+    assert_eq!(descriptor.xlc_needs("xlcSendKeys"), &[Need::Keys]);
+    assert_eq!(descriptor.xlc_reach("xlcPrint"), &[Capability::Print]);
+    assert_eq!(descriptor.xlc_needs("xlcFileDelete"), &[Need::FileTree, Need::WindowsPath]);
+    assert!(descriptor.xlc_needs("xlcCalculateNow").is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9x1fr_c_api_functions_distinguish_path_and_locale_items() {
+    use calc_object_model::descriptor::{Capability, Need};
+    let descriptor = Descriptor::get();
+    assert_eq!(descriptor.xlf_needs("xlfRegisterId"), &[Need::Dll]);
+    assert_eq!(descriptor.xlf_reach("XLFREGISTERID"), &[Capability::Ffi]);
+    assert_eq!(descriptor.xlf_reach("xlfExec"), &[Capability::Process]);
+    assert_eq!(descriptor.xlf_needs("xlfFopen"), &[Need::FileTree, Need::WindowsPath]);
+    assert_eq!(descriptor.xlf_needs("xlfGetWorkspace(23)"), &[Need::WindowsPath]);
+    assert_eq!(descriptor.xlf_needs("xlfGetWorkspace(37)"), &[Need::Locale]);
+    assert_eq!(descriptor.xlf_needs("xlfGetDocument(2)"), &[Need::WindowsPath]);
+    assert!(descriptor.xlf_needs("xlfGetDocument(1)").is_empty());
+}

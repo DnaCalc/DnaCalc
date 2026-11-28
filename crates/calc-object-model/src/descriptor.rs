@@ -209,6 +209,8 @@ needs! {
     Environment => "env",
     Settings => "settings",
     Process => "process",
+    Dde => "dde",
+    Mail => "mail",
     Dll => "native.code:dll",
     Xll => "native.code:xll",
     Dylib => "native.code:dylib",
@@ -473,6 +475,7 @@ pub struct Descriptor {
     /// `Font`, `Page`, `Pages` beside Excel's), which `by_name` resolves to the first library.
     by_library_name: HashMap<(usize, String), InterfaceId>,
     xlc_reach: HashMap<String, Vec<Capability>>,
+    xlf_reach: HashMap<String, Vec<Capability>>,
     xlc_needs: HashMap<String, Vec<Need>>,
     xlf_needs: HashMap<String, Vec<Need>>,
 }
@@ -515,6 +518,7 @@ impl Descriptor {
             let reach = descriptor.load_overlay(REACH, "reach", |member, values| member.reach = values)
                 .expect("committed reach overlay matches the descriptor");
             descriptor.xlc_reach = reach.xlc;
+            descriptor.xlf_reach = reach.xlf;
             let needs = descriptor.load_overlay(NEEDS, "needs", |member, values| member.needs = values)
                 .expect("committed needs overlay matches the descriptor");
             descriptor.xlc_needs = needs.xlc;
@@ -535,6 +539,7 @@ impl Descriptor {
             by_guid: HashMap::new(),
             by_library_name: HashMap::new(),
             xlc_reach: HashMap::new(),
+            xlf_reach: HashMap::new(),
             xlc_needs: HashMap::new(),
             xlf_needs: HashMap::new(),
         };
@@ -590,12 +595,17 @@ impl Descriptor {
         self.xlc_reach.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
     }
 
+    /// Capabilities for C API functions and modifiers.
+    pub fn xlf_reach(&self, name: &str) -> &[Capability] {
+        self.xlf_reach.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
+    }
+
     /// Required facilities for a C API command.
     pub fn xlc_needs(&self, name: &str) -> &[Need] {
         self.xlc_needs.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
     }
 
-    /// Required facilities for a C API function.
+    /// Required facilities for a C API function or an info item such as `xlfGetWorkspace(23)`.
     pub fn xlf_needs(&self, name: &str) -> &[Need] {
         self.xlf_needs.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
     }

@@ -56,6 +56,44 @@
     "Shape.CopyPicture (Method)": ["clipboard"]
   },
   "xlc": {
-    "xlcExec": ["process"]
+    "xlcAlert": ["ui.dialog"],
+    "xlcAppActivate": ["ui.keys"],
+    "xlcChangeLink": ["fs.read", "network"],
+    "xlcExec": ["process"],
+    "xlcFileDelete": ["fs.write"],
+    "xlcOpen": ["fs.read", "network"],
+    "xlcOpenLinks": ["fs.read", "network"],
+    "xlcPageSetup": ["print"],
+    "xlcPrint": ["print"],
+    "xlcPrinterSetup": ["print"],
+    "xlcSave": ["fs.write", "network"],
+    "xlcSaveAs": ["fs.write", "network"],
+    "xlcSendKeys": ["ui.keys"],
+    "xlcSendMail": ["network"],
+    "xlcUpdateLink": ["fs.read", "network"]
+  },
+  "xlf": {
+    "xlPrompt": ["ui.dialog"],
+    "xlfCall": ["ffi"],
+    "xlfDirectory": ["fs.read"],
+    "xlfExec": ["process"],
+    "xlfExecute": ["process"],
+    "xlfFclose": ["fs.write"],
+    "xlfFiles": ["fs.read"],
+    "xlfFopen": ["fs.read", "fs.write"],
+    "xlfFpos": ["fs.read", "fs.write"],
+    "xlfFread": ["fs.read"],
+    "xlfFreadln": ["fs.read"],
+    "xlfFsize": ["fs.read"],
+    "xlfFwrite": ["fs.write"],
+    "xlfFwriteln": ["fs.write"],
+    "xlfInitiate": ["process"],
+    "xlfInput": ["ui.dialog"],
+    "xlfPoke": ["process"],
+    "xlfRegister": ["ffi"],
+    "xlfRegisterId": ["ffi"],
+    "xlfRequest": ["process"],
+    "xlfTerminate": ["process"],
+    "xlfUnregister": ["ffi"]
   }
 }
