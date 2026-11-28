@@ -581,6 +581,7 @@ pub enum PasteContents {
     Values,
     Formulas,
     AllTransposed,
+    Link,
     Special {
         part: PastePart,
         transpose: bool,

@@ -17,6 +17,8 @@ pub enum PasteSource<'a> {
         /// Move the source cells when true.
         cut: bool,
     },
+    /// Author references to the source coordinates from an in-workbook copy.
+    Link(&'a CopySnapshot),
     /// Extend an existing range into adjacent cells.
     Fill {
         /// Range providing the seed cells.
@@ -279,6 +281,53 @@ pub fn prepare_paste_column_widths(
     Ok((target, edits))
 }
 
+fn prepare_paste_links(
+    host: &HostState,
+    snapshot: &CopySnapshot,
+    to: GridArea,
+) -> Result<(Vec<CellEdit>, GridArea), String> {
+    use calc_fml::reference::{column_letters, format_sheet_qualifier};
+
+    let source = snapshot.area();
+    let target = snapshot.target(to).map_err(|reason| reason.to_string())?;
+    if target.row_count() % source.row_count() != 0
+        || target.column_count() % source.column_count() != 0
+    {
+        return Err("The paste area must be a whole multiple of the source size".into());
+    }
+    if source.intersection(target).is_some() {
+        return Err("Paste Link over its source cells is unavailable (dc-s2xup)".into());
+    }
+    crate::check_destination(host, target, PasteMode::Formulas)
+        .map_err(|reason| reason.to_string())?;
+    let sheet = host
+        .model()
+        .sheet_by_id(source.sheet())
+        .ok_or("The linked worksheet is unavailable")?;
+    let qualifier = if source.sheet() == target.sheet() {
+        String::new()
+    } else {
+        let name = sheet.name().text().to_string_lossy();
+        format!("{}!", format_sheet_qualifier(&name))
+    };
+    let mut edits = Vec::with_capacity(target.cell_count() as usize);
+    for row in target.first().row()..=target.last().row() {
+        let source_row = source.first().row() + (row - target.first().row()) % source.row_count();
+        for column in target.first().column()..=target.last().column() {
+            let source_column = source.first().column()
+                + (column - target.first().column()) % source.column_count();
+            let letters = column_letters(source_column);
+            let formula = format!("={qualifier}${letters}${source_row}");
+            let input = crate::interpret_entry(&formula)
+                .map_err(|reason| reason.to_string())?
+                .ok_or("The source reference could not be authored")?;
+            let at = CellKey::new(target.sheet(), row, column).expect("inside the paste target");
+            edits.push(CellEdit::Set { at, input });
+        }
+    }
+    Ok((edits, target))
+}
+
 /// Validate the source and destination and prepare a paste in its original orientation.
 pub fn prepare_paste(
     host: &HostState,
@@ -298,7 +347,12 @@ pub fn prepare_paste_oriented(
     transpose: bool,
 ) -> Result<PastePlan, String> {
     let flash = matches!(&source, PasteSource::FlashFill);
-    let mode = if flash { PasteMode::Values } else { mode };
+    let mode = match &source {
+        PasteSource::FlashFill => PasteMode::Values,
+        PasteSource::Link(_) if transpose => return Err("Paste Link cannot transpose".into()),
+        PasteSource::Link(_) => PasteMode::Formulas,
+        _ => mode,
+    };
     if transpose && matches!(&source, PasteSource::Fill { .. } | PasteSource::FlashFill) {
         return Err(crate::CopyRefusal::TransposeFill.to_string());
     }
@@ -332,6 +386,7 @@ pub fn prepare_paste_oriented(
                 .map_err(|e| e.to_string())?;
             (edits, target)
         }
+        PasteSource::Link(snapshot) => prepare_paste_links(host, snapshot, to)?,
         PasteSource::Fill { from, down, series } => {
             let snapshot = crate::CopySnapshot::capture(host, from).map_err(|e| e.to_string())?;
             let edits = snapshot
