@@ -277,6 +277,30 @@ fn classic_freeze_panes_key_tip_persists_and_toggles() {
         if (answer.body.frozen_rows, answer.body.frozen_columns) == (0, 0)));
 }
 
+/// Native-only: routes the two named freeze gestures through the shell and workbook service.
+#[test]
+fn classic_freeze_top_row_and_first_column_pin_one_band() {
+    let page = Page::open();
+    let session = page.session;
+    let active = page.at(4, 3);
+    session.select_cell(active);
+    let geometry = session.watch(query::Geometry { sheet: page.sheet });
+    page.settle();
+    let freeze = |leaf| {
+        for key in ["F10", "w", "f", leaf] {
+            assert!(page.press(key, Focus::Stage), "{key}");
+        }
+        assert_eq!(session.active(), Some(active));
+        match session.read(geometry) {
+            Live::Ready(answer) => (answer.body.frozen_rows, answer.body.frozen_columns),
+            _ => panic!("the worksheet geometry is unavailable"),
+        }
+    };
+    assert_eq!(freeze("r"), (1, 0));
+    assert_eq!(freeze("f"), (0, 0));
+    assert_eq!(freeze("c"), (0, 1));
+}
+
 /// Native-only: drives the Classic command through CalcHost and round-trips a scratch XLSX.
 #[test]
 fn classic_gridlines_key_tip_persists_as_a_worksheet_view() {

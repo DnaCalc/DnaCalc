@@ -8,7 +8,7 @@
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
 use calc_skin::{
-    Batch, Change, FillDirection, Interest, ModelChange, Operation, Provenance, RawValue,
+    Batch, Change, FillDirection, FreezeBand, Interest, ModelChange, Operation, Provenance, RawValue,
     Selection, SourceRef, ThinBorder, address, query,
 };
 use dna_kit::{InputMode, Invocation, Live, Session, ViewCommand, commands::CommandId};
@@ -277,6 +277,24 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         })
         .when("mode:ready && writable")
     };
+    let freeze = |id, label, band| {
+        ViewCommand::new(view, id, label, &[], move |_| {
+            let (Some(at), Some(stamp)) = (session.active(), session.stamp()) else {
+                return Err("No worksheet cell is selected.".into());
+            };
+            let Area(first, _) = page_of(at);
+            let off_origin = (first.2, first.3) != (1, 1)
+                || session.local::<ViewportScroll>().0.get_untracked();
+            let workbook = stamp.workbook;
+            let operation = match band {
+                Some(band) => Operation::FreezeLeadingBand { workbook, at, band, off_origin },
+                None => Operation::ToggleFreezePanes { workbook, at, off_origin },
+            };
+            session.operate(operation, None);
+            Ok(())
+        })
+        .when("mode:ready && writable")
+    };
     let mut commands = vec![
         moves("grid.move-down", "Move down", &["ArrowDown"], 1, 0),
         moves("grid.move-up", "Move up", &["ArrowUp"], -1, 0),
@@ -373,17 +391,9 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
-        ViewCommand::new(view, "grid.freeze-panes", "Freeze or Unfreeze Panes", &[], move |_| {
-            let (Some(at), Some(stamp)) = (session.active(), session.stamp()) else {
-                return Err("No worksheet cell is selected.".into());
-            };
-            let Area(first, _) = page_of(at);
-            let off_origin = (first.2, first.3) != (1, 1)
-                || session.local::<ViewportScroll>().0.get_untracked();
-            session.operate(Operation::ToggleFreezePanes { workbook: stamp.workbook, at, off_origin }, None);
-            Ok(())
-        })
-        .when("mode:ready && writable"),
+        freeze("grid.freeze-panes", "Freeze or Unfreeze Panes", None),
+        freeze("grid.freeze-top-row", "Freeze Top Row", Some(FreezeBand::TopRow)),
+        freeze("grid.freeze-first-column", "Freeze First Column", Some(FreezeBand::FirstColumn)),
         ViewCommand::new(view, "grid.toggle-filter", "Toggle Filter", &["Ctrl+Shift+L"], move |_| {
             let areas = selected_areas(session);
             let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {

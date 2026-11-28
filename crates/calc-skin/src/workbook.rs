@@ -997,6 +997,13 @@ pub struct LookOffer {
     pub look: TryOnPayload,
 }
 
+/// One leading worksheet band to freeze.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FreezeBand {
+    TopRow,
+    FirstColumn,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Operation {
     Undo,
@@ -1023,6 +1030,13 @@ pub enum Operation {
         at: Key,
         /// The worksheet viewport has moved away from its leading row or column.
         #[serde(default)]
+        off_origin: bool,
+    },
+    /// Freeze one worksheet band from the leading row or column.
+    FreezeLeadingBand {
+        workbook: WorkbookId,
+        at: Key,
+        band: FreezeBand,
         off_origin: bool,
     },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },

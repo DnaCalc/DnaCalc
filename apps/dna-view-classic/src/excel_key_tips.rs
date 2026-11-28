@@ -106,6 +106,8 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     command("M V", "Evaluate Formula", "explorer.dock"),
     group("W F", "Freeze Panes"),
     command("W F F", "Freeze Panes", "grid.freeze-panes"),
+    command("W F R", "Freeze Top Row", "grid.freeze-top-row"),
+    command("W F C", "Freeze First Column", "grid.freeze-first-column"),
     group("W V", "Show"),
     command("W V G", "Gridlines", "grid.toggle-gridlines"),
     pending("W L", "Normal View"),
