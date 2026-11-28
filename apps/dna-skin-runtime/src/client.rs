@@ -886,6 +886,7 @@ mod tests {
             base: stamp(1, 0),
             writes: Vec::new(),
             properties: Vec::new(),
+            effects: Vec::new(),
             presentation: Vec::new(),
             warnings: warnings.iter().map(|w| (*w).to_owned()).collect(),
             refusal,

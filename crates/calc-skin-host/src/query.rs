@@ -626,8 +626,14 @@ pub(crate) fn shown_value(
     state: &State,
     value: &ProjectedValue,
 ) -> (Option<CalcValue>, Provenance) {
-    let host = state.session.host();
-    let stamp = state.stamp();
+    shown_value_for(state.session.host(), value)
+}
+
+pub(crate) fn shown_value_for(
+    host: &calc_host::HostState,
+    value: &ProjectedValue,
+) -> (Option<CalcValue>, Provenance) {
+    let stamp = host.skin_stamp();
     match value {
         ProjectedValue::Empty => (None, Provenance::Empty),
         ProjectedValue::Literal(value) => (Some(value.clone()), Provenance::Literal),

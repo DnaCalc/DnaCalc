@@ -1,5 +1,5 @@
 use crate::grid::{Area, Key, Sheet};
-use crate::{AnchorId, Bound, DocId, Selection, SelectionCause, SourceRef, Target, ViewId};
+use crate::{AnchorId, Bound, DocId, RawValue, Selection, SelectionCause, SourceRef, Target, ViewId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -643,6 +643,14 @@ pub struct ModelWriteDiff {
     pub after: Option<String>,
 }
 
+/// A changed output from two isolated calculations. Its provenance is local to the preview.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ValueEffect {
+    pub at: Key,
+    pub before: Shown<RawValue>,
+    pub after: Shown<RawValue>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelProperty {
     StyleTable,
@@ -701,6 +709,8 @@ pub struct Preview {
     pub writes: Vec<ModelWriteDiff>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub properties: Vec<ModelPropertyDiff>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<ValueEffect>,
     pub presentation: Vec<PresentationChange>,
     pub warnings: Vec<String>,
     pub refusal: Option<Refusal>,
