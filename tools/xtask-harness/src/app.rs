@@ -2641,16 +2641,24 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             )
         }
         Action::DiscardReplacement => {
+            let (dialog, confirm, pending) = if app.key == "classic-preview" {
+                (
+                    "[data-dnacalc=close-workbook][open]",
+                    "[data-command='file.replace-workbook']",
+                    "[data-dnacalc=close-workbook][open]",
+                )
+            } else {
+                (
+                    "[data-dnacalc=replace-dialog][open]",
+                    "discard-work",
+                    "[data-dnacalc=app][inert]",
+                )
+            };
+            let opened = format!("return !!document.querySelector({});", json!(dialog));
             let started = Instant::now();
             while started.elapsed() < Duration::from_secs(2) {
-                if session
-                    .script(
-                        "return !!document.querySelector('[data-dnacalc=replace-dialog][open]');",
-                    )?
-                    .as_bool()
-                    == Some(true)
-                {
-                    let element = session.element(&select(app, "discard-work"))?;
+                if session.script(&opened)?.as_bool() == Some(true) {
+                    let element = session.element(&select(app, confirm))?;
                     session.post(&format!("/element/{element}/click"), json!({}))?;
                     // The replacement finishes asynchronously and the app is inert until it does. An
                     // action that follows (opening a details panel, choosing in a list) must act on
@@ -2659,7 +2667,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     if let Some(failure) = wait_for(
                         app,
                         session,
-                        &Check::Absent("[data-dnacalc=app][inert]"),
+                        &Check::Absent(pending),
                         settle(),
                     ) {
                         return Err(format!(

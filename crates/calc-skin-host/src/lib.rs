@@ -17,6 +17,7 @@ mod rows;
 mod snapshot;
 mod structure;
 mod survey;
+mod validation;
 
 use calc_host::value::{CellKey, GridArea, Selection as HostSelection};
 use calc_host::{

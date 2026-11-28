@@ -22,6 +22,7 @@ impl View for Classic {
         let view = self.spec().id;
         session.set_key_tips(view.clone(), excel_key_tips::EXCEL_KEY_TIPS);
         let mut commands = dna_grid::commands(&view, session);
+        commands.extend(dna_kit::data_validation::commands(&view, session));
         commands.extend(dna_kit::paste_special::commands(&view, session));
         commands.extend(dna_kit::sort_dialog::commands(&view, session));
         commands.extend(dna_kit::scenario_manager::commands(&view, session));
@@ -43,6 +44,7 @@ impl View for Classic {
                     .unwrap_or(false)
             })}
             {dna_kit::paste_special::mount(session)}
+            {dna_kit::data_validation::mount(session)}
             {dna_kit::sort_dialog::mount(session)}
             {dna_kit::scenario_manager::mount(session)}
         })
@@ -50,6 +52,7 @@ impl View for Classic {
 
     fn cancel_interaction(&self, session: Session) -> bool {
         dna_kit::paste_special::close(session)
+            || dna_kit::data_validation::close(session)
             || dna_kit::sort_dialog::close(session)
             || dna_kit::scenario_manager::close(session)
     }

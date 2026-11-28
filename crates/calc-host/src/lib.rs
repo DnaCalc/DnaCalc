@@ -214,6 +214,7 @@ pub use session::{
 pub use state::{HostOptions, HostState, OpenFailure, OpenReport, RecalcContext};
 pub use validation::{
     ErrorStyle, ValidationFailure, ValidationRule, ValidationScan, ValidationStatus,
+    editable_validation_list,
 };
 
 pub use calc_doc::{

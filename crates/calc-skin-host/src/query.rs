@@ -373,6 +373,7 @@ pub(crate) fn invalidated(
         }
         WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
         WorkbookQuery::DefinedName { .. } => authored,
+        WorkbookQuery::ValidationSettings { .. } => authored,
         WorkbookQuery::FormulaNames { .. } => authored,
         WorkbookQuery::SpillBlockers { .. } => authored || recalculated,
         WorkbookQuery::Structure { scope } => {
@@ -1024,6 +1025,10 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         }
         WorkbookQuery::Cells { interest } => {
             query::Cells::encode(&project_window(state, interest, budget)?)?
+        }
+        WorkbookQuery::ValidationSettings { selected } => {
+            let target = crate::validation::target(host, grid_area(*selected)?, || meter.work(1, 0, 0))?;
+            query::ValidationFor::encode(&target.settings)?
         }
         WorkbookQuery::Rows {
             source,

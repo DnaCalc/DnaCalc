@@ -85,14 +85,26 @@ fn style_of(validation: &Validation) -> ErrorStyle {
 
 /// The items of a list written in the rule: the text between its quotes, split at commas.
 fn literal_items(formula: &str) -> Option<Vec<String>> {
-    let inner = formula.trim().strip_prefix('"')?.strip_suffix('"')?;
     Some(
-        inner
-            .replace("\"\"", "\"")
+        literal_source(formula)?
             .split(',')
             .map(|item| item.trim().to_owned())
             .collect(),
     )
+}
+
+fn literal_source(formula: &str) -> Option<String> {
+    let inner = formula.trim().strip_prefix('"')?.strip_suffix('"')?;
+    Some(inner.replace("\"\"", "\""))
+}
+
+/// The source of a native validation list whose formula can be replaced without losing
+/// workbook metadata.
+pub fn editable_validation_list(rule: &Validation) -> Option<String> {
+    if rule.kind != "list" || !calc_doc::validation_movement_supported(rule) {
+        return None;
+    }
+    literal_source(rule.formula1.as_deref()?)
 }
 
 /// An audit never treats unavailable values or rules as valid.
