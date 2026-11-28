@@ -194,9 +194,9 @@ impl Session {
                 continuation();
             }
         }
-        let replies = inner.client.borrow_mut().take_formula_replies();
-        for (complete, result) in replies {
-            complete(result);
+        let completions = inner.client.borrow_mut().take_completions();
+        for complete in completions {
+            complete();
         }
     }
 
@@ -574,6 +574,28 @@ impl Session {
     pub fn operate(self, operation: Operation, notice: Option<String>) {
         self.update(|client| {
             client.run(operation, notice);
+            Changes::default()
+        });
+    }
+
+    /// Review the exact chosen proposal units through the workbook carrier.
+    pub fn preview_proposal(
+        self, proposal: calc_skin::ProposalId, units: Vec<calc_skin::UnitId>, depth: calc_skin::PreviewDepth,
+        complete: impl FnOnce(Result<calc_skin::Preview, Refusal>) + 'static,
+    ) {
+        self.update(|client| {
+            client.preview_proposal(proposal, units, depth, complete);
+            Changes::default()
+        });
+    }
+
+    /// Return the decision receipt or the typed refusal to the operator.
+    pub fn decide_proposal(
+        self, proposal: calc_skin::ProposalId, accept: Vec<calc_skin::UnitId>, reject: Vec<calc_skin::UnitId>,
+        complete: impl FnOnce(Result<Stamp, Refusal>) + 'static,
+    ) {
+        self.update(|client| {
+            client.decide_proposal(proposal, accept, reject, complete);
             Changes::default()
         });
     }

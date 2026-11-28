@@ -815,6 +815,9 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             layout_edited: stamp.view != state.opened_at.view,
             date1904: host.declared_date1904(),
             macros: host.model().definitions().macro_enabled(),
+            pending_proposals: state.proposals.values().filter(|proposal| {
+                proposal.review.units.iter().any(|unit| unit.status == ProposalStatus::Pending)
+            }).count() as u64,
             capabilities: capabilities(state),
         })?,
         WorkbookQuery::Census { scope } => {

@@ -953,7 +953,7 @@ impl WorkbookPort for Connection {
                 ));
             if slot.answer.is_some()
                 && !completed_snapshot
-                && !(proposals_changed && matches!(slot.query, WorkbookQuery::Proposals))
+                && !(proposals_changed && matches!(slot.query, WorkbookQuery::Proposals | WorkbookQuery::Summary))
                 && !(baseline_changed && matches!(
                     slot.query,
                     WorkbookQuery::NumericComparison { .. }
