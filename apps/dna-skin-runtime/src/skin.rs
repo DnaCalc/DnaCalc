@@ -42,7 +42,7 @@ pub fn validate(source: &str) -> Result<Validated, String> {
         serde_json::from_str(source).map_err(|error| error.to_string())?;
     match value.get("schema").and_then(serde_json::Value::as_str) {
         Some("dna.skin/1") => {
-            validate_skin(serde_json::from_str(source).map_err(|error| error.to_string())?)
+            validate_skin(serde_json::from_str(source).map_err(|error| error.to_string())?, source)
         }
         Some("dna.page/1") => {
             let page = serde_json::from_str(source).map_err(|error| error.to_string())?;
@@ -60,7 +60,7 @@ pub fn validate(source: &str) -> Result<Validated, String> {
     }
 }
 
-fn validate_skin(manifest: SkinManifest) -> Result<Validated, String> {
+fn validate_skin(manifest: SkinManifest, source: &str) -> Result<Validated, String> {
     if manifest.id.trim().is_empty() || manifest.name.trim().is_empty() {
         return Err("A skin needs an ID and a name".into());
     }
@@ -75,8 +75,8 @@ fn validate_skin(manifest: SkinManifest) -> Result<Validated, String> {
         colours,
         formula_size_px,
         palette,
-    } = skin_palette(&manifest)?;
-    palette.check_contrast().map_err(theme_error)?;
+    } = skin_palette(&manifest, source)?;
+    palette.check_contrast().map_err(|error| theme_error(source, error))?;
     if let Some(keys) = &manifest.keymap {
         if keys.profile != "excel-365-win-en-us" {
             return Err(format!("Unknown keymap profile {}", keys.profile));
@@ -135,11 +135,50 @@ pub struct ThemeReview {
 /// The Studio's live contrast results, including failing pairs from the draft.
 pub fn review_theme(source: &str) -> Result<ThemeReview, String> {
     let manifest = serde_json::from_str(source).map_err(|error| error.to_string())?;
-    let draft = skin_palette(&manifest)?;
+    let draft = skin_palette(&manifest, source)?;
     Ok(ThemeReview {
         theme: draft.theme,
         contrast: draft.palette.contrast_readings().collect(),
     })
+}
+
+/// Suggest a draft-only repair for text colours, when the full contrast review passes.
+pub fn accessible_draft(source: &str) -> Option<String> {
+    let manifest: SkinManifest = serde_json::from_str(source).ok()?;
+    let draft = skin_palette(&manifest, source).ok()?;
+    let failing: BTreeSet<&str> = draft.palette.contrast_readings()
+        .filter(|reading| !reading.passes())
+        .map(|reading| reading.foreground)
+        .collect();
+    if failing.is_empty() {
+        return None;
+    }
+    let base = dna_strand::resolve_draft(draft.theme, std::iter::empty()).ok()?;
+    let mut revised: serde_json::Value = serde_json::from_str(source).ok()?;
+    for token in failing {
+        if !matches!(token, "ink" | "ink-2" | "ink-3" | "chrome-ink" | "chrome-ink-2" | "accent-ink") {
+            return None;
+        }
+        let candidate = [draft.palette.colour("ink"), base.colour("ink"), base.colour("chrome-ink")]
+            .into_iter()
+            .flatten()
+            .find(|&foreground| SANCTIONED_PAIRS.iter().filter(|pair| {
+                pair.theme == draft.theme && pair.fg == token
+            }).all(|pair| {
+                draft.palette.colour(pair.bg).is_some_and(|background| {
+                    dna_strand::contrast_ratio(foreground, background) >= pair.min_ratio
+                })
+            }))?;
+        let authored = if token == "ink-2" && manifest.theme.overrides.contains_key("ink.secondary") {
+            "ink.secondary"
+        } else {
+            token
+        };
+        revised["theme"]["overrides"][authored] = serde_json::Value::String(candidate.to_hex());
+    }
+    let proposed = serde_json::to_string_pretty(&revised).ok()?;
+    validate(&proposed).ok()?;
+    Some(proposed)
 }
 
 struct StyleDraft {
@@ -150,7 +189,7 @@ struct StyleDraft {
     palette: ResolvedTheme,
 }
 
-fn skin_palette(manifest: &SkinManifest) -> Result<StyleDraft, String> {
+fn skin_palette(manifest: &SkinManifest, source: &str) -> Result<StyleDraft, String> {
     let theme = Theme::ALL
         .into_iter()
         .find(|theme| theme.id() == manifest.theme.base)
@@ -170,17 +209,17 @@ fn skin_palette(manifest: &SkinManifest) -> Result<StyleDraft, String> {
                     .strip_suffix("px")
                     .and_then(|value| value.parse().ok())
                     .filter(|size| (10.0..=32.0).contains(size))
-                    .ok_or_else(|| "Formula font size must be 10–32 px".to_owned())?;
+                    .ok_or_else(|| at_override(source, key, "Formula font size must be 10–32 px".into()))?;
                 formula_size_px = Some(size);
                 continue;
             }
             "bg" | "paper" | "paper-2" | "ink" | "ink-2" | "ink-3" | "line" | "line-soft"
             | "chrome" | "chrome-2" | "chrome-ink" | "chrome-ink-2" | "accent" | "accent-ink"
             | "accent-soft" => key,
-            _ => return Err(format!("The token {key} cannot be changed by a skin")),
+            _ => return Err(at_override(source, key, format!("The token {key} cannot be changed by a skin"))),
         };
         if colours.insert(token.to_owned(), value.clone()).is_some() {
-            return Err(format!("Two overrides name the Strand token {token}"));
+            return Err(at_override(source, key, format!("Two overrides name the Strand token {token}")));
         }
     }
     let palette = dna_strand::resolve_draft(
@@ -189,7 +228,7 @@ fn skin_palette(manifest: &SkinManifest) -> Result<StyleDraft, String> {
             .iter()
             .map(|(key, value)| (key.as_str(), value.as_str())),
     )
-    .map_err(theme_error)?;
+    .map_err(|error| theme_error(source, error))?;
     for (key, value) in &mut colours {
         *value = palette
             .colour(key)
@@ -205,7 +244,57 @@ fn skin_palette(manifest: &SkinManifest) -> Result<StyleDraft, String> {
     })
 }
 
-fn theme_error(error: ThemeError) -> String {
+/// The key offset and remaining value source for a member of the JSON object.
+fn member<'a>(source: &'a str, name: &str) -> Option<(usize, &'a str)> {
+    let mut rest = source.trim_start().strip_prefix('{')?;
+    let mut last = None;
+    loop {
+        rest = rest.trim_start();
+        if rest.starts_with('}') {
+            return last;
+        }
+        let key_offset = source.len() - rest.len();
+        let mut read = serde_json::Deserializer::from_str(rest).into_iter::<String>();
+        let key = read.next()?.ok()?;
+        let value = rest[read.byte_offset()..].trim_start().strip_prefix(':')?.trim_start();
+        if key == name {
+            last = Some((key_offset, value));
+        }
+        let mut read = serde_json::Deserializer::from_str(value).into_iter::<serde_json::Value>();
+        read.next()?.ok()?;
+        rest = value[read.byte_offset()..].trim_start();
+        if rest.starts_with('}') {
+            return last;
+        }
+        rest = rest.strip_prefix(',')?;
+    }
+}
+
+fn token_line(source: &str, token: &str) -> Option<usize> {
+    let (_, theme) = member(source, "theme")?;
+    let (_, overrides) = member(theme, "overrides")?;
+    let property = match token {
+        "ink-2" => member(overrides, "ink-2").or_else(|| member(overrides, "ink.secondary")),
+        "paper-2" => member(overrides, "paper-2").or_else(|| member(overrides, "surface.panel")),
+        key => member(overrides, key),
+    };
+    let (offset, _) = property?;
+    let start = source.len() - overrides.len() + offset;
+    Some(source[..start].bytes().filter(|&byte| byte == b'\n').count() + 1)
+}
+
+fn on_line(line: Option<usize>, message: String) -> String {
+    match line {
+        Some(line) => format!("Line {line} · {message}"),
+        None => message,
+    }
+}
+
+fn at_override(source: &str, token: &str, message: String) -> String {
+    on_line(token_line(source, token), message)
+}
+
+fn theme_error(source: &str, error: ThemeError) -> String {
     match error {
         ThemeError::Contrast {
             foreground,
@@ -213,15 +302,18 @@ fn theme_error(error: ThemeError) -> String {
             ratio,
             minimum,
         } => {
-            format!(
-                "{foreground} on {background} has {ratio:.4}:1 contrast, minimum {minimum:.1}:1"
+            on_line(
+                token_line(source, foreground).or_else(|| token_line(source, background)),
+                format!(
+                    "{foreground} on {background} has {ratio:.4}:1 contrast, minimum {minimum:.1}:1"
+                ),
             )
         }
         ThemeError::InvalidColour { token, value } => {
-            format!("{token} needs an sRGB hex colour, received {value}")
+            at_override(source, token.as_str(), format!("{token} needs an sRGB hex colour, received {value}"))
         }
         ThemeError::UnknownToken(token) | ThemeError::FixedToken(token) => {
-            format!("The token {token} cannot be changed")
+            at_override(source, token.as_str(), format!("The token {token} cannot be changed"))
         }
     }
 }
@@ -298,6 +390,33 @@ fn collect_bindings<'a>(page: &'a Page, out: &mut Vec<&'a Bound>) {
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn studio_identifies_the_authored_token_and_suggests_a_checked_draft() {
+        let source = r##"{
+          "schema": "dna.skin/1",
+          "id": "audit",
+          "name": "Audit",
+          "theme": {
+            "base": "cockpit-dark",
+            "density": "working",
+            "overrides": {
+              "\u0069nk.secondary": "#7D97A0",
+              "surface.panel": "#22343C"
+            }
+          },
+          "views": { "other": { "ink.secondary": "kept" } }
+        }"##;
+        let reason = super::validate(source).unwrap_err();
+        assert!(reason.starts_with("Line 9 · "), "{reason}");
+        assert!(reason.contains("4.1899:1"), "{reason}");
+        let repaired = super::accessible_draft(source).expect("a checked draft repair");
+        super::validate(&repaired).unwrap();
+        let repaired: serde_json::Value = serde_json::from_str(&repaired).unwrap();
+        assert_ne!(repaired["theme"]["overrides"]["ink.secondary"], "#7D97A0");
+        assert_eq!(repaired["views"]["other"]["ink.secondary"], "kept");
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn theme_review_reports_every_pair_and_retains_the_blocking_measurement() {

@@ -577,6 +577,10 @@ impl Session {
         self.update(|client| client.submit_for_review(batch));
     }
 
+    pub fn submit_for_review_with_effects(self, batch: Batch, budget: Budget) {
+        self.update(|client| client.submit_for_review_with_effects(batch, budget));
+    }
+
     pub fn apply_review(self) {
         self.update(Client::apply_review);
     }
@@ -863,6 +867,22 @@ impl Session {
                 }
                 part.body.skin?.views.get(&id)?.get(setting).cloned()
             })
+    }
+
+    /// Pages authored with the workbook and any offered layout under an active Try-On.
+    pub fn skin_pages(self) -> BTreeMap<String, calc_skin::Page> {
+        let authored = match self.view_part() {
+            Live::Ready(part) if self.stamp().is_some_and(|stamp| stamp.workbook == part.stamp.workbook) =>
+                part.body.skin.map(|skin| skin.pages),
+            _ => None,
+        };
+        let mut pages = authored.unwrap_or_default();
+        self.skin.with(|(_, skin)| {
+            if let Some(skin) = skin {
+                pages.extend(skin.pages.clone());
+            }
+        });
+        pages
     }
 
     /// An opted-in layer's panel placement and the revision that owns it.

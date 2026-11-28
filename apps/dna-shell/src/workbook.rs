@@ -54,17 +54,41 @@ fn a1(at: Key) -> String {
     format!("{}{}", address::column_letters(at.3), at.2)
 }
 
+fn workbook_address(session: Session, at: Key) -> String {
+    session.summary()
+        .and_then(|summary| {
+            summary.sheets.into_iter().find(|sheet| sheet.sheet == Sheet(at.0, at.1))
+        })
+        .map_or_else(
+            || a1(at),
+            |sheet| format!("{}!{}", address::quoted_sheet(&sheet.name), a1(at)),
+        )
+}
+
+fn effect_line(session: Session, effect: calc_skin::ValueEffect) -> impl IntoView {
+    let delta = match (&effect.before.value, &effect.after.value) {
+        (calc_skin::RawValue::Number { bits: before }, calc_skin::RawValue::Number { bits: after }) => {
+            let delta = f64::from_bits(*after) - f64::from_bits(*before);
+            delta.is_finite().then(|| format!(" · change {delta:+}"))
+        }
+        _ => None,
+    };
+    view! {
+        <span class="dna-book-review-write" data-dnacalc="preview-effect">
+            "Calculated preview " <strong>{workbook_address(session, effect.at)}</strong>
+            <code>{effect.before.value.display()}</code> " → " <code>{effect.after.value.display()}</code>
+            {delta}
+        </span>
+    }
+}
+
 fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
     match diff {
-        ModelPropertyDiff::CellMoved { from, to } => {
-            let summary = session.summary();
-            let label = |at: Key| {
-                summary.as_ref().and_then(|book| book.sheets.iter().find(|sheet| {
-                    sheet.sheet == Sheet(at.0, at.1)
-                })).map_or_else(|| a1(at), |sheet| format!("{}!{}", address::quoted_sheet(&sheet.name), a1(at)))
-            };
-            format!("Move {} to {}", label(from), label(to))
-        }
+        ModelPropertyDiff::CellMoved { from, to } => format!(
+            "Move {} to {}",
+            workbook_address(session, from),
+            workbook_address(session, to),
+        ),
         ModelPropertyDiff::DefinedName { before, after, .. } => {
             let label = |name: Option<calc_skin::DefinedNameText>| {
                 name.map_or_else(|| "—".into(), |entry| format!("{} {}", entry.name, entry.formula))
@@ -707,6 +731,7 @@ pub fn workbook(
                     {command_button(session, "calc.calculate", "Calculate")}
                     {command_button(session, "shell.details", "Details")}
                     {command_button(session, "studio.open", "Customise")}
+                    {chrome.studio.page_button(session)}
                     {dock_buttons}
                 </div>
                 <button type="button" data-command="shell.toggle-deck" aria-keyshortcuts="Control+F1"
@@ -748,6 +773,7 @@ pub fn workbook(
                             {preview.properties.into_iter().map(|property| view! {
                                 <span class="dna-book-review-write">{model_property_text(session, property)}</span>
                             }).collect_view()}
+                            {preview.effects.into_iter().map(|effect| effect_line(session, effect)).collect_view()}
                             {preview.warnings.join(" · ")}
                             {command_button(session, "edit.apply-review", "Apply")}
                             {command_button(session, "edit.cancel", "Cancel")}
@@ -793,6 +819,7 @@ pub fn workbook(
                 <div class="dna-book-work">
                     {stage}
                     {chrome.studio.editor(session)}
+                    {chrome.studio.page_drawer(session)}
                     {chrome.proposals.panel(session)}
                     <Show when=move || chrome.side_pane.get() == Some(SidePane::Details)>
                     <aside class="dna-book-details">
@@ -805,8 +832,8 @@ pub fn workbook(
                         {shortcut_help(session)}
                     </Show>
                 </div>
-                <div class="dna-book-dock-right">{right_docks}</div>
-                <div class="dna-book-dock-bottom">{bottom_docks}</div>
+                <div class="dna-book-dock-right">{right_docks}{chrome.studio.dock_pages(session, DockSide::Right)}</div>
+                <div class="dna-book-dock-bottom">{bottom_docks}{chrome.studio.dock_pages(session, DockSide::Bottom)}</div>
             </main>
             <nav class="dna-book-sheets" aria-label="Worksheets">
                 {move || session.summary().into_iter().flat_map(|book| book.sheets)

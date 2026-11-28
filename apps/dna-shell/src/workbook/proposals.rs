@@ -401,25 +401,7 @@ fn action(
 }
 
 fn write_line(session: Session, write: calc_skin::ModelWriteDiff) -> impl IntoView {
-    let at = write.at;
-    let address = session
-        .summary()
-        .and_then(|summary| {
-            summary
-                .sheets
-                .into_iter()
-                .find(|sheet| sheet.sheet == calc_skin::grid::Sheet(at.0, at.1))
-        })
-        .map_or_else(
-            || super::a1(at),
-            |sheet| {
-                format!(
-                    "{}!{}",
-                    calc_skin::address::quoted_sheet(&sheet.name),
-                    super::a1(at)
-                )
-            },
-        );
+    let address = super::workbook_address(session, write.at);
     view! {
         <li>
             <span class="dna-book-review-write">
@@ -457,11 +439,7 @@ fn reviewed(session: Session, result: Result<Preview, Refusal>) -> AnyView {
             {(!preview.effects.is_empty()).then(|| view! {
                 <h4>"Calculated effects"</h4>
                 <ul>{preview.effects.into_iter().map(|effect| {
-                    write_line(session, calc_skin::ModelWriteDiff {
-                        at: effect.at,
-                        before: Some(effect.before.value.display()),
-                        after: Some(effect.after.value.display()),
-                    })
+                    view! { <li>{super::effect_line(session, effect)}</li> }
                 }).collect_view()}</ul>
             })}
             {preview.refusal.map(|reason| view! {

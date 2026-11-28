@@ -32,13 +32,13 @@ pub(crate) fn append(
     match writes
         .and_then(|writes| compare(host, after, &writes, !preview.properties.is_empty(), budget))
     {
-        Ok(effects) => preview.effects = effects,
-        Err(refusal) => {
-            preview.refusal = Some(refusal);
-            preview
-                .warnings
-                .push("Review writes only, or commit and undo with Ctrl+Z".into());
+        Ok((effects, edited_only)) => {
+            preview.effects = effects;
+            if edited_only {
+                preview.warnings.push("Calculated effects are scoped to the edited formulas.".into());
+            }
         }
+        Err(refusal) => preview.refusal = Some(refusal),
     }
 }
 
@@ -48,21 +48,26 @@ fn compare(
     writes: &[CellKey],
     structural: bool,
     budget: Budget,
-) -> Result<Vec<ValueEffect>, Refusal> {
-    let mut meter = QueryWork::new(budget, "Review writes only, or commit and undo with Ctrl+Z");
+) -> Result<(Vec<ValueEffect>, bool), Refusal> {
+    let mut meter = QueryWork::scan(budget, "Review writes only");
     let previous = host.model();
     let next = model.clone();
     let before = prepare(host, previous.clone(), &mut meter)?;
     let after = prepare(host, model, &mut meter)?;
     let blocked = before.whole_refusal().or_else(|| after.whole_refusal());
+    let edited_only = blocked.is_some() && (!before.scalar_graph() || !after.scalar_graph());
     let mut cells = BTreeSet::new();
     let (mut before, mut after) = if let Some(reason) = blocked {
-        if structural || !before.scalar_graph() || !after.scalar_graph() {
+        if structural {
             return Err(unavailable(reason));
         }
         let mut visit = || meter.work(0, 0, 1);
-        cells.extend(before.readers_of(writes, &mut visit)?);
-        cells.extend(after.readers_of(writes, &mut visit)?);
+        if edited_only {
+            cells.extend(writes.iter().copied());
+        } else {
+            cells.extend(before.readers_of(writes, &mut visit)?);
+            cells.extend(after.readers_of(writes, &mut visit)?);
+        }
         cells.retain(|at| {
             [previous.as_ref(), next.as_ref()]
                 .iter()
@@ -75,15 +80,15 @@ fn compare(
     } else {
         (before.whole()?, after.whole()?)
     };
-    calculate(&mut before, &mut meter)?;
-    calculate(&mut after, &mut meter)?;
+    calculate(&mut before, &mut meter, edited_only)?;
+    calculate(&mut after, &mut meter, edited_only)?;
     if blocked.is_none() {
         add_outputs(&before, &mut cells, &mut meter)?;
         add_outputs(&after, &mut cells, &mut meter)?;
     }
     meter.work(cells.len() as u64, 0, 0)?;
-    let previous = capture(before.host(), &cells, &mut meter)?;
-    let next = capture(after.host(), &cells, &mut meter)?;
+    let previous = capture(before.host(), &cells, &mut meter, edited_only)?;
+    let next = capture(after.host(), &cells, &mut meter, edited_only)?;
     let mut effects = Vec::new();
     for at in cells {
         let blank = || Shown {
@@ -103,7 +108,7 @@ fn compare(
         }
     }
     meter.check()?;
-    Ok(effects)
+    Ok((effects, edited_only))
 }
 
 fn add_outputs(
@@ -143,9 +148,14 @@ fn prepare(
     TrialGraph::bind(source, model)
 }
 
-fn calculate(trial: &mut CalculationTrial, meter: &mut QueryWork) -> Result<(), Refusal> {
+fn calculate(
+    trial: &mut CalculationTrial,
+    meter: &mut QueryWork,
+    guarded_spills: bool,
+) -> Result<(), Refusal> {
     let mut observer = Reads {
         meter,
+        guarded_spills,
         refusal: None,
     };
     while !trial.is_complete() {
@@ -167,11 +177,15 @@ fn calculate(trial: &mut CalculationTrial, meter: &mut QueryWork) -> Result<(), 
     if !trial.host().circular_cells().is_empty() {
         return Err(unavailable("circular calculations"));
     }
+    if guarded_spills && trial.has_spill_effect() {
+        return Err(unavailable("A scoped formula attempted a spill"));
+    }
     observer.meter.check()
 }
 
 struct Reads<'a> {
     meter: &'a mut QueryWork,
+    guarded_spills: bool,
     refusal: Option<Refusal>,
 }
 
@@ -183,6 +197,10 @@ impl ReadObserver for Reads<'_> {
         offset: u64,
         run: CellRun<'_>,
     ) -> ControlFlow<()> {
+        if self.guarded_spills && !run.is_empty() && !matches!(run, CellRun::Values(_)) {
+            self.refusal = Some(unavailable("A scoped formula reads empty or unresolved cells that could receive an uncalculated spill"));
+            return ControlFlow::Break(());
+        }
         match self.meter.work(run.len(), 0, u64::from(offset == 0)) {
             Ok(()) => ControlFlow::Continue(()),
             Err(error) => {
@@ -197,6 +215,7 @@ fn capture(
     host: &HostState,
     cells: &BTreeSet<CellKey>,
     meter: &mut QueryWork,
+    guarded_spills: bool,
 ) -> Result<BTreeMap<CellKey, Shown<RawValue>>, Refusal> {
     let request = ProjectionRequest {
         cells: cells
@@ -210,6 +229,15 @@ fn capture(
     page.cells()
         .iter()
         .map(|cell| {
+            if guarded_spills
+                && let calc_host::ProjectedValue::Calculated { calculation, .. } = cell.value()
+                && calculation.stamp().is_none_or(|stamp| {
+                    stamp.reads.uses_boundary_cache || stamp.reads.uses_imported_cache
+                        || stamp.reads.legacy_boundary || !stamp.reads.absences.is_empty()
+                })
+            {
+                return Err(unavailable("A scoped formula used cached inputs or unresolved spill space"));
+            }
             let (value, provenance) = shown_value_for(host, cell.value());
             if !matches!(
                 provenance,
@@ -233,5 +261,5 @@ fn capture(
 }
 
 fn unavailable(what: &str) -> Refusal {
-    crate::unavailable("dc-zh096", &format!("{what}. Commit and undo with Ctrl+Z."))
+    crate::unavailable("dc-zh096", what)
 }

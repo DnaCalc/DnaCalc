@@ -465,7 +465,7 @@ fn preview_repair(
             at, expected_old, new_text,
         })
     };
-    session.submit_for_review(Batch {
+    session.submit_for_review_with_effects(Batch {
         id: String::new(),
         workbook: Some(stamp.workbook),
         base: Some(stamp.model),
@@ -473,7 +473,7 @@ fn preview_repair(
         selection_seq: None,
         label: Some(label.into()),
         changes: vec![Change::Model(change)],
-    });
+    }, INSTRUMENT_BUDGET);
     Ok(())
 }
 

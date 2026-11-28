@@ -2802,3 +2802,38 @@ fn live_topics_count_host_admissions_independently_of_the_provider_sequence() {
         assert_eq!(accepted.iter().map(|record| record.sequence).collect::<Vec<_>>(), [3, 5]);
     });
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_scope_an_edited_formula_and_reject_an_unread_spill_cell() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    let edited = at(1, 2);
+    connection.commit(batch(1, vec![
+        enter(at(1, 1), "3"),
+        enter(edited, "=A1*2"),
+        enter(at(1, 4), "=SEQUENCE(2)"),
+        enter(at(1, 5), "=RAND()"),
+    ])).unwrap();
+    while host.advance() {}
+    let before = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let trial = |formula| connection.preview(
+        &batch(2, vec![enter(edited, formula)]),
+        PreviewDepth::WithEffects { budget: BUDGET },
+    ).unwrap();
+    let scoped = trial("=A1*3");
+    assert!(scoped.refusal.is_none(), "{scoped:?}");
+    assert!(scoped.warnings.iter().any(|warning| warning.contains("scoped to the edited formulas")));
+    let [effect] = scoped.effects.as_slice() else { panic!("one observed edited formula") };
+    assert_eq!(effect.at, edited);
+    assert_eq!(effect.before.value, RawValue::Number { bits: 6f64.to_bits() });
+    assert_eq!(effect.after.value, RawValue::Number { bits: 9f64.to_bits() });
+    let uncertain = trial("=A1*3+D2");
+    assert!(matches!(uncertain.refusal, Some(Refusal::NotModelled { .. })), "{uncertain:?}");
+    assert!(uncertain.effects.is_empty());
+    let expanding = trial("=SEQUENCE(2)");
+    assert!(matches!(expanding.refusal, Some(Refusal::NotModelled { .. })), "{expanding:?}");
+    assert!(expanding.effects.is_empty());
+    assert_eq!(connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp, before);
+}

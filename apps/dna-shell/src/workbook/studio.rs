@@ -4,12 +4,13 @@ use super::command_button;
 use calc_skin::{
     Batch, Change, Coverage, Level, Page, PresentationChange, SkinManifest, TryOnPayload, WorkbookId,
 };
-use dna_kit::{Invocation, Live, Seam, Session, ViewCommand, commands::CommandId};
+use dna_kit::{DockSide, Invocation, Live, Seam, Session, ViewCommand, commands::CommandId};
 use dna_skin_runtime::skin::{self, Document};
 use leptos::prelude::*;
 
 const OPEN: &str = "studio.open";
 const TRY: &str = "studio.try-on";
+const SUGGEST: &str = "studio.apply-accessible-colours";
 const TRY_FILE: &str = "studio.try-file";
 const TRY_AGENT: &str = "studio.try-agent";
 const DISCARD_AGENT: &str = "studio.discard-agent";
@@ -20,6 +21,9 @@ const CLEAR_PROFILE: &str = "studio.clear-personal-skin";
 const PROFILE_STORAGE: &str = "dna.workbook-skin/1";
 const DISCARD: &str = "studio.discard";
 const CLOSE: &str = "studio.close";
+const PAGES: &str = "studio.pages";
+const OPEN_PAGE: &str = "studio.open-page";
+const CLOSE_PAGES: &str = "studio.close-pages";
 
 #[derive(Clone, PartialEq)]
 struct Appearance {
@@ -65,6 +69,7 @@ pub(super) struct Studio {
     editor: RwSignal<bool>,
     source: RwSignal<String>,
     error: RwSignal<Option<String>>,
+    pages: RwSignal<Option<(WorkbookId, Option<String>)>>,
     offer: RwSignal<Option<FileSkin>>,
     preview: RwSignal<Option<Preview>>,
     kept_file: RwSignal<Option<Preview>>,
@@ -77,6 +82,7 @@ impl Studio {
             editor: RwSignal::new(false),
             source: RwSignal::new(String::new()),
             error: RwSignal::new(None),
+            pages: RwSignal::new(None),
             offer: RwSignal::new(None),
             preview: RwSignal::new(None),
             kept_file: RwSignal::new(None),
@@ -92,6 +98,7 @@ impl Studio {
                 self.personal.set(read_profile().ok().flatten());
             }
             if previous.flatten() != workbook {
+                self.pages.set(None);
                 self.preview.set(None);
                 self.kept_file.set(None);
                 self.offer.update(|offer| {
@@ -158,6 +165,13 @@ impl Studio {
         session.install(vec![
             ViewCommand::global(OPEN, "Customisation Studio", &[], move |_| {
                 self.editor.set(true);
+                Ok(())
+            }),
+            ViewCommand::global(SUGGEST, "Apply suggested accessible values", &[], move |_| {
+                let source = self.source.get_untracked();
+                let revised = skin::accessible_draft(&source).ok_or("There is no checked replacement for this draft")?;
+                self.source.set(revised);
+                self.error.set(None);
                 Ok(())
             }),
             ViewCommand::global(TRY, "Try on a skin", &[], move |invocation| {
@@ -231,6 +245,24 @@ impl Studio {
             .when("!editing"),
             ViewCommand::global(DISCARD, "Discard the skin preview", &[], move |_| {
                 self.discard(session)
+            }),
+            ViewCommand::global(PAGES, "Workbook pages", &[], move |_| {
+                let workbook = session.stamp().ok_or("Open a workbook first")?.workbook;
+                self.pages.set(Some((workbook, None)));
+                Ok(())
+            }).when("!editing"),
+            ViewCommand::global(OPEN_PAGE, "Open a workbook page", &[], move |invocation| {
+                let workbook = session.stamp().ok_or("Open a workbook first")?.workbook;
+                let id = invocation.args.as_str().ok_or("Choose a workbook page")?;
+                if !session.skin_pages().contains_key(id) {
+                    return Err("The workbook page is unavailable".into());
+                }
+                self.pages.set(Some((workbook, Some(id.into()))));
+                Ok(())
+            }).when("!editing"),
+            ViewCommand::global(CLOSE_PAGES, "Close workbook pages", &[], move |_| {
+                self.pages.set(None);
+                Ok(())
             }),
             ViewCommand::global(CLOSE, "Close Customisation Studio", &[], move |_| {
                 self.editor.set(false);
@@ -377,6 +409,10 @@ impl Studio {
             self.editor.set(false);
             return true;
         }
+        if self.pages.with_untracked(Option::is_some) {
+            self.pages.set(None);
+            return true;
+        }
         if self.preview.with_untracked(Option::is_none)
             && untrack(|| session.look_offer().is_some())
         {
@@ -479,6 +515,68 @@ impl Studio {
         }
     }
 
+    pub(super) fn page_button(self, session: Session) -> impl IntoView {
+        let available = Memo::new(move |_| !session.skin_pages().is_empty());
+        view! {
+            <Show when=move || available.get()>
+                {command_button(session, PAGES, "Workbook pages")}
+            </Show>
+        }
+    }
+
+    pub(super) fn page_drawer(self, session: Session) -> impl IntoView {
+        let open = Memo::new(move |_| {
+            self.pages.get().filter(|(workbook, _)| {
+                session.stamp().is_some_and(|stamp| stamp.workbook == *workbook)
+            })
+        });
+        let declarations = Memo::new(move |_| {
+            open.with(Option::is_some).then(|| session.skin_pages())
+        });
+        view! {
+            <Show when=move || open.with(Option::is_some)>
+                <aside class="dna-book-details dna-book-page-drawer" aria-label="Workbook pages">
+                    <header>
+                        <h2>"Workbook pages"</h2>
+                        {command_button(session, CLOSE_PAGES, "Close")}
+                    </header>
+                    {move || declarations.get().into_iter().flatten().map(|(id, page)| {
+                        let selected = id.clone();
+                        view! {
+                            <button type="button" data-command=OPEN_PAGE data-page=id
+                                on:click=move |_| {
+                                    let _ = session.run(&Invocation {
+                                        command: CommandId::new(OPEN_PAGE),
+                                        args: serde_json::Value::String(selected.clone()),
+                                    });
+                                }>{page.title}</button>
+                        }
+                    }).collect_view()}
+                    {move || {
+                        let (_, Some(id)) = open.get()? else { return None };
+                        let page = declarations.with(|pages| pages.as_ref()?.get(&id).cloned())?;
+                        Some(render_skin_page(session, page))
+                    }}
+                </aside>
+            </Show>
+        }
+    }
+
+    pub(super) fn dock_pages(self, session: Session, side: DockSide) -> impl IntoView {
+        let pages = Memo::new(move |_| {
+            session.skin_pages().into_iter().filter_map(|(id, page)| {
+                let (_, position, width) = session.skin_panel(&id)?;
+                (position == side).then_some((page, width))
+            }).collect::<Vec<_>>()
+        });
+        move || pages.get().into_iter().map(|(page, width)| view! {
+            <aside class="dna-skin-docked-page"
+                style:width=width.filter(|_| side == DockSide::Right).map(|width| format!("{width}px"))>
+                {render_skin_page(session, page)}
+            </aside>
+        }).collect_view()
+    }
+
     pub(super) fn editor(self, session: Session) -> impl IntoView {
         let source_field = NodeRef::<leptos::html::Textarea>::new();
         Effect::new(move |_| {
@@ -500,7 +598,14 @@ impl Studio {
                     <p role="alert">{move || self.error.get()}</p>
                     {move || {
                         let source = self.source.get();
-                        skin::review_theme(&source).ok().map(contrast_review)
+                        skin::review_theme(&source).ok().map(|report| {
+                            let suggest = report.contrast.iter().any(|reading| !reading.passes())
+                                && skin::accessible_draft(&source).is_some();
+                            view! {
+                                {contrast_review(report)}
+                                {suggest.then(|| command_button(session, SUGGEST, "Apply suggested accessible values"))}
+                            }
+                        })
                     }}
                     {command_button(session, TRY, "Try on")}
                     {command_button(session, "proposal.open", "Agent trail")}
@@ -512,6 +617,17 @@ impl Studio {
             </Show>
         }
     }
+}
+
+fn render_skin_page(session: Session, page: Page) -> AnyView {
+    if let Err(reason) = skin::validate_page(&page) {
+        return view! { <p role="alert">{reason}</p> }.into_any();
+    }
+    view! {
+        <div data-dnacalc="skin-page">
+            <dna_kit::page::PageRenderer session=session document=page/>
+        </div>
+    }.into_any()
 }
 
 fn contrast_review(report: skin::ThemeReview) -> impl IntoView {
