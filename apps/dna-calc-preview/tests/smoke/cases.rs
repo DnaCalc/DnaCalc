@@ -1059,9 +1059,9 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Wait(Check::Attr("[data-notebook-output-name='scopeTotal']", "aria-current", "true")),
             Action::Click("[data-notebook-output-name='byRegion'] [data-notebook-formula] [data-command='notebook.follow-source']"),
             Action::Click("[data-command='notebook.inserter']"),
-            Action::Choose("form[aria-label='Add chart'] select", "Analysis"),
+            Action::Choose("[data-command='notebook.chart-sheet']", "Analysis"),
             Action::WaitWorkbook(Check::Attr("#notebook-charts option[label='Sales by region']", "value", "Analysis!\"SalesByRegion\"")),
-            Action::Click("section[aria-label='Insert Notebook block'] [data-command='notebook.inserter']"),
+            Action::Click("[aria-label='Insert Notebook block'] [data-command='notebook.inserter']"),
         ],
         checks: &[
             Check::Attr("[data-notebook-output-name='scopeOrders'] [data-notebook-rows]", "data-notebook-rows", "4147"),
@@ -1178,6 +1178,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         actions: &[
             Action::WriteCast("Budget"),
             Action::UploadDownloadTo("Budget.xlsx", "open-file"),
+            Action::Wait(Check::Text("[data-dnacalc='close-workbook'] h2", "Close SalesNotebook.xlsx?")),
+            Action::Click("[data-command='file.replace-workbook']"),
             Action::Wait(Check::Text("[class~='dna-book-title']", "Budget.xlsx")),
             Action::Click("[data-command='view.notebook']"),
             Action::Click("[data-command='notebook.new-function']"),
@@ -1200,6 +1202,8 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         actions: &[
             Action::WriteCast("SalesBlocked"),
             Action::UploadDownloadTo("SalesBlocked.xlsx", "open-file"),
+            Action::Wait(Check::Text("[data-dnacalc='close-workbook'] h2", "Close Budget.xlsx?")),
+            Action::Click("[data-command='file.replace-workbook']"),
             Action::Wait(Check::Text("[class~='dna-book-title']", "SalesBlocked.xlsx")),
             Action::Click("[data-command='view.notebook']"),
             Action::WaitWorkbook(Check::TextContains("[data-notebook-output-name='scopeTotal'] [data-notebook-output]", "4200")),
