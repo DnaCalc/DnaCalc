@@ -603,6 +603,17 @@ impl Session {
         });
     }
 
+    /// Inspect a batch through the carrier without entering the commit seam.
+    pub fn preview_batch(
+        self, batch: Batch, depth: calc_skin::PreviewDepth,
+        complete: impl FnOnce(Result<calc_skin::Preview, Refusal>) + 'static,
+    ) {
+        self.update(|client| {
+            client.preview_batch(batch, depth, complete);
+            Changes::default()
+        });
+    }
+
     /// Return the decision receipt or the typed refusal to the operator.
     pub fn decide_proposal(
         self, proposal: calc_skin::ProposalId, accept: Vec<calc_skin::UnitId>, reject: Vec<calc_skin::UnitId>,
