@@ -330,6 +330,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::ConsistentBindings { .. } => authored || presentation || recalculated || rtd_changed,
         WorkbookQuery::BoundInput { .. } => authored || presentation || recalculated,
         WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
+        WorkbookQuery::Proposals => false,
         WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
         }
@@ -1134,6 +1135,15 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 undo_depth: undo as u64,
                 redo_depth: redo as u64,
             })?
+        }
+        WorkbookQuery::Proposals => {
+            let mut proposals = Vec::new();
+            for proposal in state.proposals.values() {
+                meter.work(0, proposal.review.units.len() as u64, 0)?;
+                meter.charge_bytes(&proposal.review)?;
+                proposals.push(proposal.review.clone());
+            }
+            query::Proposals::encode(&proposals)?
         }
         WorkbookQuery::Resolve { address } => {
             let source = SourceRef::parse(address, Notation::A1, &address_book(state))

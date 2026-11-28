@@ -2159,3 +2159,250 @@ fn preview_effects_include_new_spill_members() {
     let live = ask(&connection, query::Cells { interest: Interest::Area(Area(new_member, new_member)) });
     assert!(live.cells.is_empty());
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn agent_proposal_accepts_only_the_reviewed_subset_and_undoes_each_unit() {
+    let (host, sheet) = workbook();
+    let operator = host.connect(
+        Origin::User {
+            view: ViewId("classic".into()),
+        },
+        WritePolicy::Commit,
+    );
+    let agent = host.connect(
+        Origin::Agent {
+            agent: "Jo".into(),
+            proposal: "loan-assumptions".into(),
+        },
+        WritePolicy::Propose,
+    );
+    let principal = Key(sheet.0, sheet.1, 2, 2);
+    let rate = Key(sheet.0, sheet.1, 3, 2);
+    let term = Key(sheet.0, sheet.1, 4, 2);
+    let output = Key(sheet.0, sheet.1, 6, 2);
+    operator
+        .commit(batch(
+            1,
+            vec![
+                enter(principal, "30"),
+                enter(rate, "2"),
+                enter(term, "1"),
+                enter(output, "=B2*B3/B4"),
+            ],
+        ))
+        .unwrap();
+    while host.advance() {}
+    let stamp = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let watch = operator.watch(WorkbookQuery::Proposals, BUDGET).unwrap();
+    operator.next_frame().unwrap().unwrap();
+    let unit = |id: &str, need: Option<&str>, at, text: &str| {
+        let mut batch = batch(1, vec![enter(at, text)]);
+        batch.expects = vec![target(at)];
+        ProposalUnit {
+            id: UnitId(id.into()),
+            needs: need.into_iter().map(|name| UnitId(name.into())).collect(),
+            batch,
+        }
+    };
+    agent
+        .run(Operation::Propose(Proposal {
+            at: stamp,
+            intent: "Review planner assumptions".into(),
+            units: vec![
+                unit("principal", None, principal, "40"),
+                unit("rate", Some("principal"), rate, "3"),
+                unit("term", None, term, "2"),
+            ],
+        }))
+        .unwrap();
+    assert_eq!(
+        operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp,
+        stamp
+    );
+    assert_eq!(ask(&operator, query::Proposals).len(), 1);
+    let offered = operator.next_frame().unwrap().unwrap();
+    assert_eq!(offered.stamp, stamp);
+    assert!(offered.updates.iter().any(|update| matches!(update,
+        Update::Ready { watch: id, .. } if *id == watch
+    )));
+    let request = |name: &str| UnitId(name.into());
+    let proposal = ProposalId("loan-assumptions".into());
+    let decide = |accept: Vec<UnitId>, reject: Vec<UnitId>| Operation::Decide {
+        proposal: proposal.clone(),
+        accept,
+        reject,
+    };
+    assert!(
+        operator
+            .run(decide(vec![request("rate")], Vec::new()))
+            .is_err()
+    );
+    assert_eq!(
+        operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp,
+        stamp
+    );
+    let packet = operator.handle(Packet {
+        envelope: Envelope::new(
+            1,
+            Message::WorkbookRequest(WorkbookRequest::PreviewProposal {
+                proposal: proposal.clone(),
+                units: vec![request("rate"), request("principal")],
+                depth: PreviewDepth::WithEffects { budget: BUDGET },
+            }),
+        ),
+        bytes: None,
+    });
+    let Message::WorkbookReply(WorkbookReply::Preview(preview)) = packet.envelope.message else {
+        panic!("expected a preview");
+    };
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    assert_eq!(
+        preview
+            .writes
+            .iter()
+            .map(|write| write.at)
+            .collect::<Vec<_>>(),
+        [principal, rate]
+    );
+    assert_eq!(
+        preview
+            .effects
+            .iter()
+            .find(|effect| effect.at == output)
+            .unwrap()
+            .after
+            .value,
+        RawValue::Number {
+            bits: 120.0f64.to_bits()
+        }
+    );
+    operator
+        .run(decide(
+            vec![request("rate"), request("principal")],
+            vec![request("term")],
+        ))
+        .unwrap();
+    while host.advance() {}
+    let value = |at| {
+        ask(
+            &operator,
+            query::Cells {
+                interest: Interest::Area(Area(at, at)),
+            },
+        )
+        .cells[0]
+            .shown
+            .value
+            .clone()
+    };
+    assert_eq!(
+        value(term),
+        RawValue::Number {
+            bits: 1.0f64.to_bits()
+        }
+    );
+    assert_eq!(
+        value(output),
+        RawValue::Number {
+            bits: 120.0f64.to_bits()
+        }
+    );
+    let history = ask(&operator, query::History);
+    assert_eq!(history.undo.len(), 3);
+    assert!(matches!(history.undo[0].origin, Origin::Agent { .. }));
+    assert_eq!(history.undo[0].group, history.undo[1].group);
+    assert!(history.undo[0].group.is_some());
+    operator.run(Operation::Undo).unwrap();
+    while host.advance() {}
+    assert_eq!(
+        value(output),
+        RawValue::Number {
+            bits: 80.0f64.to_bits()
+        }
+    );
+    operator.run(Operation::Undo).unwrap();
+    while host.advance() {}
+    assert_eq!(
+        value(output),
+        RawValue::Number {
+            bits: 60.0f64.to_bits()
+        }
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn stale_proposal_refuses_every_unit_and_returns_reviewed_and_current_inputs() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let agent = host.connect(
+        Origin::Agent {
+            agent: "Jo".into(),
+            proposal: "shared-assumptions".into(),
+        },
+        WritePolicy::Propose,
+    );
+    let a = Key(sheet.0, sheet.1, 1, 1);
+    let b = Key(sheet.0, sheet.1, 1, 2);
+    let c = Key(sheet.0, sheet.1, 1, 3);
+    operator
+        .commit(batch(1, vec![enter(a, "1"), enter(b, "2"), enter(c, "3")]))
+        .unwrap();
+    let exposed = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let unit = |id: &str, at, text: &str| {
+        let mut batch = batch(1, vec![enter(at, text)]);
+        batch.expects = vec![target(at)];
+        ProposalUnit {
+            id: UnitId(id.into()),
+            needs: Vec::new(),
+            batch,
+        }
+    };
+    let proposal = ProposalId("shared-assumptions".into());
+    agent
+        .run(Operation::Propose(Proposal {
+            at: exposed,
+            intent: "Review three inputs".into(),
+            units: vec![unit("a", a, "10"), unit("b", b, "20"), unit("c", c, "30")],
+        }))
+        .unwrap();
+    operator.commit(batch(2, vec![enter(b, "25"), enter(c, "35")])).unwrap();
+    let before_decide = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let decision = Operation::Decide {
+        proposal,
+        accept: vec![UnitId("a".into()), UnitId("b".into())],
+        reject: Vec::new(),
+    };
+    assert_eq!(agent.run(decision.clone()), Err(Refusal::PolicyRefused));
+    let Err(Refusal::Conflict {
+        base,
+        conflicts,
+        diffs,
+    }) = operator.run(decision)
+    else {
+        panic!("expected both units to be refused for an intervening cell edit");
+    };
+    assert_eq!(base, exposed.model);
+    assert_eq!(conflicts, vec![Target::Source(target(b))]);
+    assert_eq!(
+        diffs,
+        vec![ModelWriteDiff {
+            at: b,
+            before: Some("2".into()),
+            after: Some("25".into())
+        }]
+    );
+    let first = ask(
+        &operator,
+        query::Cells {
+            interest: Interest::Area(Area(a, a)),
+        },
+    );
+    assert_eq!(first.cells[0].input, "1");
+    assert_eq!(
+        operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp,
+        before_decide
+    );
+    assert_eq!(ask(&operator, query::History).undo.len(), 2);
+}
