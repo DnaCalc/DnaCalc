@@ -15,6 +15,42 @@ mod witness_call;
 use crate::x87_cpu;
 use calc_verdict::WitnessSet;
 
+/// Touchstone Excel 16.0.20625.20108, pz1 FILTERXML character references.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn filterxml_character_reference_text_nodes() {
+    use calc_func::value::{CalcArray, CalcValue};
+    use calc_verdict::{WitnessInvocation, decode_result, encode_result};
+
+    let mut differences = Vec::new();
+    let context = WitnessInvocation {
+        locale: Some("en-US".into()),
+        decimal_separator: Some(".".into()),
+        thousands_separator: Some("\u{a0}".into()),
+        ..Default::default()
+    };
+    let cases = [
+        ("<a><b>x&amp;y</b><b>7</b></a>", "//b/text()", ["error:Value", "error:Value"]),
+        ("<a><b>x&#32;y</b><b>7</b></a>", "//b/text()", ["error:Value", "error:Value"]),
+        ("<a><b>x&#32;y</b><b>7</b></a>", "//b", ["text:x y", "0x401c000000000000"]),
+        ("<a><b>&#32;</b><b>7</b></a>", "//b/text()", ["error:Value", "error:Value"]),
+        ("<a><b>&#32;</b><b>7</b></a>", "//b", ["error:Value", "0x401c000000000000"]),
+    ];
+    for (xml, xpath, expected) in cases {
+        let args = [serde_json::json!(xml), serde_json::json!(xpath)];
+        let expected = expected.map(|cell| vec![decode_result(cell).unwrap()]);
+        let expected = CalcValue::array(CalcArray::from_rows(expected.to_vec()).unwrap());
+        let expected = encode_result(&expected).unwrap();
+        let actual = witness_call::calculate("FILTERXML", &args, None, Some(&context), true);
+        if actual != expected {
+            differences.push(format!("{xml} {xpath}: Excel {expected}, DNA Calc {actual}"));
+        }
+    }
+    let matched = cases.len() - differences.len();
+    println!("FILTERXML character references: {matched}/{} matched", cases.len());
+    assert!(differences.is_empty(), "{differences:#?}");
+}
+
 /// Touchstone Excel 16.0.20625.20108, Ryzen 4800H, dc-ufazo.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
