@@ -47,7 +47,7 @@ pub use read::{
 pub use structured::{
     TableColumnContext, TableInfo, TableLookup, quote_table_column, rename_table_column,
 };
-pub use template::{template_key, template_key_of_chars};
+pub use template::{template_key, template_key_of_chars, template_placement_key};
 pub use text::{bind_text, bind_text_without_context};
 pub use transform::{
     EditAxis, StructuralEdit, column_letters, convert_notation, format_sheet_qualifier,

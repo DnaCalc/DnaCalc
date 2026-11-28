@@ -69,8 +69,16 @@ pub(super) fn selection(
             {move || {
                 let show = state.listing.get() && has_formula.get();
                 show.then(|| read_error(dependencies.get(), "Reading connections…", |answer| {
-                    active.get().and_then(|at| evidence(answer.body)
-                        .map(|body| selected_connections(session, state, at, body, answer.coverage)))
+                    active.get().and_then(|at| {
+                        let reading = value.at(Some(query::Cells {
+                            interest: Interest::Area(Area(at, at)),
+                        }));
+                        let loops = iteration.at(Some(query::CalcIteration));
+                        let period_lag = period_lag_is_possible(at, reading, loops);
+                        evidence(answer.body).map(|body| {
+                            selected_connections(session, state, at, body, answer.coverage, period_lag)
+                        })
+                    })
                 }))
             }}
             {move || {
@@ -128,10 +136,7 @@ fn cycle(
     let observed = match iterations {
         Live::Ready(answer) => match answer.body {
             Evidence::Observed { at: when, body, .. }
-                if when.workbook == stamp.workbook
-                    && when.model == stamp.model
-                    && when.calc == stamp.calc
-                    && body.members.contains(&at) =>
+                if same_calculation(when, stamp) && body.members.contains(&at) =>
             {
                 Some(body)
             }
@@ -142,7 +147,7 @@ fn cycle(
     if let Some(body) = observed {
         if let Some(delay) = body.clock_delays.iter().find(|delay| delay.state == at) {
             return view! {
-                <div class="dna-map-cycle" data-map-cycle="delay">
+                <div class="dna-map-clock" data-map-cycle="delay">
                     <strong>"z⁻¹ · per tick"</strong>
                     <span>{format!("Clock {} · tick {}", a1(delay.clock), delay.tick)}</span>
                 </div>
@@ -167,6 +172,40 @@ fn cycle(
             }
         })
         .into_any()
+}
+
+fn same_calculation(left: Stamp, right: Stamp) -> bool {
+    left.workbook == right.workbook && left.model == right.model && left.calc == right.calc
+}
+
+fn period_lag_is_possible(
+    at: Key,
+    reading: Live<calc_skin::Answer<calc_skin::CellWindow>>,
+    iterations: Live<calc_skin::Answer<Evidence<calc_skin::IterationFacts>>>,
+) -> bool {
+    let Live::Ready(reading) = reading else {
+        return false;
+    };
+    if !reading.body.cells.iter().any(|cell| {
+        cell.at == at && matches!(cell.shown.provenance, Provenance::Calculated { .. })
+    }) {
+        return false;
+    }
+    let Live::Ready(iterations) = iterations else {
+        return false;
+    };
+    if !same_calculation(iterations.stamp, reading.stamp) {
+        return false;
+    }
+    match iterations.body {
+        Evidence::Observed { at: when, body, .. } => {
+            same_calculation(when, reading.stamp)
+                && body.omitted_members == 0
+                && !body.members.contains(&at)
+        }
+        Evidence::Unavailable { .. } => true,
+        Evidence::Derived { .. } => false,
+    }
 }
 
 fn rewire(session: Session, at: Key, stamp: Stamp, operands: ReferenceOperands) -> impl IntoView {
@@ -217,6 +256,7 @@ fn selected_connections(
     at: Key,
     graph: Dependencies,
     coverage: Coverage,
+    period_lag: bool,
 ) -> impl IntoView {
     let total = graph.edges.len();
     let pages = total.div_ceil(DETAIL_ROWS);
@@ -226,7 +266,7 @@ fn selected_connections(
         let target = graph.nodes.get(edge.to)?;
         let (label, area) = target_label(session, target);
         let source = area.filter(|area| area.0 == area.1).map(|area| area.0);
-        let lag = source.is_some_and(|key| {
+        let lag = period_lag && source.is_some_and(|key| {
             (key.0, key.1) == (at.0, at.1) && key.2 + 1 == at.2
         });
         let kind = match edge.kind {

@@ -94,17 +94,17 @@ use calc_doc_model::{
 };
 use calc_fml::reference::{
     CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
-    template_key_of_chars,
+    template_placement_key,
 };
 use calc_fml::{
-    EvalFault, EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall,
+    CompiledPlan, EvalFault, EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall,
     FormulaEvaluationContext, FormulaForm, FormulaInstance, ResolvedReference,
     compile_loaded_with_bindings, instantiate, parse_formula,
 };
-use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode, SheetId};
+use calc_value::{CalcValue, CellKey, ExcelText, GridArea, NodeId, NumericMode, SheetId};
 use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -1412,9 +1412,10 @@ fn begin_with_scope(
             _ => return Err(StartError::ForeignInputs { node, at }),
         }
     }
+    let mut repeated_sources = HashMap::new();
     for (node, at, text) in unbound {
         match text {
-            Some(text) => bind(state, inputs, node, at, text),
+            Some(text) => bind(state, inputs, node, at, text, &mut repeated_sources),
             None => bind_table_cell(state, inputs, node, at),
         }
     }
@@ -3300,12 +3301,13 @@ pub(crate) fn live_anchor(state: &EngineState, node: NodeId) -> CellKey {
 /// document holds a formula's text as a file stores it ([`FormulaText`]), so it is compiled as
 /// such ([`compile_loaded_with`]). An array formula compiles in the dynamic-array form, which
 /// lifts: a legacy (Ctrl+Shift+Enter) one fills its fixed area, a dynamic one spills.
-fn bind(
+fn bind<'a>(
     state: &mut EngineState,
     inputs: &ModelRoot,
     node: NodeId,
     at: CellKey,
-    text: &FormulaText,
+    text: &'a FormulaText,
+    repeated_sources: &mut HashMap<(SheetId, FormulaForm, &'a ExcelText), Arc<CompiledPlan>>,
 ) {
     let anchor = FormulaAnchor::new(at);
     let (form, role) = match inputs.definitions().array(at) {
@@ -3335,50 +3337,68 @@ fn bind(
         ),
         _ => (text.text(), anchor),
     };
-    let decoded: Result<Vec<char>, _> =
-        char::decode_utf16(source.utf16_code_units().iter().copied()).collect();
     let name_trace = RefCell::new(Vec::new());
-    let binding = match decoded {
-        Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(chars) => {
-            let key = template_key_of_chars(&chars, source_anchor).map(|key| {
-                (
-                    at.sheet(),
-                    calc_doc_model::SemanticTemplateKey {
-                        normalized_ir: key.into(),
-                        placement: calc_doc_model::TemplatePlacement::Cell,
-                        evaluation: form,
-                    },
-                )
-            });
-            match key
-                .as_ref()
-                .and_then(|key| state.templates.get(key))
-                .filter(|plan| {
-                    crate::contract::name_bindings_valid(inputs, plan.name_bindings())
-                        && plan
-                            .callable_bindings()
-                            .iter()
-                            .all(|proof| state.callables.validates(proof))
-                }) {
-                Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
-                None => match compile_loaded_with_bindings(
-                    &parse_formula(&chars.iter().collect::<String>()),
-                    ReferenceNotation::A1,
-                    source_anchor,
-                    &SnapshotCatalog::traced(inputs, &name_trace),
-                    &mut state.plans,
-                    form,
-                    &state.callables,
-                ) {
-                    Ok(plan) => {
-                        if let Some(key) = key {
-                            state.templates.insert(key, Arc::clone(&plan));
+    let spelling = (at.sheet(), form, source);
+    let binding = match repeated_sources.get(&spelling) {
+        Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
+        None => {
+            let mut position_independent = false;
+            let decoded: Result<Vec<char>, _> =
+                char::decode_utf16(source.utf16_code_units().iter().copied()).collect();
+            match decoded {
+                Err(_) => Binding::Refused(NotModeled::FormulaText),
+                Ok(chars) => {
+                    let key =
+                        template_placement_key(&chars, source_anchor).map(|(key, independent)| {
+                            position_independent = independent;
+                            (
+                                at.sheet(),
+                                calc_doc_model::SemanticTemplateKey {
+                                    normalized_ir: key.into(),
+                                    placement: calc_doc_model::TemplatePlacement::Cell,
+                                    evaluation: form,
+                                },
+                            )
+                        });
+                    let prior = key
+                        .as_ref()
+                        .and_then(|key| state.templates.get(key))
+                        .filter(|plan| {
+                            crate::contract::name_bindings_valid(inputs, plan.name_bindings())
+                                && plan
+                                    .callable_bindings()
+                                    .iter()
+                                    .all(|proof| state.callables.validates(proof))
+                        });
+                    let plan = match prior {
+                        Some(plan) => Ok(Arc::clone(plan)),
+                        None => compile_loaded_with_bindings(
+                            &parse_formula(&chars.iter().collect::<String>()),
+                            ReferenceNotation::A1,
+                            source_anchor,
+                            &SnapshotCatalog::traced(inputs, &name_trace),
+                            &mut state.plans,
+                            form,
+                            &state.callables,
+                        )
+                        .inspect(|plan| {
+                            if let Some(key) = key {
+                                state.templates.insert(key, Arc::clone(plan));
+                            }
+                        }),
+                    };
+                    match plan {
+                        Ok(plan) => {
+                            // Inputs and callable bindings are fixed for this whole binding batch.
+                            // Bound this fast lookup even if every formula has a different source.
+                            if position_independent && repeated_sources.len() < 4096 {
+                                repeated_sources.insert(spelling, Arc::clone(&plan));
+                            }
+                            Binding::Placed(instantiate(&plan, anchor), role)
                         }
-                        Binding::Placed(instantiate(&plan, anchor), role)
+                        Err(error) => Binding::Refused(NotModeled::Compile(error)),
                     }
-                    Err(error) => Binding::Refused(NotModeled::Compile(error)),
-                },
+                }
             }
         }
     };
@@ -4215,6 +4235,11 @@ fn order<K: Ord + Copy>(
     key: impl Fn(NodeId) -> K,
     anchor: impl Fn(NodeId) -> CellKey,
 ) -> Result<Vec<NodeId>, Vec<CellKey>> {
+    if closure.edges.is_empty() {
+        let mut order = closure.members.clone();
+        order.sort_unstable_by_key(|&node| (key(node), node));
+        return Ok(order);
+    }
     let mut waiting = crate::slots::Slots::new(closure.slots, closure.members().len());
     for node in closure.members() {
         waiting.insert(node.slot(), 0u32);
