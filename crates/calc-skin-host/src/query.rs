@@ -81,6 +81,32 @@ pub(crate) fn checked_sheet(
     Ok(id)
 }
 
+fn validation_editor(
+    host: &calc_host::HostState,
+    at: CellKey,
+    allow_blank: bool,
+    meter: &mut QueryWork,
+) -> Result<query::InputEditor, Refusal> {
+    let Some(list) = host.validation_list(at) else {
+        return Ok(query::InputEditor::Field);
+    };
+    let mut choices = Vec::with_capacity(list.len());
+    for value in list {
+        meter.work(1, 0, 0)?;
+        let RawValue::Text(value) = raw(&value) else {
+            return Ok(query::InputEditor::Field);
+        };
+        let Ok(label) = String::from_utf16(&value) else {
+            return Ok(query::InputEditor::Field);
+        };
+        choices.push(query::InputChoice { entry: format!("'{label}"), label });
+    }
+    if allow_blank {
+        choices.push(query::InputChoice { label: "Blank".into(), entry: String::new() });
+    }
+    Ok(if choices.is_empty() { query::InputEditor::Field } else { query::InputEditor::Choices(choices) })
+}
+
 pub(crate) fn raw(value: &CalcValue) -> RawValue {
     match value.core() {
         CoreValue::Number(value) => RawValue::Number {
@@ -1084,10 +1110,18 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             } else {
                 batch::rules(&state.session, at).err()
             };
-            let validation = host.validation(at).map(|rule| format!("{rule:?}"));
+            let validation = host.validation(at);
+            let input_editor = if let Some(rule) = validation.as_ref().filter(|rule| {
+                rule.dropdown && rule.show_error && rule.style == calc_host::ErrorStyle::Stop
+            }) {
+                validation_editor(host, at, rule.allow_blank, &mut meter)?
+            } else {
+                crate::objects::input_editor(host, at, &mut meter)?
+            };
             query::Rules::encode(&query::CellRules {
                 refusal,
-                validation,
+                validation: validation.map(|rule| format!("{rule:?}")),
+                input_editor,
             })?
         }
         WorkbookQuery::CalcState => query::CalcState::encode(&query::CalcStatus {

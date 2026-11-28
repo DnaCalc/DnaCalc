@@ -40,7 +40,7 @@
     outline-offset: 2px;
     border-radius: var(--dna-radius-card);
 }
-.dna-page-surface :is(button, input) { min-block-size: 36px; max-inline-size: 100%; }
+.dna-page-surface :is(button, input, select) { min-block-size: 36px; max-inline-size: 100%; }
 .dna-workbook-dialog {
     inline-size: min(42rem, calc(100vw - 2rem));
     max-block-size: calc(100dvh - 2rem);
