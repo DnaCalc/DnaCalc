@@ -1,6 +1,42 @@
 //! Classic preview cases driven through the real worker exchange.
 use super::*;
 
+macro_rules! horizontal_border_case {
+    ($name:literal, $tip:literal, $has_top:literal, $width:literal, $line:literal) => {
+        Case {
+            name: $name,
+            actions: &[
+                Action::Keys("grid", concat!("\u{e03a}hb", $tip)),
+                Action::Wait(Check::Js(
+                    "the selected outer horizontal edges have the requested strokes",
+                    concat!(
+                        r#"(() => {
+                            const cell = address => getComputedStyle(document.querySelector('[data-cell='+address+']'));
+                            const top = cell('C1'), bottom = cell('C4'), clear = 'rgba(0, 0, 0, 0)';
+                            const hasTop = "#, stringify!($has_top), r#";
+                            return (hasTop ? top.borderBottomColor !== clear && top.borderBottomWidth === '1px'
+                                           : top.borderBottomColor === clear)
+                                && bottom.borderBottomColor !== clear && bottom.borderBottomWidth === '"#,
+                        $width, r#"' && bottom.borderBottomStyle === '"#, $line, r#"'
+                                && cell('C3').borderBottomColor === clear && cell('A2').borderRightColor === clear;
+                        })()"#,
+                    ),
+                )),
+                Action::Keys("grid", "\u{e009}z\u{e000}"),
+                Action::Wait(Check::Js(
+                    "one Undo removed both authored edges",
+                    r#"(() => {
+                        const clear = 'rgba(0, 0, 0, 0)';
+                        return ['C1', 'C4'].every(cell =>
+                            getComputedStyle(document.querySelector('[data-cell='+cell+']')).borderBottomColor === clear);
+                    })()"#,
+                )),
+            ],
+            checks: &[Check::Attr("[data-cell=D4]", "aria-selected", "true")],
+        }
+    };
+}
+
 pub(crate) const PREVIEW_CASES: &[Case] = &[
     Case {
         name: "Classic draws the workbook and follows a click",
@@ -2201,6 +2237,11 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             ),
         ],
     },
+    horizontal_border_case!("Classic Bottom Double Border draws two bottom strokes", "b", false, "3px", "double"),
+    horizontal_border_case!("Classic Thick Bottom Border widens just the bottom edge", "h", false, "3px", "solid"),
+    horizontal_border_case!("Classic Top and Bottom Border outlines both horizontal sides", "d", true, "1px", "solid"),
+    horizontal_border_case!("Classic Top and Thick Bottom Border retains a thin top", "c", true, "3px", "solid"),
+    horizontal_border_case!("Classic Top and Double Bottom Border retains a thin top", "u", true, "3px", "double"),
     Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
@@ -3024,6 +3065,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         start: 83,
         end: 84,
         core: 1,
+        setup: BORDER_RECTANGLE,
+    },
+    CaseGroup {
+        name: "classic-horizontal-border-presets",
+        start: 84,
+        end: 89,
+        core: 5,
         setup: BORDER_RECTANGLE,
     },
     CaseGroup {

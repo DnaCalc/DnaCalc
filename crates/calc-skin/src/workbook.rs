@@ -416,7 +416,7 @@ pub struct WorkbookCell {
     pub borders: CellBorders,
 }
 
-/// The supported continuous edges of a cell.
+/// The supported strokes on the four sides of a cell.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CellBorders {
     pub top: Option<CellBorder>,
@@ -436,6 +436,7 @@ pub enum CellBorder {
     Automatic,
     Rgb([u8; 3]),
     Thick { rgb: Option<[u8; 3]> },
+    Double { rgb: Option<[u8; 3]> },
 }
 
 /// The original thin-edge type name used by workbook tile callers.
@@ -615,6 +616,11 @@ pub enum ModelChange {
         selected: Area,
         side: BorderSide,
     },
+    SetHorizontalBorders {
+        selected: Area,
+        top: bool,
+        bottom: BorderStroke,
+    },
     /// Refresh the workbook cache used by the PivotTable at this cell.
     RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.
@@ -699,6 +705,14 @@ pub enum PasteArithmetic {
     Subtract,
     Multiply,
     Divide,
+}
+
+/// The bottom line used by a horizontal border preset.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BorderStroke {
+    Thin,
+    Thick,
+    Double,
 }
 
 /// A side of a rectangular worksheet selection.

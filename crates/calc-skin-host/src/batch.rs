@@ -782,6 +782,7 @@ pub(crate) fn prepare(
                 | ModelChange::SetOutlineBorder { selected }
                 | ModelChange::SetThickOutlineBorder { selected }
                 | ModelChange::ClearBorders { selected }
+                | ModelChange::SetHorizontalBorders { selected, .. }
                 | ModelChange::SetSideBorder { selected, .. } => {
                     require_current_model(request, base.model)?;
                     if request.changes.len() != 1 {
@@ -789,11 +790,21 @@ pub(crate) fn prepare(
                     }
                     let selected = grid_area(*selected)?;
                     let host = state.session.host();
-                    let side = match change {
-                        ModelChange::SetSideBorder { side, .. } => Some(*side),
-                        _ => None,
+                    let affected = match change {
+                        ModelChange::SetSideBorder { side, .. } => calc_host::border_affected_areas(selected, Some(*side)),
+                        ModelChange::SetHorizontalBorders { top, .. } => {
+                            let mut bands = calc_host::border_affected_areas(selected, Some(BorderSide::Bottom));
+                            if *top {
+                                for band in calc_host::border_affected_areas(selected, Some(BorderSide::Top)) {
+                                    if !bands.contains(&band) {
+                                        bands.push(band);
+                                    }
+                                }
+                            }
+                            bands
+                        }
+                        _ => calc_host::border_affected_areas(selected, None),
                     };
-                    let affected = calc_host::border_affected_areas(selected, side);
                     if host.merged_areas(selected.sheet()).iter().any(|merge| {
                         affected.iter().any(|area| merge.intersection(*area).is_some())
                     }) {
@@ -808,6 +819,9 @@ pub(crate) fn prepare(
                         }
                         ModelChange::SetSideBorder { side, .. } => {
                             calc_host::prepare_side_border(host, selected, *side)
+                        }
+                        ModelChange::SetHorizontalBorders { top, bottom, .. } => {
+                            calc_host::prepare_horizontal_borders(host, selected, *top, *bottom)
                         }
                         ModelChange::ClearBorders { .. } => {
                             for at in calc_host::format_samples(host, &affected).map_err(excel)? {

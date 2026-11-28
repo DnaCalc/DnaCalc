@@ -1156,6 +1156,47 @@ fn classic_thick_outside_borders_keep_the_inside_lines_and_undo_to_thin() {
     assert_eq!(edges(1, 2), ["", "", "thin", ""]);
 }
 
+/// Native-only: verifies the horizontal Home Borders presets against the authored styles.
+#[test]
+fn classic_horizontal_border_presets_change_the_matching_neighbors_in_one_undo() {
+    let page = Page::open();
+    page.session.select_cell(page.at(2, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    let horizontal = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            let border = calc_host::border_for_style(host.styles(), host.cell_style(at)).unwrap();
+            [border.and_then(|b| b.top.as_ref()), border.and_then(|b| b.bottom.as_ref())]
+                .map(|edge| edge.and_then(|edge| edge.style.clone()).unwrap_or_default())
+        })
+    };
+
+    // On a one-row selection the two selected edges must end up in the same cell style.
+    for (tip, top, bottom) in [
+        ("b", "", "double"),
+        ("h", "", "thick"),
+        ("d", "thin", "thin"),
+        ("c", "thin", "thick"),
+        ("u", "thin", "double"),
+    ] {
+        for key in ["F10", "h", "b", tip] {
+            assert!(page.press(key, Focus::Stage), "{tip}: {key}");
+        }
+        assert_eq!(horizontal(2, 3), [top, bottom], "{tip}");
+        assert_eq!(horizontal(1, 3), ["", top], "{tip}");
+        assert_eq!(horizontal(3, 3), [bottom, ""], "{tip}");
+        assert_eq!(horizontal(2, 5), ["", ""], "{tip}");
+        assert_eq!(page.session.active(), Some(page.at(2, 2)));
+        assert!(page.press("Ctrl+z", Focus::Stage));
+        assert_eq!(horizontal(2, 3), ["", ""], "{tip}");
+        assert_eq!(horizontal(1, 3), ["", ""], "{tip}");
+        assert_eq!(horizontal(3, 3), ["", ""], "{tip}");
+    }
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {

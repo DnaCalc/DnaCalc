@@ -8,7 +8,7 @@
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
 use calc_skin::{
-    Batch, BorderSide, CellBorder, Change, FillDirection, FreezeBand, Interest, ModelChange,
+    Batch, BorderSide, BorderStroke, CellBorder, Change, FillDirection, FreezeBand, Interest, ModelChange,
     Operation, Provenance, RawValue, Selection, SourceRef, address, query,
 };
 use dna_kit::{InputMode, Invocation, Live, Session, ViewCommand, commands::CommandId};
@@ -85,16 +85,17 @@ fn range_batch(
 }
 
 fn border_css(border: CellBorder) -> String {
-    let (width, rgb) = match border {
-        CellBorder::Automatic => (1, None),
-        CellBorder::Rgb(rgb) => (1, Some(rgb)),
-        CellBorder::Thick { rgb } => (3, rgb),
+    let (width, line, rgb) = match border {
+        CellBorder::Automatic => (1, "solid", None),
+        CellBorder::Rgb(rgb) => (1, "solid", Some(rgb)),
+        CellBorder::Thick { rgb } => (3, "solid", rgb),
+        CellBorder::Double { rgb } => (3, "double", rgb),
     };
     let color = rgb.map_or_else(
         || "var(--dna-ink)".into(),
         |[red, green, blue]| format!("#{red:02x}{green:02x}{blue:02x}"),
     );
-    format!("{width}px solid {color}")
+    format!("{width}px {line} {color}")
 }
 
 fn select_range(session: Session, anchor: Key, to: Key) {
@@ -369,6 +370,21 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         }),
         border("grid.thick-outside-borders", "Thick Outside Borders", &[], |selected| {
             ModelChange::SetThickOutlineBorder { selected }
+        }),
+        border("grid.double-bottom-border", "Bottom Double Border", &[], |selected| {
+            ModelChange::SetHorizontalBorders { selected, top: false, bottom: BorderStroke::Double }
+        }),
+        border("grid.thick-bottom-border", "Thick Bottom Border", &[], |selected| {
+            ModelChange::SetHorizontalBorders { selected, top: false, bottom: BorderStroke::Thick }
+        }),
+        border("grid.top-bottom-border", "Top and Bottom Border", &[], |selected| {
+            ModelChange::SetHorizontalBorders { selected, top: true, bottom: BorderStroke::Thin }
+        }),
+        border("grid.top-thick-bottom-border", "Top and Thick Bottom Border", &[], |selected| {
+            ModelChange::SetHorizontalBorders { selected, top: true, bottom: BorderStroke::Thick }
+        }),
+        border("grid.top-double-bottom-border", "Top and Double Bottom Border", &[], |selected| {
+            ModelChange::SetHorizontalBorders { selected, top: true, bottom: BorderStroke::Double }
         }),
         border("grid.no-border", "No Border", &[], |selected| ModelChange::ClearBorders { selected }),
         border("grid.top-border", "Top Border", &[], |selected| {
