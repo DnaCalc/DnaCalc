@@ -304,9 +304,12 @@ def worker_sources_newest(project):
     for path in project.rglob("*"):
         if path.suffix in (".cs", ".csproj") and "obj" not in path.parts and "bin" not in path.parts:
             newest = max(newest, path.stat().st_mtime_ns)
-    for resource in ("../../../../crates/calc-catalogue/tests/fixtures/admission-families.tsv",
-                     "../../vba-probe-policy.json"):
-        path = project / resource
+    resources = [project / "../../../../crates/calc-catalogue/tests/fixtures/admission-families.tsv",
+                 project / "../../vba-probe-policy.json"]
+    probes = project / "../../vba-probes"          # embedded in the worker: a changed template needs a new worker
+    if probes.is_dir():
+        resources.extend(probes.iterdir())
+    for path in resources:
         if path.is_file():
             newest = max(newest, path.stat().st_mtime_ns)
     return newest

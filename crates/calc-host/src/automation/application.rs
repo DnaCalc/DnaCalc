@@ -30,6 +30,8 @@ impl WorkbookAutomation {
         handlers.on("Application", "Calculation", InvokeKind::Put, Self::put_calculation);
         handlers.on("Application", "CalculationVersion", InvokeKind::Get, Self::get_calculation_version);
         handlers.on("Application", "OperatingSystem", InvokeKind::Get, Self::get_operating_system);
+        handlers.on("Application", "PathSeparator", InvokeKind::Get, Self::get_path_separator);
+        handlers.on("Application", "DefaultFilePath", InvokeKind::Get, Self::get_default_file_path);
         handlers.on("Application", "CalculateBeforeSave", InvokeKind::Get, Self::get_calculate_before_save);
         handlers.on("Application", "CalculateBeforeSave", InvokeKind::Put, Self::put_calculate_before_save);
         handlers.on("Workbook", "PrecisionAsDisplayed", InvokeKind::Put, Self::put_precision_as_displayed);
@@ -86,6 +88,17 @@ impl WorkbookAutomation {
     fn get_operating_system(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         excel_no_args(call)?;
         Ok(AutoValue::text(EXCEL_OPERATING_SYSTEM))
+    }
+
+    fn get_path_separator(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        Ok(AutoValue::text("\\"))
+    }
+
+    fn get_default_file_path(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        self.host.default_file_path().map(AutoValue::text)
+            .ok_or_else(|| AutoError::not_modelled(call.label(), "dc-0uw7j"))
     }
 
     /// Reads a setting: from the session, or inside a worksheet function call from the settings

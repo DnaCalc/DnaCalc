@@ -131,6 +131,12 @@ position, never as an identifier, a statement or part of one. A template that fa
 At request time the route is: find the template, check its pins, type-check the parameters, print.
 No parser sees requester data.
 
+Since dc-heiq6 the worker also reads what it printed: the rendered modules and layout formulas go
+through the same grammar before the package is built, and the worker admits its embedded catalogue
+before its first case. This decides nothing about requester data, which the writers have already
+made literals. It ties the package to the grammar (cause D): a worker built while admission failed,
+or built without the admission step, refuses the template at request time.
+
 ### 3.4 Approve templates, record cases
 
 Approval attaches to a template's pins and its reviewed claim (R3), recorded beside the catalogue

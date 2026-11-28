@@ -23,6 +23,8 @@ calc-host-vba = { path = "../../crates/calc-host-vba" }
 calc-macro-security = { path = "../../crates/calc-macro-security" }
 calc-verdict = { path = "../../tools/calc-verdict" }
 serde_json = "=1.0.154"
+serde = { version = "=1.0.229", features = ["derive"] }
+toml = "=1.1.8"
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 dna-calc-worker = { path = "../dna-calc-worker" }
 dna-calc-protocol = { path = "../dna-calc-protocol" }
