@@ -28,9 +28,8 @@ pub(crate) fn file_name(path: &str) -> String {
         .unwrap_or_else(|| path.to_owned())
 }
 
-/// Opens `cli.book`; at a level above `off` runs the file's VBA project as it opens (its
-/// `Workbook_Open`, and its functions published to the sheets), under that level's policy.
-pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
+/// Open the workbook package without preparing or executing its VBA project.
+pub(crate) fn open_session(cli: &Cli) -> Result<HostSession, Failure> {
     let bytes =
         std::fs::read(&cli.book).map_err(|e| fail(format!("cannot read {}: {e}", cli.book)))?;
     let name = file_name(&cli.book);
@@ -52,6 +51,13 @@ pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
     )
     .map_err(|e| fail(format!("{}: the package was refused: {e}", cli.book)))?;
     session.set_clock(Some(clock_now()));
+    Ok(session)
+}
+
+/// Open the session and admit the workbook's VBA under the selected macro level.
+pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
+    let mut session = open_session(cli)?;
+    let name = file_name(&cli.book);
     let has_project = session
         .host()
         .loaded()

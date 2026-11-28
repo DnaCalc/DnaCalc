@@ -97,6 +97,9 @@ pub struct OfficeProject {
     references: Vec<OfficeReference>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use calcvba_symbol::portability::{Host as PortabilityHost, Report as PortabilityReport};
+
 /// The size limits CalcVBA reads a project blob under (the whole blob, the `dir` stream, the
 /// module count, each module's and all modules' source).
 pub use office::ReadLimits as OfficeReadLimits;
@@ -178,6 +181,44 @@ impl OfficeProject {
         &self.references
     }
 
+    /// Analyse this workbook's source and references without resolving native libraries or running VBA.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn portability_report(&self, host: PortabilityHost) -> Result<PortabilityReport, String> {
+        use calcvba_symbol::portability::{TypeLibraryFinding, TypeLibraryState};
+
+        let mut source = self.project.clone();
+        let mut unknown = Vec::new();
+        source.references = std::mem::take(&mut source.references)
+            .into_iter()
+            .zip(&self.references)
+            .filter_map(|(reference, original)| {
+                // Analyse only the workbook. Sibling projects and invalid library references
+                // surface as unknown without removing the workbook's other source from the report.
+                if matches!(original, OfficeReference::Project { .. })
+                    || reference.compiler_reference().is_err()
+                {
+                    unknown.push(TypeLibraryFinding {
+                        project: self.name().to_owned(),
+                        name: original.name().to_owned(),
+                        guid: original.guid(),
+                        state: TypeLibraryState::Unknown,
+                    });
+                    None
+                } else {
+                    Some(reference)
+                }
+            })
+            .collect();
+        let manifest = source.to_manifest().map_err(|error| error.to_string())?;
+        let mut report =
+            calcvba_symbol::portability::check_project(std::slice::from_ref(&manifest), host)?;
+        report.references.extend(unknown);
+        if report.analysis_complete {
+            bind_portability_effects(&manifest, &mut report);
+        }
+        Ok(report)
+    }
+
     /// The same project with the code of `name` replaced (or a standard or class module of that
     /// name added). `code` is the body as the VBE shows it, without `Attribute` lines.
     pub fn with_module(
@@ -254,6 +295,50 @@ impl OfficeProject {
             })
             .collect()
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn bind_portability_effects(manifest: &sym::SymbolProjectManifest, report: &mut PortabilityReport) {
+    let resolver = crate::descriptor::DescriptorTypeLibResolver {
+        has_workbook: true,
+        events: crate::events::DocumentEvents::All,
+    };
+    let Ok(units) = calcvba_bind::bind_projects_with_source_procedures(
+        std::slice::from_ref(manifest),
+        &resolver,
+    ) else {
+        return;
+    };
+    let Ok(programs) = units
+        .iter()
+        .map(|unit| calcvba_oxir::elaborate::elaborate(&unit.core))
+        .collect::<Result<Vec<_>, _>>()
+    else {
+        return;
+    };
+    let program_refs: Vec<_> = programs.iter().collect();
+    let effects = calcvba_engine::portability::check_programs(
+        &program_refs,
+        report.host,
+        Default::default(),
+    );
+    let mut originals = std::collections::BTreeMap::new();
+    let mut offset = 0;
+    for (unit, program) in units.iter().zip(&programs) {
+        originals.extend(unit.procedures.iter().map(|entry| (offset + entry.index, entry)));
+        offset += program.funcs.len();
+    }
+    report.procedures = effects.procedures
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, mut entry)| {
+            let source = originals.get(&index)?;
+            entry.module.clone_from(&source.module);
+            entry.procedure.clone_from(&source.name);
+            Some(entry)
+        })
+        .collect();
+    report.effects_complete = effects.effects_complete;
 }
 
 #[cfg(test)]

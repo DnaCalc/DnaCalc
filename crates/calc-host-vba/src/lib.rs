@@ -148,6 +148,49 @@ impl std::fmt::Display for FileProjectError {
 }
 impl std::error::Error for FileProjectError {}
 
+fn read_file_project(
+    host: &HostState,
+) -> Result<Option<(calc_vba::OfficeProject, calc_host::VbaProjectPart)>, FileProjectError> {
+    // CalcDoc hands over the project part as a blob. CalcVBA reads its storage and source.
+    host.loaded()
+        .vba_project(&Default::default())
+        .map_err(FileProjectError::Read)?
+        .map(|part| {
+            calc_vba::read_office_project(&part.bytes)
+                .map(|project| (project, part))
+                .map_err(FileProjectError::Project)
+        })
+        .transpose()
+}
+
+/// Inspect the saved workbook's VBA source for the requested profiles.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn file_portability(
+    host: &HostState,
+    kinds: &[calc_host::portability::HostKind],
+) -> Result<Vec<Option<calc_vba::office::PortabilityReport>>, FileProjectError> {
+    use calc_host::portability::HostKind;
+    use calc_vba::office::PortabilityHost;
+
+    let project = read_file_project(host)?;
+    kinds
+        .iter()
+        .map(|kind| {
+            let dialect_host = match kind {
+                HostKind::Windows => PortabilityHost::Windows,
+                HostKind::Macos => PortabilityHost::MacOs,
+                HostKind::Linux | HostKind::Server | HostKind::WebHosted => PortabilityHost::Linux,
+                HostKind::WebWasm => PortabilityHost::Browser,
+                HostKind::Wasi => PortabilityHost::Wasi,
+            };
+            project.as_ref()
+                .map(|(project, _)| project.portability_report(dialect_host))
+                .transpose()
+                .map_err(FileProjectError::Preparation)
+        })
+        .collect()
+}
+
 /// Preparation executes no handlers or worksheet functions. Failure never publishes
 /// a partially loaded registry or substitutes the file's cached values. `grant` is the reason the
 /// file's project may run at all ([`ProjectGrant`]).
@@ -171,15 +214,9 @@ pub fn prepare_file_project_with_events(
     backend: Option<calc_vba::Backend>,
     automatic_events: bool,
 ) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
-    // calc-doc hands over the project part as a blob; CalcVBA reads what is inside it.
-    let Some(part) = host
-        .loaded()
-        .vba_project(&Default::default())
-        .map_err(FileProjectError::Read)?
-    else {
+    let Some((project, part)) = read_file_project(host)? else {
         return Ok(None);
     };
-    let project = calc_vba::read_office_project(&part.bytes).map_err(FileProjectError::Project)?;
     let references =
         calc_vba::events::ProjectReferences::of(&project).map_err(FileProjectError::Preparation)?;
     let mut documents = BTreeMap::new();
