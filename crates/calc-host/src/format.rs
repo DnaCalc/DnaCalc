@@ -767,13 +767,17 @@ pub fn border_for_style(styles: &StyleTable, style: u32) -> Result<Option<&Borde
     }
 }
 
-/// Prepare the default All Borders command on a worksheet rectangle.
-pub fn prepare_all_borders(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
-    let edge = crate::EdgeChange {
+fn default_border() -> crate::EdgeChange {
+    crate::EdgeChange {
         line: Some(crate::EdgeLine::Continuous),
         weight: Some(crate::EdgeWeight::Thin),
         color: Some(FillColor::Automatic),
-    };
+    }
+}
+
+/// Prepare the default All Borders command on a worksheet rectangle.
+pub fn prepare_all_borders(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
+    let edge = default_border();
     let edges = crate::EdgesPatch {
         left: Some(edge.clone()),
         right: Some(edge.clone()),
@@ -784,31 +788,95 @@ pub fn prepare_all_borders(host: &HostState, area: GridArea) -> Result<Vec<CellE
     prepare(host, &[area], &FormatPatch { edges: Some(edges), ..Default::default() })
 }
 
+/// Prepare the default outline border while retaining the rectangle's inside edges.
+pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
+    let first = area.first();
+    let last = area.last();
+    let rows = edge_bands(first.row(), last.row());
+    let columns = edge_bands(first.column(), last.column());
+    let mut groups = Vec::new();
+    for (top, bottom) in rows {
+        for &(left, right) in &columns {
+            let edges = crate::EdgesPatch {
+                top: (top == first.row()).then(default_border),
+                right: (right == last.column()).then(default_border),
+                bottom: (bottom == last.row()).then(default_border),
+                left: (left == first.column()).then(default_border),
+                ..Default::default()
+            };
+            if edges == crate::EdgesPatch::default() {
+                continue;
+            }
+            // The bands split the selection into disjoint corners and sides.
+            let lo = CellKey::new(area.sheet(), top, left).unwrap();
+            let hi = CellKey::new(area.sheet(), bottom, right).unwrap();
+            let part = GridArea::new(lo, hi).unwrap();
+            groups.push(([part], FormatPatch { edges: Some(edges), ..Default::default() }));
+        }
+    }
+    prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
+}
+
+fn edge_bands(first: u32, last: u32) -> Vec<(u32, u32)> {
+    let mut bands = vec![(first, first)];
+    if last - first > 1 {
+        bands.push((first + 1, last - 1));
+    }
+    if last != first {
+        bands.push((last, last));
+    }
+    bands
+}
+
 pub(crate) fn prepare(
     host: &HostState,
     areas: &[GridArea],
     patch: &FormatPatch,
 ) -> Result<Vec<CellEdit>, String> {
-    patch.validate()?;
-    if areas.is_empty() {
-        return Err("Select cells to format".into());
-    }
-    for sheet in areas.iter().map(|a| a.sheet()).collect::<BTreeSet<_>>() {
-        crate::can_edit(host, CellKey::new(sheet, 1, 1).unwrap())?;
-    }
-    if patch == &FormatPatch::default() {
-        return Ok(Vec::new());
-    }
-    let mut table = (**host.styles()).clone();
-    let mut mapped = BTreeMap::new();
+    prepare_groups(host, [(areas, patch)])
+}
+
+fn prepare_groups<'a>(
+    host: &HostState,
+    groups: impl IntoIterator<Item = (&'a [GridArea], &'a FormatPatch)>,
+) -> Result<Vec<CellEdit>, String> {
+    let mut table = None;
     let mut edits = Vec::new();
+    let empty = FormatPatch::default();
+    for (areas, patch) in groups {
+        patch.validate()?;
+        if areas.is_empty() {
+            return Err("Select cells to format".into());
+        }
+        for sheet in areas.iter().map(|area| area.sheet()).collect::<BTreeSet<_>>() {
+            crate::can_edit(host, CellKey::new(sheet, 1, 1).unwrap())?;
+        }
+        if patch != &empty {
+            let table = table.get_or_insert_with(|| (**host.styles()).clone());
+            prepare_group(host, areas, patch, table, &mut edits)?;
+        }
+    }
+    if let Some(table) = table.filter(|table| table != host.styles().as_ref()) {
+        edits.insert(0, CellEdit::Styles(Arc::new(table)));
+    }
+    Ok(edits)
+}
+
+fn prepare_group(
+    host: &HostState,
+    areas: &[GridArea],
+    patch: &FormatPatch,
+    table: &mut StyleTable,
+    edits: &mut Vec<CellEdit>,
+) -> Result<(), String> {
+    let mut mapped = BTreeMap::new();
     for area in areas {
         let mut changes = Vec::new();
         for run in format_regions(host, *area)? {
             let next = if let Some(id) = mapped.get(&run.format) {
                 *id
             } else {
-                let id = patched_style(&mut table, run.format, patch)?;
+                let id = patched_style(table, run.format, patch)?;
                 mapped.insert(run.format, id);
                 id
             };
@@ -823,7 +891,7 @@ pub(crate) fn prepare(
             let id = if let Some(id) = mapped.get(&0) {
                 *id
             } else {
-                let id = patched_style(&mut table, 0, patch)?;
+                let id = patched_style(table, 0, patch)?;
                 mapped.insert(0, id);
                 id
             };
@@ -853,7 +921,7 @@ pub(crate) fn prepare(
         let next = if let Some(id) = mapped.get(&old) {
             *id
         } else {
-            let id = patched_style(&mut table, old, patch)?;
+            let id = patched_style(table, old, patch)?;
             mapped.insert(old, id);
             id
         };
@@ -864,10 +932,7 @@ pub(crate) fn prepare(
             });
         }
     }
-    if &table != host.styles().as_ref() {
-        edits.insert(0, CellEdit::Styles(Arc::new(table)));
-    }
-    Ok(edits)
+    Ok(())
 }
 
 /// Current uniform styles, including imported axis defaults and existing style points.

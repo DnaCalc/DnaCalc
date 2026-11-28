@@ -592,6 +592,9 @@ pub enum ModelChange {
     SetAllBorders {
         selected: Area,
     },
+    SetOutlineBorder {
+        selected: Area,
+    },
     /// Refresh the workbook cache used by the PivotTable at this cell.
     RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.

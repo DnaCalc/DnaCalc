@@ -1853,6 +1853,41 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Outline Border paints only the perimeter and can be undone",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}wvg"),
+            Action::Wait(Check::Rendered("[class~='dna-sheet-gridlines-hidden']", true)),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e008}\u{e014}\u{e014}\u{e015}\u{e015}\u{e000}"),
+            Action::Wait(Check::Attr("[data-cell=D4]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e009}\u{e008}&\u{e000}"),
+            Action::Wait(Check::Js(
+                "the outline is visible around a blank interior",
+                r#"(() => {
+                    const first = getComputedStyle(document.querySelector('[data-cell=B2]'));
+                    const middle = getComputedStyle(document.querySelector('[data-cell=C3]'));
+                    const last = getComputedStyle(document.querySelector('[data-cell=D4]'));
+                    return first.borderTopStyle === 'solid' && first.borderLeftStyle === 'solid'
+                        && last.borderRightColor !== 'rgba(0, 0, 0, 0)'
+                        && last.borderBottomColor !== 'rgba(0, 0, 0, 0)'
+                        && middle.borderTopStyle === 'none' && middle.borderLeftStyle === 'none'
+                        && middle.borderRightColor === 'rgba(0, 0, 0, 0)'
+                        && middle.borderBottomColor === 'rgba(0, 0, 0, 0)';
+                })()"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=C3]", ""),
+            Check::Js(
+                "one Undo removed the outline",
+                r#"getComputedStyle(document.querySelector('[data-cell=B2]')).borderTopStyle === 'none'
+                    && getComputedStyle(document.querySelector('[data-cell=D4]')).borderBottomColor === 'rgba(0, 0, 0, 0)'"#,
+            ),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2403,8 +2438,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "inspector-dependencies",
+        name: "classic-outline",
         start: 73,
+        end: 74,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-dependencies",
+        start: 74,
         end: PREVIEW_CASES.len() - 7,
         core: 2,
         setup: &[],

@@ -660,6 +660,45 @@ fn classic_all_borders_authors_each_edge_and_undoes_in_one_step() {
     assert!(!four_edges(page.at(3, 3).cell().unwrap()));
 }
 
+/// Native-only: drives the outline shortcut through Classic and checks the authored edge positions.
+#[test]
+fn classic_outline_border_keeps_inside_borders_and_undoes_once() {
+    let page = Page::open();
+    let session = page.session;
+    session.select_cell(page.at(3, 3));
+    page.settle();
+    for key in ["F10", "h", "b", "a"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown", "Shift+ArrowDown"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert!(page.press("Ctrl+Shift+&", Focus::Stage));
+    let edges = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or([false; 4], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.as_deref()) == Some("thin"))
+                })
+        })
+    };
+    assert_eq!(edges(2, 2), [true, false, false, true]);
+    assert_eq!(edges(2, 3), [true, false, false, false]);
+    assert_eq!(edges(4, 4), [false, true, true, false]);
+    assert_eq!(edges(3, 3), [true; 4]);
+    assert_eq!(edges(1, 1), [false; 4]);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(2, 2), [false; 4]);
+    assert_eq!(edges(4, 4), [false; 4]);
+    assert_eq!(edges(3, 3), [true; 4]);
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {
