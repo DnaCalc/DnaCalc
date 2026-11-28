@@ -60,7 +60,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     command("A T", "Filter", "grid.toggle-filter"),
     group("A W", "What-If Analysis"),
     pending("A W G", "Goal Seek"),
-    pending("A W S", "Scenario Manager"),
+    command("A W S", "Scenario Manager", dna_kit::scenario_manager::OPEN),
     command("M N", "Name Manager", dna_kit::name_manager::OPEN),
     command("M P", "Trace Precedents", "grid.trace-precedents"),
     command("M D", "Trace Dependents", "grid.trace-dependents"),
