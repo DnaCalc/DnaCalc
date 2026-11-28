@@ -7,6 +7,7 @@ mod dependencies;
 mod effects;
 mod inventory;
 mod issues;
+mod macros;
 mod names;
 mod objects;
 mod placement;
@@ -81,6 +82,7 @@ struct CalculationChanges {
 struct State {
     session: HostSession,
     host_profile: calc_host::portability::HostProfile,
+    macros: macros::MacroSession,
     selection_seq: u64,
     selection: HostSelection,
     selection_cause: SelectionCause,
@@ -392,6 +394,7 @@ impl SkinHost {
                 selection: session.selection().clone(),
                 session,
                 host_profile,
+                macros: Default::default(),
                 selection_seq: 1,
                 selection_cause: SelectionCause::Open,
                 selection_sender: None,
@@ -450,6 +453,7 @@ impl SkinHost {
                 next_publication: 1,
                 awaiting_tiles: None,
                 last_client_seq: 0,
+                macro_review: Default::default(),
             }),
         }
     }
@@ -530,6 +534,7 @@ struct Local {
     next_publication: u64,
     awaiting_tiles: Option<u64>,
     last_client_seq: u64,
+    macro_review: macros::PendingReview,
 }
 
 struct CopiedCells {
@@ -869,6 +874,14 @@ impl WorkbookPort for Connection {
         let mut state = self.host.borrow_mut();
         let before = state.stamp();
         let intent = match operation {
+            Operation::SetMacroSecurity(mode) => {
+                self.choose_macro_mode(&mut state, mode)?;
+                return Ok(before);
+            }
+            Operation::RunMacro { approval } => {
+                let receipt = self.run_macro(&mut state, approval)?;
+                return receipt.error.map_or(Ok(receipt.stamp), Err);
+            }
             Operation::Propose(declaration) => {
                 return proposal::offer(&mut state, &self.origin, self.policy, declaration);
             }
@@ -1276,6 +1289,7 @@ impl Connection {
         let stamp = session.host().skin_stamp();
         let mut state = self.host.borrow_mut();
         state.session = session;
+        state.macros.reset_project();
         state.clock = clock;
         state.opened_at = stamp;
         state.look = None;
@@ -1335,6 +1349,9 @@ impl Connection {
                 self.navigate(target)?;
                 WorkbookReply::Accepted
             }
+            WorkbookRequest::ReviewMacro { procedure } => {
+                WorkbookReply::MacroReview(self.review_macro(procedure)?)
+            }
             WorkbookRequest::Preview { batch, depth } => {
                 WorkbookReply::Preview(self.preview(&batch, depth)?)
             }
@@ -1346,6 +1363,9 @@ impl Connection {
                 WorkbookReply::Preview(proposal::preview(&mut state, &proposal, &units, depth)?)
             }
             WorkbookRequest::Commit(batch) => WorkbookReply::Stamp(self.commit(batch)?),
+            WorkbookRequest::Run(Operation::RunMacro { approval }) => {
+                WorkbookReply::MacroRun(self.run_macro(&mut self.host.borrow_mut(), approval)?)
+            }
             WorkbookRequest::Run(operation) => WorkbookReply::Stamp(self.run(operation)?),
             WorkbookRequest::FormulaQuery(query) => self.formula_request(|host| host.handle(query))?,
             WorkbookRequest::FormulaOperation(operation) => {

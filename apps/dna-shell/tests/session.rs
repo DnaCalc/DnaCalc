@@ -15,6 +15,12 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+#[allow(dead_code)]
+mod support;
+#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/vba_project.rs"]
+mod vba_project;
+
 struct Page {
     host: SkinHost,
     port: Connection,
@@ -26,14 +32,19 @@ struct Page {
 
 impl Page {
     fn open() -> Self {
+        Self::from_workbook(
+            HostSession::open(
+                Arc::new(MemorySource::new(blank_package())),
+                &OpenPolicy::default(),
+                HostOptions::default(),
+            )
+            .unwrap(),
+        )
+    }
+
+    fn from_workbook(workbook: HostSession) -> Self {
         let owner = Owner::new();
         owner.set();
-        let workbook = HostSession::open(
-            Arc::new(MemorySource::new(blank_package())),
-            &OpenPolicy::default(),
-            HostOptions::default(),
-        )
-        .unwrap();
         let sheet = Sheet::of(workbook.host().sheets()[0].id());
         let host = SkinHost::new(workbook);
         let port = host.connect(
@@ -133,6 +144,112 @@ impl Page {
             .map(|cell| cell.text)
             .unwrap_or_default()
     }
+}
+
+/// Native-only: links the workbook service to exercise the shell's command table.
+#[test]
+fn run_macro_is_available_in_the_workbook_command_table() {
+    let page = Page::open();
+    let commands = page.session.search("Run macro");
+    assert!(commands.iter().any(|spec| spec.id.0 == "macro.review"));
+    assert!(page.session.command("macro.run").is_err());
+}
+
+const MACRO_FIXTURE: &[u8] =
+    include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+
+const GUARDED_PROBE: &str = r#"Public Sub Fill()
+ Range("A1").Value2 = 42
+End Sub
+"#;
+
+fn macro_page(source: &str) -> Page {
+    let bytes = vba_project::replace_sources(MACRO_FIXTURE, &[
+        ("Module1", source),
+        ("PrivateModule", "Option Private Module\n"),
+        ("Sheet1", ""),
+        ("ThisWorkbook", "Public Sub Workbook_Open()\n Range(\"A2\").Value2 = 89\nEnd Sub"),
+    ]);
+    let workbook = HostSession::open_named(
+        Arc::new(MemorySource::new(vba_project::minimal_control(&bytes))),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+        "Macro Review.xlsm",
+    )
+    .unwrap();
+    Page::from_workbook(workbook)
+}
+
+fn macro_review(page: &Page) -> calc_skin::MacroReview {
+    let result = Rc::new(RefCell::new(None));
+    page.session.review_macro(Some("Module1.Fill".into()), {
+        let result = result.clone();
+        move |answer| *result.borrow_mut() = Some(answer)
+    });
+    page.settle();
+    result.take().unwrap().unwrap()
+}
+
+fn macro_level(page: &Page, level: calc_skin::MacroSecurity) {
+    page.session.set_macro_security(level, |result| { result.unwrap(); });
+    page.settle();
+}
+
+fn run_macro(page: &Page, approval: u64) -> Result<calc_skin::MacroRun, calc_skin::Refusal> {
+    let result = Rc::new(RefCell::new(None));
+    page.session.run_macro(approval, {
+        let result = result.clone();
+        move |answer| *result.borrow_mut() = Some(answer)
+    });
+    page.settle();
+    result.take().unwrap()
+}
+
+/// Native-only: drives the workbook VBA command over the shell's normal packet carrier.
+#[test]
+fn macro_review_is_read_only_and_guarded_approval_is_single_use() {
+    use calc_skin::{MacroSecurity, Refusal};
+    let page = macro_page(GUARDED_PROBE);
+    let off = macro_review(&page);
+    assert_eq!(off.mode, MacroSecurity::Off);
+    assert!(off.module_source.unwrap().contains("Range(\"A1\")"));
+    assert!(off.blocked.is_some());
+    assert!(off.approval.is_none());
+    assert_eq!(run_macro(&page, 1), Err(Refusal::PolicyRefused));
+    assert_eq!(page.shown(page.at(1, 1)), "");
+    assert_eq!(page.shown(page.at(2, 1)), "");
+
+    macro_level(&page, MacroSecurity::Guarded);
+    let stale = macro_review(&page).approval.unwrap();
+    macro_level(&page, MacroSecurity::Off);
+    macro_level(&page, MacroSecurity::Guarded);
+    assert!(matches!(run_macro(&page, stale), Err(Refusal::Invalid { .. })));
+    let review = macro_review(&page);
+    assert_eq!(review.mode, MacroSecurity::Guarded);
+    assert!(!review.reach.is_empty());
+    assert!(review.grants.is_empty());
+    assert_eq!(page.shown(page.at(1, 1)), "");
+    let approval = review.approval.unwrap();
+    let run = run_macro(&page, approval).unwrap();
+    assert_eq!(run.error, None);
+    assert!(run.denials.is_empty());
+    assert_eq!(run_macro(&page, approval), Err(Refusal::PolicyRefused));
+    assert_eq!(page.shown(page.at(1, 1)), "42");
+    assert_eq!(page.shown(page.at(2, 1)), "");
+}
+
+/// Native-only: checks CalcVBA's observed denial through the workbook carrier.
+#[test]
+fn macro_run_reports_a_denial_handled_by_vba() {
+    let page = macro_page(
+        "Public Sub Fill()\n On Error Resume Next\n Dim value As String\n \
+         value = Environ(\"DNACALC_SYNTHETIC_SETTING\")\n Range(\"A1\").Value2 = Err.Number\nEnd Sub",
+    );
+    macro_level(&page, calc_skin::MacroSecurity::Guarded);
+    let run = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert!(run.error.is_none());
+    assert_eq!(run.denials.len(), 1);
+    assert_eq!(page.shown(page.at(1, 1)), "70");
 }
 
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.

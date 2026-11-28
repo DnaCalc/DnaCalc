@@ -16,6 +16,7 @@ pub mod clock;
 pub use dna_skin_runtime::skin::validate_page;
 /// Preview a typed page in the installed App view.
 pub const TRY_APP_PAGE: &str = "app.try-page";
+pub const REVIEW_MACRO: &str = "macro.review";
 mod editor;
 mod reader;
 mod report;
@@ -162,6 +163,21 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
             let body = match component.as_str() {
                 "scenario-picker" => scenarios(session, label.clone(), mode.scenario),
                 "clock" => clock::clock_controls(session, id.clone(), label.clone(), &bind, mode.clock_document).into_any(),
+                "action-button" if mode.report.is_none() && mode.input.is_some() => {
+                    match props.get("procedure").and_then(|value| value.as_str()) {
+                        Some(procedure) => {
+                            let command = Invocation {
+                                command: CommandId::new(REVIEW_MACRO),
+                                args: procedure.to_owned().into(),
+                            };
+                            view! {
+                                <button type="button" data-command=REVIEW_MACRO
+                                    on:click=move |_| { let _ = session.run(&command); }>{label.clone()}</button>
+                            }.into_any()
+                        }
+                        None => missing(),
+                    }
+                }
                 "rich-prose" => {
                     let text = props.get("text").and_then(|value| value.as_str()).unwrap_or_default();
                     view! {

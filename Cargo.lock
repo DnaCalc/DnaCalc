@@ -509,6 +509,7 @@ dependencies = [
 name = "calc-skin"
 version = "0.1.0"
 dependencies = [
+ "calc-macro-security",
  "calc-syntax",
  "calc-value",
  "serde",
@@ -528,6 +529,7 @@ dependencies = [
  "calc-formula-kernel",
  "calc-func",
  "calc-host",
+ "calc-host-vba",
  "calc-skin",
  "js-sys",
  "serde",
@@ -1569,6 +1571,8 @@ dependencies = [
  "calc-host",
  "calc-skin",
  "calc-skin-host",
+ "calc-vba",
+ "cfb",
  "dna-grid",
  "dna-kit",
  "dna-skin-runtime",
@@ -1578,6 +1582,7 @@ dependencies = [
  "dna-view-map",
  "dna-view-notebook",
  "leptos",
+ "miniz_oxide 0.8.9",
  "serde",
  "serde_json",
  "web-sys",

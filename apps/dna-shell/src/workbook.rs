@@ -16,6 +16,7 @@ use dna_kit::{
 use leptos::{leptos_dom::helpers::request_animation_frame, prelude::*, wasm_bindgen::JsCast};
 use std::rc::Rc;
 
+mod macros;
 mod proposals;
 mod studio;
 use proposals::Proposals;
@@ -46,6 +47,7 @@ pub struct Chrome {
     deck_folded: RwSignal<bool>,
     studio: Studio,
     proposals: Proposals,
+    macros: macros::MacroCard,
     name_manager: NameManager,
     tips: NodeRef<leptos::html::Div>,
 }
@@ -158,6 +160,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         deck_folded: RwSignal::new(false),
         studio: Studio::new(),
         proposals: Proposals::install(session),
+        macros: macros::MacroCard::install(session),
         name_manager: NameManager::install(session),
         tips: NodeRef::new(),
     };
@@ -237,6 +240,8 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         } else if chrome.name_manager.close() {
             return Ok(());
         } else if chrome.proposals.close() {
+            return Ok(());
+        } else if chrome.macros.close() {
             return Ok(());
         } else if chrome.side_pane.get_untracked() == Some(SidePane::Help) {
             chrome.side_pane.set(None);
@@ -749,6 +754,7 @@ pub fn workbook(
                     {command_button(session, "edit.undo", "Undo")}
                     {command_button(session, "edit.redo", "Redo")}
                     {command_button(session, "calc.calculate", "Calculate")}
+                    {move || session.summary().filter(|book| book.macros).map(|_| command_button(session, macros::COMMAND, "Run macro…"))}
                     {command_button(session, "shell.details", "Details")}
                     {command_button(session, "studio.open", "Customise")}
                     {chrome.studio.page_button(session)}
@@ -763,6 +769,7 @@ pub fn workbook(
                 {key_tip_deck(session, chrome, stage_node)}
             </nav>
             {dna_kit::workbook_open::mount(session)}
+            {chrome.macros.mount(session)}
             <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {
                 let id = session.view();
                 chrome.views.with_value(|views| views.iter().any(|view| view.spec().id == id && !view.cell_editor()))
