@@ -54,6 +54,7 @@ struct VbaAutomationHost {
     /// file system: the shell takes them with [`WorkbookEvents::take_output_files`] and puts them
     /// where its platform keeps files (a download in the browser, a file on the desktop).
     files: std::cell::RefCell<Vec<(String, Vec<u8>)>>,
+    view_requests: std::cell::RefCell<Option<Vec<calc_host::ViewRequest>>>,
 }
 
 impl VbaAutomationHost {
@@ -62,6 +63,7 @@ impl VbaAutomationHost {
             events_enabled: Cell::new(true),
             owner: Default::default(),
             files: Default::default(),
+            view_requests: Default::default(),
         }
     }
 }

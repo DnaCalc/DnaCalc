@@ -278,6 +278,11 @@ impl View for Inspector {
             command: "inspector.dock",
             label: "Inspector panel",
             mount: dock,
+            panel: Some(dna_kit::view::PanelSpec {
+                id: TRACE_PANEL,
+                visibility_command: "inspector.trace.visibility",
+                visible: trace_visible,
+            }),
         })
     }
 
@@ -389,6 +394,25 @@ fn trace_commands(session: Session) -> Vec<ViewCommand> {
     let state = session.local::<State>();
     vec![
         ViewCommand::global(
+            "inspector.trace.visibility",
+            "Set Trace panel visibility",
+            &[],
+            move |invocation| {
+                let shown = invocation.args.as_bool().ok_or("Choose whether to show Trace.")?;
+                if shown {
+                    state.tracing.set(true);
+                    state.instrument.set(Instrument::Precedents);
+                    if session.context().view.0 != ID && !untrack(|| state.dock_placement(session).is_some()) {
+                        state.place_dock(session, Some(DockSide::Right));
+                    }
+                } else if trace_visible(session) {
+                    state.tracing.set(false);
+                    state.place_dock(session, None);
+                }
+                Ok(())
+            },
+        ).when("!editing"),
+        ViewCommand::global(
             "inspector.trace",
             "Trace contributions",
             &["Alt+Shift+T"],
@@ -471,6 +495,12 @@ fn trace_commands(session: Session) -> Vec<ViewCommand> {
         )
         .when("!editing && writable"),
     ]
+}
+
+fn trace_visible(session: Session) -> bool {
+    let state = session.local::<State>();
+    state.tracing.get_untracked() && state.instrument.get_untracked() == Instrument::Precedents
+        && (session.context().view.0 == ID || untrack(|| state.dock_placement(session).is_some()))
 }
 
 fn preview_repair(

@@ -250,6 +250,7 @@ pub use calc_engine::{
     ValueDelta, WorkBudget, resolve_reference_text,
 };
 pub use calc_engine::FormulaResult;
+pub use calc_skin::{ViewId, ViewRequest};
 pub use calc_fml::reference::CellRun;
 pub use calc_fml::{
     CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdConnection, RtdConnector,

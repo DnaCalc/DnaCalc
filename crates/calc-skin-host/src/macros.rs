@@ -182,11 +182,16 @@ impl Connection {
             state.macros.project = Some(project.clone());
             project
         };
-        let result = state.session.with_macro_history(
+        let (result, view_requests) = state.session.with_macro_history(
             format!("{}:{id}", self.id),
             &approval.procedure,
-            |session| project.run_procedure(session, &approval.procedure, &[]),
+            |session| project.run_procedure_with_views(session, &approval.procedure),
         );
+        {
+            let mut local = self.local.borrow_mut();
+            local.macro_ended = true;
+            local.macro_views.extend(view_requests);
+        }
         // An output needs a carrier that can display and deliver the file. No export is
         // delivered by the skin carrier as a side effect of confirming a macro review.
         let outputs = project.take_output_files();

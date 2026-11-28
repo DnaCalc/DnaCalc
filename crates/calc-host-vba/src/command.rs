@@ -127,6 +127,17 @@ impl WorkbookEvents {
         self.run_procedure_inner(session, request, arguments, None)
     }
 
+    /// Let an interactive carrier receive any presentation requests emitted by the procedure.
+    pub fn run_procedure_with_views(
+        self: &Rc<Self>,
+        session: &mut HostSession,
+        request: &str,
+    ) -> (InvocationRecord, Vec<calc_host::ViewRequest>) {
+        self.application.view_requests.replace(Some(Vec::new()));
+        let result = self.run_procedure(session, request, &[]);
+        (result, self.application.view_requests.take().unwrap_or_default())
+    }
+
     /// Run a command with explicit answers, recording even unanswered dialogs caught in VBA.
     pub fn run_procedure_with_dialog_answers(
         self: &Rc<Self>,
@@ -293,7 +304,8 @@ impl WorkbookEvents {
         name: &str,
         arguments: &[calc_object_model::AutoValue],
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
-        use calc_object_model::AutoError;
+        use calc_host::{ViewId, ViewRequest};
+        use calc_object_model::{AutoError, AutoValue};
 
         let verb = name.trim();
         if verb.eq_ignore_ascii_case("DnaCalc.View.Select") || verb.eq_ignore_ascii_case("DnaCalc.Select") {
@@ -302,6 +314,31 @@ impl WorkbookEvents {
             };
             let address = address.as_text().ok_or_else(|| AutoError::excel(13, "Type mismatch"))?;
             return self.automation.select_view_range(&address);
+        }
+        let view = verb.eq_ignore_ascii_case("DnaCalc.View.Switch") || verb.eq_ignore_ascii_case("DnaCalc.View");
+        let panel = verb.eq_ignore_ascii_case("DnaCalc.View.ShowPanel") || verb.eq_ignore_ascii_case("DnaCalc.Panel");
+        if view || panel {
+            let mut requests = self.application.view_requests.borrow_mut();
+            let requests = requests.as_mut().ok_or_else(|| cannot_run(name))?;
+            let text = |value: &AutoValue| value.as_text().ok_or_else(|| AutoError::excel(13, "Type mismatch"));
+            let request = if view {
+                let (view, sheet) = match arguments {
+                    [view] => (text(view)?, None),
+                    [view, sheet] => (text(view)?, Some(text(sheet)?)),
+                    _ => return Err(AutoError::excel(450, "Wrong number of arguments")),
+                };
+                ViewRequest::Switch { view: ViewId(view.trim().to_ascii_lowercase()), sheet }
+            } else {
+                let [panel, shown] = arguments else {
+                    return Err(AutoError::excel(450, "Wrong number of arguments"));
+                };
+                let AutoValue::Bool(shown) = shown else {
+                    return Err(AutoError::excel(13, "Type mismatch"));
+                };
+                ViewRequest::ShowPanel { panel: text(panel)?.trim().to_ascii_lowercase(), shown: *shown }
+            };
+            requests.push(request);
+            return Ok(AutoValue::Bool(true));
         }
         let request = match name.rsplit_once('!') {
             Some((book, request)) => {

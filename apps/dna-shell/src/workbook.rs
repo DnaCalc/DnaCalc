@@ -19,6 +19,7 @@ use std::rc::Rc;
 mod macros;
 mod proposals;
 mod studio;
+mod view_requests;
 use proposals::Proposals;
 use studio::Studio;
 
@@ -171,6 +172,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
     session.install(dna_kit::workbook_open::commands(session));
     chrome.studio.install(session);
     registry.install_commands(session);
+    view_requests::install(registry, session);
     chrome
 }
 
