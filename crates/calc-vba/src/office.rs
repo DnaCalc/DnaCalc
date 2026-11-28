@@ -97,8 +97,10 @@ pub struct OfficeProject {
     references: Vec<OfficeReference>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use calcvba_symbol::portability::{Host as PortabilityHost, Report as PortabilityReport};
+pub use calcvba_symbol::portability::{
+    Host as PortabilityHost, Report as PortabilityReport,
+    TypeLibraryFinding as PortabilityReference, TypeLibraryState,
+};
 
 /// The size limits CalcVBA reads a project blob under (the whole blob, the `dir` stream, the
 /// module count, each module's and all modules' source).
@@ -182,9 +184,8 @@ impl OfficeProject {
     }
 
     /// Analyse this workbook's source and references without resolving native libraries or running VBA.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn portability_report(&self, host: PortabilityHost) -> Result<PortabilityReport, String> {
-        use calcvba_symbol::portability::{TypeLibraryFinding, TypeLibraryState};
+        use calcvba_symbol::portability::{ParseIssue, check_project};
 
         let mut source = self.project.clone();
         let mut unknown = Vec::new();
@@ -197,7 +198,7 @@ impl OfficeProject {
                 if matches!(original, OfficeReference::Project { .. })
                     || reference.compiler_reference().is_err()
                 {
-                    unknown.push(TypeLibraryFinding {
+                    unknown.push(PortabilityReference {
                         project: self.name().to_owned(),
                         name: original.name().to_owned(),
                         guid: original.guid(),
@@ -209,13 +210,40 @@ impl OfficeProject {
                 }
             })
             .collect();
-        let manifest = source.to_manifest().map_err(|error| error.to_string())?;
-        let mut report =
-            calcvba_symbol::portability::check_project(std::slice::from_ref(&manifest), host)?;
+        let analysis = source
+            .to_manifest()
+            .map_err(|error| error.to_string())
+            .and_then(|manifest| {
+                let report = check_project(std::slice::from_ref(&manifest), host)?;
+                #[cfg(not(target_arch = "wasm32"))]
+                let report = {
+                    let mut report = report;
+                    if report.analysis_complete {
+                        bind_portability_effects(&manifest, &mut report);
+                    }
+                    report
+                };
+                Ok(report)
+            });
+        let mut report = match analysis {
+            Ok(report) => report,
+            Err(error) => {
+                // Source analysis can fail after the reference table has been decoded.
+                source.modules.clear();
+                source.properties.constants.clear();
+                let manifest = source.to_manifest().map_err(|error| error.to_string())?;
+                let mut report = check_project(std::slice::from_ref(&manifest), host)?;
+                report.analysis_complete = false;
+                report.parse_errors.push(ParseIssue {
+                    project: manifest.project_name.clone(),
+                    module: String::new(),
+                    line: 0,
+                    message: error,
+                });
+                report
+            }
+        };
         report.references.extend(unknown);
-        if report.analysis_complete {
-            bind_portability_effects(&manifest, &mut report);
-        }
         Ok(report)
     }
 

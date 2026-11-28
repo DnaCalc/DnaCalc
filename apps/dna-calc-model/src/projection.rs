@@ -1277,6 +1277,30 @@ pub struct LoadedAddin {
     pub notes: Vec<String>,
 }
 
+/// A reference named in the workbook that its current host cannot resolve.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DormantReference {
+    /// VBA project declaring the reference.
+    pub project: String,
+    /// Name in the project's reference table.
+    pub name: String,
+    /// Type library identifier, when the reference specifies one.
+    pub guid: Option<String>,
+}
+
+/// The workbook shell's view of the saved VBA project's portability report.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PortabilityBadge {
+    /// Execution environment used to assess the workbook.
+    pub host: String,
+    /// The review status also returned by the portability command.
+    pub review: String,
+    /// Every unresolvable reference, including references currently unused.
+    pub unknown_references: Vec<DormantReference>,
+    /// Why the report could not be produced, if applicable.
+    pub error: Option<String>,
+}
+
 /// The workbook as the page's shell shows it.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Summary {
@@ -1310,6 +1334,9 @@ pub struct Summary {
     /// because the level is Unguarded, or was unblocked); empty for none.
     #[serde(default)]
     pub macro_note: String,
+    /// Portability report for the saved VBA project, if the workbook contains one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub portability: Option<PortabilityBadge>,
     #[serde(default)]
     pub template: bool,
     pub undo: usize,

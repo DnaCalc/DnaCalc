@@ -20,7 +20,7 @@ use calc_host::{
     IntentError, IntentReceipt, Interest, MemorySource, OpenPolicy, PackageRead, ProjectedCell,
     ProjectionRequest, SavePolicy, SaveReceipt, SkinIntent, SubscriptionId,
 };
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -244,6 +244,8 @@ pub struct Workbook {
     macros: Macros,
     /// An information notice about macros that ran for a marked or network file (dc-15dk).
     macro_note: Option<String>,
+    /// Cached static analysis of the project saved in this workbook.
+    portability: OnceCell<Option<crate::wire::PortabilityBadge>>,
     /// The host's add-in functions, kept so that enabling macros publishes the project's functions
     /// beside them.
     addin_functions: Option<calc_host::CallableTable>,
@@ -398,6 +400,7 @@ impl Workbook {
             macro_file_loader: None,
             macros,
             macro_note: None,
+            portability: OnceCell::new(),
             addin_functions: None,
             palette: None,
             conditional: RefCell::default(),
@@ -421,6 +424,41 @@ impl Workbook {
 
     pub(crate) fn notify_workbook_open(&mut self) {
         self.session.notify_workbook_open();
+    }
+
+    /// The saved source report is computed once per open workbook and never runs VBA.
+    pub(crate) fn portability(&self) -> Option<&crate::wire::PortabilityBadge> {
+        self.portability.get_or_init(|| {
+            use crate::wire::{DormantReference, PortabilityBadge};
+            if !self.host().loaded().has_vba_project() {
+                return None;
+            }
+            let host = calc_host::portability::HostKind::local();
+            let report = match calc_host_vba::file_portability(self.host(), &[host]) {
+                Ok(mut reports) => reports.pop().flatten()?,
+                Err(error) => {
+                    return Some(PortabilityBadge {
+                        host: host.key().to_owned(),
+                        review: "unavailable".to_owned(),
+                        unknown_references: Vec::new(),
+                        error: Some(error.to_string()),
+                    });
+                }
+            };
+            Some(PortabilityBadge {
+                host: host.key().to_owned(),
+                review: calc_host_vba::portability_review(Some(&report)).to_owned(),
+                unknown_references: calc_host_vba::dormant_references(&report)
+                    .map(|reference| DormantReference {
+                        project: reference.project.clone(),
+                        name: reference.name.clone(),
+                        guid: reference.guid.clone(),
+                    })
+                    .collect(),
+                error: None,
+            })
+        })
+        .as_ref()
     }
 
     /// How long opening recalculated the workbook, in milliseconds (0 off the browser); `None`
