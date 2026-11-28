@@ -138,9 +138,15 @@ pub(crate) fn anchor_source(state: &State, id: AnchorId) -> Result<SourceRef, Re
 }
 
 pub(crate) fn verify_page_bindings(state: &State, page: &Page) -> Result<(), Refusal> {
-    page.root.try_for_each_part(&mut |_, _, slots| {
-        for bound in slots.values() {
-            bound_source(state, bound)?;
+    page.root.try_for_each_part(&mut |part, _, slots| {
+        for (slot, bound) in slots {
+            bound_source(state, bound).map_err(|error| match error {
+                Refusal::Invalid { reason } => invalid(format!(
+                    "{part} · {slot} · {} · {reason}",
+                    bound.address
+                )),
+                error => error,
+            })?;
         }
         Ok(())
     })

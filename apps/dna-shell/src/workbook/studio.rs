@@ -2,9 +2,9 @@
 
 use super::command_button;
 use calc_skin::{
-    Batch, Change, Coverage, Level, PresentationChange, SkinManifest, TryOnPayload, WorkbookId,
+    Batch, Change, Coverage, Level, Page, PresentationChange, SkinManifest, TryOnPayload, WorkbookId,
 };
-use dna_kit::{Live, Seam, Session, ViewCommand};
+use dna_kit::{Invocation, Live, Seam, Session, ViewCommand, commands::CommandId};
 use dna_skin_runtime::skin::{self, Document};
 use leptos::prelude::*;
 
@@ -29,7 +29,10 @@ struct Appearance {
 
 impl Appearance {
     fn parse(source: &str) -> Result<Self, String> {
-        let validated = skin::validate(source)?;
+        Self::from_skin(skin::validate(source)?)
+    }
+
+    fn from_skin(validated: skin::Validated) -> Result<Self, String> {
         let style = validated
             .inline_style()
             .ok_or("Choose a dna.skin/1 declaration")?;
@@ -186,23 +189,29 @@ impl Studio {
                 Ok(())
             })
             .when("!editing"),
-            ViewCommand::global(TRY_AGENT, "Try on the agent skin", &[], move |_| {
+            ViewCommand::global(TRY_AGENT, "Try on the agent proposal", &[], move |_| {
                 let offer = session
                     .take_look_offer()
-                    .ok_or("There is no agent skin to try")?;
+                    .ok_or("There is no agent proposal to try")?;
                 match offer.look {
                     TryOnPayload::Skin(skin) => {
                         let source = serde_json::to_string_pretty(&skin)
                             .map_err(|error| error.to_string())?;
                         self.preview_source(session, source)
                     }
+                    TryOnPayload::Page(page) => self.preview_app_page(session, &page),
                 }
             })
             .when("!editing"),
-            ViewCommand::global(DISCARD_AGENT, "Discard the agent skin", &[], move |_| {
-                session.take_look_offer();
-                Ok(())
-            }),
+            ViewCommand::global(
+                DISCARD_AGENT,
+                "Discard the agent proposal",
+                &[],
+                move |_| {
+                    session.take_look_offer();
+                    Ok(())
+                },
+            ),
             ViewCommand::global(KEEP_FILE, "Keep skin for file", &[], move |_| {
                 self.keep_file(session)
             })
@@ -243,13 +252,30 @@ impl Studio {
             .ok_or("Open a workbook to try on a skin")?
             .workbook;
         self.source.set(source.clone());
-        let appearance = Appearance::parse(&source)?;
+        let validated = skin::validate(&source)?;
+        if let Document::Page(page) = &validated.document {
+            return self.preview_app_page(session, page);
+        }
+        let appearance = Appearance::from_skin(validated)?;
         let departures = session.set_skin_layer(Some(&appearance.manifest))?;
         self.preview.set(Some(Preview {
             workbook,
             appearance,
             departures,
         }));
+        self.error.set(None);
+        self.editor.set(false);
+        Ok(())
+    }
+
+    fn preview_app_page(self, session: Session, page: &Page) -> Result<(), String> {
+        let args = serde_json::to_value(page).map_err(|error| error.to_string())?;
+        session
+            .run(&Invocation {
+                command: CommandId::new(dna_kit::page::TRY_APP_PAGE),
+                args,
+            })
+            .map_err(|_| session.notice())?;
         self.error.set(None);
         self.editor.set(false);
         Ok(())
@@ -424,10 +450,13 @@ impl Studio {
                     </aside>
                 }.into_any()
             } else if let Some(offer) = session.look_offer() {
-                let TryOnPayload::Skin(manifest) = offer.look;
+                let title = match offer.look {
+                    TryOnPayload::Skin(manifest) => manifest.name.clone(),
+                    TryOnPayload::Page(page) => page.title.clone(),
+                };
                 view! {
-                    <aside class="dna-skin-banner" data-dnacalc="agent-skin-offer" aria-label="Agent skin">
-                        <strong>{manifest.name}</strong>
+                    <aside class="dna-skin-banner" data-dnacalc="agent-look-offer" aria-label="Agent proposal">
+                        <strong>{title}</strong>
                         <span>{offer.agent}</span>
                         {command_button(session, TRY_AGENT, "Try on")}
                         {command_button(session, DISCARD_AGENT, "Discard")}

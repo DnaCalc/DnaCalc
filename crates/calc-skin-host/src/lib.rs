@@ -783,6 +783,7 @@ impl WorkbookPort for Connection {
                             query::verify_page_bindings(&state, page)?;
                         }
                     }
+                    TryOnPayload::Page(page) => query::verify_page_bindings(&state, page)?,
                 }
                 state.look_revision += 1;
                 state.look = Some(LookOffer {

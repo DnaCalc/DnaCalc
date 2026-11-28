@@ -758,6 +758,23 @@ pub(crate) fn prepare(
                         part.clone().with_document(document)
                     }
                     PresentationChange::RemoveDoc { doc } => part.clone().without_document(*doc),
+                    PresentationChange::KeepAppPage { doc, page, expect_view_rev } => {
+                        if *expect_view_rev != base.view {
+                            return Err(invalid("The workbook presentation changed. Review the App again."));
+                        }
+                        if part.document(*doc).is_some_and(|existing| existing.view != "app") {
+                            return Err(invalid("The document ID belongs to another view"));
+                        }
+                        crate::query::verify_page_bindings(state, page)?;
+                        part.clone().with_document(calc_doc_model::ViewDocument {
+                            id: *doc,
+                            view: "app".into(),
+                            sheet: None,
+                            schema: 1,
+                            body: serde_json::to_string(page)
+                                .map_err(|error| invalid(error.to_string()))?,
+                        })
+                    }
                     PresentationChange::KeepSkin { skin, expect_view_rev } => {
                         if *expect_view_rev != base.view {
                             return Err(invalid("The workbook presentation changed. Try on the skin again."));
