@@ -73,13 +73,28 @@ impl Total {
         if self.squares * 16.0 * n > 9_007_199_254_740_992.0 {
             return false;
         }
-        let square_total = self.sum * self.sum;
-        let numerator = if matches!(kind, "stdDev" | "var") {
-            self.squares - square_total / n
-        } else {
-            n * self.squares - square_total
-        };
+        let numerator = self.variance_numerator(matches!(kind, "stdDev" | "var"));
         numerator.is_finite() && numerator >= 0.0
+    }
+    fn variance_numerator(&self, sample: bool) -> f64 {
+        let count = self.numbers as f64;
+        let square_total = self.sum * self.sum;
+        if sample {
+            self.squares - square_total / count
+        } else {
+            count * self.squares - square_total
+        }
+    }
+    pub(super) fn variance_overflows(&self, kind: &str) -> bool {
+        self.numbers >= 2
+            && matches!(kind, "var" | "varp")
+            && !self.variance_numerator(kind == "var").is_finite()
+    }
+    pub(super) fn supports_variance(&self, kind: &str) -> bool {
+        self.numbers < 2 || {
+            let numerator = self.variance_numerator(kind == "var");
+            !numerator.is_finite() || numerator >= 0.0
+        }
     }
     /// The captured calculated-item inputs are quarter units in this bounded range.
     pub(super) fn supports_calculated_inputs(&self) -> bool {
@@ -150,12 +165,12 @@ impl Total {
                 if count == 0.0 || (sample && count < 2.0) {
                     return CalcValue::error(WorksheetErrorCode::Div0);
                 }
-                let square_total = self.sum * self.sum;
-                let variance = if sample {
-                    (self.squares - square_total / count) / (count - 1.0)
+                let divisor = if sample {
+                    count - 1.0
                 } else {
-                    (count * self.squares - square_total) / (count * count)
+                    count * count
                 };
+                let variance = self.variance_numerator(sample) / divisor;
                 if matches!(kind, "stdDev" | "stdDevp") {
                     variance.sqrt()
                 } else {

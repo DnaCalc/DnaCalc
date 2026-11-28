@@ -1398,9 +1398,60 @@ pub(super) fn render_axes(
     {
         return Err(bad("Source errors with Values on rows are not modelled"));
     }
-    if totals.iter().any(|((_, _, measure), total)| {
-        let kind = &table.data_fields[*measure].subtotal;
-        if ordered_measure(*measure) {
+    // The ww10 precision reports have one populated intersection per row. A variance
+    // overflow there affects the row total and all grand-row summaries of that source field.
+    let mut variance_overflow_rows = BTreeSet::new();
+    if let Some(depth) = ordered_column.filter(|_| {
+        table
+            .data_fields
+            .iter()
+            .any(|data| matches!(data.subtotal.as_str(), "var" | "varp"))
+            && table.data_fields.iter().all(|data| {
+                matches!(
+                    data.subtotal.as_str(),
+                    "sum" | "average" | "var" | "varp" | "count" | "countNums"
+                )
+            })
+    }) {
+        let mut row_columns = BTreeMap::new();
+        for ((row, column, measure), total) in &totals {
+            if total.source_error().is_some() {
+                variance_overflow_rows.clear();
+                break;
+            }
+            if *row == usize::MAX || column.len() != levels.len() {
+                continue;
+            }
+            if row_columns
+                .insert(*row, column[depth])
+                .is_some_and(|previous| previous != column[depth])
+            {
+                variance_overflow_rows.clear();
+                break;
+            }
+            let data = &table.data_fields[*measure];
+            if total.variance_overflows(&data.subtotal) {
+                variance_overflow_rows.insert((*row, data.field));
+            }
+        }
+    }
+    let variance_overflow_fields: BTreeSet<_> = variance_overflow_rows
+        .iter()
+        .map(|&(_, field)| field)
+        .collect();
+    let variance_overflow = |row, grand_column, field| {
+        if row == usize::MAX {
+            variance_overflow_fields.contains(&field)
+        } else {
+            grand_column && variance_overflow_rows.contains(&(row, field))
+        }
+    };
+    if totals.iter().any(|((row, column, measure), total)| {
+        let data = &table.data_fields[*measure];
+        let kind = data.subtotal.as_str();
+        if variance_overflow_fields.contains(&data.field) && matches!(kind, "var" | "varp") {
+            !variance_overflow(*row, column.is_empty(), data.field) && !total.supports_variance(kind)
+        } else if ordered_measure(*measure) {
             !total.supports_ordered(kind)
         } else {
             !total.supports(kind)
@@ -2021,7 +2072,14 @@ pub(super) fn render_axes(
         }
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
-        let value = total.result(&table.data_fields[entry.measure].subtotal);
+        let data = &table.data_fields[entry.measure];
+        if variance_overflow(row, entry.kind == "grand", data.field) {
+            return CalcValue::error(WorksheetErrorCode::Num);
+        }
+        if total.is_empty() && variance_overflow_fields.contains(&data.field) {
+            return CalcValue::empty();
+        }
+        let value = total.result(&data.subtotal);
         if ordered_measure(entry.measure)
             && table.data_fields[entry.measure].subtotal == "product"
             && matches!(value.core_ref(), calc_value::CoreRef::Number(0.0))
