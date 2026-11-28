@@ -38,13 +38,14 @@ pub(super) fn fixture(name: &str) -> Result<Vec<u8>, String> {
 
 type BuildResult = Result<(Vec<u8>, usize), Box<dyn std::error::Error>>;
 
-const FIXTURES: [(&str, fn() -> BuildResult); 7] = [
+const FIXTURES: [(&str, fn() -> BuildResult); 8] = [
     ("Budget", budget),
     ("Sales", sales),
     ("SalesNotebook", sales_notebook),
     ("SalesBlocked", sales_blocked),
     ("Loan", loan),
     ("Stock", stock),
+    ("StockTicked", stock_ticked),
     ("Inherited", inherited),
 ];
 
@@ -650,6 +651,67 @@ fn stock() -> BuildResult {
         );
         w.formula(0, row, 8, format!("IF(AND(F{row}<=$B$5,G{row}=0),$B$6,0)"));
     }
+    for (name, row) in [
+        ("Stock.Initial", 2), ("Stock.ReorderPoint", 5), ("Stock.Reserve", 8),
+    ] {
+        w.edits.push(WorkbookOp::SetNameFormula {
+            scope: NameScope::Workbook,
+            name: name.into(),
+            formula: Some(format!("Stock!$B${row}")),
+        });
+    }
+    w.finish()
+}
+
+fn stock_ticked() -> BuildResult {
+    let mut w = Fixture::new(&["Stock (ticked)"])?;
+    for (row, label, value) in [
+        (2, "Opening stock", 400.),
+        (3, "Demand per tick", 100.),
+        (4, "Rate", 2.),
+        (6, "Step count", 0.),
+        (7, "Reset count", 0.),
+    ] {
+        w.text(0, row, 1, label);
+        w.number(0, row, 2, value);
+    }
+    w.text(0, 5, 1, "Run clock");
+    w.input(0, 5, 2, CellInput::Logical(false));
+    for (row, label, formula) in [
+        (8, "Tick", r#"RTD("DnaCalc.Clock",,"Stock","tick",B4,B5,B6,B7)"#),
+        (9, "Stock", "MAX(0,B2-B3*B8)"),
+        (10, "Stock at previous tick", "MAX(0,B2-B3*MAX(0,B8-1))"),
+    ] {
+        w.text(0, row, 1, label);
+        w.formula(0, row, 2, formula);
+    }
+    for (name, row) in [("Stock.Tick", 8), ("Stock.OnHand", 9), ("Prev.Stock", 10)] {
+        w.edits.push(WorkbookOp::SetNameFormula {
+            scope: NameScope::Workbook,
+            name: name.into(),
+            formula: Some(format!("'Stock (ticked)'!$B${row}")),
+        });
+    }
+    let mut part = calc_doc::model::ViewPart::default();
+    let mut bind = BTreeMap::new();
+    for (i, (name, row)) in [("tick", 8), ("rate", 4), ("running", 5), ("step", 6), ("reset", 7)].into_iter().enumerate() {
+        let anchor = AnchorId(NonZeroU128::new(i as u128 + 1).unwrap());
+        part = part.with_anchor(calc_doc::model::ViewAnchor::cells(anchor, GridArea::cell(w.at(0, row, 2))));
+        bind.insert(name.into(), Bound { anchor, address: format!("'Stock (ticked)'!B{row}") });
+    }
+    let page = Page {
+        schema: PageSchema::V1,
+        title: "Stock clock".into(),
+        input: InputPolicy::Live,
+        root: PageNode::Part {
+            id: "stock-clock".into(), component: "clock".into(), bind, props: BTreeMap::new(),
+        },
+    };
+    part = part.with_document(calc_doc::model::ViewDocument {
+        id: DocId(NonZeroU128::new(1).unwrap()), view: "app".into(), sheet: None, schema: 1,
+        body: serde_json::to_string(&page)?,
+    });
+    w.edits.push(WorkbookOp::EditView(Arc::new(part)));
     w.finish()
 }
 

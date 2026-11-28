@@ -1391,6 +1391,7 @@ dependencies = [
  "dna-view-classic",
  "dna-view-explorer",
  "dna-view-inspector",
+ "dna-view-map",
  "dna-view-notebook",
  "js-sys",
  "leptos",
@@ -1552,6 +1553,7 @@ dependencies = [
  "dna-view-app",
  "dna-view-classic",
  "dna-view-inspector",
+ "dna-view-map",
  "dna-view-notebook",
  "leptos",
  "serde",
@@ -1621,6 +1623,20 @@ dependencies = [
  "serde_json",
  "uuid",
  "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "dna-view-map"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "dna-grid",
+ "dna-kit",
+ "leptos",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
  "web-sys",
 ]
 

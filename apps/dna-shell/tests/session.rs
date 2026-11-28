@@ -51,6 +51,7 @@ impl Page {
         dna_view_classic::install(&mut registry);
         dna_view_inspector::install(&mut registry);
         dna_view_notebook::install(&mut registry);
+        dna_view_map::install(&mut registry);
         dna_view_app::install(&mut registry);
         dna_shell::workbook::install(&registry, session);
         let page = Self {
@@ -3344,4 +3345,50 @@ fn isolated_studio_keys_leave_workbook_mode_and_values_alone() {
     session.command("studio.restore-classic").unwrap();
     assert!(page.press("F2", Focus::Stage));
     assert_eq!(session.stamp(), original);
+}
+
+/// Native-only: exercises Model map commands on the shell's workbook carrier.
+#[test]
+fn map_rewiring_previews_the_single_operand_and_keeps_one_undo_step() {
+    use calc_skin::query::{Query, ReferenceOperandsOf};
+    use calc_skin::WorkbookPort;
+
+    let page = Page::open();
+    let session = page.session;
+    let caller = page.at(1, 3);
+    let enter = |at, text: &str| {
+        session.select_cell(at);
+        page.settle();
+        session.begin_edit(at, Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    };
+    enter(page.at(1, 1), "3");
+    enter(page.at(1, 2), "7");
+    enter(caller, "=A1+A1");
+    assert_eq!(page.shown(caller), "6");
+    assert!(page.press("Ctrl+Alt+4", Focus::Stage));
+    assert_eq!(session.view().0, "map");
+    assert_eq!(session.active(), Some(caller));
+    assert!(page.press("w", Focus::Stage));
+    let read = ReferenceOperandsOf { at: caller };
+    let operands = ReferenceOperandsOf::decode(page.port.ask(read.request(), dna_kit::PAGE_BUDGET).unwrap()).unwrap();
+    session.run(&dna_kit::Invocation {
+        command: dna_kit::commands::CommandId::new("map.replace"),
+        args: serde_json::json!({
+            "at": caller, "expected_old": operands.body.formula,
+            "occurrence": operands.body.operands[1].span, "with": "B1",
+            "stamp": operands.stamp,
+        }),
+    }).unwrap();
+    page.settle();
+    assert!(matches!(session.seam(), dna_kit::Seam::Review(_)));
+    assert_eq!(page.shown(caller), "6");
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(caller), "10");
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(caller), "6");
+    assert_eq!(session.active(), Some(caller));
 }

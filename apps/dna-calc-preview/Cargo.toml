@@ -19,6 +19,7 @@ dna-view-explorer = { path = "../dna-view-explorer" }
 dna-view-inspector = { path = "../dna-view-inspector" }
 dna-view-notebook = { path = "../dna-view-notebook" }
 dna-view-app = { path = "../dna-view-app" }
+dna-view-map = { path = "../dna-view-map" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

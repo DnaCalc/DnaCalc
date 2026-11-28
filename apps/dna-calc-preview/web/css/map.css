@@ -1,0 +1,137 @@
+.dna-map {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    color: var(--dna-ink);
+    background: var(--dna-paper);
+}
+.dna-map-toolbar, .dna-map-crumbs, .dna-map-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+.dna-map-toolbar {
+    justify-content: space-between;
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--dna-line);
+    background: var(--dna-paper-2);
+}
+.dna-map :is(button, input, select) { min-height: 1.75rem; }
+.dna-map-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
+    flex: 1;
+    min-height: 0;
+}
+.dna-map-body:has(.dna-map-companion) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) minmax(205px, 260px);
+}
+.dna-map-workbench, .dna-map-inspector, .dna-map-companion {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+}
+.dna-map-inspector, .dna-map-companion {
+    padding: 0.75rem;
+    border-inline-start: 1px solid var(--dna-line);
+    background: var(--dna-paper-2);
+}
+.dna-map-companion { display: flex; flex-direction: column; }
+.dna-map-companion > .dna-sheet { min-height: 9rem; }
+.dna-map-caption, .dna-map-footer, .dna-map-list, .dna-map-excerpt, .dna-map-status {
+    padding: 0.6rem 0.8rem;
+}
+.dna-map h2 { margin-block: 0 0.35rem; font-size: 1rem; }
+.dna-map h3 { margin-block: 0 0.35rem; font-size: 0.875rem; }
+.dna-map p { margin-block: 0.2rem 0.45rem; }
+.dna-map-caption { display: grid; justify-items: start; }
+.dna-map-caption p, .dna-map-footer p { color: var(--dna-ink-2); }
+.dna-map-viewport {
+    overflow: auto;
+    max-height: min(55dvh, 510px);
+    border-block: 1px solid var(--dna-line);
+    background-color: var(--dna-bg);
+    background-image: radial-gradient(var(--dna-line) 0.8px, transparent 0.8px);
+    background-size: 16px 16px;
+    background-position: 4px 4px;
+}
+.dna-map-diagram { position: relative; width: max-content; }
+.dna-map-diagram canvas { position: absolute; inset: 0; pointer-events: none; }
+.dna-map-diagram ul {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 194px);
+    grid-auto-rows: 80px;
+    gap: 32px;
+    margin: 0;
+    padding: 20px;
+    list-style: none;
+}
+.dna-map .dna-map-node button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    width: 100%;
+    height: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--dna-accent-ink);
+    text-align: start;
+}
+.dna-map-node [data-map-node=run], .dna-map-node [data-map-node=boundary] { border-style: dashed; }
+.dna-map-node [aria-pressed=true] { outline: 2px solid var(--dna-accent-ink); outline-offset: 2px; }
+.dna-map-node strong, .dna-map-node span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dna-map-node span { font-size: 0.78rem; color: var(--dna-ink-2); }
+.dna-map-footer { border-bottom: 1px solid var(--dna-line); }
+.dna-map-decline {
+    align-self: stretch;
+    padding: 0.55rem 0.75rem;
+    margin-block: 0.4rem;
+    border-inline-start: 3px solid var(--dna-accent-ink);
+    background: var(--dna-paper-2);
+}
+.dna-map-list ul { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+.dna-map-list li { margin-block: 0.28rem; }
+.dna-map-list li small { display: block; color: var(--dna-ink-2); }
+.dna-map-inspector .dna-map-list { padding: 0.75rem 0 0; }
+.dna-map-iteration, .dna-map-cycle, .dna-map-clock {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.5rem;
+    margin-block: 0.55rem;
+    border: 1px solid var(--dna-accent-ink);
+    border-radius: var(--dna-radius-chip);
+}
+.dna-map-iteration { border: 3px double var(--dna-accent-ink); outline: 1px dashed var(--dna-accent-ink); }
+.dna-map-cycle { border-style: dashed; }
+.dna-map-reading span, .dna-map-excerpt td span { display: flex; flex-direction: column; }
+.dna-map-reading small, .dna-map-excerpt small { color: var(--dna-ink-2); font-size: 0.72rem; }
+.dna-map-error strong, .dna-map .dna-map-anomaly { color: var(--dna-red-ink); }
+.dna-map-source { margin-block: 0.45rem; overflow-wrap: anywhere; }
+.dna-map-rewire, .dna-map-rewire label { display: grid; gap: 0.4rem; }
+.dna-map-rewire { padding-block: 0.6rem; }
+.dna-map-rewire select { width: 100%; color: inherit; background: var(--dna-paper); }
+.dna-map-excerpt table { border-collapse: collapse; table-layout: fixed; }
+.dna-map-excerpt :is(td, th) { border: 1px solid var(--dna-line); }
+.dna-map-excerpt th { padding-inline: 0.3rem; background: var(--dna-paper-2); }
+.dna-map-excerpt td { padding: 0; }
+.dna-map-excerpt td button { width: 100%; min-height: 0; height: 100%; border: 0; overflow: hidden; }
+.dna-map-excerpt td [data-map-reading] { display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.dna-map-excerpt td [data-map-reading] small { margin-inline-start: 0.2rem; }
+.dna-map-excerpt button[aria-pressed=true] { outline: 2px solid var(--dna-accent-ink); outline-offset: -2px; }
+@media (max-width: 920px) {
+    .dna-map-body:has(.dna-map-companion) { grid-template-columns: minmax(0, 1fr) minmax(0, 0.75fr); }
+    .dna-map-body:has(.dna-map-companion) .dna-map-inspector { grid-column: 1 / -1; }
+}
+@media (max-width: 660px) {
+    .dna-map-body, .dna-map-body:has(.dna-map-companion) { display: block; overflow: auto; }
+}

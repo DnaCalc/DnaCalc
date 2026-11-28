@@ -58,7 +58,8 @@
         "dna-view-notebook",
         "dna-view-explorer",
         "dna-grid",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
     },
@@ -106,7 +107,8 @@
         "dna-view-classic",
         "dna-view-inspector",
         "dna-view-notebook",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "Skin architecture section 3.2: the page works through portable contracts"
     },
@@ -146,7 +148,8 @@
         "dna-view-explorer",
         "dna-view-inspector",
         "dna-view-notebook",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
     },
@@ -165,7 +168,8 @@
         "dna-view-explorer",
         "dna-view-classic",
         "dna-view-notebook",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
     },
@@ -184,7 +188,8 @@
         "dna-view-classic",
         "dna-view-explorer",
         "dna-view-inspector",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
     },
@@ -203,7 +208,28 @@
         "dna-view-classic",
         "dna-view-explorer",
         "dna-view-inspector",
-        "dna-view-notebook"
+        "dna-view-notebook",
+        "dna-view-map"
+      ],
+      "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
+    },
+    {
+      "package": "dna-view-map",
+      "scope": "closure",
+      "forbidden": [
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-skin-host",
+        "calc-formula-host",
+        "calc-chart-render",
+        "dna-shell",
+        "dna-view-classic",
+        "dna-view-explorer",
+        "dna-view-inspector",
+        "dna-view-notebook",
+        "dna-view-app"
       ],
       "reason": "Skin architecture section 3.2: workbook page code uses the skin interface"
     },
@@ -315,7 +341,8 @@
         "dna-view-classic",
         "dna-view-inspector",
         "dna-view-notebook",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "plan 1.3 and the owner's ruling of 2026-11-07: OneCalc's transitive dependency closure contains no CalcEngine or CalcHost; it may use calc-doc, since its file is a constrained Excel workbook read and written through the CalcDoc codec"
     },
@@ -330,7 +357,8 @@
         "dna-view-classic",
         "dna-view-inspector",
         "dna-view-notebook",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "plan 8.7: the formula UI both applications show reaches no CalcEngine and no CalcHost (it may use calc-doc, as dna-onecalc may)"
     },
@@ -541,7 +569,8 @@
         "dna-view-classic",
         "dna-view-inspector",
         "dna-view-notebook",
-        "dna-view-app"
+        "dna-view-app",
+        "dna-view-map"
       ],
       "reason": "plan 8.7 and the OneCalc desktop note: the shipped OneCalc executable reaches no CalcHost and no CalcEngine (also checked by `cargo xtask sweep`'s ceiling step)"
     },
