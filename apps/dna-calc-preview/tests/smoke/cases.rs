@@ -1615,6 +1615,30 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             ),
         ],
     },
+    Case {
+        name: "Inspector compares two Ctrl-selected cells in the Strip and the dock",
+        actions: &[
+            Action::WritePlainSession("Compare.xlsx", "A1+A2"),
+            Action::UploadDownloadTo("Compare.xlsx", "open-file"),
+            Action::Wait(Check::Text("[data-cell=A1]", "3")),
+            Action::Click("[data-cell=C1]"),
+            Action::Into("formula-bar", "=SUM(A1:A2)"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=C1]", "7")),
+            Action::Click("[data-cell=D1]"),
+            Action::Into("formula-bar", "=SUM(A1:A1)"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=D1]", "3")),
+            Action::Click("[data-cell=C1]"),
+            Action::CtrlClick("[data-cell=D1]"),
+            Action::Wait(Check::Text("compare-difference", "Difference 4")),
+            Action::Click("[data-command='inspector.dock']"),
+        ],
+        checks: &[
+            Check::TextContains("[data-inspector='cell-comparison']", "0 shared reads · 1 left only · 1 right only"),
+            Check::TextContains("[data-inspector='cell-comparison']", "A1:A2"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1838,8 +1862,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "inspector-dependencies",
         start: 65,
-        end: PREVIEW_CASES.len(),
+        end: PREVIEW_CASES.len() - 1,
         core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-comparison",
+        start: PREVIEW_CASES.len() - 1,
+        end: PREVIEW_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];

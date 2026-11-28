@@ -632,6 +632,7 @@ pub fn workbook(
         (editing, trying)
     });
     let sheet = move || session.active().map(|at| Sheet(at.0, at.1));
+    let comparison = session.following::<calc_skin::query::CompareCells>();
     let switcher = specs.iter().map(|spec| {
         let id = spec.id.clone();
         let command = Invocation::of(CommandId::from(format!("view.{}", id.0).as_str()));
@@ -800,6 +801,16 @@ pub fn workbook(
                 <span data-dnacalc="mode">{move || session.mode().label()}</span>
                 <span>{move || match session.read(calc) { Live::Ready(answer) => answer.body.word(), _ => "" }}</span>
                 <span>{location}</span>
+                {move || {
+                    let Live::Ready(answer) = comparison.at(session.compared_cells()
+                        .map(|(left, right)| calc_skin::query::CompareCells { left, right })) else { return None };
+                    let calc_skin::Evidence::Derived { body, .. } = answer.body else { return None };
+                    body.difference.map(|bits| view! {
+                        <span data-dnacalc="compare-difference">
+                            "Difference " {calc_skin::RawValue::Number { bits }.display()}
+                        </span>
+                    })
+                }}
                 <span>{move || match session.held_edits() {
                     0 => String::new(),
                     1 => "1 Notebook cell edited, not run".into(),
