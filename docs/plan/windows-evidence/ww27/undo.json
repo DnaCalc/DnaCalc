@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-11-28T09:00:29.8113611Z",
+  "build": "20625",
+  "security_before": 1,
+  "selection": null,
+  "ordinary": null,
+  "after_ordinary": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|;static=1;A1=11;A2=;sheets=Probe,;active=Probe;selection=$A$3;enable_events=True;calculation=-4135;screen_updating=False",
+  "ordinary_undo_error": "Unexpected HRESULT has been returned from a call to a COM component.",
+  "after_ordinary_undo": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|;static=1;A1=11;A2=;sheets=Probe,;active=Probe;selection=$A$3;enable_events=True;calculation=-4135;screen_updating=False",
+  "custom": null,
+  "after_custom": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|;static=2;A1=22;A2=;sheets=Probe,;active=Probe;selection=$A$3;enable_events=True;calculation=-4135;screen_updating=False",
+  "custom_undo_invoked": true,
+  "after_custom_undo": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|LastUndo|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|;static=2;A1=202;A2=;sheets=Probe,;active=Probe;selection=$A$3;enable_events=True;calculation=-4135;screen_updating=True",
+  "fault": "2705|ww27|intentional probe fault|10",
+  "after_fault": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|LastUndo|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$2|Workbook_SheetChange Probe!$A$2|;static=3;A1=202;A2=33;sheets=Probe,;active=Probe;selection=$A$3;enable_events=True;calculation=-4135;screen_updating=True",
+  "fault_undo_error": "Unexpected HRESULT has been returned from a call to a COM component.",
+  "after_fault_undo": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|LastUndo|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$2|Workbook_SheetChange Probe!$A$2|;static=3;A1=202;A2=33;sheets=Probe,;active=Probe;selection=$A$3;enable_events=True;calculation=-4135;screen_updating=True",
+  "add": null,
+  "after_add": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|LastUndo|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$2|Workbook_SheetChange Probe!$A$2|Workbook_SheetChange Inserted!$A$1|;static=3;A1=202;A2=33;sheets=Inserted,Probe,;active=Inserted;selection=$A$1;enable_events=True;calculation=-4135;screen_updating=True",
+  "add_undo_error": "Unexpected HRESULT has been returned from a call to a COM component.",
+  "after_add_undo": "events=Worksheet_SelectionChange $A$3|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|LastUndo|Worksheet_Change $A$1|Workbook_SheetChange Probe!$A$1|Worksheet_Change $A$2|Workbook_SheetChange Probe!$A$2|Workbook_SheetChange Inserted!$A$1|;static=3;A1=202;A2=33;sheets=Inserted,Probe,;active=Inserted;selection=$A$1;enable_events=True;calculation=-4135;screen_updating=True",
+  "security_after": 1
+}

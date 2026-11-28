@@ -1,0 +1,298 @@
+{
+  "timestamp": "2026-11-28T09:10:49.1320654Z",
+  "build": "20625",
+  "cases": {
+    "stock-round2": {
+      "source_sha256": "23FDF4B7480C8F18DAA77F7B855DC5F1244922AAF512CC7AE6CC6ADDE05A0DC0",
+      "provider_registered": false,
+      "before": [
+        {
+          "formula": "2",
+          "value": 2.0,
+          "display": "2"
+        },
+        {
+          "formula": "FALSE",
+          "value": false,
+          "display": "FALSE"
+        },
+        {
+          "formula": "0",
+          "value": 0.0,
+          "display": "0"
+        },
+        {
+          "formula": "0",
+          "value": 0.0,
+          "display": "0"
+        },
+        {
+          "formula": "=RTD(\"dnacalc.clock\",,\"Stock\",\"tick\",B4,B5,B6,B7)",
+          "value": -2146826246,
+          "display": "#N/A"
+        },
+        {
+          "formula": "=--MID(B11,FIND(\"|\",B11)+1,FIND(\"|\",B11,FIND(\"|\",B11)+1)-FIND(\"|\",B11)-1)",
+          "value": -2146826273,
+          "display": "#VALUE!"
+        },
+        {
+          "formula": "=--MID(B11,FIND(\"|\",B11,FIND(\"|\",B11)+1)+1,32767)",
+          "value": -2146826273,
+          "display": "#VALUE!"
+        }
+      ],
+      "reopened": [
+        {
+          "formula": "2",
+          "value": 2.0,
+          "display": "2"
+        },
+        {
+          "formula": "FALSE",
+          "value": false,
+          "display": "FALSE"
+        },
+        {
+          "formula": "0",
+          "value": 0.0,
+          "display": "0"
+        },
+        {
+          "formula": "0",
+          "value": 0.0,
+          "display": "0"
+        },
+        {
+          "formula": "=RTD(\"dnacalc.clock\",,\"Stock\",\"tick\",B4,B5,B6,B7)",
+          "value": -2146826246,
+          "display": "#N/A"
+        },
+        {
+          "formula": "=--MID(B11,FIND(\"|\",B11)+1,FIND(\"|\",B11,FIND(\"|\",B11)+1)-FIND(\"|\",B11)-1)",
+          "value": -2146826246,
+          "display": "#N/A"
+        },
+        {
+          "formula": "=--MID(B11,FIND(\"|\",B11,FIND(\"|\",B11)+1)+1,32767)",
+          "value": -2146826246,
+          "display": "#N/A"
+        }
+      ]
+    },
+    "NC06": {
+      "blocked": {
+        "spill_rows": 0,
+        "cells": {
+          "A10": {
+            "formula": "=FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+            "value": -2146826243,
+            "display": "#SPILL!"
+          },
+          "A16": {
+            "formula": "=\"Review with Sam\"",
+            "value": "Review with Sam",
+            "display": "Review with Sam"
+          },
+          "G10": {
+            "formula": "",
+            "value": null,
+            "display": ""
+          },
+          "J2": {
+            "formula": "=IF(ISERROR($A$10),$A$10,LET(items,scopeOrders,amounts,CHOOSECOLS(items,7),SUM(amounts)))",
+            "value": -2146826243,
+            "display": "#SPILL!"
+          },
+          "Y10": {
+            "formula": "Reserved",
+            "value": "Reserved",
+            "display": "Reserved"
+          },
+          "Y12": {
+            "formula": "",
+            "value": null,
+            "display": ""
+          }
+        },
+        "reviewNote": "=Analysis!$A$16"
+      },
+      "moved": {
+        "spill_rows": 125,
+        "cells": {
+          "A10": {
+            "formula": "=FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+            "value": "SO24876",
+            "display": "SO24876"
+          },
+          "A16": {
+            "formula": "",
+            "value": "SO24882",
+            "display": "SO24882"
+          },
+          "G10": {
+            "formula": "",
+            "value": 994.0,
+            "display": "994"
+          },
+          "J2": {
+            "formula": "=IF(ISERROR($A$10),$A$10,LET(items,scopeOrders,amounts,CHOOSECOLS(items,7),SUM(amounts)))",
+            "value": 124250.0,
+            "display": "124250"
+          },
+          "Y10": {
+            "formula": "Reserved",
+            "value": "Reserved",
+            "display": "Reserved"
+          },
+          "Y12": {
+            "formula": "=\"Review with Sam\"",
+            "value": "Review with Sam",
+            "display": "Review with Sam"
+          }
+        },
+        "reviewNote": "=Analysis!$Y$12"
+      },
+      "undo_error": "Unexpected HRESULT has been returned from a call to a COM component.",
+      "after_undo": {
+        "spill_rows": 125,
+        "cells": {
+          "A10": {
+            "formula": "=FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+            "value": "SO24876",
+            "display": "SO24876"
+          },
+          "A16": {
+            "formula": "",
+            "value": "SO24882",
+            "display": "SO24882"
+          },
+          "G10": {
+            "formula": "",
+            "value": 994.0,
+            "display": "994"
+          },
+          "J2": {
+            "formula": "=IF(ISERROR($A$10),$A$10,LET(items,scopeOrders,amounts,CHOOSECOLS(items,7),SUM(amounts)))",
+            "value": 124250.0,
+            "display": "124250"
+          },
+          "Y10": {
+            "formula": "Reserved",
+            "value": "Reserved",
+            "display": "Reserved"
+          },
+          "Y12": {
+            "formula": "=\"Review with Sam\"",
+            "value": "Review with Sam",
+            "display": "Review with Sam"
+          }
+        },
+        "reviewNote": "=Analysis!$Y$12"
+      },
+      "inverse_cut": {
+        "spill_rows": 0,
+        "cells": {
+          "A10": {
+            "formula": "=FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+            "value": -2146826243,
+            "display": "#SPILL!"
+          },
+          "A16": {
+            "formula": "=\"Review with Sam\"",
+            "value": "Review with Sam",
+            "display": "Review with Sam"
+          },
+          "G10": {
+            "formula": "",
+            "value": null,
+            "display": ""
+          },
+          "J2": {
+            "formula": "=IF(ISERROR($A$10),$A$10,LET(items,scopeOrders,amounts,CHOOSECOLS(items,7),SUM(amounts)))",
+            "value": -2146826243,
+            "display": "#SPILL!"
+          },
+          "Y10": {
+            "formula": "Reserved",
+            "value": "Reserved",
+            "display": "Reserved"
+          },
+          "Y12": {
+            "formula": "",
+            "value": null,
+            "display": ""
+          }
+        },
+        "reviewNote": "=Analysis!$A$16"
+      },
+      "restored_reopen": {
+        "spill_rows": 0,
+        "cells": {
+          "A10": {
+            "formula": "=FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+            "value": -2146826243,
+            "display": "#SPILL!"
+          },
+          "A16": {
+            "formula": "=\"Review with Sam\"",
+            "value": "Review with Sam",
+            "display": "Review with Sam"
+          },
+          "G10": {
+            "formula": "",
+            "value": null,
+            "display": ""
+          },
+          "J2": {
+            "formula": "=IF(ISERROR($A$10),$A$10,LET(items,scopeOrders,amounts,CHOOSECOLS(items,7),SUM(amounts)))",
+            "value": -2146826243,
+            "display": "#SPILL!"
+          },
+          "Y10": {
+            "formula": "Reserved",
+            "value": "Reserved",
+            "display": "Reserved"
+          },
+          "Y12": {
+            "formula": "",
+            "value": null,
+            "display": ""
+          }
+        },
+        "reviewNote": "=Analysis!$A$16"
+      }
+    },
+    "notebook-lambda": {
+      "source_sha256": "3EB79C36E5663E872D033A7E69991DBF50270235AEC5BBC0AA9AA6FB23BCB088",
+      "before": {
+        "anchor": {
+          "formula": "=SEQUENCE(2,2,$A$1)",
+          "value": 17.0,
+          "display": "17"
+        },
+        "spill": "=Sheet1!$G$10#",
+        "definition": "=LAMBDA(inputValue,inputValue+1)",
+        "caller": {
+          "formula": "=Ww27Lambda(SUM(ProbeSpill))",
+          "value": 75.0,
+          "display": "75"
+        }
+      },
+      "reopened": {
+        "anchor": {
+          "formula": "=SEQUENCE(2,2,$A$1)",
+          "value": 17.0,
+          "display": "17"
+        },
+        "spill": "=Sheet1!$G$10#",
+        "definition": "=LAMBDA(inputValue,inputValue+1)",
+        "caller": {
+          "formula": "=Ww27Lambda(SUM(ProbeSpill))",
+          "value": 75.0,
+          "display": "75"
+        }
+      }
+    }
+  }
+}

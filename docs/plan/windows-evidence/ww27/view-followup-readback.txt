@@ -1,0 +1,117 @@
+C:/Work/DnaCalc/codex-runs/ww27/cast/StockTicked-round2.xlsx format=Xlsx opaque=false
+preferred=None skin=None
+anchor 00000000-0000-0000-0000-000000000001 "Stock (ticked)" spill=false R8C2:R8C2
+anchor 00000000-0000-0000-0000-000000000002 "Stock (ticked)" spill=false R4C2:R4C2
+anchor 00000000-0000-0000-0000-000000000003 "Stock (ticked)" spill=false R5C2:R5C2
+anchor 00000000-0000-0000-0000-000000000004 "Stock (ticked)" spill=false R6C2:R6C2
+anchor 00000000-0000-0000-0000-000000000005 "Stock (ticked)" spill=false R7C2:R7C2
+document 00000000-0000-0000-0000-000000000001 view=app schema=1 body={"schema":"dna.page/1","title":"Stock clock","input":"live","root":{"kind":"part","id":"stock-clock","component":"clock","bind":{"rate":{"anchor":"00000000-0000-0000-0000-000000000002","address":"'Stock (ticked)'!B4"},"reset":{"anchor":"00000000-0000-0000-0000-000000000005","address":"'Stock (ticked)'!B7"},"running":{"anchor":"00000000-0000-0000-0000-000000000003","address":"'Stock (ticked)'!B5"},"step":{"anchor":"00000000-0000-0000-0000-000000000004","address":"'Stock (ticked)'!B6"},"tick":{"anchor":"00000000-0000-0000-0000-000000000001","address":"'Stock (ticked)'!B8"}},"props":{}}}
+name DefinedName { name: "Stock.Tick", scope: Workbook, formula: "'Stock (ticked)'!$B$8", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Stock.OnHand", scope: Workbook, formula: "'Stock (ticked)'!$B$9", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Prev.Stock", scope: Workbook, formula: "'Stock (ticked)'!$B$10", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Stock.State", scope: Workbook, formula: "'Stock (ticked)'!$B$11", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+sheet "Stock (ticked)" charts=[]
+C:/Work/DnaCalc/codex-runs/ww27/view-followup/StockTicked-round2-excel.xlsx format=Xlsx opaque=false
+preferred=None skin=None
+anchor 00000000-0000-0000-0000-000000000001 object=None
+anchor 00000000-0000-0000-0000-000000000002 "Stock (ticked)" spill=false R4C2:R4C2
+anchor 00000000-0000-0000-0000-000000000003 "Stock (ticked)" spill=false R5C2:R5C2
+anchor 00000000-0000-0000-0000-000000000004 "Stock (ticked)" spill=false R6C2:R6C2
+anchor 00000000-0000-0000-0000-000000000005 "Stock (ticked)" spill=false R7C2:R7C2
+document 00000000-0000-0000-0000-000000000001 view=app schema=1 body={"schema":"dna.page/1","title":"Stock clock","input":"live","root":{"kind":"part","id":"stock-clock","component":"clock","bind":{"rate":{"anchor":"00000000-0000-0000-0000-000000000002","address":"'Stock (ticked)'!B4"},"reset":{"anchor":"00000000-0000-0000-0000-000000000005","address":"'Stock (ticked)'!B7"},"running":{"anchor":"00000000-0000-0000-0000-000000000003","address":"'Stock (ticked)'!B5"},"step":{"anchor":"00000000-0000-0000-0000-000000000004","address":"'Stock (ticked)'!B6"},"tick":{"anchor":"00000000-0000-0000-0000-000000000001","address":"'Stock (ticked)'!B8"}},"props":{}}}
+name DefinedName { name: "Prev.Stock", scope: Workbook, formula: "'Stock (ticked)'!$B$10", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Stock.OnHand", scope: Workbook, formula: "'Stock (ticked)'!$B$9", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Stock.State", scope: Workbook, formula: "'Stock (ticked)'!$B$11", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Stock.Tick", scope: Workbook, formula: "'Stock (ticked)'!$B$8", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+sheet "Stock (ticked)" charts=[]
+C:/Work/DnaCalc/codex-runs/ww27/view-followup/Notebook-Lambda.xlsx format=Xlsx opaque=false
+preferred=None skin=None
+anchor 00000000-0000-0000-0000-000000000037 "Sheet1" spill=true R10C7:R10C7
+anchor 00000000-0000-0000-0000-000000000065 "Sheet1" spill=false R8C4:R8C4
+note 00000000-0000-0000-0000-000000000066 anchor=00000000-0000-0000-0000-000000000065 "Check <West> & \"Paid\"\r\nbefore sign-off. _x0020_"
+document 00000000-0000-0000-0000-000000000001 view=notebook schema=1 body={"cells":[{"id":"00000000000000000000000000000056","kind":"prose","markdown":"## Amount\nCheck the linked spill."},{"id":"00000000-0000-0000-0000-000000000037","kind":"formula","lane_columns":2,"output_name":"ProbeSpill","owned":true}],"layout":"vertical"}
+name DefinedName { name: "ProbeSpill", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Sheet1!$G$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Ww27Lambda", scope: Workbook, formula: "_xlfn.LAMBDA(_xlpm.inputValue,_xlpm.inputValue+1)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+sheet "Ww27Caller" charts=[]
+sheet "Sheet1" charts=[]
+  R1C1 input=Some(Number(FiniteNumber(17.0))) file_cache=None
+  R2C1 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [83, 85, 77, 40, 80, 114, 111, 98, 101, 83, 112, 105, 108, 108, 41] }), form: Legacy, explicit_form: true })) file_cache=None
+  R8C4 input=Some(Number(FiniteNumber(41.0))) file_cache=None
+  R9C4 input=None file_cache=None
+  R10C7 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [95, 120, 108, 102, 110, 46, 83, 69, 81, 85, 69, 78, 67, 69, 40, 50, 44, 50, 44, 36, 65, 36, 49, 41] }), form: Dynamic, explicit_form: true })) file_cache=None
+  R11C7 input=None file_cache=Some(FileCached { value: Number(FiniteNumber(19.0)), source: SourcePart { name: "xl/worksheets/sheet2.xml", crc32: 1943008222, size: 1442 } })
+  R12C8 input=None file_cache=None
+C:/Work/DnaCalc/codex-runs/ww27/view-followup/SalesNC06-moved.xlsx format=Xlsx opaque=false
+preferred=None skin=None
+anchor 00000000-0000-0000-0000-000000000001 "Analysis" spill=false R2C2:R2C2
+anchor 00000000-0000-0000-0000-000000000002 object=None
+anchor 00000000-0000-0000-0000-000000000003 "Analysis" spill=false R4C2:R4C2
+anchor 00000000-0000-0000-0000-000000000004 "Analysis" spill=false R5C2:R5C2
+anchor 00000000-0000-0000-0000-000000000005 object=None
+anchor 00000000-0000-0000-0000-000000000006 "Analysis" spill=true R10C10:R10C10
+anchor 00000000-0000-0000-0000-000000000007 "Analysis" spill=true R10C13:R10C13
+anchor 00000000-0000-0000-0000-000000000008 "Analysis" spill=true R10C17:R10C17
+anchor 00000000-0000-0000-0000-000000000009 "Analysis" spill=true R10C21:R10C21
+anchor 00000000-0000-0000-0000-00000000000a "Analysis" spill=false R2C10:R2C10
+anchor 00000000-0000-0000-0000-00000000000b object=None
+anchor 00000000-0000-0000-0000-00000000000c "Analysis" spill=false R5C10:R5C10
+anchor 00000000-0000-0000-0000-00000000000d object=Some((SheetKey(4), "SalesByRegion"))
+document 00000000-0000-0000-0000-000000000001 view=notebook schema=1 body={"cells":[{"address":"Analysis!B2","control":{"options":["All","East","North","South","West"],"type":"choice"},"id":"00000000-0000-0000-0000-000000000001","kind":"control","label":"Region"},{"address":"Analysis!B3","control":{"options":["Pending","Paid","All"],"type":"choice"},"id":"00000000-0000-0000-0000-000000000002","kind":"control","label":"Status"},{"address":"Analysis!B4","control":{"max":28,"min":1,"type":"integer"},"id":"00000000-0000-0000-0000-000000000003","kind":"control","label":"First November day"},{"address":"Analysis!B5","control":{"max":28,"min":1,"type":"integer"},"id":"00000000-0000-0000-0000-000000000004","kind":"control","label":"Last November day"},{"id":"00000000-0000-0000-0000-000000000005","kind":"formula","lane_columns":7,"output_name":"scopeOrders","owned":true},{"id":"00000000-0000-0000-0000-000000000006","kind":"formula","lane_columns":2,"output_name":"byRegion","owned":true},{"id":"00000000-0000-0000-0000-000000000007","kind":"formula","lane_columns":2,"output_name":"byMonth","owned":true},{"id":"00000000-0000-0000-0000-000000000008","kind":"formula","lane_columns":2,"output_name":"rankedOrders","owned":true},{"id":"00000000-0000-0000-0000-000000000009","kind":"formula","lane_columns":2,"output_name":"chartData","owned":true},{"id":"00000000-0000-0000-0000-00000000000a","kind":"formula","output_name":"scopeTotal","owned":true},{"id":"00000000-0000-0000-0000-00000000000b","kind":"formula","output_name":"latestPrice","owned":false},{"id":"00000000-0000-0000-0000-00000000000c","kind":"formula","output_name":"positionValue","owned":true},{"address":"obj:Analysis/SalesByRegion","id":"00000000-0000-0000-0000-00000000000d","kind":"chart","requires":"00000000-0000-0000-0000-000000000009"},{"id":"00000000-0000-0000-0000-00000000000e","kind":"prose","markdown":"### Sales in scope\nAmount: {=scopeTotal}"}],"layout":"vertical"}
+name DefinedName { name: "byMonth", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$M$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "byRegion", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$J$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Chart.Amount", scope: Workbook, formula: "Analysis!$V$10:INDEX(Analysis!$V:$V,9+ROWS(rankedOrders))", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Chart.Region", scope: Workbook, formula: "Analysis!$U$10:INDEX(Analysis!$U:$U,9+ROWS(rankedOrders))", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "chartData", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$U$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "latestPrice", scope: Workbook, formula: "Report!$E$2", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "positionValue", scope: Workbook, formula: "Analysis!$J$5", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "rankedOrders", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$Q$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "reviewNote", scope: Workbook, formula: "Analysis!$Y$12", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "scopeOrders", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$A$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "scopeTotal", scope: Workbook, formula: "Analysis!$J$2", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+sheet "Orders" charts=[]
+sheet "Report" charts=[]
+sheet "Pivot" charts=[]
+sheet "Analysis" charts=["SalesByRegion"]
+  R2C10 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [73, 70, 40, 73, 83, 69, 82, 82, 79, 82, 40, 36, 65, 36, 49, 48, 41, 44, 36, 65, 36, 49, 48, 44, 95, 120, 108, 102, 110, 46, 76, 69, 84, 40, 95, 120, 108, 112, 109, 46, 105, 116, 101, 109, 115, 44, 115, 99, 111, 112, 101, 79, 114, 100, 101, 114, 115, 44, 95, 120, 108, 112, 109, 46, 97, 109, 111, 117, 110, 116, 115, 44, 95, 120, 108, 102, 110, 46, 67, 72, 79, 79, 83, 69, 67, 79, 76, 83, 40, 95, 120, 108, 112, 109, 46, 105, 116, 101, 109, 115, 44, 55, 41, 44, 83, 85, 77, 40, 95, 120, 108, 112, 109, 46, 97, 109, 111, 117, 110, 116, 115, 41, 41, 41] }), form: Legacy, explicit_form: true })) file_cache=None
+  R3C2 input=Some(Text(CellText(ExcelText { units: [80, 97, 105, 100] }))) file_cache=None
+  R10C1 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [95, 120, 108, 102, 110, 46, 95, 120, 108, 119, 115, 46, 70, 73, 76, 84, 69, 82, 40, 79, 114, 100, 101, 114, 115, 91, 93, 44, 40, 40, 79, 114, 100, 101, 114, 115, 91, 82, 101, 103, 105, 111, 110, 93, 61, 36, 66, 36, 50, 41, 43, 40, 36, 66, 36, 50, 61, 34, 65, 108, 108, 34, 41, 41, 42, 40, 40, 79, 114, 100, 101, 114, 115, 91, 83, 116, 97, 116, 117, 115, 93, 61, 36, 66, 36, 51, 41, 43, 40, 36, 66, 36, 51, 61, 34, 65, 108, 108, 34, 41, 41, 42, 40, 79, 114, 100, 101, 114, 115, 91, 68, 97, 116, 101, 93, 62, 61, 68, 65, 84, 69, 40, 50, 48, 50, 54, 44, 49, 49, 44, 36, 66, 36, 52, 41, 41, 42, 40, 79, 114, 100, 101, 114, 115, 91, 68, 97, 116, 101, 93, 60, 61, 68, 65, 84, 69, 40, 50, 48, 50, 54, 44, 49, 49, 44, 36, 66, 36, 53, 41, 41, 41] }), form: Dynamic, explicit_form: true })) file_cache=None
+  R10C25 input=Some(Text(CellText(ExcelText { units: [82, 101, 115, 101, 114, 118, 101, 100] }))) file_cache=None
+  R12C25 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [34, 82, 101, 118, 105, 101, 119, 32, 119, 105, 116, 104, 32, 83, 97, 109, 34] }), form: Legacy, explicit_form: true })) file_cache=None
+  R16C1 input=None file_cache=Some(FileCached { value: Text(CellText(ExcelText { units: [83, 79, 50, 52, 56, 56, 50] })), source: SourcePart { name: "xl/worksheets/sheet4.xml", crc32: 132538336, size: 40110 } })
+C:/Work/DnaCalc/codex-runs/ww27/view-followup/SalesNC06-restored.xlsx format=Xlsx opaque=false
+preferred=None skin=None
+anchor 00000000-0000-0000-0000-000000000001 "Analysis" spill=false R2C2:R2C2
+anchor 00000000-0000-0000-0000-000000000002 object=None
+anchor 00000000-0000-0000-0000-000000000003 "Analysis" spill=false R4C2:R4C2
+anchor 00000000-0000-0000-0000-000000000004 "Analysis" spill=false R5C2:R5C2
+anchor 00000000-0000-0000-0000-000000000005 object=None
+anchor 00000000-0000-0000-0000-000000000006 "Analysis" spill=true R10C10:R10C10
+anchor 00000000-0000-0000-0000-000000000007 "Analysis" spill=true R10C13:R10C13
+anchor 00000000-0000-0000-0000-000000000008 "Analysis" spill=true R10C17:R10C17
+anchor 00000000-0000-0000-0000-000000000009 "Analysis" spill=true R10C21:R10C21
+anchor 00000000-0000-0000-0000-00000000000a "Analysis" spill=false R2C10:R2C10
+anchor 00000000-0000-0000-0000-00000000000b object=None
+anchor 00000000-0000-0000-0000-00000000000c "Analysis" spill=false R5C10:R5C10
+anchor 00000000-0000-0000-0000-00000000000d object=Some((SheetKey(4), "SalesByRegion"))
+document 00000000-0000-0000-0000-000000000001 view=notebook schema=1 body={"cells":[{"address":"Analysis!B2","control":{"options":["All","East","North","South","West"],"type":"choice"},"id":"00000000-0000-0000-0000-000000000001","kind":"control","label":"Region"},{"address":"Analysis!B3","control":{"options":["Pending","Paid","All"],"type":"choice"},"id":"00000000-0000-0000-0000-000000000002","kind":"control","label":"Status"},{"address":"Analysis!B4","control":{"max":28,"min":1,"type":"integer"},"id":"00000000-0000-0000-0000-000000000003","kind":"control","label":"First November day"},{"address":"Analysis!B5","control":{"max":28,"min":1,"type":"integer"},"id":"00000000-0000-0000-0000-000000000004","kind":"control","label":"Last November day"},{"id":"00000000-0000-0000-0000-000000000005","kind":"formula","lane_columns":7,"output_name":"scopeOrders","owned":true},{"id":"00000000-0000-0000-0000-000000000006","kind":"formula","lane_columns":2,"output_name":"byRegion","owned":true},{"id":"00000000-0000-0000-0000-000000000007","kind":"formula","lane_columns":2,"output_name":"byMonth","owned":true},{"id":"00000000-0000-0000-0000-000000000008","kind":"formula","lane_columns":2,"output_name":"rankedOrders","owned":true},{"id":"00000000-0000-0000-0000-000000000009","kind":"formula","lane_columns":2,"output_name":"chartData","owned":true},{"id":"00000000-0000-0000-0000-00000000000a","kind":"formula","output_name":"scopeTotal","owned":true},{"id":"00000000-0000-0000-0000-00000000000b","kind":"formula","output_name":"latestPrice","owned":false},{"id":"00000000-0000-0000-0000-00000000000c","kind":"formula","output_name":"positionValue","owned":true},{"address":"obj:Analysis/SalesByRegion","id":"00000000-0000-0000-0000-00000000000d","kind":"chart","requires":"00000000-0000-0000-0000-000000000009"},{"id":"00000000-0000-0000-0000-00000000000e","kind":"prose","markdown":"### Sales in scope\nAmount: {=scopeTotal}"}],"layout":"vertical"}
+name DefinedName { name: "byMonth", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$M$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "byRegion", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$J$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Chart.Amount", scope: Workbook, formula: "Analysis!$V$10:INDEX(Analysis!$V:$V,9+ROWS(rankedOrders))", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "Chart.Region", scope: Workbook, formula: "Analysis!$U$10:INDEX(Analysis!$U:$U,9+ROWS(rankedOrders))", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "chartData", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$U$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "latestPrice", scope: Workbook, formula: "Report!$E$2", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "positionValue", scope: Workbook, formula: "Analysis!$J$5", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "rankedOrders", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$Q$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "reviewNote", scope: Workbook, formula: "Analysis!$A$16", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "scopeOrders", scope: Workbook, formula: "_xlfn.ANCHORARRAY(Analysis!$A$10)", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+name DefinedName { name: "scopeTotal", scope: Workbook, formula: "Analysis!$J$2", hidden: false, comment: None, function: false, vb_procedure: false, xlm: false }
+sheet "Orders" charts=[]
+sheet "Report" charts=[]
+sheet "Pivot" charts=[]
+sheet "Analysis" charts=["SalesByRegion"]
+  R2C10 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [73, 70, 40, 73, 83, 69, 82, 82, 79, 82, 40, 36, 65, 36, 49, 48, 41, 44, 36, 65, 36, 49, 48, 44, 95, 120, 108, 102, 110, 46, 76, 69, 84, 40, 95, 120, 108, 112, 109, 46, 105, 116, 101, 109, 115, 44, 115, 99, 111, 112, 101, 79, 114, 100, 101, 114, 115, 44, 95, 120, 108, 112, 109, 46, 97, 109, 111, 117, 110, 116, 115, 44, 95, 120, 108, 102, 110, 46, 67, 72, 79, 79, 83, 69, 67, 79, 76, 83, 40, 95, 120, 108, 112, 109, 46, 105, 116, 101, 109, 115, 44, 55, 41, 44, 83, 85, 77, 40, 95, 120, 108, 112, 109, 46, 97, 109, 111, 117, 110, 116, 115, 41, 41, 41] }), form: Legacy, explicit_form: true })) file_cache=None
+  R3C2 input=Some(Text(CellText(ExcelText { units: [80, 97, 105, 100] }))) file_cache=None
+  R10C1 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [95, 120, 108, 102, 110, 46, 95, 120, 108, 119, 115, 46, 70, 73, 76, 84, 69, 82, 40, 79, 114, 100, 101, 114, 115, 91, 93, 44, 40, 40, 79, 114, 100, 101, 114, 115, 91, 82, 101, 103, 105, 111, 110, 93, 61, 36, 66, 36, 50, 41, 43, 40, 36, 66, 36, 50, 61, 34, 65, 108, 108, 34, 41, 41, 42, 40, 40, 79, 114, 100, 101, 114, 115, 91, 83, 116, 97, 116, 117, 115, 93, 61, 36, 66, 36, 51, 41, 43, 40, 36, 66, 36, 51, 61, 34, 65, 108, 108, 34, 41, 41, 42, 40, 79, 114, 100, 101, 114, 115, 91, 68, 97, 116, 101, 93, 62, 61, 68, 65, 84, 69, 40, 50, 48, 50, 54, 44, 49, 49, 44, 36, 66, 36, 52, 41, 41, 42, 40, 79, 114, 100, 101, 114, 115, 91, 68, 97, 116, 101, 93, 60, 61, 68, 65, 84, 69, 40, 50, 48, 50, 54, 44, 49, 49, 44, 36, 66, 36, 53, 41, 41, 41] }), form: Dynamic, explicit_form: true })) file_cache=None
+  R10C25 input=Some(Text(CellText(ExcelText { units: [82, 101, 115, 101, 114, 118, 101, 100] }))) file_cache=None
+  R12C25 input=None file_cache=None
+  R16C1 input=Some(Formula(FormulaText { storage: Inline(ExcelText { units: [34, 82, 101, 118, 105, 101, 119, 32, 119, 105, 116, 104, 32, 83, 97, 109, 34] }), form: Legacy, explicit_form: true })) file_cache=None

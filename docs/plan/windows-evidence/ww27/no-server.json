@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-11-28T09:11:44.1425159Z",
+  "build": "20625",
+  "registry_present": false,
+  "tlb_sha256": "0233C62DBDFC66A5E077A1DBCD0F48ED68E868D5EB30E7412BFEEBDEC6240037",
+  "reference": {
+    "name": "DnaWw27NoServerLib",
+    "guid": "{4A4D40BC-4B40-4B24-8830-3B8B92F496BC}",
+    "broken": false,
+    "major": 1,
+    "minor": 0
+  },
+  "answer": "New|Nothing|-2147221164|VBAProject|Class not registered\r\n|10\nCreateObject|Nothing|429|VBAProject|ActiveX component can't create object|20"
+}

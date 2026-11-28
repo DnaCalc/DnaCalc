@@ -1,0 +1,854 @@
+{
+  "lane": "ww27",
+  "timestamp": "2026-11-28T08:57:59.8820077Z",
+  "build": "16.0.20625.20108",
+  "bitness": "x64",
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+  "locale": "en-ZA",
+  "cases": [
+    {
+      "id": "loan-0",
+      "goal_bits": "0x40c3880000000000",
+      "formula": "=-PMT(B3/12,B4,B2)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "0",
+          "value": 0.0,
+          "display": "0",
+          "type": "Double",
+          "bits": "0x0000000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 0.0,
+          "display": "R0.00",
+          "type": "Double",
+          "bits": "0x0000000000000000"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1093207.65601764",
+          "value": 1093207.65601764,
+          "display": "1093208",
+          "type": "Double",
+          "bits": "0x4130ae57a7f0c5a5"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 10000.0,
+          "display": "########",
+          "type": "Double",
+          "bits": "0x40c3880000000000"
+        }
+      }
+    },
+    {
+      "id": "loan-1",
+      "goal_bits": "0x40c3880000000000",
+      "formula": "=-PMT(B3/12,B4,B2)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "1",
+          "value": 1.0,
+          "display": "1",
+          "type": "Double",
+          "bits": "0x3ff0000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 0.009147392944930713,
+          "display": "R0.01",
+          "type": "Double",
+          "bits": "0x3f82bbde4c564cbb"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1093207.65601764",
+          "value": 1093207.65601764,
+          "display": "1093208",
+          "type": "Double",
+          "bits": "0x4130ae57a7f0c5a5"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 10000.0,
+          "display": "########",
+          "type": "Double",
+          "bits": "0x40c3880000000000"
+        }
+      }
+    },
+    {
+      "id": "loan-1000000",
+      "goal_bits": "0x40c3880000000000",
+      "formula": "=-PMT(B3/12,B4,B2)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "1000000",
+          "value": 1000000.0,
+          "display": "1000000",
+          "type": "Double",
+          "bits": "0x412e848000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 9147.392944930712,
+          "display": "R9,147.39",
+          "type": "Double",
+          "bits": "0x40c1ddb24c04fd45"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1093207.65601764",
+          "value": 1093207.6560176404,
+          "display": "1093208",
+          "type": "Double",
+          "bits": "0x4130ae57a7f0c5a7"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 10000.000000000004,
+          "display": "########",
+          "type": "Double",
+          "bits": "0x40c3880000000002"
+        }
+      }
+    },
+    {
+      "id": "loan-minus-1000000",
+      "goal_bits": "0x40c3880000000000",
+      "formula": "=-PMT(B3/12,B4,B2)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "-1000000",
+          "value": -1000000.0,
+          "display": "-1000000",
+          "type": "Double",
+          "bits": "0xc12e848000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": -9147.392944930712,
+          "display": "########",
+          "type": "Double",
+          "bits": "0xc0c1ddb24c04fd45"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1093207.65601764",
+          "value": 1093207.65601764,
+          "display": "1093208",
+          "type": "Double",
+          "bits": "0x4130ae57a7f0c5a5"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 10000.0,
+          "display": "########",
+          "type": "Double",
+          "bits": "0x40c3880000000000"
+        }
+      }
+    },
+    {
+      "id": "loan-2000000",
+      "goal_bits": "0x40c3880000000000",
+      "formula": "=-PMT(B3/12,B4,B2)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "2000000",
+          "value": 2000000.0,
+          "display": "2000000",
+          "type": "Double",
+          "bits": "0x413e848000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 18294.785889861425,
+          "display": "########",
+          "type": "Double",
+          "bits": "0x40d1ddb24c04fd45"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1093207.65601764",
+          "value": 1093207.65601764,
+          "display": "1093208",
+          "type": "Double",
+          "bits": "0x4130ae57a7f0c5a5"
+        },
+        "B6": {
+          "formula2": "=-PMT(B3/12,B4,B2)",
+          "value": 10000.0,
+          "display": "########",
+          "type": "Double",
+          "bits": "0x40c3880000000000"
+        }
+      }
+    },
+    {
+      "id": "square-positive",
+      "goal_bits": "0x4000000000000000",
+      "formula": "=B2^2",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "1",
+          "value": 1.0,
+          "display": "1",
+          "type": "Double",
+          "bits": "0x3ff0000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 1.0,
+          "display": "1",
+          "type": "Double",
+          "bits": "0x3ff0000000000000"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1.41421126252652",
+          "value": 1.4142112625265164,
+          "display": "1.414211",
+          "type": "Double",
+          "bits": "0x3ff6a09bfd22faea"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 1.9999934950568434,
+          "display": "1.999993",
+          "type": "Double",
+          "bits": "0x3ffffff92dd7b5c8"
+        }
+      }
+    },
+    {
+      "id": "square-negative",
+      "goal_bits": "0x4000000000000000",
+      "formula": "=B2^2",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "-1",
+          "value": -1.0,
+          "display": "-1",
+          "type": "Double",
+          "bits": "0xbff0000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 1.0,
+          "display": "1",
+          "type": "Double",
+          "bits": "0x3ff0000000000000"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "-1.41421126252652",
+          "value": -1.4142112625265164,
+          "display": "-1.41421",
+          "type": "Double",
+          "bits": "0xbff6a09bfd22faea"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 1.9999934950568434,
+          "display": "1.999993",
+          "type": "Double",
+          "bits": "0x3ffffff92dd7b5c8"
+        }
+      }
+    },
+    {
+      "id": "square-stationary",
+      "goal_bits": "0x4000000000000000",
+      "formula": "=B2^2",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "0",
+          "value": 0.0,
+          "display": "0",
+          "type": "Double",
+          "bits": "0x0000000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 0.0,
+          "display": "0",
+          "type": "Double",
+          "bits": "0x0000000000000000"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "1.41422448793773",
+          "value": 1.4142244879377257,
+          "display": "1.414224",
+          "type": "Double",
+          "bits": "0x3ff6a0a9db4e516c"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 2.0000309022827225,
+          "display": "2.000031",
+          "type": "Double",
+          "bits": "0x4000001033a2596d"
+        }
+      }
+    },
+    {
+      "id": "square-no-real-solution",
+      "goal_bits": "0xbff0000000000000",
+      "formula": "=B2^2",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "1",
+          "value": 1.0,
+          "display": "1",
+          "type": "Double",
+          "bits": "0x3ff0000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 1.0,
+          "display": "1",
+          "type": "Double",
+          "bits": "0x3ff0000000000000"
+        }
+      },
+      "status": false,
+      "after": {
+        "B2": {
+          "formula2": "-28147497671065.7",
+          "value": -28147497671065.71,
+          "display": "-2.8E+13",
+          "type": "Double",
+          "bits": "0xc2b99999999999b6"
+        },
+        "B6": {
+          "formula2": "=B2^2",
+          "value": 7.922816251426496E+26,
+          "display": "7.92E+26",
+          "type": "Double",
+          "bits": "0x45847ae147ae14a8"
+        }
+      }
+    },
+    {
+      "id": "zero-slope",
+      "goal_bits": "0x4022000000000000",
+      "formula": "=B2*0+5",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "3",
+          "value": 3.0,
+          "display": "3",
+          "type": "Double",
+          "bits": "0x4008000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=B2*0+5",
+          "value": 5.0,
+          "display": "5",
+          "type": "Double",
+          "bits": "0x4014000000000000"
+        }
+      },
+      "status": false,
+      "after": {
+        "B2": {
+          "formula2": "-1006629.96",
+          "value": -1006629.96,
+          "display": "-1006630",
+          "type": "Double",
+          "bits": "0xc12eb84beb851eb8"
+        },
+        "B6": {
+          "formula2": "=B2*0+5",
+          "value": 5.0,
+          "display": "5",
+          "type": "Double",
+          "bits": "0x4014000000000000"
+        }
+      }
+    },
+    {
+      "id": "flat-already-at-goal",
+      "goal_bits": "0x4014000000000000",
+      "formula": "=B2*0+5",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "3",
+          "value": 3.0,
+          "display": "3",
+          "type": "Double",
+          "bits": "0x4008000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=B2*0+5",
+          "value": 5.0,
+          "display": "5",
+          "type": "Double",
+          "bits": "0x4014000000000000"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "3",
+          "value": 3.0,
+          "display": "3",
+          "type": "Double",
+          "bits": "0x4008000000000000"
+        },
+        "B6": {
+          "formula2": "=B2*0+5",
+          "value": 5.0,
+          "display": "5",
+          "type": "Double",
+          "bits": "0x4014000000000000"
+        }
+      }
+    },
+    {
+      "id": "no-direct-dependency",
+      "goal_bits": "0x4022000000000000",
+      "formula": "=5",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "3",
+          "value": 3.0,
+          "display": "3",
+          "type": "Double",
+          "bits": "0x4008000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=5",
+          "value": 5.0,
+          "display": "5",
+          "type": "Double",
+          "bits": "0x4014000000000000"
+        }
+      },
+      "status": false,
+      "after": {
+        "B2": {
+          "formula2": "-1006629.96",
+          "value": -1006629.96,
+          "display": "-1006630",
+          "type": "Double",
+          "bits": "0xc12eb84beb851eb8"
+        },
+        "B6": {
+          "formula2": "=5",
+          "value": 5.0,
+          "display": "5",
+          "type": "Double",
+          "bits": "0x4014000000000000"
+        }
+      }
+    },
+    {
+      "id": "round-plateau",
+      "goal_bits": "0x4022000000000000",
+      "formula": "=ROUND(B2,0)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "3",
+          "value": 3.0,
+          "display": "3",
+          "type": "Double",
+          "bits": "0x4008000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=ROUND(B2,0)",
+          "value": 3.0,
+          "display": "3",
+          "type": "Double",
+          "bits": "0x4008000000000000"
+        }
+      },
+      "status": true,
+      "after": {
+        "B2": {
+          "formula2": "8.76",
+          "value": 8.76,
+          "display": "8.76",
+          "type": "Double",
+          "bits": "0x4021851eb851eb85"
+        },
+        "B6": {
+          "formula2": "=ROUND(B2,0)",
+          "value": 9.0,
+          "display": "9",
+          "type": "Double",
+          "bits": "0x4022000000000000"
+        }
+      }
+    },
+    {
+      "id": "formula-domain-error",
+      "goal_bits": "0x4000000000000000",
+      "formula": "=SQRT(B2)",
+      "settings": {
+        "iteration": false,
+        "decimal_separator": ".",
+        "calculation": -4135,
+        "max_iterations": 100.0,
+        "list_separator": ",",
+        "max_change_bits": "0x3f50624dd2f1a9fc"
+      },
+      "before": {
+        "B2": {
+          "formula2": "-3",
+          "value": -3.0,
+          "display": "-3",
+          "type": "Double",
+          "bits": "0xc008000000000000"
+        },
+        "B3": {
+          "formula2": "0.105",
+          "value": 0.105,
+          "display": "0.105",
+          "type": "Double",
+          "bits": "0x3fbae147ae147ae1"
+        },
+        "B4": {
+          "formula2": "360",
+          "value": 360.0,
+          "display": "360",
+          "type": "Double",
+          "bits": "0x4076800000000000"
+        },
+        "B6": {
+          "formula2": "=SQRT(B2)",
+          "value": -2146826252,
+          "display": "#NUM!",
+          "type": "Int32",
+          "bits": null
+        }
+      },
+      "error": {
+        "message": "Reference isn't valid.",
+        "hresult": "0x800a03ec",
+        "detail": null
+      },
+      "after": {
+        "B2": {
+          "formula2": "-3",
+          "value": -3.0,
+          "display": "-3",
+          "type": "Double",
+          "bits": "0xc008000000000000"
+        },
+        "B6": {
+          "formula2": "=SQRT(B2)",
+          "value": -2146826252,
+          "display": "#NUM!",
+          "type": "Int32",
+          "bits": null
+        }
+      }
+    }
+  ]
+}

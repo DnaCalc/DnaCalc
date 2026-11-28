@@ -1,0 +1,219 @@
+case	input	type	value	err	source	description	erl
+ExcelBits		Integer	64	0			0
+DriveCurDir	Z	Empty		68	VBAProject	Device unavailable	100
+DriveChDrive	Z	Empty		68	VBAProject	Device unavailable	100
+DriveChDir	Z:\	Empty		76	VBAProject	Path not found	100
+DriveOpenInput	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveOpenOutput	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveDir	Z:\ww27-absent\item.txt	String		0			0
+DriveKill	Z:\ww27-absent\item.txt	Empty		53	VBAProject	File not found	100
+DriveMoveFrom	Z:\ww27-absent\item.txt	Empty		53	VBAProject	File not found	100
+DriveMoveTo	Z:\ww27-absent\item.txt	Empty		53	VBAProject	File not found	100
+DriveCopyFrom	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveCopyTo	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveMkDir	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveGetAttr	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveFileDateTime	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+DriveFileLen	Z:\ww27-absent\item.txt	Empty		76	VBAProject	Path not found	100
+UNCCurDir	\\localhost\DnaWw27FFC03F35Absent	Empty		5	VBAProject	Invalid procedure call or argument	100
+UNCChDrive	\\localhost\DnaWw27FFC03F35Absent	Empty		5	VBAProject	Invalid procedure call or argument	100
+UNCChDir	\\localhost\DnaWw27FFC03F35Absent	Empty		76	VBAProject	Path not found	100
+UNCOpenInput	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		75	VBAProject	Path/File access error	100
+UNCOpenOutput	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		75	VBAProject	Path/File access error	100
+UNCDir	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		52	VBAProject	Bad file name or number	100
+UNCKill	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		53	VBAProject	File not found	100
+UNCMoveFrom	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		53	VBAProject	File not found	100
+UNCMoveTo	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		53	VBAProject	File not found	100
+UNCCopyFrom	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		75	VBAProject	Path/File access error	100
+UNCCopyTo	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		75	VBAProject	Path/File access error	100
+UNCMkDir	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		76	VBAProject	Path not found	100
+UNCGetAttr	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		5	VBAProject	Invalid procedure call or argument	100
+UNCFileDateTime	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		5	VBAProject	Invalid procedure call or argument	100
+UNCFileLen	\\localhost\DnaWw27FFC03F35Absent\item.txt	Empty		5	VBAProject	Invalid procedure call or argument	100
+NewFileGetAttr	zeta.txt	Long	32	0			0
+NewFileGetAttr	Alpha.txt	Long	32	0			0
+NewFileGetAttr	beta.TXT	Long	32	0			0
+NewFileGetAttr	NoExt	Long	32	0			0
+NewFileGetAttr	a-b.txt	Long	32	0			0
+NewFileGetAttr	a_b.txt	Long	32	0			0
+NewFileGetAttr	case.txt	Long	32	0			0
+DirOrder	*/0	String	a-b.txt	0			0
+DirOrder	*/0	String	Alpha.txt	0			0
+DirOrder	*/0	String	a_b.txt	0			0
+DirOrder	*/0	String	beta.TXT	0			0
+DirOrder	*/0	String	case.txt	0			0
+DirOrder	*/0	String	from.txt	0			0
+DirOrder	*/0	String	NoExt	0			0
+DirOrder	*/2	String	a-b.txt	0			0
+DirOrder	*/2	String	Alpha.txt	0			0
+DirOrder	*/2	String	a_b.txt	0			0
+DirOrder	*/2	String	beta.TXT	0			0
+DirOrder	*/2	String	case.txt	0			0
+DirOrder	*/2	String	from.txt	0			0
+DirOrder	*/2	String	NoExt	0			0
+DirOrder	*/2	String	zeta.txt	0			0
+DirOrder	*/16	String	.	0			0
+DirOrder	*/16	String	..	0			0
+DirOrder	*/16	String	a-b.txt	0			0
+DirOrder	*/16	String	Alpha.txt	0			0
+DirOrder	*/16	String	a_b.txt	0			0
+DirOrder	*/16	String	beta.TXT	0			0
+DirOrder	*/16	String	case.txt	0			0
+DirOrder	*/16	String	from.txt	0			0
+DirOrder	*/16	String	NoExt	0			0
+DirOrder	*/16	String	sub	0			0
+DirOrder	*/50	String	.	0			0
+DirOrder	*/50	String	..	0			0
+DirOrder	*/50	String	a-b.txt	0			0
+DirOrder	*/50	String	Alpha.txt	0			0
+DirOrder	*/50	String	a_b.txt	0			0
+DirOrder	*/50	String	beta.TXT	0			0
+DirOrder	*/50	String	case.txt	0			0
+DirOrder	*/50	String	from.txt	0			0
+DirOrder	*/50	String	NoExt	0			0
+DirOrder	*/50	String	sub	0			0
+DirOrder	*/50	String	zeta.txt	0			0
+DirOrder	*.*/0	String	a-b.txt	0			0
+DirOrder	*.*/0	String	Alpha.txt	0			0
+DirOrder	*.*/0	String	a_b.txt	0			0
+DirOrder	*.*/0	String	beta.TXT	0			0
+DirOrder	*.*/0	String	case.txt	0			0
+DirOrder	*.*/0	String	from.txt	0			0
+DirOrder	*.*/0	String	NoExt	0			0
+DirOrder	*.*/2	String	a-b.txt	0			0
+DirOrder	*.*/2	String	Alpha.txt	0			0
+DirOrder	*.*/2	String	a_b.txt	0			0
+DirOrder	*.*/2	String	beta.TXT	0			0
+DirOrder	*.*/2	String	case.txt	0			0
+DirOrder	*.*/2	String	from.txt	0			0
+DirOrder	*.*/2	String	NoExt	0			0
+DirOrder	*.*/2	String	zeta.txt	0			0
+DirOrder	*.*/16	String	.	0			0
+DirOrder	*.*/16	String	..	0			0
+DirOrder	*.*/16	String	a-b.txt	0			0
+DirOrder	*.*/16	String	Alpha.txt	0			0
+DirOrder	*.*/16	String	a_b.txt	0			0
+DirOrder	*.*/16	String	beta.TXT	0			0
+DirOrder	*.*/16	String	case.txt	0			0
+DirOrder	*.*/16	String	from.txt	0			0
+DirOrder	*.*/16	String	NoExt	0			0
+DirOrder	*.*/16	String	sub	0			0
+DirOrder	*.*/50	String	.	0			0
+DirOrder	*.*/50	String	..	0			0
+DirOrder	*.*/50	String	a-b.txt	0			0
+DirOrder	*.*/50	String	Alpha.txt	0			0
+DirOrder	*.*/50	String	a_b.txt	0			0
+DirOrder	*.*/50	String	beta.TXT	0			0
+DirOrder	*.*/50	String	case.txt	0			0
+DirOrder	*.*/50	String	from.txt	0			0
+DirOrder	*.*/50	String	NoExt	0			0
+DirOrder	*.*/50	String	sub	0			0
+DirOrder	*.*/50	String	zeta.txt	0			0
+TrailingDir	C:\Work\DnaCalc\codex-runs\ww27\portability\files\case.txt.	String	case.txt	0			0
+TrailingGetAttr	C:\Work\DnaCalc\codex-runs\ww27\portability\files\case.txt.	String	32	0			0
+TrailingDir	C:\Work\DnaCalc\codex-runs\ww27\portability\files\case.txt 	String	case.txt	0			0
+TrailingGetAttr	C:\Work\DnaCalc\codex-runs\ww27\portability\files\case.txt 	String	32	0			0
+TrailingDir	C:\Work\DnaCalc\codex-runs\ww27\portability\files\case.txt. 	String	case.txt	0			0
+TrailingGetAttr	C:\Work\DnaCalc\codex-runs\ww27\portability\files\case.txt. 	String	32	0			0
+CaseOnlyName	case.txt -> CASE.txt	Empty		0			0
+CaseOnlyDir	case.*	String	CASE.txt	0			0
+DeclareMissingDll	False	Empty		0			0
+DeclareMissingEntry	False	Empty		0			0
+ShellMissing	False	Empty		0			0
+Unrelated	False	Long	2701	0			0
+DeclareMissingDll	True	Empty		53	VBAProject	File not found: C:\DnaWw27_FFC03F35_absent.dll	200
+DeclareMissingEntry	True	Empty		453	VBAProject	Can't find DLL entry point DnaWw27_FFC03F35_AbsentExport in kernel32.dll	210
+ShellMissing	True	Empty		53	VBAProject	File not found	220
+Unrelated	True	Long	2701	0			220
+CreateObject	DnaWw27FFC03F35.AbsentClass	Nothing	Nothing	429	VBAProject	ActiveX component can't create object	230
+GetObjectEmpty	DnaWw27FFC03F35.AbsentClass	Nothing	Nothing	429	VBAProject	ActiveX component can't create object	240
+GetObjectOmitted	DnaWw27FFC03F35.AbsentClass	Nothing	Nothing	429	VBAProject	ActiveX component can't create object	250
+GetObjectMissingFile	DnaWw27FFC03F35.AbsentClass	Nothing	Nothing	429	VBAProject	ActiveX component can't create object	260
+EnvironmentOrder	151	String	WW27_A_MARK=first-marker	0			0
+EnvironmentOrder	152	String	Ww27_MiXeD=MixedCase	0			0
+EnvironmentOrder	153	String	WW27_Z_MARK=last-marker	0			0
+EnvironmentOrder	154	String	WW27_É_MARK=café	0			0
+Environ	WW27_Z_MARK	String	last-marker	0			0
+Environ	WW27_A_MARK	String	first-marker	0			0
+Environ	ww27_mixed	String	MixedCase	0			0
+Environ	WW27_É_MARK	String	café	0			0
+Environ	WW27_DOES_NOT_EXIST_FFC03F35	String		0			0
+Environ	TEMP	String	C:\<redacted>; length=36	0			0
+Environ	TMP	String	C:\<redacted>; length=36	0			0
+Environ	USERPROFILE	String	C:\<redacted>; length=27	0			0
+Environ	APPDATA	String	C:\<redacted>; length=43	0			0
+Environ	40000	Empty		6	VBAProject	Overflow	270
+Environ	0	Empty		5	VBAProject	Invalid procedure call or argument	270
+Environ	256	Empty		5	VBAProject	Invalid procedure call or argument	270
+CreateFSO		FileSystemObject	FileSystemObject	0			0
+FSOGetFileNameNamed	C:\scratch\missing.TxT	String	missing.TxT	0			0
+FSOGetFileName	C:\scratch\missing.TxT	String	missing.TxT	0			0
+FSOGetExtensionName	C:\scratch\missing.TxT	String	TxT	0			0
+FSOGetFileNameNamed	C:	String		0			0
+FSOGetFileName	C:	String		0			0
+FSOGetExtensionName	C:	String		0			0
+FSOGetFileNameNamed	C:drive.Relative	String	drive.Relative	0			0
+FSOGetFileName	C:drive.Relative	String	drive.Relative	0			0
+FSOGetExtensionName	C:drive.Relative	String	Relative	0			0
+FSOGetFileNameNamed	C:\a.b\NoExt	String	NoExt	0			0
+FSOGetFileName	C:\a.b\NoExt	String	NoExt	0			0
+FSOGetExtensionName	C:\a.b\NoExt	String		0			0
+FSOGetFileNameNamed	C:\a.b\	String	a.b	0			0
+FSOGetFileName	C:\a.b\	String	a.b	0			0
+FSOGetExtensionName	C:\a.b\	String	b	0			0
+FSOGetFileNameNamed	\\localhost\share\	String		0			0
+FSOGetFileName	\\localhost\share\	String		0			0
+FSOGetExtensionName	\\localhost\share\	String		0			0
+FSOGetFileNameNamed	.hidden	String	.hidden	0			0
+FSOGetFileName	.hidden	String	.hidden	0			0
+FSOGetExtensionName	.hidden	String	hidden	0			0
+FSOGetFileNameNamed	UPPER.CAFÉ	String	UPPER.CAFÉ	0			0
+FSOGetFileName	UPPER.CAFÉ	String	UPPER.CAFÉ	0			0
+FSOGetExtensionName	UPPER.CAFÉ	String	CAFÉ	0			0
+FSOCreateTextFile	FsoNew.txt	TextStream	TextStream	0			0
+FSOFileExists	fsonew.TXT	Boolean	True	0			0
+FSOGetFileAbsent	absent.txt	Nothing	Nothing	53	VBAProject	File not found	560
+CreateStream		Stream	Stream	0			560
+StreamClosedSize		Empty		3704	ADODB.Stream	Operation is not allowed when the object is closed.	580
+StreamDefaultType		Long	2	0			0
+StreamDefaultCharset		String	Unicode	0			0
+StreamPosition	UTF-8 café	Long	8	0			0
+StreamSize	UTF-8 café	Long	8	0			0
+StreamChangeTypeNonzeroPosition	binary	Empty		3219	ADODB.Stream	Operation is not allowed in this context.	590
+StreamReadText	UTF-8 café	String	café	0			0
+StreamReadBinary	UTF-8 café	String	EFBBBF636166C3A9	0			0
+StreamTextOnBinary		Empty		3219	ADODB.Stream	Operation is not allowed in this context.	600
+StreamNoOverwrite	stream.bin/1	Empty		3004	ADODB.Stream	Write to file failed.	610
+StreamOverwrite	stream.bin/2	Empty		0			610
+CreateXML		DOMDocument60	DOMDocument60	0			610
+XmlMalformed	<r><x></r>	Boolean	False	0			0
+XmlErrorCode		Long	-1072896659	0			0
+XmlErrorReason		String	End tag 'r' does not match the start tag 'x'.	0			0
+XmlErrorLine		Long	1	0			0
+XmlErrorLinepos		Long	9	0			0
+XmlXPath	/r/x[2]	String	second	0			0
+XmlIndependent	/r/x	String	independent	0			0
+CreateWsh		IWshShell3	IWshShell3	0			610
+WshSpecialFoldersCount		Long	18	0			0
+WshExpand	%WW27_A_MARK% / %WW27_DOES_NOT_EXIST_FFC03F35%	String	first-marker / %WW27_DOES_NOT_EXIST_FFC03F35%	0			0
+WshCurrentDirectory	C:\Work\DnaCalc\codex-runs\ww27\portability\files	String	C:\Work\DnaCalc\codex-runs\ww27\portability\files	0			0
+ViewSwitch	notebook/Summary	Empty		1004	Microsoft Excel	Cannot run the macro 'DnaCalc.View.Switch'. The macro may not be available in this workbook or all macros may be disabled.	300
+ViewSelect	Loan!B2:B6	Empty		1004	Microsoft Excel	Cannot run the macro 'DnaCalc.View.Select'. The macro may not be available in this workbook or all macros may be disabled.	310
+ViewShowPanel	inspector.trace/True	Empty		1004	Microsoft Excel	Cannot run the macro 'DnaCalc.View.ShowPanel'. The macro may not be available in this workbook or all macros may be disabled.	320
+ExcelSelection	Loan!B2:B6	String	$B$2:$B$6	0			320
+ExcelWrite	Loan!C2	Double	27	0			320
+RegisterXLL	C:\Work\DnaCalc\codex-runs\ww27\portability\files\missing-FFC03F35.xll	Boolean	False	0			0
+FileDialog	3	FileDialog	FileDialog	0			0
+SelectedItemsCount	no selection	Long	0	0			0
+SelectedItemsOne	no selection	Empty		5	VBAProject	Invalid procedure call or argument	380
+Dialogs	xlDialogOpen	Dialog	Dialog	0			380
+Wait	Now	Boolean	True	0			380
+WorkbookPath	unsaved	String		0			0
+WorkbookFullName	unsaved	String	Book2	0			0
+DefaultFilePath	unsaved	String	<profile>\<sync-folder>\Documents	0			0
+PathSeparator	unsaved	String	\	0			0
+CurDir	unsaved	String	<profile>\<sync-folder>\Documents	0			0
+CurDirC	unsaved	String	<profile>\<sync-folder>\Documents	0			0
+CellFilenameOmitted	unsaved	String		0			0
+CellFilenameExplicit	unsaved	String		0			0
+InfoDirectory	unsaved	String	<profile>\<sync-folder>\Documents\	0			0

@@ -1,0 +1,2066 @@
+{
+  "cast/Loan.xlsx": {
+    "sha256": "3aa1cb566089fa2db329b9cf97c19428037f055cb25ea57835e44f57c98b15ff",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "aae5f0e4239a6803c34bc506288d4ec2ab7336591e37403ac6f33dcb7adcf972",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B2",
+            "signature": "sha256:80538231d3c560edbce8942fa6fa185e95d7371584889fe79a24cafae2e048f6"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B3",
+            "signature": "sha256:641825c560c7e3d73209da2974ada3f698cb3e55af3b6ee5c3e1a712f27d6f07"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:e2512b2c0b2d0a1ac92f8326cc2c8457a006d6d1af6bb7eac8b11aba68d5db20"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:eb5b794b71eeb3f55c4926c59aba5c79cee635ec980b6ebe430684e95cd4ca83"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:37f6a8bafda0a3718a57889bf9dbc5e0643135a93de99cf5fa2f8c85feadc777"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "A12:F371",
+            "signature": "sha256:c3ae6ed7d2e75c5743fc01f3b9456d784277f96412768f3b3de34568228396b6"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "f04d4073e33472a6f2ed43b2e05de2c12e6ec6a4408e355c81355b6027e8be38"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId4",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B6": {
+        "formula": "-PMT(B3/12,B4,B2)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B6"
+        },
+        "value_cache": null
+      }
+    }
+  },
+  "cast/SalesBlocked.xlsx": {
+    "sha256": "9c98ab3a197ca534e8d1f8663fa856fd8b27c22242441ad8c3f8ccb350d3f649",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "158be4c9e22ff13ab9892a5cba635fededa91f77354210f71093d77fafd8e294",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:a27ae478d33bc05a2eae079221db49557d5b6d17ba7b3024c9bca6e9b1c7ee39"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId8",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"DnaCalc.Price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2"
+        },
+        "value_cache": null
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "cm": "1"
+        },
+        "value_cache": null
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A10"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "cm": "1"
+        },
+        "value_cache": null
+      }
+    },
+    "metadata_sha256": "cfa14130b5c003532eaa837b979e958a2aef6ec617ddcc94342871588e82c928"
+  },
+  "cast/SalesNotebook.xlsx": {
+    "sha256": "00457c9c9e2f3ca95a731da29bf410abf6d5c033b48fefc0dad063a4174e5d67",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "7794870e67caefd860554ccd9dab2b7d8cf2822199c80519f48d08a2b5344c15",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:e4033075495f14ffcf1ff71c338783d3b3a36afc15003a320206d121c5246753"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId8",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"DnaCalc.Price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2"
+        },
+        "value_cache": null
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "cm": "1"
+        },
+        "value_cache": null
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A10"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "cm": "1"
+        },
+        "value_cache": null
+      }
+    },
+    "metadata_sha256": "cfa14130b5c003532eaa837b979e958a2aef6ec617ddcc94342871588e82c928"
+  },
+  "cast/Stock.xlsx": {
+    "sha256": "461200d15421884867685ead25efc33be59e7f6b1c653bfd26b5a580741777d6",
+    "view_parts": {},
+    "relationships": [],
+    "formulas": {}
+  },
+  "cast/StockTicked-round2.xlsx": {
+    "sha256": "23fdf4b7480c8f18daa77f7b855dc5f1244922aaf512cc7ae6cc6adde05a0dc0",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "4b8e4d82f8fe1bfa4221dc6a49771901165d9097cf3cd57674b27273056337ea",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B8",
+            "signature": "sha256:bb251a4d238b304cc8b4bf993b399aa20a016a084a89174fc7193c29c810bc00"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:c6785bf7dd4f160a93c1d37a794abed711a7f3df5f91ffecacc1c032e2f6df40"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B5",
+            "signature": "sha256:eedbd77801d84e6ebd144c13e8043665223a2886ab6e3cbded8b592376290c0f"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "22b4ac5edea2550fcbdb2b5b352b7860870ed2ca8beaf3a172f7e8aa296f96b1"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId4",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B8": {
+        "formula": "RTD(\"DnaCalc.Clock\",,\"Stock\",\"tick\",B4,B5,B6,B7)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B8"
+        },
+        "value_cache": null
+      }
+    }
+  },
+  "cast/StockTicked.xlsx": {
+    "sha256": "1645e7c07c7cd74500ee2858eb7c7f050d59aec33c7d2d30252c47de5cdc5989",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "41ade39bd6eb1d45d08cacb5ce27aff5a70e2d981160a1e17d1e6f0849a5803f",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B8",
+            "signature": "sha256:bb251a4d238b304cc8b4bf993b399aa20a016a084a89174fc7193c29c810bc00"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:c6785bf7dd4f160a93c1d37a794abed711a7f3df5f91ffecacc1c032e2f6df40"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B5",
+            "signature": "sha256:eedbd77801d84e6ebd144c13e8043665223a2886ab6e3cbded8b592376290c0f"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "22b4ac5edea2550fcbdb2b5b352b7860870ed2ca8beaf3a172f7e8aa296f96b1"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId4",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B8": {
+        "formula": "RTD(\"DnaCalc.Clock\",,\"Stock\",\"tick\",B4,B5,B6,B7)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B8"
+        },
+        "value_cache": null
+      }
+    }
+  },
+  "context/baseline.xlsx": {
+    "sha256": "1959688d5a0b3e17c4a8abc52604bd43521ddb0954df3648dc75e5d4334fc850",
+    "view_parts": {},
+    "relationships": [],
+    "formulas": {}
+  },
+  "context/Loan-excel-scenario.xlsx": {
+    "sha256": "e639bd4e8f79120bda98d4d40e9b236094fcc7ea7b0a1bfa001f16201c4d6bfb",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "c924443d311fe62940d88137fe8520fa38aa5bb2384b1f5d1b98c0b3aff83819",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B2",
+            "signature": "sha256:80538231d3c560edbce8942fa6fa185e95d7371584889fe79a24cafae2e048f6"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B3",
+            "signature": "sha256:641825c560c7e3d73209da2974ada3f698cb3e55af3b6ee5c3e1a712f27d6f07"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:e2512b2c0b2d0a1ac92f8326cc2c8457a006d6d1af6bb7eac8b11aba68d5db20"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:eb5b794b71eeb3f55c4926c59aba5c79cee635ec980b6ebe430684e95cd4ca83"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:37f6a8bafda0a3718a57889bf9dbc5e0643135a93de99cf5fa2f8c85feadc777"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "A12:F371",
+            "signature": "sha256:c3ae6ed7d2e75c5743fc01f3b9456d784277f96412768f3b3de34568228396b6"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "f04d4073e33472a6f2ed43b2e05de2c12e6ec6a4408e355c81355b6027e8be38"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId6",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B6": {
+        "formula": "-PMT(B3/12,B4,B2)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B6"
+        },
+        "value_cache": "9147.3929449307125"
+      }
+    }
+  },
+  "view-followup/baseline.xlsx": {
+    "sha256": "f3211380d265e430dd308c11b7ab50e6e2f517b779d7171bb68825a5aeeb2da6",
+    "view_parts": {},
+    "relationships": [],
+    "formulas": {}
+  },
+  "view-followup/Notebook-Lambda.xlsx": {
+    "sha256": "21b905e04430812eb990bb929768de75a01d1d0770419f5585409cdb199ebd8d",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "e94ba27a051958ec0500d782a712ac2cacb25b249e6416243ad0163bcaaf80e6",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "signature": "sha256:191a5d29373c11c042f7287d0621645df458227cbe91d89c6d17225f1d2f22fb",
+            "id": "00000000-0000-0000-0000-000000000037",
+            "kind": "spill",
+            "sheet_key": "1",
+            "ref": "G10",
+            "{urn:future}key": "xyz"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000065",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "D8",
+            "signature": "sha256:34b195e02eba1bb786601065ba2d254d303318a69205a9d278bca39c57bd2760"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "4ff575f1f9c9ea9a3bc07f928e9b11b851a597a003ab04994780fa25f82ea327"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "2ccd70325fe4cb00de5d546dc8a158baca344ed3f8cf5f22cd35a51fa14c4882",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId7",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {},
+    "metadata_sha256": "add71728385c99b129797127f6e268577cf5f4a6616e1882fa6be156276d552b"
+  },
+  "view-followup/SalesNC06-moved.xlsx": {
+    "sha256": "aefdfcd4c599dfb45c1aaa8ccdfeb5633c71eec263ccdea8c5bd7149cff961a8",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "1ac15a6312903b7b2d370f7e42bc4c032609170cce958144c1ef0db9bf3adcd5",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:a27ae478d33bc05a2eae079221db49557d5b6d17ba7b3024c9bca6e9b1c7ee39"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId10",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"dnacalc.price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders[],((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A10:G134"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "t": "str",
+          "cm": "1"
+        },
+        "value_cache": "SO24876"
+      }
+    },
+    "metadata_sha256": "add71728385c99b129797127f6e268577cf5f4a6616e1882fa6be156276d552b"
+  },
+  "view-followup/SalesNC06-restored.xlsx": {
+    "sha256": "d60776ebcea68d461c33346a50ded7eb084a66ef388c42077142a51c3a8c1f8e",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "1ac15a6312903b7b2d370f7e42bc4c032609170cce958144c1ef0db9bf3adcd5",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:a27ae478d33bc05a2eae079221db49557d5b6d17ba7b3024c9bca6e9b1c7ee39"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId13",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"dnacalc.price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders[],((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "aca": "1",
+          "ref": "A10",
+          "ca": "1"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "t": "e",
+          "cm": "1",
+          "vm": "2"
+        },
+        "value_cache": "#VALUE!"
+      }
+    },
+    "metadata_sha256": "3b30eed3ac82295746854b382bd00257f3f9f885ee26c5bb755fd8ec9d0c20f6"
+  },
+  "view-followup/StockTicked-round2-excel.xlsx": {
+    "sha256": "44424234af7d37360f6d5b5857487c03d92e6a273cad28421f7cf7a3623f6283",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "e493cf8ccf3d3ce171177a76352fe40615f737540e8b523132c1db9c441e6f9b",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B8",
+            "signature": "sha256:bb251a4d238b304cc8b4bf993b399aa20a016a084a89174fc7193c29c810bc00"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:c6785bf7dd4f160a93c1d37a794abed711a7f3df5f91ffecacc1c032e2f6df40"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B5",
+            "signature": "sha256:eedbd77801d84e6ebd144c13e8043665223a2886ab6e3cbded8b592376290c0f"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "22b4ac5edea2550fcbdb2b5b352b7860870ed2ca8beaf3a172f7e8aa296f96b1"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId6",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B8": {
+        "formula": "RTD(\"dnacalc.clock\",,\"Stock\",\"tick\",B4,B5,B6,B7)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B8",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      }
+    }
+  },
+  "views/baseline.xlsx": {
+    "sha256": "2d54b185da69668ea25d2d353a4898da847704aa67cdc5a2851341a51a3fd2fa",
+    "view_parts": {},
+    "relationships": [],
+    "formulas": {}
+  },
+  "views/file-context.xlsx": {
+    "sha256": "d2a41634fa6f03f377204fd43f4e97890faef5debe1c1fd867ee67294552c3ea",
+    "view_parts": {},
+    "relationships": [],
+    "formulas": {},
+    "metadata_sha256": "e80e07c27a0f75b94442fc8956f6a9c68c062168b3d15e9f252f231006fac867"
+  },
+  "views/loan-insert.xlsm": {
+    "sha256": "18256dd9250a33c798b8b40050505fa6a854689d82d9efdc87006b078b54a7c6",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "c924443d311fe62940d88137fe8520fa38aa5bb2384b1f5d1b98c0b3aff83819",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B2",
+            "signature": "sha256:80538231d3c560edbce8942fa6fa185e95d7371584889fe79a24cafae2e048f6"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B3",
+            "signature": "sha256:641825c560c7e3d73209da2974ada3f698cb3e55af3b6ee5c3e1a712f27d6f07"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:e2512b2c0b2d0a1ac92f8326cc2c8457a006d6d1af6bb7eac8b11aba68d5db20"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:eb5b794b71eeb3f55c4926c59aba5c79cee635ec980b6ebe430684e95cd4ca83"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:37f6a8bafda0a3718a57889bf9dbc5e0643135a93de99cf5fa2f8c85feadc777"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "A12:F371",
+            "signature": "sha256:c3ae6ed7d2e75c5743fc01f3b9456d784277f96412768f3b3de34568228396b6"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "f04d4073e33472a6f2ed43b2e05de2c12e6ec6a4408e355c81355b6027e8be38"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId6",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B7": {
+        "formula": "-PMT(B4/12,B5,B3)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B7"
+        },
+        "value_cache": "9147.3929449307125"
+      }
+    }
+  },
+  "views/relocated/file-context moved.xlsx": {
+    "sha256": "a39a618189d6c53fcfaa88622e4df9915e14848c230fc7b0308705610159b282",
+    "view_parts": {},
+    "relationships": [],
+    "formulas": {},
+    "metadata_sha256": "e80e07c27a0f75b94442fc8956f6a9c68c062168b3d15e9f252f231006fac867"
+  },
+  "views/relocated/Loan relocated.xlsx": {
+    "sha256": "1d50f93de21ae5d8d10a07ecb61c606801384fe620fbd97ba16186360a3f9afb",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "c924443d311fe62940d88137fe8520fa38aa5bb2384b1f5d1b98c0b3aff83819",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B2",
+            "signature": "sha256:80538231d3c560edbce8942fa6fa185e95d7371584889fe79a24cafae2e048f6"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B3",
+            "signature": "sha256:641825c560c7e3d73209da2974ada3f698cb3e55af3b6ee5c3e1a712f27d6f07"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:e2512b2c0b2d0a1ac92f8326cc2c8457a006d6d1af6bb7eac8b11aba68d5db20"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:eb5b794b71eeb3f55c4926c59aba5c79cee635ec980b6ebe430684e95cd4ca83"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:37f6a8bafda0a3718a57889bf9dbc5e0643135a93de99cf5fa2f8c85feadc777"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "A12:F371",
+            "signature": "sha256:c3ae6ed7d2e75c5743fc01f3b9456d784277f96412768f3b3de34568228396b6"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "f04d4073e33472a6f2ed43b2e05de2c12e6ec6a4408e355c81355b6027e8be38"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId6",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B6": {
+        "formula": "-PMT(B3/12,B4,B2)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B6"
+        },
+        "value_cache": "9147.3929449307125"
+      }
+    }
+  },
+  "views/SalesBlocked-formula2.xlsx": {
+    "sha256": "fa85a4dd7b7e243d5d13b90ac1149a8b2de6643cde3b2f84079a88964714e790",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "1ac15a6312903b7b2d370f7e42bc4c032609170cce958144c1ef0db9bf3adcd5",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:a27ae478d33bc05a2eae079221db49557d5b6d17ba7b3024c9bca6e9b1c7ee39"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId13",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"dnacalc.price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders[],((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "aca": "1",
+          "ref": "A10",
+          "ca": "1"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "t": "e",
+          "cm": "1",
+          "vm": "2"
+        },
+        "value_cache": "#VALUE!"
+      }
+    },
+    "metadata_sha256": "3b30eed3ac82295746854b382bd00257f3f9f885ee26c5bb755fd8ec9d0c20f6"
+  },
+  "views/SalesBlocked-stored.xlsx": {
+    "sha256": "39c7d72c8a08e69b342470db5d72690c73cd00649f5c92d1c73258e1e6d2250b",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "1ac15a6312903b7b2d370f7e42bc4c032609170cce958144c1ef0db9bf3adcd5",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:a27ae478d33bc05a2eae079221db49557d5b6d17ba7b3024c9bca6e9b1c7ee39"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId10",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"dnacalc.price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A10"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      }
+    },
+    "metadata_sha256": "e80e07c27a0f75b94442fc8956f6a9c68c062168b3d15e9f252f231006fac867"
+  },
+  "views/SalesNotebook-formula2.xlsx": {
+    "sha256": "41d069ce45dbb7746b97d356f69184c6dfbb55255862fa1d31f0f4624e7cad56",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "7ad60a09c55d772cb78bfddc35379bd151056fca734fd2945e5a48bb8954e6a6",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:e4033075495f14ffcf1ff71c338783d3b3a36afc15003a320206d121c5246753"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId10",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"dnacalc.price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders[],((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A10:G20862"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "t": "str",
+          "cm": "1"
+        },
+        "value_cache": "SO00001"
+      }
+    },
+    "metadata_sha256": "add71728385c99b129797127f6e268577cf5f4a6616e1882fa6be156276d552b"
+  },
+  "views/SalesNotebook-stored.xlsx": {
+    "sha256": "a8766fec3795bc4d7b1e039b4bf1b91cdcfd1ef4c0460049206055737882b217",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "7ad60a09c55d772cb78bfddc35379bd151056fca734fd2945e5a48bb8954e6a6",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B2",
+            "signature": "sha256:e4033075495f14ffcf1ff71c338783d3b3a36afc15003a320206d121c5246753"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B3",
+            "signature": "sha256:8cb3202ef16fe5ac1f19d3ba7c73dd6b3eb57d2f4f303f79c347fdf73a96c066"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B4",
+            "signature": "sha256:cd8b6c0c91af1f1f0aa179f13c270bd891dd38f47e9c00d44948712eb1e1c829"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "B5",
+            "signature": "sha256:84cc4006f9d962e9ce04a938dd64685ee8a369f6b2205ff8acb2551fefb01281"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "A10",
+            "signature": "sha256:cd7e46dd7d372bb7eb0cd616ba2ac98a268f2df69d4714ff40e345cd5426ca55"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000006",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "J10",
+            "signature": "sha256:3a9d29429307b2c48a9dfe819952dd8b682f3315a23bb5dd34f0cab48012b3cd"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000007",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "M10",
+            "signature": "sha256:ae790c57c912e423422e95661a546e7d8ab7ac3b578f0886dc86eb11679991ca"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000008",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "Q10",
+            "signature": "sha256:69f77a0947945a3eb13daf1d84884faeb1d149e0f3e89cd9170e1b5f143887b2"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000009",
+            "kind": "spill",
+            "sheet_key": "4",
+            "ref": "U10",
+            "signature": "sha256:ace1f370375b10469cad828bee458fc1a8db1b786bf448e7bb23e44fa9527a0a"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000a",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J2",
+            "signature": "sha256:812e398113b5b3be09ae81a7c7d7a2688c0a0e67498a6ab4fd241bbd2fa55f37"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000b",
+            "kind": "cells",
+            "sheet_key": "2",
+            "ref": "E2",
+            "signature": "sha256:862253dc6677989909f93ee12392553cfee1f80fbe706c781315f64bb91caf67"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000c",
+            "kind": "cells",
+            "sheet_key": "4",
+            "ref": "J5",
+            "signature": "sha256:c686bf623021163bfdc9746b5d334d1b4aeaadda5d7f7887c949e2522f89d56d"
+          },
+          {
+            "id": "00000000-0000-0000-0000-00000000000d",
+            "kind": "object",
+            "sheet_key": "4",
+            "name": "SalesByRegion"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "notebook",
+            "sha256": "3fdc95db56c404e6c54057fce9fd757e334fe3cb916a56c4cb843c2660b694ac"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId10",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet2.xml:E2": {
+        "formula": "RTD(\"dnacalc.price\",,\"LARK\",\"last\")",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "E2",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      },
+      "xl/worksheets/sheet2.xml:A12": {
+        "formula": "_xlfn._xlws.FILTER(Orders,Orders[Status]=\"Pending\")",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A12"
+        },
+        "cell_attributes": {
+          "r": "A12",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      },
+      "xl/worksheets/sheet4.xml:A10": {
+        "formula": "_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "formula_attributes": {
+          "t": "array",
+          "ref": "A10"
+        },
+        "cell_attributes": {
+          "r": "A10",
+          "t": "e",
+          "cm": "1"
+        },
+        "value_cache": "#NAME?"
+      }
+    },
+    "metadata_sha256": "e80e07c27a0f75b94442fc8956f6a9c68c062168b3d15e9f252f231006fac867"
+  },
+  "views/StockTicked-excel.xlsx": {
+    "sha256": "16f7992f63cb0e2f8fd4fb08f567cb595605c555824fe2e5067019f618fda6a6",
+    "view_parts": {
+      "customXml/item1.xml": {
+        "sha256": "7fd16a4628da02e94963da4d104066c38f4810a50afe14523d17581d6eab8d56",
+        "root": "{urn:dnacalc:views:v1}dnaViews",
+        "addresses": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B8",
+            "signature": "sha256:bb251a4d238b304cc8b4bf993b399aa20a016a084a89174fc7193c29c810bc00"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B4",
+            "signature": "sha256:c6785bf7dd4f160a93c1d37a794abed711a7f3df5f91ffecacc1c032e2f6df40"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B5",
+            "signature": "sha256:eedbd77801d84e6ebd144c13e8043665223a2886ab6e3cbded8b592376290c0f"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000004",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B6",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000005",
+            "kind": "cells",
+            "sheet_key": "1",
+            "ref": "B7",
+            "signature": "sha256:90f59eab30cf584b1695b744d5d246cf8fb0bfa52a00089216c9242407a25b72"
+          }
+        ],
+        "declarations": [
+          {
+            "view": "app",
+            "sha256": "22b4ac5edea2550fcbdb2b5b352b7860870ed2ca8beaf3a172f7e8aa296f96b1"
+          }
+        ]
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "ad62d75d331e3b00fc464667fb99b30fc92f3d7f9309b55f1ae836c302fc3eed",
+        "root": "{http://schemas.openxmlformats.org/officeDocument/2006/customXml}datastoreItem"
+      }
+    },
+    "relationships": [
+      {
+        "part": "xl/_rels/workbook.xml.rels",
+        "Id": "rId6",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+        "Target": "../customXml/item1.xml"
+      },
+      {
+        "part": "customXml/_rels/item1.xml.rels",
+        "Id": "rId1",
+        "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps",
+        "Target": "itemProps1.xml"
+      }
+    ],
+    "formulas": {
+      "xl/worksheets/sheet1.xml:B8": {
+        "formula": "RTD(\"dnacalc.clock\",,\"Stock\",\"tick\",B4,B5,B6,B7)",
+        "formula_attributes": {},
+        "cell_attributes": {
+          "r": "B8",
+          "t": "e"
+        },
+        "value_cache": "#N/A"
+      }
+    }
+  }
+}
