@@ -22,23 +22,14 @@ pub(crate) fn inspect(cli: &Cli) -> Result<(Value, u8), Failure> {
         .into_iter()
         .zip(reports)
         .map(|(kind, report)| {
-            let vba = json!(report);
-            let unknown_references: Vec<_> = vba["references"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter(|reference| reference["state"] == "unknown")
-                .collect();
-            let review = if unknown_references.is_empty() {
-                "partial_report"
-            } else {
-                "unknown_references"
-            };
+            let review = calc_host_vba::portability_review(report.as_ref());
+            let unknown_references: Vec<_> = report.as_ref().into_iter()
+                .flat_map(calc_host_vba::dormant_references).collect();
             json!({
                 "host": kind.key(),
                 "review": review,
                 "unknown_references": unknown_references,
-                "vba": vba,
+                "vba": report,
             })
         })
         .collect();
@@ -76,7 +67,7 @@ pub(crate) fn text(report: &Value) -> String {
             let name = reference["name"].as_str().unwrap_or_default();
             let guid = reference["guid"].as_str().unwrap_or_default();
             lines.push(
-                format!("  Unknown reference {name} {guid}")
+                format!("  Dormant reference {name} {guid}")
                     .trim_end()
                     .to_owned(),
             );

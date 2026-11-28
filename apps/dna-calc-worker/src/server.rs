@@ -2052,6 +2052,7 @@ impl Server {
             macro_enabled: self.book.output_format().macro_enabled(),
             macro_policy: self.macro_policy,
             macro_note: self.book.macro_note().unwrap_or_default().to_owned(),
+            portability: self.book.portability().cloned(),
             macros: match self.book.macros() {
                 crate::workbook::Macros::None => wire::MacroStatus::None,
                 crate::workbook::Macros::Disabled(_) => wire::MacroStatus::Disabled,

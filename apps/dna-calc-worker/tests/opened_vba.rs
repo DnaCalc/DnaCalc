@@ -10,6 +10,53 @@ mod vba_project;
 const LOCAL: &[u8] =
     include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
 
+/// A source-authored workbook declares two synthetic libraries used by no procedure.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_summary_lists_every_dormant_reference() {
+    use dna_calc_worker::{
+        server::Server,
+        wire::{MacroStatus, Reply, Request},
+    };
+
+    let mut server = Server::new();
+    server.set_open_origin(FileOrigin::Local);
+    let bytes = include_bytes!("fixtures/dormant-references.xlsm");
+    let reply = server.execute_current(
+        Request::Open { name: "dormant-references.xlsm".into() },
+        Some(bytes.to_vec()),
+    );
+    let Reply::Done { outcome, .. } = reply.reply.unwrap() else {
+        panic!("workbook open did not return its summary");
+    };
+    assert_eq!(outcome.summary.macros, MacroStatus::Disabled);
+    let summary = serde_json::to_value(outcome.summary).unwrap();
+    let badge = &summary["portability"];
+    assert_eq!(badge["review"], "unknown_references", "{badge}");
+    let references = badge["unknown_references"].as_array().unwrap();
+    assert_eq!(references.len(), 2, "{references:?}");
+    assert_eq!(references[0]["name"], "SyntheticDormantOne");
+    assert_eq!(references[1]["name"], "SyntheticDormantTwo");
+    assert_ne!(references[0]["guid"], references[1]["guid"]);
+
+    let Reply::Done { outcome, .. } = server.execute_current(Request::New, None).reply.unwrap()
+    else {
+        panic!("new workbook did not return its summary");
+    };
+    assert!(serde_json::to_value(outcome.summary).unwrap()["portability"].is_null());
+
+    let invalid_source = vba_project::replace_sources(bytes, &[("Example", "#Else\r\n")]);
+    let reply = server.execute_current(
+        Request::Open { name: "bad-source.xlsm".into() },
+        Some(invalid_source),
+    );
+    let Reply::Done { outcome, .. } = reply.reply.unwrap() else {
+        panic!("workbook with malformed VBA did not open");
+    };
+    let summary = serde_json::to_value(outcome.summary).unwrap();
+    assert_eq!(summary["portability"]["unknown_references"], badge["unknown_references"]);
+}
+
 fn drain(book: &mut Workbook) {
     for _ in 0..1000 {
         if !book.has_pending_calculation() {

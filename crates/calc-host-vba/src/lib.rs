@@ -187,7 +187,6 @@ pub fn file_module_source(host: &HostState, name: &str) -> Result<Option<String>
 }
 
 /// Inspect the saved workbook's VBA source for the requested profiles.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn file_portability(
     host: &HostState,
     kinds: &[calc_host::portability::HostKind],
@@ -212,6 +211,24 @@ pub fn file_portability(
                 .map_err(FileProjectError::Preparation)
         })
         .collect()
+}
+
+/// References that the current host cannot resolve, including libraries unused by any procedure.
+pub fn dormant_references(
+    report: &calc_vba::office::PortabilityReport,
+) -> impl Iterator<Item = &calc_vba::office::PortabilityReference> {
+    report.references.iter().filter(|reference| {
+        reference.state == calc_vba::office::TypeLibraryState::Unknown
+    })
+}
+
+/// The workbook review shown in the CLI and the workbook's portability badge.
+pub fn portability_review(report: Option<&calc_vba::office::PortabilityReport>) -> &'static str {
+    if report.is_some_and(|report| dormant_references(report).next().is_some()) {
+        "unknown_references"
+    } else {
+        "partial_report"
+    }
 }
 
 /// Preparation executes no handlers or worksheet functions. Failure never publishes

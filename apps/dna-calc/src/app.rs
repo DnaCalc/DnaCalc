@@ -1135,6 +1135,36 @@ pub fn app_with_transport(
                     "Unblock and enable"
                 </button>
             </div>
+            <div
+                class="dc-macro-bar"
+                data-dnacalc="portability"
+                hidden=move || controller.portability_badge().is_none()
+            >
+                <details>
+                    <summary>{move || controller.portability_badge().map(|badge| {
+                        match badge.unknown_references.len() {
+                            0 if badge.error.is_some() => "VBA portability · report unavailable".to_owned(),
+                            0 => "VBA portability · partial report".to_owned(),
+                            1 => "VBA portability · 1 dormant reference".to_owned(),
+                            count => format!("VBA portability · {count} dormant references"),
+                        }
+                    })}</summary>
+                    <div>{move || controller.portability_badge().map(|badge| {
+                        let references = badge.unknown_references.into_iter().map(|reference| {
+                            let name = match reference.guid {
+                                Some(guid) => format!("{} ({guid})", reference.name),
+                                None => reference.name,
+                            };
+                            view! { <li>{name}</li> }
+                        }).collect_view();
+                        view! {
+                            <span>{format!("Host {}", badge.host)}</span>
+                            <span>{badge.error}</span>
+                            <ul data-dnacalc="dormant-references">{references}</ul>
+                        }
+                    })}</div>
+                </details>
+            </div>
             <div class="dc-bar">
                 <input
                     class="dc-namebox"

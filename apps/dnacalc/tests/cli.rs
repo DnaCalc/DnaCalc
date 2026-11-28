@@ -74,6 +74,30 @@ fn portability_reports_source_procedures_for_all_host_profiles() {
 }
 
 #[test]
+fn portability_lists_dormant_references_without_blocking_independent_entries() {
+    let book = root()
+        .join("apps/dna-calc-worker/tests/fixtures/dormant-references.xlsm");
+    let book = book.to_str().unwrap();
+    let (report, code, text) = dnacalc(&["portability", book, "--host", "all", "--json"]);
+    assert_eq!(code, 0, "{text}");
+    let profiles = report["profiles"].as_array().unwrap();
+    assert_eq!(profiles.len(), 7);
+    for profile in profiles {
+        assert_eq!(profile["review"], "unknown_references", "{profile}");
+        let references = profile["unknown_references"].as_array().unwrap();
+        assert_eq!(references.len(), 2, "{profile}");
+        assert_eq!(references[0]["name"], "SyntheticDormantOne");
+        assert_eq!(references[1]["name"], "SyntheticDormantTwo");
+        assert!(profile["vba"]["procedures"].as_array().unwrap().iter().any(|entry| {
+            entry["procedure"] == "StillRuns" && entry["status"] == "runs"
+        }), "{profile}");
+    }
+    let (_, code, text) = dnacalc(&["portability", book, "--host", "server"]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(text.lines().filter(|line| line.starts_with("  Dormant reference ")).count(), 2, "{text}");
+}
+
+#[test]
 fn help_names_every_command_and_option() {
     let (_, code, text) = dnacalc(&["--help"]);
     assert_eq!(code, 0);

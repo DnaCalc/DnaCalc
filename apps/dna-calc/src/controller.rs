@@ -1875,6 +1875,11 @@ impl Controller {
         })
     }
 
+    /// The saved VBA project's portability on the workbook worker's host.
+    pub fn portability_badge(&self) -> Option<wire::PortabilityBadge> {
+        self.summary.with(|summary| summary.portability.clone())
+    }
+
     /// The level and what pins it, as the page always shows them (dc-15dk).
     pub fn macro_policy(&self) -> MacroPolicy {
         self.summary.with(|summary| summary.macro_policy)
