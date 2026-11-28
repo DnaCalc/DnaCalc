@@ -83,6 +83,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     group("H B", "Borders"),
     command("H B A", "All Borders", "grid.all-borders"),
     command("H B S", "Outside Borders", "grid.outline-border"),
+    command("H B N", "No Border", "grid.no-border"),
     pending("H L", "Conditional Formatting"),
     group("H F", "Editing"),
     group("H F I", "Fill"),

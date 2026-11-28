@@ -363,6 +363,13 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.no-border", "No Border", &[], move |_| {
+            let batch = range_batch(session, "No Border", "Select one worksheet range to format.",
+                |selected| ModelChange::ClearBorders { selected })?;
+            session.submit(batch);
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.add-selection", "Add cell to selection", &[], move |invocation| {
             let at = serde_json::from_value(invocation.args.clone()).map_err(|_| "Choose a worksheet cell.")?;
             tab_run.set_value(None);

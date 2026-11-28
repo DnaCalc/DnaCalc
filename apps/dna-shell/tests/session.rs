@@ -1037,6 +1037,48 @@ fn classic_home_outside_borders_updates_and_restores_neighbour_edges() {
     assert_eq!(edges(5, 3), [None, None, None, None]);
 }
 
+/// Native-only: validates the authored shared edges after removing one cell's borders from a range.
+#[test]
+fn classic_home_no_border_removes_only_the_selected_cells_shared_boundaries() {
+    let page = Page::open();
+    let session = page.session;
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowDown", "F10", "h", "b", "a"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    let edges = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or([false; 4], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.as_deref()) == Some("thin"))
+                })
+        })
+    };
+    assert_eq!(edges(2, 2), [true; 4]);
+    assert_eq!(edges(1, 2), [false, false, true, false]);
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["F10", "h", "b", "n"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(edges(2, 2), [false; 4]);
+    assert_eq!(edges(1, 2), [false; 4]);
+    assert_eq!(edges(2, 1), [false; 4]);
+    assert_eq!(edges(2, 3), [true, true, true, false]);
+    assert_eq!(edges(3, 2), [false, true, true, true]);
+    assert_eq!(edges(3, 3), [true; 4]);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(2, 2), [true; 4]);
+    assert_eq!(edges(2, 3), [true; 4]);
+    assert_eq!(edges(3, 2), [true; 4]);
+    assert_eq!(edges(1, 2), [false, false, true, false]);
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {

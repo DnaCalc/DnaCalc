@@ -2061,6 +2061,50 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Home No Border clears the selected cell boundaries and preserves its formula",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}wvg"),
+            Action::Wait(Check::Rendered("[class~='dna-sheet-gridlines-hidden']", true)),
+            Action::Click("[data-cell=B2]"),
+            Action::Into("formula-bar", "=3+4"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "7")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e008}\u{e014}\u{e015}\u{e000}"),
+            Action::Wait(Check::Attr("[data-cell=C3]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}hba"),
+            Action::Wait(Check::Js(
+                "the authored borders are visible",
+                "getComputedStyle(document.querySelector('[data-cell=B1]')).borderBottomColor !== 'rgba(0, 0, 0, 0)'",
+            )),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e03a}hbn"),
+            Action::Wait(Check::Js(
+                "only the four boundaries of B2 were removed",
+                r#"(() => {
+                    const cell = address => getComputedStyle(document.querySelector('[data-cell='+address+']'));
+                    const ink = color => color !== 'rgba(0, 0, 0, 0)';
+                    const selected = cell('B2');
+                    return !ink(cell('B1').borderBottomColor) && !ink(cell('A2').borderRightColor)
+                        && !ink(selected.borderRightColor) && !ink(selected.borderBottomColor)
+                        && ink(cell('C2').borderBottomColor) && ink(cell('B3').borderRightColor)
+                        && ink(cell('C3').borderBottomColor);
+                })()"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=B2]", "7"),
+            Check::Attr("[data-cell=B2]", "data-provenance", "calculated"),
+            Check::Js(
+                "Undo restores the shared borders on the selected cell",
+                r#"getComputedStyle(document.querySelector('[data-cell=B1]')).borderBottomColor !== 'rgba(0, 0, 0, 0)'
+                    && getComputedStyle(document.querySelector('[data-cell=A2]')).borderRightColor !== 'rgba(0, 0, 0, 0)'"#,
+            ),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2845,6 +2889,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         name: "classic-outside-borders",
         start: 79,
         end: 80,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-no-border",
+        start: 80,
+        end: 81,
         core: 1,
         setup: &[],
     },
