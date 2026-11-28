@@ -55,6 +55,25 @@ fn version_is_the_workspace_version() {
 }
 
 #[test]
+fn portability_reports_source_procedures_for_all_host_profiles() {
+    let book = inbook("dna-simple.xlsm");
+    let (report, code, text) =
+        dnacalc(&["portability", &book, "--host", "all", "--json"]);
+    assert_eq!(code, 0, "{text}");
+    let profiles = report["profiles"].as_array().expect("one report per profile");
+    assert_eq!(profiles.len(), 7);
+    let linux = profiles.iter().find(|entry| entry["host"] == "linux").unwrap();
+    assert!(
+        linux["vba"]["procedures"].as_array().unwrap().iter().any(|entry| {
+            entry["module"] == "DnaSimple"
+                && entry["procedure"] == "SimpleNeg"
+                && entry["status"] == "runs"
+        }),
+        "{linux}"
+    );
+}
+
+#[test]
 fn help_names_every_command_and_option() {
     let (_, code, text) = dnacalc(&["--help"]);
     assert_eq!(code, 0);
