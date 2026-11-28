@@ -599,6 +599,9 @@ pub enum PresentationChange {
     RemoveDoc {
         doc: DocId,
     },
+    Trail {
+        enabled: bool,
+    },
     PreferView {
         view: Option<ViewId>,
         expect_view_rev: Revision,
@@ -778,6 +781,8 @@ pub struct HistoryEntry {
     pub cells_touched: u64,
     pub reversibility: Reversibility,
     pub group: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proposal_unit: Option<UnitId>,
     pub unreviewed: bool,
 }
 
@@ -828,6 +833,41 @@ pub struct ProposalUnitReview {
     pub status: ProposalStatus,
     pub writes: Vec<ModelWriteDiff>,
     pub properties: Vec<ModelPropertyDiff>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrailOutcome {
+    Accepted,
+    Rejected,
+    Undone,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrailEvent {
+    pub timestamp_millis: u64,
+    pub agent: String,
+    pub proposal: ProposalId,
+    pub unit: UnitId,
+    pub intent: String,
+    pub targets: Vec<String>,
+    pub outcome: TrailOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrailFacts {
+    pub enabled: bool,
+    pub dropped: u64,
+    pub events: Vec<TrailEvent>,
+}
+
+impl Default for TrailFacts {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dropped: 0,
+            events: Vec::new(),
+        }
+    }
 }
 
 /// Code-free presentation that an agent can offer for temporary preview.

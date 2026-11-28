@@ -1,6 +1,6 @@
 use calc_skin::{
-    Budget, Preview, PreviewDepth, ProposalId, ProposalReview, ProposalStatus, Refusal, UnitId,
-    WorkbookId, query,
+    Batch, Budget, Change, PresentationChange, Preview, PreviewDepth, ProposalId, ProposalReview,
+    ProposalStatus, Refusal, TrailOutcome, UnitId, WorkbookId, query,
 };
 use dna_kit::{Following, Invocation, Live, Seam, Session, ViewCommand, commands::CommandId};
 use leptos::prelude::*;
@@ -13,6 +13,7 @@ const PREVIEW: &str = "proposal.preview";
 const WRITES: &str = "proposal.preview-writes";
 const ACCEPT: &str = "proposal.accept";
 const REJECT: &str = "proposal.reject";
+const TRAIL: &str = "proposal.trail";
 const EFFECT_BUDGET: Budget = Budget {
     cells: 65_536,
     nodes: 65_536,
@@ -99,6 +100,21 @@ impl Proposals {
             .when("!editing && writable"),
             ViewCommand::global(REJECT, "Reject selected units", &[], move |_| {
                 panel.decide(session, false)
+            })
+            .when("!editing && writable"),
+            ViewCommand::global(TRAIL, "Record the agent trail", &[], move |invocation| {
+                let enabled = invocation.args.as_bool().ok_or("Choose whether to record the trail")?;
+                let stamp = session.stamp().ok_or("Open a workbook first")?;
+                session.submit(Batch {
+                    id: String::new(),
+                    workbook: Some(stamp.workbook),
+                    base: Some(stamp.model),
+                    expects: Vec::new(),
+                    selection_seq: None,
+                    label: Some(if enabled { "Enabled the agent trail" } else { "Paused the agent trail" }.into()),
+                    changes: vec![Change::Presentation(PresentationChange::Trail { enabled })],
+                });
+                Ok(())
             })
             .when("!editing && writable"),
         ]);
@@ -205,7 +221,12 @@ impl Proposals {
 impl Proposals {
     pub(super) fn opener(self, session: Session) -> impl IntoView {
         view! {
-            <Show when=move || session.summary().is_some_and(|book| book.pending_proposals > 0)>
+            <Show when=move || session.summary().is_some_and(|book| book.pending_proposals > 0)
+                fallback=move || view! {
+                    <Show when=move || matches!(session.view_part(), Live::Ready(view) if !view.body.trail.events.is_empty())>
+                        {super::command_button(session, OPEN, "Agent trail")}
+                    </Show>
+                }>
                 {super::command_button(session, OPEN, "Review proposals")}
             </Show>
         }
@@ -232,6 +253,9 @@ impl Proposals {
                             return self.units(session, review).into_any();
                         }
                         match self.list.at(Some(query::Proposals)) {
+                            Live::Ready(answer) if answer.body.is_empty() => view! {
+                                <p>"No proposals yet"</p>
+                            }.into_any(),
                             Live::Ready(answer) => view! {
                                 <ul class="dna-proposal-list">
                                     {answer.body.into_iter().map(|review| {
@@ -253,6 +277,7 @@ impl Proposals {
                             _ => view! { <p role="status">"Loading proposals"</p> }.into_any(),
                         }
                     }}
+                    {trail(session)}
                 </aside>
             </Show>
         }
@@ -313,6 +338,53 @@ impl Proposals {
             <Show when=awaiting><p role="status">"Reviewing selected units"</p></Show>
             {move || self.result.get().map(|result| reviewed(session, result))}
         }
+    }
+}
+
+fn trail(session: Session) -> impl IntoView {
+    let current = Memo::new(move |_| match session.view_part() {
+        Live::Ready(view) => Some(view.body.trail),
+        _ => None,
+    });
+    view! {
+        <details data-dnacalc="agent-trail">
+            <summary>"Agent trail"</summary>
+            <label class="dna-proposal-unit">
+                <input type="checkbox" data-command=TRAIL
+                    prop:checked=move || current.with(|trail| trail.as_ref().is_some_and(|trail| trail.enabled))
+                    disabled=move || current.with(Option::is_none) || !matches!(session.seam(), Seam::Idle)
+                    on:change=move |event| {
+                        let _ = session.run(&Invocation {
+                            command: CommandId::new(TRAIL),
+                            args: serde_json::Value::Bool(event_target_checked(&event)),
+                        });
+                    }/>
+                <span>"Record decisions in this workbook"</span>
+            </label>
+            {move || current.get().map(|trail| view! {
+                {(trail.dropped > 0).then(|| view! {
+                    <p>{format!("Earlier decisions removed from the trail ({})", trail.dropped)}</p>
+                })}
+                <ol>
+                    {trail.events.into_iter().rev().map(|event| {
+                        let outcome = match event.outcome {
+                            TrailOutcome::Accepted => "Accepted",
+                            TrailOutcome::Rejected => "Rejected",
+                            TrailOutcome::Undone => "Undone",
+                        };
+                        view! {
+                            <li>
+                                <strong>{outcome}</strong> " · " {event.agent}
+                                <p>{event.intent} " · " {event.unit.0}</p>
+                                {(!event.targets.is_empty()).then(|| view! {
+                                    <small>{event.targets.join(", ")}</small>
+                                })}
+                            </li>
+                        }
+                    }).collect_view()}
+                </ol>
+            })}
+        </details>
     }
 }
 

@@ -2406,3 +2406,158 @@ fn stale_proposal_refuses_every_unit_and_returns_reviewed_and_current_inputs() {
     );
     assert_eq!(ask(&operator, query::History).undo.len(), 2);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn proposal_trail_records_decisions_and_undo_in_the_saved_view_part() {
+    let intent = "Check revised\nassumptions \"<xml>\" _x0041_ \u{0001}";
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let agent = host.connect(
+        Origin::Agent {
+            agent: "Planner assistant".into(),
+            proposal: "adjust-inputs".into(),
+        },
+        WritePolicy::Propose,
+    );
+    let a = Key(sheet.0, sheet.1, 1, 1);
+    let b = Key(sheet.0, sheet.1, 1, 2);
+    operator
+        .commit(batch(1, vec![enter(a, "3"), enter(b, "4")]))
+        .unwrap();
+    let at = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let unit = |name: &str, at, text: &str| ProposalUnit {
+        id: UnitId(name.into()),
+        needs: Vec::new(),
+        batch: batch(1, vec![enter(at, text)]),
+    };
+    agent
+        .run(Operation::Propose(Proposal {
+            at,
+            intent: intent.into(),
+            units: vec![unit("first", a, "10"), unit("second", b, "11")],
+        }))
+        .unwrap();
+    operator
+        .run(Operation::Decide {
+            proposal: ProposalId("adjust-inputs".into()),
+            accept: vec![UnitId("first".into())],
+            reject: vec![UnitId("second".into())],
+        })
+        .unwrap();
+    host.with_session(SelectionCause::Open, |session| {
+        let receipt = session.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Clear {
+                area: calc_host::value::GridArea::cell(b.cell().unwrap()),
+            }],
+        });
+        assert!(receipt.error.is_none());
+    });
+    operator.run(Operation::Undo).unwrap();
+    assert_eq!(ask(&operator, query::ViewPartOf).trail.events.len(), 2);
+    operator.run(Operation::Undo).unwrap();
+    let view = ask(&operator, query::ViewPartOf);
+    assert!(view.trail.enabled);
+    assert_eq!(
+        view.trail
+            .events
+            .iter()
+            .map(|item| item.outcome)
+            .collect::<Vec<_>>(),
+        [
+            TrailOutcome::Accepted,
+            TrailOutcome::Rejected,
+            TrailOutcome::Undone
+        ]
+    );
+    assert_eq!(view.trail.events[2].unit, UnitId("first".into()));
+    assert_eq!(view.trail.events[2].agent, "Planner assistant");
+    assert_eq!(view.trail.events[2].intent, intent);
+    assert!(!view.trail.events[2].targets.is_empty());
+    assert!(
+        view.trail
+            .events
+            .iter()
+            .all(|item| item.timestamp_millis > 0)
+    );
+
+    let released = host.with_session(SelectionCause::Open, |session| {
+        let mut bytes = Vec::new();
+        session
+            .save(&calc_host::SavePolicy::default(), &mut bytes)
+            .unwrap();
+        bytes
+    });
+    let reopened = SkinHost::new(
+        HostSession::open(
+            Arc::new(MemorySource::new(released)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    assert_eq!(ask(&port(&reopened), query::ViewPartOf).trail, view.trail);
+    reopened.with_session(SelectionCause::Open, |session| {
+        let source = session.host().model().view_part().source().unwrap();
+        assert!(!source.contains(&1), "The saved XML contains U+0001");
+        assert!(std::str::from_utf8(source).unwrap().contains("_x0001_"));
+    });
+
+    operator
+        .commit(batch(
+            2,
+            vec![Change::Presentation(PresentationChange::Trail {
+                enabled: false,
+            })],
+        ))
+        .unwrap();
+    let at = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let second = host.connect(
+        Origin::Agent {
+            agent: "Planner assistant".into(),
+            proposal: "disabled".into(),
+        },
+        WritePolicy::Propose,
+    );
+    second
+        .run(Operation::Propose(Proposal {
+            at,
+            intent: "Try a later input".into(),
+            units: vec![unit("later", a, "5")],
+        }))
+        .unwrap();
+    operator
+        .run(Operation::Decide {
+            proposal: ProposalId("disabled".into()),
+            accept: vec![UnitId("later".into())],
+            reject: Vec::new(),
+        })
+        .unwrap();
+    let disabled = ask(&operator, query::ViewPartOf).trail;
+    assert!(!disabled.enabled);
+    assert_eq!(disabled.events, view.trail.events);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn view_trail_caps_records_and_counts_the_earliest_evictions() {
+    use calc_doc_model::{TRAIL_LIMIT, ViewTrail, ViewTrailEvent, ViewTrailOutcome};
+    let event = |i: usize| ViewTrailEvent {
+        timestamp_millis: i as u64 + 1,
+        agent: "Planner assistant".into(),
+        proposal: "adjust-inputs".into(),
+        unit: i.to_string(),
+        intent: "Check revised assumptions".into(),
+        targets: vec!["Sheet1!A1".into()],
+        outcome: ViewTrailOutcome::Accepted,
+    };
+    let mut trail = ViewTrail::default();
+    trail.record((0..=TRAIL_LIMIT).map(event));
+    assert_eq!(trail.dropped, 1);
+    assert_eq!(trail.events().len(), TRAIL_LIMIT);
+    assert_eq!(trail.events().first().unwrap().unit, "1");
+    trail.enabled = false;
+    trail.record([event(TRAIL_LIMIT + 1)]);
+    assert_eq!(trail.dropped, 1);
+    assert_eq!(trail.events().last().unwrap().unit, TRAIL_LIMIT.to_string());
+}

@@ -448,14 +448,17 @@ pub struct SkinEditUnit {
 
 enum SkinHistory {
     Single(calc_skin::HistoryEntry),
-    Group(Vec<SkinEditUnit>),
+    Group {
+        units: Vec<SkinEditUnit>,
+        trail: Vec<calc_doc_model::ViewTrailEvent>,
+    },
 }
 
 impl SkinHistory {
     fn single(self) -> Option<calc_skin::HistoryEntry> {
         match self {
             Self::Single(entry) => Some(entry),
-            Self::Group(_) => None,
+            Self::Group { .. } => None,
         }
     }
 }
@@ -818,6 +821,11 @@ impl HostSession {
     /// Metadata from the same undo and redo steps used by workbook commands.
     pub fn skin_history(&self) -> (Vec<calc_skin::HistoryEntry>, Vec<calc_skin::HistoryEntry>) {
         self.history.skin_entries()
+    }
+
+    /// Returns the skin metadata of the exact step Undo or Redo would take.
+    pub fn skin_entry_for_restore(&self, redo: bool) -> Option<&calc_skin::HistoryEntry> {
+        self.history.skin_entry_for_restore(redo)
     }
 
     /// The selection `sheet` held when it was last left, if it was ever the active sheet with one.
@@ -1249,7 +1257,7 @@ impl HostSession {
                 None => Err(IntentError::EmptySelection),
             },
             SkinIntent::Edit { edits } => match history {
-                Some(SkinHistory::Group(units)) => self.edit_skin_group(units, &mut receipt),
+                Some(SkinHistory::Group { units, trail }) => self.edit_skin_group(units, trail, &mut receipt),
                 history => {
                     let edits = self.authored_edits(edits);
                     self.edit_with_history(edits, None, None, history.and_then(SkinHistory::single), &mut receipt)
@@ -1759,17 +1767,20 @@ impl HostSession {
     }
 
     /// Commit all units in one authored transaction and record each unit for Undo.
-    pub fn dispatch_skin_group(&mut self, units: Vec<SkinEditUnit>) -> IntentReceipt {
+    pub fn dispatch_skin_group(
+        &mut self, units: Vec<SkinEditUnit>, trail: Vec<calc_doc_model::ViewTrailEvent>,
+    ) -> IntentReceipt {
         let edits = units.iter().flat_map(|unit| unit.edits.iter().cloned()).collect();
         self.dispatch_with_history(
             CommandIngress::UserInterface,
             SkinIntent::Edit { edits },
-            Some(SkinHistory::Group(units)),
+            Some(SkinHistory::Group { units, trail }),
         )
     }
 
     fn edit_skin_group(
-        &mut self, units: Vec<SkinEditUnit>, receipt: &mut IntentReceipt,
+        &mut self, units: Vec<SkinEditUnit>, trail: Vec<calc_doc_model::ViewTrailEvent>,
+        receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
         let mut model = self.host.model.clone();
         let mut all = Vec::new();
@@ -1796,6 +1807,12 @@ impl HostSession {
                 after: self.selection.clone(),
             });
         }
+        if let Some(part) = Self::trail_part(model.view_part(), trail) {
+            all.push(CellEdit::View(part));
+        }
+        if all.is_empty() {
+            return Ok(());
+        }
         self.commit_coordinates(&all, None, receipt)?;
         self.sheet_keys.extend(self.host.model.sheets().iter().map(|sheet| sheet.key()));
         for mut step in steps {
@@ -1805,6 +1822,31 @@ impl HostSession {
             self.history.record(step);
         }
         self.after_commit(receipt);
+        Ok(())
+    }
+
+    fn trail_part(
+        part: &calc_doc_model::ViewPart,
+        events: Vec<calc_doc_model::ViewTrailEvent>,
+    ) -> Option<Arc<calc_doc_model::ViewPart>> {
+        let mut trail = part.trail().cloned().unwrap_or_default();
+        if events.is_empty() || part.is_opaque() || !trail.enabled {
+            return None;
+        }
+        trail.record(events);
+        Some(Arc::new(part.clone().with_trail(Some(trail))))
+    }
+
+    /// Append audit metadata without adding an Undo step.
+    pub fn record_trail(
+        &mut self,
+        events: Vec<calc_doc_model::ViewTrailEvent>,
+    ) -> Result<(), IntentError> {
+        if let Some(part) = Self::trail_part(self.host.model.view_part(), events) {
+            let base = self.host.revision();
+            dispatch_slice(&mut self.host, base, &[CellEdit::View(part)])
+                .map_err(IntentError::Command)?;
+        }
         Ok(())
     }
 
@@ -1992,6 +2034,24 @@ impl HostSession {
         Ok(())
     }
 
+    fn retain_trail_on_restore(&self, part: &Arc<calc_doc_model::ViewPart>) -> Option<Arc<calc_doc_model::ViewPart>> {
+        let current = self.host.model.view_part();
+        if current.trail().is_none() || part.is_opaque() {
+            return None;
+        }
+        Some(Arc::new(part.as_ref().clone().retaining_trail_events(current)))
+    }
+
+    fn retain_trail_in_edits(&self, edits: &mut [CellEdit]) {
+        for edit in edits {
+            if let CellEdit::View(part) = edit
+                && let Some(retained) = self.retain_trail_on_restore(part)
+            {
+                *part = retained;
+            }
+        }
+    }
+
     fn undo(&mut self, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
         let step = self.history.pop_undo().ok_or(IntentError::NothingToUndo)?;
         let inverse = match &step.inverse {
@@ -2003,20 +2063,22 @@ impl HostSession {
             }
         };
         let undone = match inverse {
-            Inverse::Edits(edits) => self.commit_coordinates(
-                &edits,
-                step.coordinates
-                    .as_ref()
-                    .map(crate::history::inverse_coordinates)
-                    .as_ref(),
-                receipt,
-            ),
+            Inverse::Edits(mut edits) => {
+                self.retain_trail_in_edits(&mut edits);
+                self.commit_coordinates(
+                    &edits,
+                    step.coordinates.as_ref().map(crate::history::inverse_coordinates).as_ref(),
+                    receipt,
+                )
+            }
             Inverse::Restore {
                 model,
                 axis_edits,
                 source,
             } => {
                 let refreshed = source.is_some();
+                let model = self.retain_trail_on_restore(model.view_part())
+                    .map_or(model.clone(), |part| model.with_view_part(part));
                 let result = if let Some(source) = &source {
                     crate::command::restore_package_source(&mut self.host, &model, source)
                 } else {
@@ -2053,6 +2115,12 @@ impl HostSession {
         let step = self.history.pop_redo().ok_or(IntentError::NothingToRedo)?;
         let result = if let Some(source) = &step.imported {
             self.restore_template_source(source.clone(), receipt)
+        } else if self.host.model.view_part().trail().is_some()
+            && step.forward.iter().any(|edit| matches!(edit, CellEdit::View(_)))
+        {
+            let mut edits = step.forward.clone();
+            self.retain_trail_in_edits(&mut edits);
+            self.commit_coordinates(&edits, step.coordinates.as_ref(), receipt)
         } else {
             self.commit_coordinates(&step.forward, step.coordinates.as_ref(), receipt)
         };
