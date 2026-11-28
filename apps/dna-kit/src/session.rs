@@ -820,6 +820,22 @@ impl Session {
         let inner = self.inner();
         let workbook = skin.map(|_| self.peek(Client::stamp).map(|stamp| stamp.workbook)
             .ok_or("Open a workbook to try on a skin")).transpose()?;
+        let (commands, keymap) = self.skin_layer(skin)?;
+        let departures = keymap.departures(&Context {
+            view: ViewId("classic".into()), mode: InputMode::Ready, read_only: false, component: None,
+        }).len();
+        *inner.commands.borrow_mut() = commands;
+        *inner.keymap.borrow_mut() = keymap;
+        inner.skin_workbook.set(workbook);
+        self.skin.update(|(revision, manifest)| {
+            *revision = revision.wrapping_add(1);
+            *manifest = skin.cloned().map(Box::new);
+        });
+        Ok(departures)
+    }
+
+    fn skin_layer(self, skin: Option<&SkinManifest>) -> Result<(CommandTable, Keymap), String> {
+        let inner = self.inner();
         let mut commands = inner.commands.borrow().clone();
         commands.clear_skin_sequences();
         if let Some(skin) = skin {
@@ -840,17 +856,29 @@ impl Session {
         keymap.set_skin(bindings, &commands).map_err(|errors| {
             errors.into_iter().map(dna_skin_runtime::skin::keymap_error).collect::<Vec<_>>().join("\n")
         })?;
-        let departures = keymap.departures(&Context {
-            view: ViewId("classic".into()), mode: InputMode::Ready, read_only: false, component: None,
-        }).len();
-        *inner.commands.borrow_mut() = commands;
-        *inner.keymap.borrow_mut() = keymap;
-        inner.skin_workbook.set(workbook);
-        self.skin.update(|(revision, manifest)| {
-            *revision = revision.wrapping_add(1);
-            *manifest = skin.cloned().map(Box::new);
-        });
-        Ok(departures)
+        Ok((commands, keymap))
+    }
+
+    /// Resolve a key under a draft layer using the session's Excel profile and commands.
+    /// The Studio shows its action without calling a command handler.
+    pub fn trial_key(
+        self,
+        skin: &SkinManifest,
+        input: &KeyInput,
+        mode: InputMode,
+    ) -> Result<Option<(CommandId, String)>, String> {
+        let (commands, keys) = self.skin_layer(Some(skin))?;
+        let context = Context {
+            view: ViewId("classic".into()),
+            mode,
+            read_only: false,
+            component: None,
+        };
+        let Resolution::Command(command) = keys.resolve(input, &context) else { return Ok(None) };
+        if !commands.can_run(&command, &context) {
+            return Ok(None);
+        }
+        Ok(commands.spec(&command).map(|spec| (command, spec.label.to_string())))
     }
 
     /// Read a view-owned setting. A workbook's authored settings apply at open.
