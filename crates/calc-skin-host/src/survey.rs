@@ -11,36 +11,71 @@ pub(crate) fn scoped_cells(
     state: &State,
     scope: &SourceRef,
     meter: &mut QueryWork,
-) -> Result<BTreeMap<SheetId, BTreeSet<CellKey>>, Refusal> {
+) -> Result<BTreeMap<SheetId, Vec<CellKey>>, Refusal> {
     let host = state.session.host();
     let model = host.model();
     let definitions = model.definitions();
-    let mut cells_by_sheet = BTreeMap::<_, BTreeSet<CellKey>>::new();
+    let mut by_sheet: BTreeMap<_, Vec<_>> = BTreeMap::new();
     for area in source_areas(state, scope)? {
         meter.work(0, 1, 0)?;
-        let cells = cells_by_sheet.entry(area.sheet()).or_default();
-        let mut count = |at| meter.work(u64::from(cells.insert(at)), 0, 0);
-        for (at, _) in model.cells(area).into_iter().flatten() {
-            count(at)?;
-        }
-        let arrays = definitions
-            .arrays_meeting(area)
-            .filter(|array| array.kind() == ArrayKind::Legacy)
-            .map(|array| array.area());
-        let data_tables = definitions.data_tables().iter().map(|table| table.area());
-        for overlap in arrays
-            .chain(data_tables)
-            .filter_map(|part| area.intersection(part))
+        by_sheet.entry(area.sheet()).or_default().push(area);
+    }
+    let mut cells_by_sheet = BTreeMap::new();
+    for (sheet, areas) in by_sheet {
+        if let [area] = areas.as_slice()
+            && definitions
+                .data_tables()
+                .iter()
+                .all(|table| table.area().intersection(*area).is_none())
+            && !definitions
+                .arrays_meeting(*area)
+                .any(|array| array.kind() == ArrayKind::Legacy)
         {
-            for row in overlap.first().row()..=overlap.last().row() {
-                for col in overlap.first().column()..=overlap.last().column() {
-                    count(CellKey::new(area.sheet(), row, col).expect("inside the worksheet"))?;
-                }
+            // Occupied cells are already unique and in worksheet order.
+            let mut cells = Vec::new();
+            for (at, _) in model.cells(*area).into_iter().flatten() {
+                meter.work(1, 0, 0)?;
+                cells.push(at);
+            }
+            cells_by_sheet.insert(sheet, cells);
+            continue;
+        }
+        let mut cells = BTreeSet::new();
+        for area in areas {
+            add_occupied_and_legacy(model, area, &mut cells, meter)?;
+        }
+        cells_by_sheet.insert(sheet, cells.into_iter().collect());
+    }
+    Ok(cells_by_sheet)
+}
+
+fn add_occupied_and_legacy(
+    model: &calc_doc_model::ModelRoot,
+    area: GridArea,
+    cells: &mut BTreeSet<CellKey>,
+    meter: &mut QueryWork,
+) -> Result<(), Refusal> {
+    let definitions = model.definitions();
+    let mut count = |at| meter.work(u64::from(cells.insert(at)), 0, 0);
+    for (at, _) in model.cells(area).into_iter().flatten() {
+        count(at)?;
+    }
+    let arrays = definitions
+        .arrays_meeting(area)
+        .filter(|array| array.kind() == ArrayKind::Legacy)
+        .map(|array| array.area());
+    let data_tables = definitions.data_tables().iter().map(|table| table.area());
+    for overlap in arrays
+        .chain(data_tables)
+        .filter_map(|part| area.intersection(part))
+    {
+        for row in overlap.first().row()..=overlap.last().row() {
+            for col in overlap.first().column()..=overlap.last().column() {
+                count(CellKey::new(area.sheet(), row, col).expect("inside the worksheet"))?;
             }
         }
     }
-
-    Ok(cells_by_sheet)
+    Ok(())
 }
 
 pub(crate) fn census(
@@ -50,10 +85,11 @@ pub(crate) fn census(
 ) -> Result<Census, Refusal> {
     let host = state.session.host();
     let cells_by_sheet = scoped_cells(state, scope, meter)?;
-    let cells = cells_by_sheet.values().flatten().copied().collect();
-    let projection = calc_host::project(host, &ProjectionRequest { cells })
-        .map_err(|error| invalid(error.to_string()))?;
-    let mut projected = projection.cells().iter();
+    let request = ProjectionRequest {
+        cells: cells_by_sheet.values().flatten().copied().collect(),
+    };
+    let mut projected =
+        calc_host::project_values(host, &request).map_err(|error| invalid(error.to_string()))?;
     let mut census = Census::default();
     for (id, cells) in cells_by_sheet {
         let mut sheet = SheetCensus {
@@ -63,9 +99,8 @@ pub(crate) fn census(
             used: None,
             errors: BTreeMap::new(),
         };
-        for item in projected.by_ref().take(cells.len()) {
+        for (at, value) in cells.into_iter().zip(projected.by_ref()) {
             meter.work(0, 0, 0)?;
-            let at = item.at();
             if host.holds_formula(at) {
                 sheet.formulas += 1;
             } else {
@@ -76,7 +111,7 @@ pub(crate) fn census(
             extent.0.3 = extent.0.3.min(at.column());
             extent.1.2 = extent.1.2.max(at.row());
             extent.1.3 = extent.1.3.max(at.column());
-            if let Some(code) = current_error(item.value()) {
+            if let Some(code) = current_error(&value) {
                 *sheet
                     .errors
                     .entry(code.excel_spelling().into())

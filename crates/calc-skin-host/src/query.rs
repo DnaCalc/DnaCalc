@@ -854,9 +854,35 @@ pub(crate) fn address_book(state: &State) -> AddressBook {
     }
 }
 
+pub(crate) struct SurveyAnswer {
+    budget: Budget,
+    rtd: u64,
+    selection: u64,
+    answer: Answer<Value>,
+}
+
 pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> AnswerResult {
     let host = state.session.host();
     let stamp = state.stamp();
+    // Reopening a view can use a completed workbook survey at the same cut.
+    // Pending graph binding or calculation can change the answer without a new stamp.
+    let retained = match query {
+        WorkbookQuery::Census { scope: SourceRef::Workbook } => Some(&state.workbook_census),
+        WorkbookQuery::DependencyAtlas => Some(&state.dependency_atlas),
+        _ => None,
+    }.filter(|_| stamp.calc.0 != 0
+        && host.calculation_state() == 0
+        && !state.session.has_unfinished_calculation());
+    let rtd = host.rtd_revision();
+    if let Some(retained) = retained
+        && let Some(prior) = retained.borrow().as_ref()
+        && prior.answer.stamp == stamp
+        && prior.rtd == rtd
+        && prior.selection == state.selection_seq
+        && prior.budget == budget
+    {
+        return Ok(prior.answer.clone());
+    }
     let mut coverage = Coverage::Complete;
     let alternative = match query {
         WorkbookQuery::Census { .. }
@@ -1391,11 +1417,20 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
     } else if bytes > budget.bytes {
         return Err(over_budget(0, bytes));
     }
-    Ok(Answer {
+    let answer = Answer {
         stamp,
         coverage,
         body,
-    })
+    };
+    if let Some(retained) = retained && answer.coverage == Coverage::Complete {
+        *retained.borrow_mut() = Some(SurveyAnswer {
+            budget,
+            rtd,
+            selection: state.selection_seq,
+            answer: answer.clone(),
+        });
+    }
+    Ok(answer)
 }
 
 fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Refusal> {

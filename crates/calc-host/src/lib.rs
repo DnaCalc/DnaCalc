@@ -197,7 +197,7 @@ pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{
     ProjectedCell, ProjectedSpill, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest,
     StaleCause,
-    StaleValue, project,
+    StaleValue, project, project_values,
 };
 pub use recalc::{
     HostProgress, RecalcFailed, RtdAdmission, RtdDisposition, RtdReceipt, calculate, calculate_full, step,
