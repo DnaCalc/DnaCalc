@@ -8,8 +8,8 @@
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
 use calc_skin::{
-    Batch, BorderSide, Change, FillDirection, FreezeBand, Interest, ModelChange, Operation,
-    Provenance, RawValue, Selection, SourceRef, ThinBorder, address, query,
+    Batch, BorderSide, CellBorder, Change, FillDirection, FreezeBand, Interest, ModelChange,
+    Operation, Provenance, RawValue, Selection, SourceRef, address, query,
 };
 use dna_kit::{InputMode, Invocation, Live, Session, ViewCommand, commands::CommandId};
 use leptos::prelude::*;
@@ -84,11 +84,17 @@ fn range_batch(
     })
 }
 
-fn border_css(border: ThinBorder) -> String {
-    match border {
-        ThinBorder::Automatic => "1px solid var(--dna-ink)".into(),
-        ThinBorder::Rgb([red, green, blue]) => format!("1px solid #{red:02x}{green:02x}{blue:02x}"),
-    }
+fn border_css(border: CellBorder) -> String {
+    let (width, rgb) = match border {
+        CellBorder::Automatic => (1, None),
+        CellBorder::Rgb(rgb) => (1, Some(rgb)),
+        CellBorder::Thick { rgb } => (3, rgb),
+    };
+    let color = rgb.map_or_else(
+        || "var(--dna-ink)".into(),
+        |[red, green, blue]| format!("#{red:02x}{green:02x}{blue:02x}"),
+    );
+    format!("{width}px solid {color}")
 }
 
 fn select_range(session: Session, anchor: Key, to: Key) {
@@ -360,6 +366,9 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         border("grid.all-borders", "All Borders", &[], |selected| ModelChange::SetAllBorders { selected }),
         border("grid.outline-border", "Outline Border", &["Ctrl+Shift+&"], |selected| {
             ModelChange::SetOutlineBorder { selected }
+        }),
+        border("grid.thick-outside-borders", "Thick Outside Borders", &[], |selected| {
+            ModelChange::SetThickOutlineBorder { selected }
         }),
         border("grid.no-border", "No Border", &[], |selected| ModelChange::ClearBorders { selected }),
         border("grid.top-border", "Top Border", &[], |selected| {

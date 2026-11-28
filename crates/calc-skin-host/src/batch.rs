@@ -780,6 +780,7 @@ pub(crate) fn prepare(
                 }
                 ModelChange::SetAllBorders { selected }
                 | ModelChange::SetOutlineBorder { selected }
+                | ModelChange::SetThickOutlineBorder { selected }
                 | ModelChange::ClearBorders { selected }
                 | ModelChange::SetSideBorder { selected, .. } => {
                     require_current_model(request, base.model)?;
@@ -802,6 +803,9 @@ pub(crate) fn prepare(
                     let border_edits = match change {
                         ModelChange::SetAllBorders { .. } => calc_host::prepare_all_borders(host, selected),
                         ModelChange::SetOutlineBorder { .. } => calc_host::prepare_outline_border(host, selected),
+                        ModelChange::SetThickOutlineBorder { .. } => {
+                            calc_host::prepare_thick_outline_border(host, selected)
+                        }
                         ModelChange::SetSideBorder { side, .. } => {
                             calc_host::prepare_side_border(host, selected, *side)
                         }

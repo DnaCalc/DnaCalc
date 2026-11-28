@@ -811,6 +811,16 @@ fn prepare_cell_borders(
 
 /// Prepare the default outline border while retaining the rectangle's inside edges.
 pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
+    prepare_outline(host, area, &default_border())
+}
+
+/// Prepare a thick perimeter while retaining the rectangle's inside edges.
+pub fn prepare_thick_outline_border(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
+    let edge = EdgeChange { weight: Some(crate::EdgeWeight::Thick), ..default_border() };
+    prepare_outline(host, area, &edge)
+}
+
+fn prepare_outline(host: &HostState, area: GridArea, edge: &EdgeChange) -> Result<Vec<CellEdit>, String> {
     let first = area.first();
     let last = area.last();
     let rows = edge_bands(first.row(), last.row());
@@ -819,10 +829,10 @@ pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<Ce
     for (top, bottom) in rows {
         for &(left, right) in &columns {
             let edges = crate::EdgesPatch {
-                top: (top == first.row()).then(default_border),
-                right: (right == last.column()).then(default_border),
-                bottom: (bottom == last.row()).then(default_border),
-                left: (left == first.column()).then(default_border),
+                top: (top == first.row()).then(|| edge.clone()),
+                right: (right == last.column()).then(|| edge.clone()),
+                bottom: (bottom == last.row()).then(|| edge.clone()),
+                left: (left == first.column()).then(|| edge.clone()),
                 ..Default::default()
             };
             if edges == crate::EdgesPatch::default() {
@@ -833,7 +843,7 @@ pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<Ce
             groups.push(([part], FormatPatch { edges: Some(edges), ..Default::default() }));
         }
     }
-    prepare_border_groups(host, area, groups, &default_border())
+    prepare_border_groups(host, area, groups, edge)
 }
 
 /// Prepare one selected border and the matching edge on neighbouring cells.
