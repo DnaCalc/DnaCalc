@@ -869,6 +869,45 @@ pub fn prepare_side_border(
     prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
 }
 
+/// Prepare a bottom line and optional thin top line, including each shared edge.
+pub fn prepare_horizontal_borders(
+    host: &HostState,
+    area: GridArea,
+    top: bool,
+    bottom: calc_skin::BorderStroke,
+) -> Result<Vec<CellEdit>, String> {
+    use calc_skin::BorderStroke;
+    use crate::{EdgeLine, EdgeWeight};
+    let bottom_edge = match bottom {
+        BorderStroke::Thin => default_border(),
+        BorderStroke::Thick => EdgeChange { weight: Some(EdgeWeight::Thick), ..default_border() },
+        BorderStroke::Double => EdgeChange {
+            line: Some(EdgeLine::Double),
+            weight: Some(EdgeWeight::Thick),
+            ..default_border()
+        },
+    };
+    let (bottom_band, below) = strips(area, BorderSide::Bottom);
+    let mut groups: Vec<_> = below.into_iter()
+        .map(|(band, side)| border_format_group(band, side, &bottom_edge))
+        .collect();
+    let mut edges = side_patch(BorderSide::Bottom, bottom_edge);
+    if top {
+        let edge = default_border();
+        let (top_band, above) = strips(area, BorderSide::Top);
+        if top_band == bottom_band {
+            edges.top = Some(edge.clone());
+        } else {
+            groups.push(border_format_group(top_band, BorderSide::Top, &edge));
+        }
+        if let Some((band, side)) = above {
+            groups.push(border_format_group(band, side, &edge));
+        }
+    }
+    groups.push(([bottom_band], FormatPatch { edges: Some(edges), ..Default::default() }));
+    prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
+}
+
 /// The areas holding the borders to change, including neighbouring cells with shared sides.
 pub fn border_affected_areas(area: GridArea, side: Option<BorderSide>) -> Vec<GridArea> {
     match side {

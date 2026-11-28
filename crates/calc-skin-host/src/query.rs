@@ -754,11 +754,10 @@ fn cell_borders(host: &HostState, style: u32) -> CellBorders {
     };
     let stroke = |edge: &Option<calc_doc_model::BorderEdge>| {
         let edge = edge.as_ref()?;
-        let thick = match edge.style.as_deref()? {
-            "thin" => false,
-            "thick" => true,
-            _ => return None,
-        };
+        let style = edge.style.as_deref()?;
+        if !matches!(style, "thin" | "thick" | "double") {
+            return None;
+        }
         let rgb = if let Some(color) = edge.color.as_ref().filter(|color| !color.auto) {
             let value = host.resolved_style_color(color)?;
             let hex = value.trim_start_matches('#');
@@ -770,11 +769,13 @@ fn cell_borders(host: &HostState, style: u32) -> CellBorders {
         } else {
             None
         };
-        Some(match (thick, rgb) {
-            (true, rgb) => CellBorder::Thick { rgb },
-            (false, Some(rgb)) => CellBorder::Rgb(rgb),
-            (false, None) => CellBorder::Automatic,
-        })
+        match (style, rgb) {
+            ("thick", rgb) => Some(CellBorder::Thick { rgb }),
+            ("double", rgb) => Some(CellBorder::Double { rgb }),
+            ("thin", Some(rgb)) => Some(CellBorder::Rgb(rgb)),
+            ("thin", None) => Some(CellBorder::Automatic),
+            _ => None,
+        }
     };
     CellBorders {
         top: stroke(&border.top),
