@@ -63,10 +63,17 @@ static class VbaPolicy
             throw new RefusedVbaException("a VBA case names a reviewed template with typed params; VBA source is not accepted");
         if (Json.Write(group).Length > FrameBudget)
             throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
+        VbaTemplateAdmission.RequireEmbedded();
         var expanded = VbaTemplates.Expand(probe);
+        var sheets = SheetList(expanded);
+        // Checked is used (dc-heiq6): the grammar reads the rendered modules, the text the package is built from, on
+        // every request. Admission read the template with each placeholder as one literal; this reads what Excel compiles.
+        var modules = ((List<object>)expanded["modules"]).Cast<Dictionary<string, object>>()
+            .Select(m => ((string)m["name"], (string)m["kind"], (string)m["source"])).ToList();
+        var modulesChecked = VbaGrammar.CheckModules(modules, sheets.Count, null, VbaTemplates.EntryPoints(template));
         CheckCalls(expanded, VbaTemplates.EntryPoints(template));
-        CheckLayout(expanded, SheetList(expanded));
-        VbaTemplates.ApplyLayout(expanded, template, (Dictionary<string, object>)probe["params"]);
+        CheckLayout(expanded, sheets);
+        VbaTemplates.ApplyLayout(expanded, template, (Dictionary<string, object>)probe["params"], modulesChecked);
         expanded["template"] = template;
         expanded["params"] = probe["params"];
         expanded["pins"] = VbaTemplates.Pins(template);
@@ -102,7 +109,7 @@ static class VbaPolicy
         }
         if (sourceChars > Limit("max_source_chars"))
             throw new RefusedVbaException("oversized VBA module source");
-        var entryPoints = VbaGrammar.CheckModules(triples, sheets.Count);
+        var entryPoints = VbaGrammar.CheckModules(triples, sheets.Count).EntryPoints;
         CheckCalls(probe, null, entryPoints);
         CheckLayout(probe, sheets);
         return probe;

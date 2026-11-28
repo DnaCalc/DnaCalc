@@ -92,7 +92,29 @@ same admission check. It verifies the raw source and layout pins, checks the tem
 typed literal tokens, and checks where each placeholder goes in the layout. Module placeholders provide
 VBA string or numeric literals. Layout placeholders provide quoted sheet references or formula literals.
 The admission check runs on template text. At request time the worker checks the pins, decodes values,
-and renders the template.
+renders the template, and reads the rendered modules and formulas with the same grammar before it builds
+the package. A worker whose embedded catalogue fails admission refuses every VBA case.
+
+What a template may say (dc-heiq6; `VbaGrammar.cs`, `VbaLayoutFormula.cs`, `vba-probe-policy.json`):
+
+- A module begins with `Option Explicit`. A comment does not end in `_` (Excel continues it over the
+  next line). A local or parameter name is not also a module variable or a procedure.
+- A parameter of a standard-module procedure counts as a number only when its type is numeric: a
+  formula can call the procedure with any cell text (`Private` does not prevent it). Write `CDbl(x)`
+  to a cell.
+- `Range` takes a literal A1 cell or rectangle (at most 1,048,576 cells) or an `address` parameter.
+  A computed cell is `Cells(row, column)`. Indexes of `Cells`, `Rows`, `Columns`, `Item` and `Offset`
+  are numbers, numeric variables, arithmetic on them, or one call such as `CLng(...)`. A worksheet's
+  `Cells`, `Rows` and `Columns` need an index. `Resize` takes two whole-number literals up to 1024.
+- In a worksheet module `Range`, `Cells`, `Rows` and `Columns` are the module's own sheet. Elsewhere
+  they are refused.
+- A layout formula holds numbers, strings, `TRUE`/`FALSE`, error values, A1 references (alone or after
+  a case sheet name), the layout's own names, operators, and calls of the functions listed in
+  `layout_functions` or of a public function of the template.
+
+The grammar does not decide whether a probe ends. A loop, a recursion, an event that writes the sheet
+it listens to, or a write over a large used range runs until the request's deadline, when the worker
+ends its Excel. The smoke template guards its change event with a flag for that reason.
 
 The approval pin covers the template’s module and layout pins, parameters, entry-point signatures, and
 review record. That record identifies the reviewer, the claim covering every declared input, and the

@@ -170,21 +170,35 @@ static class VbaTemplates
         }
     }
 
-    public static void ApplyLayout(Dictionary<string, object> expanded, string template, Dictionary<string, object> given)
+    internal static HashSet<string> DefinedNames(IEnumerable<LayoutEntry> layout) =>
+        new(layout.Where(item => item.Name != null).Select(item => item.Name), StringComparer.OrdinalIgnoreCase);
+
+    public static void ApplyLayout(Dictionary<string, object> expanded, string template, Dictionary<string, object> given,
+        CheckedModules modules)
     {
         var entry = Template(template);
         var sheetList = (List<object>)expanded["sheets"];
         var sheetNames = CaseSheets(sheetList);
+        var layout = ReadLayout(entry).ToList();
+        // The rendered formula is read by the layout formula language again: what Excel is given is what was checked.
+        var defined = DefinedNames(layout);
+        var caseSheets = new HashSet<string>(sheetNames.Keys, StringComparer.OrdinalIgnoreCase);
+        string Rendered(string source, Dictionary<string, string> values)
+        {
+            var text = Formula(source, values);
+            VbaLayoutFormula.Check(text, null, defined, modules.Functions, caseSheets);
+            return text;
+        }
         var sheets = sheetList.Cast<Dictionary<string, object>>()
             .Select(s => new Dictionary<string, object>(s)).ToDictionary(s => (string)s["name"], StringComparer.Ordinal);
         var names = (Dictionary<string, object>)expanded["names"];
         var declared = Parameters(entry);
         var rendered = declared.ToDictionary(p => p.Key, p => Render(p.Value, given[p.Key], sheetNames, formula: true));
-        foreach (var item in ReadLayout(entry))
+        foreach (var item in layout)
         {
             if (item.Name != null)
             {
-                if (!names.TryAdd(item.Name, Formula(item.Formula, rendered)))
+                if (!names.TryAdd(item.Name, Rendered(item.Formula, rendered)))
                     throw new RefusedVbaException("duplicate VBA template defined name");
                 continue;
             }
@@ -200,7 +214,7 @@ static class VbaTemplates
                 throw new RefusedVbaException("VBA template formula cell overlaps a request cell");
             sheet["cells"] = new Dictionary<string, object>(cells)
             {
-                [at] = new Dictionary<string, object> { ["type"] = "formula", ["formula"] = Formula(item.Formula, rendered) },
+                [at] = new Dictionary<string, object> { ["type"] = "formula", ["formula"] = Rendered(item.Formula, rendered) },
             };
         }
         expanded["sheets"] = sheetList.Cast<Dictionary<string, object>>().Select(s => (object)sheets[(string)s["name"]]).ToList();
