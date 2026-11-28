@@ -12,6 +12,9 @@ use calc_skin::{
 use leptos::prelude::*;
 
 pub mod clock;
+pub use dna_skin_runtime::skin::validate_page;
+/// Preview a typed page in the installed App view.
+pub const TRY_APP_PAGE: &str = "app.try-page";
 mod reader;
 mod report;
 pub use reader::live_values;

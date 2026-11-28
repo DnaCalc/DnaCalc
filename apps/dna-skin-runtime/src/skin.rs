@@ -237,7 +237,8 @@ pub fn keymap_error(error: KeymapError) -> String {
     }
 }
 
-fn validate_page(page: &Page) -> Result<(), String> {
+/// Checks the structure of a typed Page declaration.
+pub fn validate_page(page: &Page) -> Result<(), String> {
     if page.title.trim().is_empty() {
         return Err("A page needs a title".into());
     }

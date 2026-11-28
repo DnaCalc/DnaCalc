@@ -8,7 +8,7 @@ use calc_skin::{
     Refusal, ScenarioRef, SourceRef, Stamp, TableInfo, ViewId,
 };
 use dna_kit::commands::CommandId;
-use dna_kit::page::{PageAuthor, PageInput, PageRenderer, PageScenario};
+use dna_kit::page::{PageAuthor, PageInput, PageRenderer, PageScenario, TRY_APP_PAGE};
 use dna_kit::{
     Invocation, Live, Located, MountedView, Registry, Seam, Session, View, ViewCommand, ViewSpec,
     Watch,
@@ -20,6 +20,9 @@ use std::num::NonZeroU128;
 
 const APP: &str = "app";
 const FORMS: &str = "forms";
+const APP_DOC: DocId = DocId(NonZeroU128::new(0x4150_5001).unwrap());
+const KEEP_PREVIEW: &str = "app.keep-preview";
+const DISCARD_PREVIEW: &str = "app.discard-preview";
 const REVIEW_SCENARIO: &str = "app.review-scenario";
 const SAVE_SCENARIO: &str = "app.save-scenario";
 
@@ -73,8 +76,19 @@ impl View for Surface {
             // Drafts belong to the session owner, even when App fields are rebuilt.
             let _ = inputs(session);
             let _ = draft(session);
+            let _ = preview_state(session);
             let candidates = session.watch(query::InputCandidates { scope: SourceRef::Workbook });
             let mut commands = vec![
+                ViewCommand::global(TRY_APP_PAGE, "Try on an App page", &[], move |invocation| {
+                    state.try_page(invocation)
+                }).when("!editing"),
+                ViewCommand::new(&id, KEEP_PREVIEW, "Keep the App page for file", &[], move |_| {
+                    state.keep_preview()
+                }).when("!editing && writable"),
+                ViewCommand::new(&id, DISCARD_PREVIEW, "Discard the App preview", &[], move |_| {
+                    state.discard_preview();
+                    Ok(())
+                }),
                 ViewCommand::new(&id, REVIEW_SCENARIO, "Review saved scenario", &[], move |invocation| {
                     let scenario = serde_json::from_value(invocation.args.clone())
                         .map_err(|_| "Choose a saved worksheet scenario".to_owned())?;
@@ -287,6 +301,10 @@ impl View for Surface {
         if self.id != APP || session.view().0 != APP {
             return false;
         }
+        if preview_page(session).is_some() {
+            let _ = session.command(DISCARD_PREVIEW);
+            return true;
+        }
         if printing::cancel(session) {
             return true;
         }
@@ -353,6 +371,9 @@ impl State {
     }
 
     fn document(self) -> Result<(Page, DocId), String> {
+        if self.session.view().0 == APP && preview_page(self.session).is_some() {
+            return Err("Keep or discard the App preview before changing its inputs".into());
+        }
         let (_, doc) = self.snapshot()?;
         let doc = doc.ok_or_else(|| "No App is defined yet".to_owned())?;
         Ok((decode(&doc)?, doc.id))
@@ -371,6 +392,53 @@ impl State {
                 expect_view_rev: stamp.view,
             }],
         )
+    }
+
+    fn try_page(self, invocation: &Invocation) -> Result<(), String> {
+        if !matches!(self.session.seam(), Seam::Idle) {
+            return Err("Finish the current change before trying on an App".into());
+        }
+        let (stamp, _) = self.snapshot()?;
+        let page = serde_json::from_value(invocation.args.clone())
+            .map_err(|error| format!("Choose a dna.page/1 declaration ({error})"))?;
+        dna_kit::page::validate_page(&page)?;
+        preview_state(self.session).set(Some(PagePreview {
+            stamp,
+            page,
+            from: preview_page(self.session).map_or_else(|| self.session.view(), |preview| preview.from),
+        }));
+        self.session.show(ViewId(APP.into()));
+        Ok(())
+    }
+
+    fn keep_preview(self) -> Result<(), String> {
+        if !matches!(self.session.seam(), Seam::Idle) {
+            return Err("Finish the current change before keeping the App".into());
+        }
+        let preview = preview_page(self.session).ok_or("Try on a page before keeping it")?;
+        let (stamp, existing) = self.snapshot()?;
+        if existing.as_ref().is_some_and(|doc| decode(doc).is_ok_and(|page| page == preview.page)) {
+            preview_state(self.session).set(None);
+            return Ok(());
+        }
+        let doc = existing.map_or(APP_DOC, |doc| doc.id);
+        let request = batch(stamp, "Kept App page for file", vec![Change::Presentation(
+            PresentationChange::KeepAppPage {
+                doc,
+                page: Box::new(preview.page),
+                expect_view_rev: stamp.view,
+            }
+        )]);
+        let session = self.session;
+        session.submit_then(request, move || preview_state(session).set(None));
+        Ok(())
+    }
+
+    fn discard_preview(self) {
+        if let Some(preview) = preview_page(self.session) {
+            self.session.show(preview.from);
+        }
+        preview_state(self.session).set(None);
     }
 
     fn create(self) -> Result<(), String> {
@@ -401,9 +469,8 @@ impl State {
             root: PageNode::Stack { children },
         };
         // The workbook-level App has a reserved document ID.
-        let doc = DocId(NonZeroU128::new(0x4150_5001).unwrap());
         changes.push(PresentationChange::CreateDoc {
-            doc,
+            doc: APP_DOC,
             expect_view_rev: Some(stamp.view),
             view: ViewId(APP.into()),
             sheet: None,
@@ -981,12 +1048,51 @@ fn button(session: Session, command: &'static str, label: &'static str) -> impl 
     }>{label}</button> }
 }
 
+#[derive(Clone, PartialEq)]
+struct PagePreview {
+    stamp: Stamp,
+    page: Page,
+    from: ViewId,
+}
+
+#[derive(Clone, Copy)]
+struct PreviewState(RwSignal<Option<PagePreview>>);
+
+impl Default for PreviewState {
+    fn default() -> Self {
+        Self(RwSignal::new(None))
+    }
+}
+
+fn preview_state(session: Session) -> RwSignal<Option<PagePreview>> {
+    session.local::<PreviewState>().0
+}
+
+fn preview_page(session: Session) -> Option<PagePreview> {
+    let stamp = session.stamp()?;
+    preview_state(session).get().filter(|preview| {
+        preview.stamp.workbook == stamp.workbook && preview.stamp.model == stamp.model
+            && preview.stamp.view == stamp.view
+    })
+}
+
 fn operator(session: Session, state: State) -> AnyView {
     let page = Memo::new(move |_| state.document());
+    let preview = Memo::new(move |_| preview_page(session));
     let printing = printing::showing(session);
     view! {
         <div class="dna-page-surface" data-dnacalc="app">
             {move || {
+                if let Some(preview) = preview.get() {
+                    return view! {
+                        <header class="dna-page-tools" data-dnacalc="app-preview">
+                            <strong>"App preview"</strong>
+                            {button(session, KEEP_PREVIEW, "Keep for file")}
+                            {button(session, DISCARD_PREVIEW, "Discard")}
+                        </header>
+                        <PageRenderer session document=preview.page />
+                    }.into_any();
+                }
                 if printing.get() {
                     return printing::stage(session).into_any();
                 }

@@ -3029,3 +3029,82 @@ fn trying_on_an_agent_skin_requires_the_operators_choice() {
     assert!(page.press("F2", Focus::Stage));
     assert_eq!(session.stamp(), Some(before));
 }
+
+/// Native-only: preserves the live model while a bound agent App page is tried and kept.
+#[test]
+fn keeping_an_agent_app_page_changes_the_view_part_once() {
+    use calc_skin::{
+        AnchorId, Batch, Bound, Change, InputPolicy, Operation, Page as Declaration,
+        PageNode, PageSchema, PresentationChange, SourceRef, TryOnPayload, WorkbookPort,
+    };
+    use calc_skin::grid::Area;
+    use std::num::NonZeroU128;
+
+    let page = Page::open();
+    let session = page.session;
+    let at = page.at(1, 1);
+    let initial = session.stamp().unwrap();
+    let anchor = AnchorId(NonZeroU128::new(77).unwrap());
+    let sheet = session.summary().unwrap().sheets[0].name.clone();
+    session.submit(Batch {
+        id: String::new(),
+        workbook: Some(initial.workbook),
+        base: Some(initial.model),
+        expects: Vec::new(),
+        selection_seq: None,
+        label: Some("Bind source for App".into()),
+        changes: vec![Change::Presentation(PresentationChange::Bind {
+            anchor,
+            source: SourceRef::Cells {
+                sheet: page.sheet,
+                areas: vec![Area(at, at)],
+            },
+        })],
+    });
+    page.settle();
+
+    let before = session.stamp().unwrap();
+    let source = Bound {
+        anchor,
+        address: format!("{}!A1", calc_skin::address::quoted_sheet(&sheet)),
+    };
+    let document = Declaration {
+        schema: PageSchema::V1,
+        title: "Operator planner".into(),
+        input: InputPolicy::Live,
+        root: PageNode::Part {
+            id: "assumption".into(),
+            component: "input".into(),
+            bind: [("value".into(), source)].into(),
+            props: Default::default(),
+        },
+    };
+    let agent = page.host.connect(
+        Origin::Agent { agent: "Planner assistant".into(), proposal: "planner".into() },
+        WritePolicy::Propose,
+    );
+    agent.run(Operation::TryOn {
+        expected: before,
+        look: TryOnPayload::Page(Box::new(document.clone())),
+    }).unwrap();
+    page.settle();
+    session.command("studio.try-agent").unwrap();
+    page.settle();
+    assert_eq!(session.view().0, "app");
+    assert_eq!(session.stamp(), Some(before));
+    let Live::Ready(previewed) = session.view_part() else { panic!("no view part") };
+    assert!(previewed.body.documents.is_empty());
+    session.command("app.keep-preview").unwrap();
+    page.settle();
+    let kept = session.stamp().unwrap();
+    assert_eq!(kept.model, before.model);
+    assert_eq!(kept.view.0, before.view.0 + 1);
+    let Live::Ready(saved) = session.view_part() else { panic!("no view part") };
+    assert_eq!(saved.body.documents.len(), 1);
+    assert_eq!(serde_json::from_value::<Declaration>(saved.body.documents[0].body.clone()).unwrap(), document);
+    session.command("edit.undo").unwrap();
+    page.settle();
+    let Live::Ready(undone) = session.view_part() else { panic!("no view part") };
+    assert!(undone.body.documents.is_empty());
+    assert_eq!(session.stamp().unwrap().model, before.model);
+}
