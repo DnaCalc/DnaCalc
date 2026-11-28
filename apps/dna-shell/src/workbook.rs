@@ -551,6 +551,14 @@ pub fn workbook(
 ) -> impl IntoView + use<> {
     chrome.studio.follow_workbook(session);
     chrome.studio.follow_file_skin(session);
+    let frame = NodeRef::<leptos::html::Div>::new();
+    Effect::new(move |_| {
+        if let Some(frame) = frame.get() {
+            // Apply validated Strand declarations through CSSOM under the workbook's CSP.
+            leptos::web_sys::HtmlElement::style(&frame)
+                .set_css_text(&chrome.studio.style().unwrap_or_default());
+        }
+    });
     let specs = registry.views();
     let views = chrome.views;
     let docks: Vec<_> = registry.docks().collect();
@@ -690,10 +698,9 @@ pub fn workbook(
     }).collect_view();
 
     view! {
-        <div class="dna-workbook" data-dnacalc="frame"
+        <div class="dna-workbook" data-dnacalc="frame" node_ref=frame
             data-dna-theme=move || chrome.studio.theme()
             data-dna-density=move || chrome.studio.density()
-            style=move || chrome.studio.style()
             on:keydown=move |event: leptos::ev::KeyboardEvent| {
             let focus = focus_of(&event);
             let path = (focus == Focus::KeyTip).then(|| session.key_tip_path()).flatten();
