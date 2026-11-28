@@ -1192,21 +1192,20 @@ fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             return fail(WorksheetErrorCode::Value);
         }
     }
-    // sxd represents both ordinary character data and CDATA as Text, so mark whitespace-only
-    // CDATA through parsing and restore its content before evaluating the XPath.
-    let mut cdata_marker = String::from("\u{e000}\u{e000}");
-    while xml.contains(&cdata_marker) {
-        cdata_marker.push('\u{e000}');
+    // sxd parses CDATA and the pieces of character data around references as Text.
+    // Mark their origins until the pieces have been joined into XPath text nodes.
+    let mut marker = String::from("\u{e000}\u{e000}");
+    while xml.contains(&marker) {
+        marker.push('\u{e000}');
     }
-    let xml = if xml.contains("<![CDATA[") {
-        filterxml_mark_whitespace_cdata(&xml, &cdata_marker)
-    } else {
-        xml
-    };
+    let cdata_marker = format!("{marker}C");
+    let reference_marker = format!("{marker}R");
+    let xml = filterxml_mark_text_sources(&xml, &cdata_marker, &reference_marker);
     let package =
         sxd_document::parser::parse(&xml).map_err(|_| value(WorksheetErrorCode::Value))?;
     let document = package.as_document();
-    filterxml_normalize_whitespace(document, &cdata_marker);
+    let reference_whitespace =
+        filterxml_normalize_text(document, &cdata_marker, &reference_marker);
     let expression = sxd_xpath::Factory::new()
         .build(&path)
         .ok()
@@ -1230,7 +1229,7 @@ fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     for node in nodes {
         use sxd_xpath::nodeset::Node;
         let text = match node {
-            Node::Element(element) => Some(
+            Node::Element(element) if !reference_whitespace.contains(&element) => Some(
                 element
                     .children()
                     .into_iter()
@@ -1265,42 +1264,58 @@ fn filterxml_xml_whitespace(text: &str) -> bool {
     text.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
 }
 
-fn filterxml_mark_whitespace_cdata(xml: &str, marker: &str) -> String {
+fn filterxml_mark_text_sources(xml: &str, cdata_marker: &str, reference_marker: &str) -> String {
     let mut output = String::with_capacity(xml.len());
-    let mut copied = 0;
-    let mut end_of_markup = 0;
-    for (start, _) in xml.match_indices('<') {
-        if start < end_of_markup {
-            continue;
+    let mut rest = xml;
+    while let Some(start) = rest.find('<') {
+        let (text, markup) = rest.split_at(start);
+        if text.contains('&') {
+            output.push_str(reference_marker);
         }
-        let tail = &xml[start..];
-        let (opening, closing) = if tail.starts_with("<![CDATA[") {
-            ("<![CDATA[", "]]>")
-        } else if tail.starts_with("<!--") {
-            ("<!--", "-->")
-        } else if tail.starts_with("<?") {
-            ("<?", "?>")
+        output.push_str(text);
+        let special = [("<![CDATA[", "]]>"), ("<!--", "-->"), ("<?", "?>")]
+            .into_iter()
+            .find_map(|(open, close)| markup.strip_prefix(open).map(|body| (open, body, close)));
+        let end = if let Some((open, body, close)) = special {
+            body.find(close).map(|end| open.len() + end + close.len())
         } else {
-            continue;
+            let mut quote = None;
+            markup.bytes().enumerate().find_map(|(at, byte)| {
+                match (quote, byte) {
+                    (Some(expected), byte) if expected == byte => quote = None,
+                    (None, b'\'' | b'"') => quote = Some(byte),
+                    (None, b'>') => return Some(at + 1),
+                    _ => {}
+                }
+                None
+            })
         };
-        let body = start + opening.len();
-        let Some(length) = xml[body..].find(closing) else {
-            break;
+        let Some(end) = end else {
+            output.push_str(markup);
+            return output;
         };
-        end_of_markup = body + length + closing.len();
-        if opening == "<![CDATA[" && filterxml_xml_whitespace(&xml[body..body + length]) {
-            output.push_str(&xml[copied..body]);
-            output.push_str(marker);
-            copied = body;
+        let (tag, tail) = markup.split_at(end);
+        if let Some(body) = tag.strip_prefix("<![CDATA[") {
+            output.push_str("<![CDATA[");
+            output.push_str(cdata_marker);
+            output.push_str(body);
+        } else {
+            output.push_str(tag);
         }
+        rest = tail;
     }
-    output.push_str(&xml[copied..]);
+    output.push_str(rest);
     output
 }
 
-fn filterxml_normalize_whitespace(document: sxd_document::dom::Document<'_>, cdata_marker: &str) {
+fn filterxml_normalize_text<'d>(
+    document: sxd_document::dom::Document<'d>,
+    cdata_marker: &str,
+    reference_marker: &str,
+) -> std::collections::HashSet<sxd_document::dom::Element<'d>> {
     use sxd_document::dom::ChildOfElement;
     let space = ("http://www.w3.org/XML/1998/namespace", "space");
+    let mut reference_whitespace = std::collections::HashSet::new();
     let mut elements: Vec<_> = document
         .root()
         .children()
@@ -1313,20 +1328,47 @@ fn filterxml_normalize_whitespace(document: sxd_document::dom::Document<'_>, cda
             Some("default") => false,
             _ => inherited,
         };
-        for child in element.children() {
+        let mut has_element_text = false;
+        let mut has_reference_whitespace = false;
+        let mut children = element.children().into_iter().peekable();
+        while let Some(child) = children.next() {
             match child {
                 ChildOfElement::Element(child) => elements.push((child, preserve)),
                 ChildOfElement::Text(text) => {
                     if let Some(cdata) = text.text().strip_prefix(cdata_marker) {
                         text.set_text(cdata);
-                    } else if !preserve && filterxml_xml_whitespace(text.text()) {
+                        has_element_text |= !cdata.is_empty();
+                        continue;
+                    }
+                    let referenced = text.text().strip_prefix(reference_marker);
+                    let mut combined = referenced.unwrap_or_else(|| text.text()).to_owned();
+                    while let Some(ChildOfElement::Text(next)) = children.peek()
+                        && !next.text().starts_with(cdata_marker)
+                    {
+                        combined.push_str(next.text());
+                        next.remove_from_parent();
+                        children.next();
+                    }
+                    if preserve || !filterxml_xml_whitespace(&combined) {
+                        text.set_text(&combined);
+                        has_element_text |= !combined.is_empty();
+                    } else if referenced.is_some() {
+                        // A whitespace character reference is visible to XPath even when
+                        // the element has no value to put in a worksheet cell.
+                        text.set_text(&combined);
+                        has_reference_whitespace = true;
+                    } else {
                         text.remove_from_parent();
                     }
                 }
                 _ => {}
             }
         }
+        if has_reference_whitespace && !has_element_text {
+            reference_whitespace.insert(element);
+        }
     }
+    reference_whitespace
 }
 
 /// The namespace prefixes the document declares (`xmlns:p="uri"`), with their URIs.
