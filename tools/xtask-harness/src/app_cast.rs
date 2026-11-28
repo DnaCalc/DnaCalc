@@ -38,7 +38,7 @@ pub(super) fn fixture(name: &str) -> Result<Vec<u8>, String> {
 
 type BuildResult = Result<(Vec<u8>, usize), Box<dyn std::error::Error>>;
 
-const FIXTURES: [(&str, fn() -> BuildResult); 8] = [
+const FIXTURES: [(&str, fn() -> BuildResult); 10] = [
     ("Budget", budget),
     ("Sales", sales),
     ("SalesNotebook", sales_notebook),
@@ -46,7 +46,9 @@ const FIXTURES: [(&str, fn() -> BuildResult); 8] = [
     ("Loan", loan),
     ("Stock", stock),
     ("StockTicked", stock_ticked),
+    ("StockLinks", stock_links),
     ("Inherited", inherited),
+    ("InheritedLinks", inherited_links),
 ];
 
 struct Fixture {
@@ -664,7 +666,16 @@ fn stock() -> BuildResult {
 }
 
 fn stock_ticked() -> BuildResult {
-    let mut w = Fixture::new(&["Stock (ticked)"])?;
+    stock_clock(false)
+}
+
+fn stock_links() -> BuildResult {
+    stock_clock(true)
+}
+
+fn stock_clock(linked: bool) -> BuildResult {
+    let sheets = if linked { &["Stock (ticked)", "Demand Plan", "Forecast"][..] } else { &["Stock (ticked)"] };
+    let mut w = Fixture::new(sheets)?;
     for (row, label, value) in [
         (2, "Opening stock", 400.),
         (3, "Demand per tick", 100.),
@@ -673,7 +684,9 @@ fn stock_ticked() -> BuildResult {
         (7, "Reset count", 0.),
     ] {
         w.text(0, row, 1, label);
-        w.number(0, row, 2, value);
+        if !linked || row != 3 {
+            w.number(0, row, 2, value);
+        }
     }
     w.text(0, 5, 1, "Run clock");
     w.input(0, 5, 2, CellInput::Logical(false));
@@ -723,10 +736,35 @@ fn stock_ticked() -> BuildResult {
         body: serde_json::to_string(&page)?,
     });
     w.edits.push(WorkbookOp::EditView(Arc::new(part)));
+    if linked {
+        w.number(1, 2, 2, 100.);
+        w.number(2, 3, 2, 40.);
+        w.edits.push(WorkbookOp::SetNameFormula {
+            scope: NameScope::Workbook,
+            name: "Demand.Base".into(),
+            formula: Some("'Demand Plan'!$B$2".into()),
+        });
+        w.formula(0, 3, 2, "Demand.Base");
+        // A separate cross-sheet circular component uses Excel's iteration settings.
+        w.formula(1, 4, 2, "Forecast!B5");
+        w.formula(1, 5, 2, "0.5*(B4+B2)");
+        w.formula(2, 5, 2, "0.5*'Demand Plan'!B5");
+        for row in 1..=256 {
+            w.formula(2, row, 3, "Stock.OnHand+'Demand Plan'!$B$2");
+        }
+    }
     w.finish()
 }
 
 fn inherited() -> BuildResult {
+    inherited_workbook(false)
+}
+
+fn inherited_links() -> BuildResult {
+    inherited_workbook(true)
+}
+
+fn inherited_workbook(linked: bool) -> BuildResult {
     let mut names = vec![
         "Summary".to_owned(),
         "Revenue".to_owned(),
@@ -756,9 +794,16 @@ fn inherited() -> BuildResult {
                     visibility: SheetVisibility::VeryHidden,
                 }));
         }
+        // Earlier sheets are precedents so the 90 cross-sheet pairs remain acyclic.
+        let columns_with_links = if (3..=16).contains(&sheet) { 3 } else { 2 };
+        let sources: Vec<_> = (1..=columns_with_links)
+            .map(|offset| format!("+'{}'!$A$1", names[sheet - offset]))
+            .collect();
         for row in 1..=790 {
             for col in 1..=10 {
-                w.formula(sheet, row, col, format!("ROW()*{col}+{sheet}"));
+                let source = if linked { sources.get(col as usize - 1) } else { None };
+                let link = source.map_or("", String::as_str);
+                w.formula(sheet, row, col, format!("ROW()*{col}+{sheet}{link}"));
             }
         }
     }
