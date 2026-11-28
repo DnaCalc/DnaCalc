@@ -574,6 +574,10 @@ pub fn workbook(
     };
 
     let calc = session.watch(query::CalcState);
+    let calc_status = Memo::new(move |_| match session.read(calc) {
+        Live::Ready(answer) => Some(answer.body),
+        _ => None,
+    });
     let census = session.watch(query::CensusOf {
         scope: SourceRef::Workbook,
     });
@@ -858,7 +862,9 @@ pub fn workbook(
             </nav>
             <footer class="dna-book-strip" role="status" data-dnacalc="strip">
                 <span data-dnacalc="mode">{move || session.mode().label()}</span>
-                <span>{move || match session.read(calc) { Live::Ready(answer) => answer.body.word(), _ => "" }}</span>
+                <span data-dnacalc="calculation" data-running=move || calc_status.get().map(|status| {
+                    (status.activity == query::CalcActivity::Pending && status.mode != query::CalcMode::Manual).to_string()
+                })>{move || calc_status.get().map(|status| status.word())}</span>
                 <span>{location}</span>
                 {move || {
                     let Live::Ready(answer) = comparison.at(session.compared_cells()
