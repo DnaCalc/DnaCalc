@@ -246,6 +246,14 @@
 .dna-explorer-dock .dna-fe-workbench { grid-template-columns: minmax(0, 1fr); }
 .dna-explorer-dock > [role=status] { padding-inline: var(--dna-gap-2); }
 .dna-book-dock-bottom { grid-column: 1 / -1; }
+.dna-book-dock-right .dna-skin-docked-page {
+    box-sizing: border-box;
+    width: min(26rem, 42vw);
+    max-width: 60vw;
+    overflow: auto;
+    border-inline-start: 1px solid var(--dna-line);
+}
+.dna-book-dock-bottom .dna-skin-docked-page { max-height: 36vh; overflow: auto; }
 .dna-book-dock-right .dna-inspector-dock {
     box-sizing: border-box;
     width: min(30rem, 46vw);
