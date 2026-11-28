@@ -1401,13 +1401,33 @@ pub fn prepare_column_visibility(
     bands: &[(u32, u32)],
     hidden: bool,
 ) -> Result<Vec<CellEdit>, String> {
+    prepare_axis_visibility(host, sheet, false, bands, hidden)
+}
+
+/// Prepare row visibility for inclusive ranges, preserving drawings against the final heights.
+pub fn prepare_row_visibility(
+    host: &HostState,
+    sheet: SheetId,
+    bands: &[(u32, u32)],
+    hidden: bool,
+) -> Result<Vec<CellEdit>, String> {
+    prepare_axis_visibility(host, sheet, true, bands, hidden)
+}
+
+fn prepare_axis_visibility(
+    host: &HostState,
+    sheet: SheetId,
+    rows: bool,
+    bands: &[(u32, u32)],
+    hidden: bool,
+) -> Result<Vec<CellEdit>, String> {
     let mut formats = BTreeMap::new();
     for &(first, last) in bands {
         let count = last
             .checked_sub(first)
             .and_then(|span| span.checked_add(1))
-            .ok_or("Invalid column range")?;
-        for edit in axis_formats(host, sheet, false, first, count, None, Some(hidden))? {
+            .ok_or(if rows { "Invalid row range" } else { "Invalid column range" })?;
+        for edit in axis_formats(host, sheet, rows, first, count, None, Some(hidden))? {
             formats.insert(edit.index(), edit);
         }
     }

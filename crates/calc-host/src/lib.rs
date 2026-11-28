@@ -165,7 +165,7 @@ mod paste;
 pub mod search;
 pub use actions::{
     ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
-    prepare_column_visibility, prepare_sort_rows, stored_axis_size,
+    prepare_column_visibility, prepare_row_visibility, prepare_sort_rows, stored_axis_size,
 };
 pub use paste::{
     PasteArithmetic, PasteCellOptions, PasteOptionsRefusal, PastePlan, PasteSource, matrix_shape,
