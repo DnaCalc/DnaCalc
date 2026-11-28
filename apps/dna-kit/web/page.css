@@ -41,7 +41,7 @@
     border-radius: var(--dna-radius-card);
 }
 .dna-page-surface :is(button, input) { min-block-size: 36px; max-inline-size: 100%; }
-.dna-name-manager {
+.dna-workbook-dialog {
     inline-size: min(42rem, calc(100vw - 2rem));
     max-block-size: calc(100dvh - 2rem);
     overflow: auto;
@@ -51,8 +51,8 @@
     background: var(--dna-paper);
     color: var(--dna-ink);
 }
-.dna-name-manager::backdrop { background: rgb(0 0 0 / 32%); }
-.dna-name-manager h2 { margin-block: 0 var(--dna-gap-3); }
+.dna-workbook-dialog::backdrop { background: rgb(0 0 0 / 32%); }
+.dna-workbook-dialog h2 { margin-block: 0 var(--dna-gap-3); }
 .dna-name-manager-tools {
     display: flex;
     flex-wrap: wrap;
@@ -71,6 +71,16 @@
 .dna-name-manager td { border-block-start: 1px solid var(--dna-line); }
 .dna-name-manager fieldset { display: grid; gap: var(--dna-gap-2); border: 1px solid var(--dna-line); }
 .dna-name-manager label { display: grid; gap: var(--dna-gap-1); }
+.dna-sort-dialog form { display: grid; gap: var(--dna-gap-3); justify-items: start; }
+.dna-sort-level, .dna-sort-actions { display: flex; align-items: end; flex-wrap: wrap; gap: var(--dna-gap-2); }
+.dna-sort-level label { display: grid; gap: var(--dna-gap-1); }
+.dna-sort-dialog select {
+    max-inline-size: min(12rem, 100%);
+    font: inherit;
+    border: 1px solid var(--dna-line);
+    color: var(--dna-ink);
+    background: var(--dna-paper);
+}
 .dna-page-value { display: grid; }
 .dna-page-prose { white-space: pre-wrap; }
 .dna-page-chart { max-inline-size: 100%; block-size: auto; }

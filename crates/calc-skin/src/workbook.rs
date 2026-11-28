@@ -524,6 +524,13 @@ pub enum ModelChange {
     ToggleAutoFilter {
         selected: Area,
     },
+    /// Sort a selected rectangle by its relative columns, using workbook values.
+    SortRows {
+        selected: Area,
+        keys: Vec<RowSort>,
+        header: bool,
+        case_sensitive: bool,
+    },
     RewriteFormula {
         at: Key,
         expected_old: String,

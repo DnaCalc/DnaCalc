@@ -2,8 +2,8 @@ use crate::{CopiedCells, State, cell, grid_area, invalid, unavailable};
 use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetScenario};
 use calc_host::value::{CellKey, GridArea};
 use calc_host::{
-    Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource,
-    prepare_column_visibility, prepare_filter_toggle, prepare_paste_oriented,
+    Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, SortKey, SortOptions,
+    prepare_column_visibility, prepare_filter_toggle, prepare_paste_oriented, prepare_sort_rows,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
@@ -86,7 +86,7 @@ pub(crate) enum PreparedChange {
     Paste(calc_host::PastePlan),
 }
 
-fn paste_properties(
+fn range_properties(
     before: &ModelRoot,
     after: &ModelRoot,
     areas: &[GridArea],
@@ -374,7 +374,7 @@ pub(crate) fn prepare(
     let mut part = (**before.view_part()).clone();
     let mut edits = Vec::new();
     let mut areas = Vec::new();
-    let mut paste_areas = Vec::new();
+    let mut ranges_with_metadata = Vec::new();
     let mut filter_sheets = BTreeSet::new();
     let mut inserted = None;
     let mut presentation = Vec::new();
@@ -409,7 +409,7 @@ pub(crate) fn prepare(
                         CellEdit::SetArray { array, .. } => Some(array.area()),
                         _ => None,
                     }));
-                    paste_areas.extend([moving, target]);
+                    ranges_with_metadata.extend([moving, target]);
                     edits.extend(prepared);
                     cut = Some((paste, *from, *to));
                 }
@@ -591,8 +591,8 @@ pub(crate) fn prepare(
                     .map_err(excel)?;
                     let target = plan.target();
                     areas.push(target);
-                    if !paste_areas.contains(&target) {
-                        paste_areas.push(target);
+                    if !ranges_with_metadata.contains(&target) {
+                        ranges_with_metadata.push(target);
                     }
                     edits.extend(plan.into_edits(host).map_err(excel)?);
                 }
@@ -632,8 +632,8 @@ pub(crate) fn prepare(
                         false,
                     ).map_err(excel)?;
                     areas.push(target);
-                    if !paste_areas.contains(&target) {
-                        paste_areas.push(target);
+                    if !ranges_with_metadata.contains(&target) {
+                        ranges_with_metadata.push(target);
                     }
                     edits.extend(plan.into_edits(host).map_err(excel)?);
                 }
@@ -650,6 +650,30 @@ pub(crate) fn prepare(
                     edits.extend(prepare_filter_toggle(state.session.host(), selected)
                         .map_err(|reason| Refusal::Excel { reason })?);
                     filter_sheets.insert(selected.sheet());
+                }
+                ModelChange::SortRows { selected, keys, header, case_sensitive } => {
+                    require_current_model(request, base.model)?;
+                    let selected = grid_area(*selected)?;
+                    let host = state.session.host();
+                    if host.sheet_contents_protected(selected.sheet()) {
+                        return Err(unavailable("dc-s2xup", "Sorting a protected worksheet"));
+                    }
+                    let keys = keys.iter().map(|key| {
+                        if key.column >= selected.column_count() {
+                            return Err(invalid("Every sort key must lie inside the selected range"));
+                        }
+                        Ok(SortKey {
+                            column: selected.first().column() + key.column,
+                            descending: key.descending,
+                        })
+                    }).collect::<Result<Vec<_>, _>>()?;
+                    let options = SortOptions { case_sensitive: *case_sensitive, ..Default::default() };
+                    edits.extend(prepare_sort_rows(host, selected, &keys, *header, base.model.0, &options)
+                        .map_err(|reason| Refusal::Excel { reason })?);
+                    areas.push(selected);
+                    if !ranges_with_metadata.contains(&selected) {
+                        ranges_with_metadata.push(selected);
+                    }
                 }
             },
             Change::Presentation(change) => {
@@ -801,8 +825,8 @@ pub(crate) fn prepare(
             Some((paste, _, _)) => state.session.preview_skin_paste(paste),
             None => state.session.preview_edits(&edits),
         }.map_err(refusal)?;
-        if !paste_areas.is_empty() {
-            properties.extend(paste_properties(&before, &after, &paste_areas, &edits));
+        if !ranges_with_metadata.is_empty() {
+            properties.extend(range_properties(&before, &after, &ranges_with_metadata, &edits));
         }
         properties.extend(names.into_iter().filter_map(|name| name.diff(&after)));
         properties.extend(column_properties(&before, &after, &edits));

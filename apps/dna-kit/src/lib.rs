@@ -1,9 +1,11 @@
 //! Strand components, the workbook session as signals, and the registration surface for views.
 
+mod dialog;
 pub mod live_tree;
 pub mod name_manager;
 pub mod page;
 pub mod session;
+pub mod sort_dialog;
 pub mod view;
 pub use session::{Focus, Following, Session};
 pub use view::{

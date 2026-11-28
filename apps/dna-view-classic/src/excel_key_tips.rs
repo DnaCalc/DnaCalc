@@ -56,7 +56,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     group("A V", "Data Tools"),
     pending("A V V", "Data Validation"),
     group("A S", "Sort"),
-    pending("A S S", "Sort"),
+    command("A S S", "Sort", dna_kit::sort_dialog::OPEN),
     command("A T", "Filter", "grid.toggle-filter"),
     group("A W", "What-If Analysis"),
     pending("A W G", "Goal Seek"),
