@@ -1904,7 +1904,7 @@ fn an_agent_look_reaches_the_operator_without_editing_the_workbook() {
     let joined = port(&host);
     assert!(joined.next_frame().unwrap().unwrap().events.iter()
         .all(|event| !matches!(event, Event::TryOn(_))));
-    let TryOnPayload::Skin(mut malformed) = look;
+    let TryOnPayload::Skin(mut malformed) = look else { panic!("expected a skin") };
     malformed.pages.insert("unbound".into(), Page {
         schema: PageSchema::V1,
         title: "Unbound page".into(),

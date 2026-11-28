@@ -595,6 +595,12 @@ pub enum PresentationChange {
         skin: Box<crate::SkinManifest>,
         expect_view_rev: Revision,
     },
+    /// Keep a reviewed App page whose bindings are resolved against this workbook.
+    KeepAppPage {
+        doc: DocId,
+        page: Box<crate::Page>,
+        expect_view_rev: Revision,
+    },
     Bind {
         anchor: AnchorId,
         source: SourceRef,
@@ -749,6 +755,7 @@ pub struct HistoryEntry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TryOnPayload {
     Skin(Box<crate::SkinManifest>),
+    Page(Box<crate::Page>),
 }
 
 /// A look delivered to the workbook operator with its author and source revision.
