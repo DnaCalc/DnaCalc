@@ -1082,6 +1082,7 @@ pub enum Event {
         cause: SelectionCause,
     },
     History(HistoryEntry),
+    MacroView(crate::ViewRequest),
     TryOn(LookOffer),
 }
 

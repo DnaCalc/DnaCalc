@@ -1,4 +1,4 @@
-use crate::{Refusal, Stamp};
+use crate::{Refusal, Stamp, ViewId};
 use serde::{Deserialize, Serialize};
 
 pub use calc_macro_security::MacroSecurity;
@@ -30,4 +30,11 @@ pub struct MacroRun {
     pub procedure: String,
     pub denials: Vec<MacroDenial>,
     pub error: Option<Refusal>,
+}
+
+/// Presentation requests emitted by a macro through the workbook carrier.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ViewRequest {
+    Switch { view: ViewId, sheet: Option<String> },
+    ShowPanel { panel: String, shown: bool },
 }

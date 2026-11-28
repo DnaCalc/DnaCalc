@@ -15,7 +15,7 @@ use calc_skin::query::{self, Query};
 use calc_skin::{
     Answer, Batch, Budget, Coverage, DockPanel, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply,
     LookOffer, Operation, Packet, Refusal, Selection, SkinManifest, SourceRef, Stamp, Target, ViewId,
-    WorkbookId, WorkbookSummary,
+    ViewRequest, WorkbookId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
@@ -64,6 +64,7 @@ struct Inner {
     notebook_profile: RefCell<Option<ViewId>>,
     passive_views: RefCell<Vec<ViewId>>,
     after_commit: RefCell<Option<Box<dyn FnOnce()>>>,
+    macro_view: RefCell<Option<Rc<dyn Fn(ViewRequest)>>>,
     alt_tap: Cell<bool>,
 }
 
@@ -127,6 +128,7 @@ impl Session {
                 notebook_profile: RefCell::new(None),
                 passive_views: RefCell::default(),
                 after_commit: RefCell::new(None),
+                macro_view: RefCell::new(None),
                 alt_tap: Cell::new(false),
             })),
             stamp: RwSignal::new(0),
@@ -201,6 +203,13 @@ impl Session {
         for complete in completions {
             complete();
         }
+        let requests = inner.client.borrow_mut().take_macro_views();
+        let handle = inner.macro_view.borrow().clone();
+        if let Some(handle) = handle {
+            for request in requests {
+                handle(request);
+            }
+        }
     }
 
     fn flush(self, inner: &Inner) {
@@ -266,6 +275,11 @@ impl Session {
 
     pub fn deliver(self, packet: Packet) {
         self.update(|client| client.deliver(packet));
+    }
+
+    /// The shell owns presentation requests. The session holds them while a text draft is active.
+    pub fn on_macro_view(self, handle: impl Fn(ViewRequest) + 'static) {
+        self.inner().macro_view.replace(Some(Rc::new(handle)));
     }
 
     /// Shows a failure the carrier met (a worker that would not start, a file that would not read).

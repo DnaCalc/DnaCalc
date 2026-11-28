@@ -51,6 +51,7 @@ pub fn install_docked(registry: &mut Registry) {
             command: OPEN,
             label: "Formula Explorer",
             mount,
+            panel: None,
         },
         commands,
     });

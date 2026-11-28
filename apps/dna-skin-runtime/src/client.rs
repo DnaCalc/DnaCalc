@@ -18,7 +18,7 @@ use calc_skin::query::{self, Query};
 use calc_skin::{
     Answer, Batch, Budget, Change, Envelope, FormulaOperation, FormulaQuery,
     Event, FormulaReply, Frame, LookOffer, Message, ModelChange, Operation, Packet, Preview, PreviewDepth, Refusal,
-    Revision, Selection, SourceRef, Stamp, Target, WatchId, WorkbookId, WorkbookReply, WorkbookRequest,
+    Revision, Selection, SourceRef, Stamp, Target, ViewRequest, WatchId, WorkbookId, WorkbookReply, WorkbookRequest,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
@@ -154,6 +154,7 @@ pub struct Client {
     notice: String,
     last_refusal: Option<Refusal>,
     look_offer: Option<LookOffer>,
+    macro_views: Vec<ViewRequest>,
     completions: Vec<Box<dyn FnOnce()>>,
 }
 
@@ -261,6 +262,14 @@ impl Client {
     /// Invoke completions after releasing the client borrow so a callback can send another request.
     pub fn take_completions(&mut self) -> Vec<Box<dyn FnOnce()>> {
         std::mem::take(&mut self.completions)
+    }
+
+    pub fn take_macro_views(&mut self) -> Vec<ViewRequest> {
+        if self.edit.is_some() || !matches!(self.seam(), Seam::Idle) {
+            Vec::new()
+        } else {
+            std::mem::take(&mut self.macro_views)
+        }
     }
 
     pub fn stamp(&self) -> Option<Stamp> {
@@ -733,6 +742,10 @@ impl Client {
             Event::TryOn(offer) => Some(offer.clone()),
             _ => None,
         });
+        let macro_views = frame.events.iter().filter_map(|event| match event {
+            Event::MacroView(request) => Some(request.clone()),
+            _ => None,
+        }).collect::<Vec<_>>();
         if !self.store.apply(frame) {
             return Changes::default();
         }
@@ -761,6 +774,7 @@ impl Client {
             changes.edit = self.edit.take().is_some() || !self.held.is_empty();
             self.held.clear();
             changes.seam = self.seam.take().is_some();
+            self.macro_views.clear();
             changes.watches.extend(self.slots.keys().copied());
         } else {
             changes.watches.extend(
@@ -770,6 +784,7 @@ impl Client {
                     .map(|(key, _)| *key),
             );
         }
+        self.macro_views.extend(macro_views);
         if matches!(self.seam(), Seam::Queued) && self.store.confirmed_selection().is_some() {
             let (_, batch, submission) = self.seam.take().expect("a queued change");
             changes.merge(self.start(batch, submission));

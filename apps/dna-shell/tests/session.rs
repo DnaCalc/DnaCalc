@@ -27,6 +27,7 @@ struct Page {
     sent: Rc<RefCell<VecDeque<Packet>>>,
     session: Session,
     sheet: Sheet,
+    registry: Registry,
     _owner: Owner,
 }
 
@@ -71,6 +72,7 @@ impl Page {
             sent,
             session,
             sheet,
+            registry,
             _owner: owner,
         };
         page.settle();
@@ -298,6 +300,65 @@ End Sub
     assert!(fault.error.is_some());
     assert_eq!(page.shown(page.at(1, 1)), "2");
     assert_eq!(page.shown(page.at(1, 2)), "20");
+}
+
+/// Native-only: runs the VBA view verbs through the workbook carrier into the installed shell.
+#[test]
+fn macro_view_requests_wait_for_the_cell_draft_and_leave_workbook_history_alone() {
+    let page = macro_page(r#"Public Sub Fill()
+ Application.Run "DnaCalc.View.ShowPanel", "inspector.trace", True
+ Application.Run "DnaCalc.View.Switch", "notebook"
+End Sub
+"#);
+    macro_level(&page, calc_skin::MacroSecurity::Guarded);
+    let approval = macro_review(&page).approval.unwrap();
+    let before = page.session.stamp().unwrap();
+    assert!(page.press("x", Focus::Stage));
+    assert_eq!(page.session.edit().unwrap().text, "x");
+
+    let run = run_macro(&page, approval).unwrap();
+    assert_eq!(run.error, None);
+    assert_eq!(page.session.view().0, "classic");
+    assert_eq!(page.session.edit().unwrap().text, "x");
+    let trace = page.registry.docks().filter_map(|dock| dock.panel)
+        .find(|panel| panel.id == "inspector.trace").unwrap();
+    assert!(!(trace.visible)(page.session));
+
+    page.session.cancel();
+    page.settle();
+    assert_eq!(page.session.view().0, "notebook");
+    assert!((trace.visible)(page.session));
+    assert!(page.press("Alt+ArrowLeft", Focus::Stage));
+    assert_eq!(page.session.view().0, "classic");
+    assert!(page.press("Alt+ArrowLeft", Focus::Stage));
+    assert!(!(trace.visible)(page.session));
+    assert_eq!(page.session.stamp(), Some(before));
+    assert_eq!(page.host.with_session(SelectionCause::History, |book| book.history_depth()), (0, 0));
+}
+
+/// Native-only: verifies the aliases keep the range that VBA selected after requesting a view.
+#[test]
+fn macro_view_switch_on_the_selected_sheet_preserves_the_vba_range() {
+    let page = macro_page(r#"Public Sub Fill()
+ Application.Run "DnaCalc.View", "Notebook", "Cases"
+ Application.Run "DnaCalc.Select", "Cases!B2:C3"
+ Application.Run "DnaCalc.Panel", "inspector.trace", True
+ Application.Run "DnaCalc.Panel", "inspector.trace", False
+End Sub
+"#);
+    macro_level(&page, calc_skin::MacroSecurity::Guarded);
+    let run = run_macro(&page, macro_review(&page).approval.unwrap()).unwrap();
+    assert_eq!(run.error, None);
+    assert_eq!(page.session.view().0, "notebook");
+    assert_eq!(page.session.active(), Some(page.at(2, 2)));
+    let selection = page.session.selection().unwrap();
+    assert!(matches!(selection.target, calc_skin::SourceRef::Cells { areas, .. }
+        if areas == [calc_skin::grid::Area(page.at(2, 2), page.at(3, 3))]));
+    let trace = page.registry.docks().filter_map(|dock| dock.panel)
+        .find(|panel| panel.id == "inspector.trace").unwrap();
+    assert!(!(trace.visible)(page.session));
+    assert!(page.press("Alt+ArrowLeft", Focus::Stage));
+    assert!((trace.visible)(page.session));
 }
 
 /// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.

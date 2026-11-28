@@ -179,6 +179,15 @@ pub struct DockSpec {
     pub command: &'static str,
     pub label: &'static str,
     pub mount: fn(Session, DockSide) -> AnyView,
+    /// A panel that the operator or a macro can show by its published name.
+    pub panel: Option<PanelSpec>,
+}
+
+#[derive(Clone, Copy)]
+pub struct PanelSpec {
+    pub id: &'static str,
+    pub visibility_command: &'static str,
+    pub visible: fn(Session) -> bool,
 }
 
 /// A dockable tool that is available independently of the view on stage.
