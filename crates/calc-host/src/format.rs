@@ -777,16 +777,34 @@ fn default_border() -> crate::EdgeChange {
 
 /// Prepare the default All Borders command on a worksheet rectangle.
 pub fn prepare_all_borders(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
-    let edge = default_border();
+    prepare_cell_borders(host, area, &default_border())
+}
+
+/// Clear the selected cells' borders and the matching edges of neighbouring cells.
+pub fn prepare_no_borders(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
+    let clear = crate::EdgeChange {
+        line: Some(crate::EdgeLine::None),
+        ..Default::default()
+    };
+    prepare_cell_borders(host, area, &clear)
+}
+
+fn prepare_cell_borders(
+    host: &HostState,
+    area: GridArea,
+    edge: &crate::EdgeChange,
+) -> Result<Vec<CellEdit>, String> {
+    let diagonal = (edge.line == Some(crate::EdgeLine::None)).then(|| edge.clone());
     let edges = crate::EdgesPatch {
         left: Some(edge.clone()),
         right: Some(edge.clone()),
         top: Some(edge.clone()),
-        bottom: Some(edge),
-        ..Default::default()
+        bottom: Some(edge.clone()),
+        diagonal_up: diagonal.clone(),
+        diagonal_down: diagonal,
     };
     let patch = FormatPatch { edges: Some(edges), ..Default::default() };
-    prepare_border_groups(host, area, vec![([area], patch)])
+    prepare_border_groups(host, area, vec![([area], patch)], edge)
 }
 
 /// Prepare the default outline border while retaining the rectangle's inside edges.
@@ -813,7 +831,7 @@ pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<Ce
             groups.push(([part], FormatPatch { edges: Some(edges), ..Default::default() }));
         }
     }
-    prepare_border_groups(host, area, groups)
+    prepare_border_groups(host, area, groups, &default_border())
 }
 
 /// The selected rectangle and the adjacent strips where its shared edges are stored.
@@ -829,9 +847,10 @@ fn prepare_border_groups(
     host: &HostState,
     area: GridArea,
     mut groups: Vec<([GridArea; 1], FormatPatch)>,
+    edge: &crate::EdgeChange,
 ) -> Result<Vec<CellEdit>, String> {
     groups.extend(neighbour_edges(area).map(|(strip, side)| {
-        let patch = FormatPatch { edges: Some(side.patch(default_border())), ..Default::default() };
+        let patch = FormatPatch { edges: Some(side.patch(edge.clone())), ..Default::default() };
         ([strip], patch)
     }));
     prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))

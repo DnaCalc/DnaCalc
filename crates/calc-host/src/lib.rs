@@ -144,7 +144,8 @@ pub use facts::alignment as style_alignment;
 pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
 pub use format::{
     BorderPatch, FillColor, FormatPatch, InteriorPatch, border_affected_areas, border_for_style,
-    format_regions, format_samples, patched_style, prepare_all_borders, prepare_outline_border,
+    format_regions, format_samples, patched_style, prepare_all_borders, prepare_no_borders,
+    prepare_outline_border,
 };
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use calc_engine::DependencySpelling;
