@@ -164,6 +164,8 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
     let issues = session.following_with_budget::<query::IssuesIn>(INSTRUMENT_BUDGET);
     let deps = session.following::<query::Deps>();
     let changes = session.following::<query::CalcChanges>();
+    let iteration = session.following::<query::CalcIteration>();
+    let execution = session.following::<query::CalcExecution>();
     let sources = session.following::<query::SourceInventory>();
     let notes = session.following::<query::NotesOf>();
     let contributions = session.following_with_budget::<query::ContributionsAt>(INSTRUMENT_BUDGET);
@@ -223,6 +225,8 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
             stamp,
         );
         let changes = observe(changes.at(calculation.then_some(query::CalcChanges)), stamp);
+        let iteration = observe(iteration.at(calculation.then_some(query::CalcIteration)), stamp);
+        let execution = observe(execution.at(calculation.then_some(query::CalcExecution)), stamp);
         let sources = observe(sources.at(live.then_some(query::SourceInventory)), stamp);
         let notes = observe(
             notes.at(request.dossier.then_some(query::NotesOf { anchor: None })),
@@ -241,6 +245,8 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
             Some(issues),
             Some(deps),
             Some(changes),
+            Some(iteration),
+            Some(execution),
             Some(sources),
             Some(notes),
             Some(contributions),
@@ -250,6 +256,8 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
             issues,
             deps,
             changes,
+            iteration,
+            execution,
             sources,
             notes,
             contributions,
@@ -354,6 +362,13 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
                             observation(change.before),
                             observation(change.after)
                         );
+                        if let Some(anchor) = change.spill_anchor {
+                            let _ = writeln!(report, "Spill from {}", cell_label(session, anchor));
+                        }
+                        for alias in change.aliases {
+                            let source = SourceRef::Name { scope: alias.scope, name: alias.name };
+                            let _ = writeln!(report, "Defined name {}", source_label(session, &source));
+                        }
                     }
                 }
                 Evidence::Unavailable { reason } => {
@@ -361,7 +376,35 @@ fn capture(session: Session, export: Export, request: Request) -> impl IntoView 
                 }
                 Evidence::Derived { .. } => {}
             }
-            report.push_str("DNA Calc's calculation order: Not observed\n");
+        }
+        if let Some(Evidence::Observed { body, .. }) = section(&mut report, "Iteration", iteration) {
+            let stop = crate::audit::iteration_stop(body.stop);
+            let _ = writeln!(report, "{} passes · {stop}", body.passes);
+            if let Some(residual) = body.residual_bits.map(f64::from_bits) {
+                let max_change = f64::from_bits(body.max_change_bits);
+                let _ = writeln!(report, "Residual {residual} · MaxChange {max_change}");
+            }
+            for read in body.reads {
+                let pass = if read.current_pass { "Current pass" } else { "Prior pass" };
+                let _ = writeln!(report, "{} read {} · {pass}", cell_label(session, read.reader), cell_label(session, read.source));
+            }
+        }
+        if let Some(evidence) = section(&mut report, "DNA Calc's calculation order", execution) {
+            match evidence {
+                Evidence::Observed { body, .. } => {
+                    let _ = writeln!(report, "{}", crate::audit::execution_count(body.total_entries));
+                    if !body.finished {
+                        let _ = writeln!(report, "Calculation still running.");
+                    }
+                    for band in body.bands {
+                        let label = if band.workers { "Worker band" } else { "Evaluator entry" };
+                        let cells = band.cells.into_iter().map(|cell| cell_label(session, cell)).collect::<Vec<_>>();
+                        let _ = writeln!(report, "Pass {} · {label} · {}", band.pass, cells.join(", "));
+                    }
+                }
+                Evidence::Unavailable { reason } => { let _ = writeln!(report, "{reason}"); }
+                Evidence::Derived { .. } => {}
+            }
         }
         if let Some(sources) = section(&mut report, "Sources", sources) {
             for link in sources.links {

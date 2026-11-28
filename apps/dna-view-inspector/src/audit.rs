@@ -442,6 +442,7 @@ fn graph_view(
 
 pub(crate) fn calculation(session: Session) -> impl IntoView {
     let calc = session.following::<query::CalcState>();
+    let iteration = session.following::<query::CalcIteration>();
     view! {
         <div class="dna-inspector-card">
             <h2>"Calculation state"</h2>
@@ -459,11 +460,42 @@ pub(crate) fn calculation(session: Session) -> impl IntoView {
                 }.into_any(),
                 Err(message) => status(message),
             }}
-            {button(session, "calc.calculate", "Calculate workbook")}
+            <div class="dna-inspector-actions">
+                {button(session, "calc.calculate", "Calculate workbook")}
+                {button(session, "calc.calculate-sheet", "Calculate active sheet")}
+                {button(session, "calc.calculate-full", "Calculate all formulas")}
+                {button(session, "calc.calculate-rebuild", "Rebuild dependencies and calculate")}
+            </div>
         </div>
+        {move || {
+            let answer = result(iteration.at(Some(query::CalcIteration)), "").ok()?;
+            let calc_skin::Evidence::Observed { body, at, .. } = answer.body else { return None };
+            let stop = iteration_stop(body.stop);
+            Some(view! {
+                <section class="dna-inspector-card" data-inspector="iteration">
+                    <h2>"Iteration"</h2>
+                    <p>{format!("{} passes · {stop} · observed publication {}", body.passes, at.calc.0)}</p>
+                    {body.residual_bits.map(|bits| view! {
+                        <p>{format!("Residual {} · MaxChange {}", f64::from_bits(bits), f64::from_bits(body.max_change_bits))}</p>
+                    })}
+                    {coverage(answer.coverage).map(status)}
+                    <ul aria-label="Cyclic cells">{body.members.into_iter().map(|key| view! {
+                        <li>{reveal(session, key)}</li>
+                    }).collect_view()}</ul>
+                    {body.reads_limited.then(|| view! { <p>"The final pass exceeded the read sample limit."</p> })}
+                    {(!body.reads.is_empty()).then(|| view! {
+                        <h3>"Final pass reads"</h3>
+                        <ul>{body.reads.into_iter().map(|read| view! {
+                            <li>{reveal(session, read.reader)} " read " {reveal(session, read.source)}
+                                {if read.current_pass { " · Current pass" } else { " · Prior pass" }}</li>
+                        }).collect_view()}</ul>
+                    })}
+                </section>
+            })
+        }}
         {dependency_waves(session)}
         {value_changes(session)}
-        <div class="dna-inspector-card"><h2>"DNA Calc's calculation order"</h2><p>"Not observed"</p></div>
+        {execution(session)}
     }
 }
 
@@ -482,7 +514,14 @@ fn value_changes(session: Session) -> impl IntoView {
                         let any = !body.is_empty();
                         let rows = body.into_iter().map(|change| view! {
                             <tr>
-                                <th scope="row">{reveal(session, change.at)}</th>
+                                <th scope="row">
+                                    {reveal(session, change.at)}
+                                    {change.spill_anchor.map(|anchor| view! { <small>"Spill from " {reveal(session, anchor)}</small> })}
+                                    {change.aliases.into_iter().map(|alias| {
+                                        let source = SourceRef::Name { scope: alias.scope, name: alias.name };
+                                        view! { <small>{target_label(session, &DependencyTarget::Source(source))}</small> }
+                                    }).collect_view()}
+                                </th>
                                 <td>{observed_value(change.before)}</td>
                                 <td>{observed_value(change.after)}</td>
                             </tr>
@@ -508,6 +547,52 @@ fn value_changes(session: Session) -> impl IntoView {
             }}
         </div>
     }
+}
+
+fn execution(session: Session) -> impl IntoView {
+    let execution = session.following::<query::CalcExecution>();
+    view! {
+        <div class="dna-inspector-card">
+            <h2>"DNA Calc's calculation order"</h2>
+            {button(session, "inspector.calculate-observed", "Calculate and record order")}
+            {move || {
+                let answer = match result(execution.at(Some(query::CalcExecution)), "") {
+                    Ok(answer) => answer,
+                    Err(message) => return status(message),
+                };
+                match answer.body {
+                    calc_skin::Evidence::Observed { at, body, .. } => {
+                        let bands = body.bands.into_iter().map(|band| {
+                            let caption = if band.workers { "Worker band" } else { "Evaluator entry" };
+                            let cells = band.cells.into_iter().map(|cell| reveal(session, cell)).collect_view();
+                            view! { <li><span>{format!("Pass {} · {caption}", band.pass)}</span>{cells}</li> }
+                        }).collect_view();
+                        view! {
+                            <p data-inspector="execution-count">{format!("{} · publication {}", execution_count(body.total_entries), at.calc.0)}</p>
+                            {(!body.finished).then(|| view! { <p>"Calculation still running."</p> })}
+                            {coverage(answer.coverage).map(status)}
+                            <ol data-inspector="execution-bands">{bands}</ol>
+                        }.into_any()
+                    }
+                    calc_skin::Evidence::Unavailable { reason } => status(reason),
+                    calc_skin::Evidence::Derived { .. } => status("Not observed".into()),
+                }
+            }}
+        </div>
+    }
+}
+
+pub(crate) fn iteration_stop(stop: calc_skin::IterationStop) -> &'static str {
+    match stop {
+        calc_skin::IterationStop::MaximumIterations => "Maximum iterations",
+        calc_skin::IterationStop::Converged => "Converged",
+        calc_skin::IterationStop::NoNumericSample => "No numeric stopping sample",
+    }
+}
+
+pub(crate) fn execution_count(entries: u64) -> String {
+    let unit = if entries == 1 { "entry" } else { "entries" };
+    format!("{entries} evaluator {unit}")
 }
 
 fn observed_value(observation: query::FormulaObservation) -> impl IntoView {

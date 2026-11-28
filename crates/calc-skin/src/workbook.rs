@@ -304,6 +304,9 @@ pub enum WorkbookQuery {
     },
     CalcState,
     CalcChanges,
+    /// Retained evaluator entries from the latest publication of an observed command.
+    CalcExecution,
+    CalcIteration,
     ViewPart,
     Notes {
         anchor: Option<AnchorId>,
@@ -904,6 +907,12 @@ pub enum Operation {
     /// Offer a declarative appearance to the workbook operator for temporary preview.
     TryOn { expected: Stamp, look: TryOnPayload },
     Calculate { scope: SourceRef },
+    /// Recalculate every workbook formula, retaining the existing dependency bindings.
+    CalculateFull,
+    /// Rebuild the workbook's dependency bindings and then recalculate every formula.
+    CalculateRebuild,
+    /// Recalculate the workbook with execution observation on for this command.
+    CalculateObserved,
     CancelCalculation,
     ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
     /// Freeze the leading bands before the confirmed active cell, or unfreeze the sheet.

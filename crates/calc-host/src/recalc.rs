@@ -95,6 +95,7 @@ pub fn step(
                 || !work.callables_current(&host.engine) =>
         {
             let reloaded = !work.callables_current(&host.engine);
+            let observe = !force && work.observes_execution();
             host.calculation_demanded = true;
             host.renew_workbook_facts();
             let transformed = host.transformed_calculation_scope.take();
@@ -128,6 +129,11 @@ pub fn step(
             };
             match started {
                 Ok(work) => {
+                    let work = if observe {
+                        work.with_execution_observation()
+                    } else {
+                        work
+                    };
                     let work = host.attach_rtd_connector(
                         work.with_external_inputs(host.rtd_inputs.clone())
                             .with_functions(&host.functions)
@@ -174,6 +180,7 @@ pub fn step(
             // dc-uar: the facts CELL and INFO read, as of this revision.
             host.renew_workbook_facts();
             host.calculation_demanded = current_demanded || host.requested_calculation.is_some();
+            let observe = std::mem::take(&mut host.observe_requested_calculation);
             let started = if let Some((scope, selection)) = host.requested_calculation.take() {
                 let scope = host.transformed_calculation_scope.take().unwrap_or(scope);
                 let poststate = if host.calc_mode() == CalcMode::Manual
@@ -200,11 +207,18 @@ pub fn step(
                 )
             };
             match started {
-                Ok(work) => host.attach_rtd_connector(
-                    work.with_external_inputs(host.rtd_inputs.clone())
-                        .with_functions(&host.functions)
-                        .with_reference_tracker(host.references.clone()),
-                ),
+                Ok(work) => {
+                    let work = if observe {
+                        work.with_execution_observation()
+                    } else {
+                        work
+                    };
+                    host.attach_rtd_connector(
+                        work.with_external_inputs(host.rtd_inputs.clone())
+                            .with_functions(&host.functions)
+                            .with_reference_tracker(host.references.clone()),
+                    )
+                }
                 Err(error) => return failed(host, RecalcFailed::Refused(error)),
             }
         }

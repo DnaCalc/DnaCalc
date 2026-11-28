@@ -290,14 +290,24 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Wait(Check::Value("formula-bar", "=B1")),
             Action::Click("[data-command='view.inspector']"),
             Action::Click("[data-command='inspector.calculation']"),
+            Action::Wait(Check::Count("[data-inspector-tab='Calculation'] ol > li", 2)),
+            Action::Wait(Check::TextContains(
+                "[data-inspector-tab='Calculation']",
+                "Not observed",
+            )),
+            Action::Click("[data-command='inspector.calculate-observed']"),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='execution-count']",
+                "1 evaluator entry",
+            )),
         ],
         checks: &[
-            Check::Count("[data-inspector-tab='Calculation'] ol > li", 2),
+            Check::Count("[data-inspector='execution-bands'] > li", 1),
             Check::TextContains(
                 "[data-inspector-tab='Calculation']",
                 "Derived from up to five levels of precedents",
             ),
-            Check::TextContains("[data-inspector-tab='Calculation']", "Not observed"),
+            Check::TextContains("[data-inspector='execution-bands']", "A1"),
         ],
     },
     Case {

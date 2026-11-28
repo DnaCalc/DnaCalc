@@ -3228,3 +3228,20 @@ fn operator_reviews_and_accepts_the_selected_proposal_from_the_shell() {
     assert!(!view.body.trail.enabled);
     assert_eq!(view.body.trail.events.len(), 2);
 }
+
+#[test]
+fn calculation_shortcuts_reach_the_workbook_and_worksheet_route() {
+    let page = Page::open();
+    let at = page.at(1, 1);
+    page.session.select_cell(at);
+    page.session.begin_edit(at, Some("=1+2".into()));
+    page.session.commit_edit();
+    page.settle();
+    assert_eq!(page.shown(at), "3");
+    for key in ["Shift+F9", "Ctrl+Alt+F9", "Ctrl+Alt+Shift+F9"] {
+        let before = page.session.stamp().unwrap().calc;
+        assert!(page.press(key, Focus::Stage), "registered calculation key {key}");
+        let after = page.session.stamp().unwrap().calc;
+        assert!(after.0 > before.0, "publication after {key}");
+    }
+}

@@ -2658,3 +2658,113 @@ fn view_trail_caps_records_and_counts_the_earliest_evictions() {
     assert_eq!(trail.dropped, 1);
     assert_eq!(trail.events().last().unwrap().unit, TRAIL_LIMIT.to_string());
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn iteration_reports_actual_pass_count_and_terminal_residual() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = Key(sheet.0, sheet.1, 1, 1);
+    let peer = Key(sheet.0, sheet.1, 1, 2);
+    host.with_session(SelectionCause::Open, |session| {
+        let receipt = session.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::SetIteration(calc_host::IterationSettings::new(true, 3, 0.01))],
+        });
+        assert!(receipt.accepted(), "{receipt:?}");
+    });
+    connection.commit(batch(1, vec![enter(at, "=(B1+1)/2"), enter(peer, "=A1")])).unwrap();
+    while host.advance() {}
+    let q = query::Cells { interest: Interest::Area(Area(at, at)) };
+    let answer = query::Cells::decode(connection.ask(q.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.cells[0].shown.value, RawValue::Number { bits: 0.875f64.to_bits() });
+    let request = query::CalcIteration;
+    let answer = query::CalcIteration::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Observed { body, .. } = answer.body else { panic!("observed iteration") };
+    assert_eq!(body.passes, 3);
+    assert_eq!(body.residual_bits, Some(0.125f64.to_bits()));
+    assert_eq!(body.max_change_bits, 0.01f64.to_bits());
+    assert_eq!(body.stop, IterationStop::MaximumIterations);
+    assert_eq!(body.members, [at, peer]);
+    assert!(body.reads.contains(&IterationRead { reader: at, source: peer, current_pass: false }));
+    assert!(body.reads.contains(&IterationRead { reader: peer, source: at, current_pass: true }));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn execution_is_observed_only_when_requested_on_the_recalculation_route() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    connection.commit(batch(1, vec![
+        enter(at(1, 1), "2"),
+        enter(at(1, 2), "=A1*2"),
+        enter(at(1, 3), "=B1+1"),
+    ])).unwrap();
+    while host.advance() {}
+
+    let read = || {
+        let request = query::CalcExecution;
+        query::CalcExecution::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap().body
+    };
+    assert!(matches!(read(), Evidence::Unavailable { .. }));
+    connection.run(Operation::CalculateObserved).unwrap();
+    while host.advance() {}
+    let Evidence::Observed { body, .. } = read() else { panic!("observed dispatch evidence") };
+    assert!(body.finished);
+    assert_eq!(body.total_entries, 2);
+    assert_eq!(body.bands.len(), 2);
+    assert_eq!(body.bands.iter().map(|band| band.cells[0]).collect::<Vec<_>>(), [at(1, 2), at(1, 3)]);
+    assert!(body.bands.iter().all(|band| !band.workers));
+
+    connection.run(Operation::Calculate { scope: SourceRef::Workbook }).unwrap();
+    while host.advance() {}
+    assert!(matches!(read(), Evidence::Unavailable { .. }));
+}
+
+fn changed_cells_fixture() -> (Vec<query::FormulaResultChange>, Sheet) {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    let stamp = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let mut initial = batch(1, vec![
+        enter(at(1, 1), "2"), enter(at(1, 2), "=A1*2"), enter(at(1, 4), "=SEQUENCE(2,1,A1)"),
+        Change::Model(ModelChange::Name {
+            scope: NameScope::Workbook,
+            change: NameChange::Define { name: "AliasValue".into(), formula: "=Sheet1!$B$1".into() },
+        }),
+    ]);
+    initial.base = Some(stamp.model);
+    connection.commit(initial).unwrap();
+    while host.advance() {}
+    connection.commit(batch(2, vec![enter(at(1, 1), "3")])).unwrap();
+    while host.advance() {}
+    let answers = connection.ask(query::CalcChanges.request(), BUDGET).unwrap();
+    let Evidence::Observed { body, .. } = query::CalcChanges::decode(answers).unwrap().body else {
+        panic!("latest publication must carry changes");
+    };
+    (body, sheet)
+}
+
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn calculation_changes_report_a_published_spill_follower() {
+    let (changes, sheet) = changed_cells_fixture();
+    let follower = Key(sheet.0, sheet.1, 2, 4);
+    let change = changes.iter().find(|change| change.at == follower)
+        .expect("the evaluated spill follower changed");
+    assert_eq!(change.spill_anchor, Some(Key(sheet.0, sheet.1, 1, 4)));
+    assert_eq!(change.before.value, Some(RawValue::Number { bits: 3f64.to_bits() }));
+    assert_eq!(change.after.value, Some(RawValue::Number { bits: 4f64.to_bits() }));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn calculation_changes_identify_a_stable_workbook_name_for_the_changed_cell() {
+    let (changes, sheet) = changed_cells_fixture();
+    let cell = Key(sheet.0, sheet.1, 1, 2);
+    let change = changes.iter().find(|change| change.at == cell).unwrap();
+    assert_eq!(change.before.value, Some(RawValue::Number { bits: 4f64.to_bits() }));
+    assert_eq!(change.after.value, Some(RawValue::Number { bits: 6f64.to_bits() }));
+    assert_eq!(change.aliases, [query::ResultAlias { name: "AliasValue".into(), scope: NameScope::Workbook }]);
+}

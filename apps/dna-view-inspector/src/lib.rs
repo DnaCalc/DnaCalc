@@ -151,6 +151,15 @@ impl View for Inspector {
             }),
             audit::atlas_command(session),
             ViewCommand::global(
+                "inspector.calculate-observed",
+                "Calculate and record order",
+                &[],
+                move |_| {
+                    session.operate(calc_skin::Operation::CalculateObserved, None);
+                    Ok(())
+                },
+            ),
+            ViewCommand::global(
                 "inspector.reveal",
                 "Reveal source",
                 &[],

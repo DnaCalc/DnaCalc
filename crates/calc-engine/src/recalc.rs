@@ -466,6 +466,9 @@ pub struct RecalcWork {
     requirements: RequirementCut,
     facts_version: u64,
     events: Vec<CalcEvent>,
+    execution: Option<crate::contract::ExecutionObservation>,
+    iteration_reads: IterativeReads,
+    last_iteration: Option<crate::contract::IterationObservation>,
     reused: usize,
     repairing_certificates: bool,
     invalidated_outside: BTreeSet<NodeId>,
@@ -591,6 +594,9 @@ impl calc_fml::WeekState for PassWeek {
 /// evaluation read, the reader's gathering storage, and whether it read a formula of `kept`.
 #[derive(Debug, Default)]
 pub(crate) struct EvalLocal {
+    /// The most recent dispatch entered a formula or data-table evaluation.
+    entered_evaluator: bool,
+    iteration_reads: IterativeReads,
     external_cache: bool,
     effects: calc_fml::UserFunctionEffects,
     semantic_prerequisite: Option<(CellKey, NodeId)>,
@@ -618,6 +624,30 @@ pub(crate) struct EvalLocal {
     boundary_used: Cell<bool>,
     read_batch: Vec<CalcValue>,
     kept_read: Cell<bool>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct IterativeReads {
+    entries: BTreeSet<crate::contract::IterationRead>,
+    limited: bool,
+}
+
+impl IterativeReads {
+    pub(crate) fn record(&mut self, entry: crate::contract::IterationRead) {
+        const LIMIT: usize = 200;
+        if self.entries.len() < LIMIT {
+            self.entries.insert(entry);
+        } else if !self.entries.contains(&entry) {
+            self.limited = true;
+        }
+    }
+
+    fn append(&mut self, other: Self) {
+        for entry in other.entries {
+            self.record(entry);
+        }
+        self.limited |= other.limited;
+    }
 }
 
 /// What every evaluation of one recalculation reads of its work, and nothing it writes (dc-2m0):
@@ -737,6 +767,17 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    /// Retain bounded execution evidence from this admission without changing its scheduling.
+    pub fn with_execution_observation(mut self) -> Self {
+        self.execution = Some(crate::contract::ExecutionObservation::default());
+        self
+    }
+
+    /// Whether the owner asked this calculation to retain evaluator entries.
+    pub fn observes_execution(&self) -> bool {
+        self.execution.is_some()
+    }
+
     /// The owner admitted, after a step, only the values connections returned to reads of this
     /// work. Those reads already saw them (the connection's value is what the add-in's RTD
     /// call returned), so the work continues under the new cut instead of being superseded:
@@ -1618,6 +1659,9 @@ fn begin_with_scope(
         segments.insert(node, own);
     }
     Ok(RecalcWork {
+        execution: None,
+        iteration_reads: IterativeReads::default(),
+        last_iteration: None,
         interest: Vec::new(),
         preferred: BTreeSet::new(),
         precedents: if parallel {
@@ -2122,6 +2166,13 @@ fn process(
         return;
     }
     let attempt = evaluate_node(state, inputs, work, node, &mut *observer);
+    work.iteration_reads
+        .append(std::mem::take(&mut work.local.iteration_reads));
+    if work.local.entered_evaluator
+        && let Some(trace) = &mut work.execution
+    {
+        trace.observe(work.pass.ordinal, false, [live_anchor(state, node)]);
+    }
     apply(state, inputs, work, node, attempt, observer);
 }
 
@@ -2579,6 +2630,8 @@ mod parallel {
         work.next = work.order.len();
     }
 
+    type LevelAttempt = (Result<Attempt, RecalcFailure>, bool);
+
     /// Evaluates one level's formulas (`positions` of the order, in its order), on several threads
     /// when there are enough of them, stages each in that order, and then evaluates the formulas
     /// they released from waiting.
@@ -2603,8 +2656,16 @@ mod parallel {
             }
         } else {
             let attempts = evaluate_level(state, inputs, work, positions, locals);
+            if let Some(trace) = &mut work.execution {
+                let entries = positions
+                    .iter()
+                    .zip(&attempts)
+                    .filter(|(_, attempt)| attempt.get().is_some_and(|(_, entered)| *entered))
+                    .map(|(&position, _)| live_anchor(state, work.order[position]));
+                trace.observe(work.pass.ordinal, locals.len() > 1, entries);
+            }
             for (at, attempt) in positions.iter().zip(attempts) {
-                let attempt = attempt
+                let (attempt, _) = attempt
                     .into_inner()
                     .expect("every formula of the level was evaluated");
                 if work.failure.is_some() {
@@ -2645,11 +2706,11 @@ mod parallel {
         work: &RecalcWork,
         positions: &[usize],
         locals: &mut [EvalLocal],
-    ) -> Vec<OnceLock<Result<Attempt, RecalcFailure>>> {
+    ) -> Vec<OnceLock<LevelAttempt>> {
         let shared = shared_of!(work);
         let order = &work.order;
         let cursor = AtomicUsize::new(0);
-        let attempts: Vec<OnceLock<Result<Attempt, RecalcFailure>>> =
+        let attempts: Vec<OnceLock<LevelAttempt>> =
             positions.iter().map(|_| OnceLock::new()).collect();
         let worker = |local: &mut EvalLocal| {
             let mut silent = Unobserved;
@@ -2660,6 +2721,7 @@ mod parallel {
                 }
                 for index in from..(from + CHUNK).min(positions.len()) {
                     let node = order[positions[index]];
+                    local.entered_evaluator = false;
                     // A worker has no callable table: user calls run on the owner.
                     let attempt = if matches!(
                         state.bindings.get(&node),
@@ -2679,6 +2741,7 @@ mod parallel {
                             &mut silent,
                         )
                     };
+                    let entered = local.entered_evaluator;
                     // Unfinished speculative work is replayed by process on the owner.
                     // Its continuation belongs to this node, never the worker's next one.
                     if !matches!(&attempt, Ok(Attempt::Done(_))) {
@@ -2686,7 +2749,7 @@ mod parallel {
                     } else {
                         debug_assert!(local.activation.is_none() && local.placement.is_none());
                     }
-                    if attempts[index].set(attempt).is_err() {
+                    if attempts[index].set((attempt, entered)).is_err() {
                         unreachable!("each formula of a level is taken once");
                     }
                 }
@@ -2750,6 +2813,7 @@ pub fn publish_ready(
     let empty = Progress::new(0);
     let mut changes = Vec::new();
     let mut differences = state.observe_result_differences.then(ResultDifferences::default);
+    let mut spill_differences = crate::result::SpillDifferences::default();
     let mut spill_changes = Vec::new();
     let mut installed = Vec::new();
     let mut blocked_prefix = None;
@@ -2803,7 +2867,8 @@ pub fn publish_ready(
             }
             continue;
         }
-        let before = state.spills.remove(at).map(|spill| spill.area());
+        let previous_spill = state.spills.remove(at);
+        let before = previous_spill.as_ref().map(Spill::area);
         let after = work.spills.get(at).cloned();
         let after_area = after.as_ref().map(Spill::area);
         if let Some(spill) = after {
@@ -2840,7 +2905,9 @@ pub fn publish_ready(
             }
         }
         if let Some(evidence) = &mut differences {
-            evidence.record(at, state.result_of(node, at), Some(&result));
+            let previous = state.result_of(node, at);
+            evidence.record(at, previous, Some(&result));
+            spill_differences.stage(previous_spill, previous, after_area);
         }
         state.publish_result(node, at, result);
         state.pending.remove(&node);
@@ -2905,11 +2972,18 @@ pub fn publish_ready(
         ValueChange::Published { at, .. } | ValueChange::Removed { at, .. } => *at,
     });
     spill_changes.sort_by_key(|change| change.anchor);
+    if let Some(evidence) = &mut differences {
+        spill_differences.record(evidence, state, inputs);
+    }
+    let mut events = vec![CalcEvent::Published(unit)];
+    if let Some(trace) = &work.execution {
+        events.push(CalcEvent::ExecutionObserved(trace.clone()));
+    }
     Some(
         ValueDelta::new(work.revision, work.calculation.tick(), changes)
             .with_differences(differences)
             .with_spill_changes(spill_changes)
-            .with_events(vec![CalcEvent::Published(unit)]),
+            .with_events(events),
     )
 }
 
@@ -2986,6 +3060,7 @@ pub fn finish(
     // published result no live node there replaced. They are sorted by cell at the end.
     let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
     let mut differences = state.observe_result_differences.then(ResultDifferences::default);
+    let mut spill_differences = crate::result::SpillDifferences::default();
     let mut spill_changes = Vec::new();
     let mut installed = Vec::new();
     let mut published = crate::slots::Slots::new(state.nodes.len(), work.progress.scheduled());
@@ -2996,7 +3071,8 @@ pub fn finish(
         if work.early_published.get(&node) == Some(&result.stamp().cloned()) {
             continue;
         }
-        let before = state.spills.remove(at).map(|spill| spill.area());
+        let previous_spill = state.spills.remove(at);
+        let before = previous_spill.as_ref().map(Spill::area);
         let after = work.spills.get(at).cloned();
         let after_area = after.as_ref().map(Spill::area);
         if let Some(spill) = after {
@@ -3032,7 +3108,9 @@ pub fn finish(
             }
         }
         if let Some(evidence) = &mut differences {
-            evidence.record(at, state.result_of(node, at), Some(&result));
+            let previous = state.result_of(node, at);
+            evidence.record(at, previous, Some(&result));
+            spill_differences.stage(previous_spill, previous, after_area);
         }
         state.publish_result(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
@@ -3067,13 +3145,16 @@ pub fn finish(
     for at in std::mem::take(&mut state.retired) {
         state.blocked_spills.remove(&at);
         if let Some((node, previous)) = state.results.take_orphan(at) {
+            let spill = state.spills.remove(at);
+            let before = spill.as_ref().map(Spill::area);
             if let Some(evidence) = &mut differences {
                 evidence.record(at, Some(&previous), None);
+                spill_differences.stage(spill, Some(&previous), None);
             }
-            if let Some(spill) = state.spills.remove(at) {
+            if let Some(before) = before {
                 spill_changes.push(SpillChange {
                     anchor: at,
-                    before: Some(spill.area()),
+                    before: Some(before),
                     after: None,
                 });
             }
@@ -3136,11 +3217,20 @@ pub fn finish(
     update_circular_reported(state, &was_circular, &work.kept);
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
+    if let Some(evidence) = &mut differences {
+        spill_differences.record(evidence, state, inputs);
+    }
     changes.sort_by_key(|(at, _)| *at);
     debug_assert!(
         changes.windows(2).all(|pair| pair[0].0 != pair[1].0),
         "one change per cell"
     );
+    if let Some(iteration) = work.last_iteration.take() {
+        work.events.push(CalcEvent::IterationObserved(iteration));
+    }
+    if let Some(trace) = work.execution.take() {
+        work.events.push(CalcEvent::ExecutionObserved(trace));
+    }
     work.events.push(CalcEvent::Published(unit));
     work.events.push(CalcEvent::Completed(completion.clone()));
     Ok(ValueDelta::new(
@@ -4312,7 +4402,7 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             }
             continue;
         }
-        if work.iterating() && next_pass(work) {
+        if work.iterating() && next_pass(state, work) {
             continue;
         }
         if !work.rewave.is_empty() {
@@ -4537,7 +4627,7 @@ fn active_segment(work: &RecalcWork) -> Option<usize> {
 /// by the maximum change or more and fewer passes than the maximum have run, begins the next
 /// pass, every node of the order no longer evaluated (its staged result stands until it is
 /// evaluated again), and returns true.
-fn next_pass(work: &mut RecalcWork) -> bool {
+fn next_pass(state: &EngineState, work: &mut RecalcWork) -> bool {
     if work.iteration_complete {
         return false;
     }
@@ -4570,10 +4660,39 @@ fn next_pass(work: &mut RecalcWork) -> bool {
     if work.passes >= work.iteration.max_iterations()
         || change.is_none_or(|change| change < work.iteration.max_change())
     {
+        use crate::contract::{IterationObservation, IterationStop};
+
+        let members: Vec<_> = work
+            .order
+            .iter()
+            .filter(|node| work.cyclic.contains(*node))
+            .take(200)
+            .map(|&node| live_anchor(state, node))
+            .collect();
+        let omitted_members = work.cyclic.len().saturating_sub(members.len());
+        let stop = if work.passes >= work.iteration.max_iterations() {
+            IterationStop::MaximumIterations
+        } else if change.is_none() {
+            IterationStop::NoNumericSample
+        } else {
+            IterationStop::Converged
+        };
+        let reads = std::mem::take(&mut work.iteration_reads);
+        work.last_iteration = Some(IterationObservation {
+            members,
+            omitted_members,
+            passes: work.passes,
+            residual_bits: change.map(f64::to_bits),
+            max_change_bits: work.iteration.max_change().to_bits(),
+            stop,
+            reads: reads.entries.into_iter().collect(),
+            reads_limited: reads.limited,
+        });
         work.iteration_complete = true;
         return false;
     }
     work.open_pass(PassReason::IterationSweep(work.passes));
+    work.iteration_reads = IterativeReads::default();
     work.pass_start = work
         .progress
         .staged_results()
@@ -5559,6 +5678,7 @@ fn evaluate_with(
     rtd_connector: Option<&std::rc::Rc<dyn calc_fml::RtdConnector>>,
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
+    local.entered_evaluator = false;
     if !shared.scope.contains(live_anchor(state, node)) {
         return Err(RecalcFailure::ScopeViolation {
             at: live_anchor(state, node),
@@ -5948,6 +6068,7 @@ fn evaluate_unstamped(
             // uncalculated is not calculated either (dc-10y; Excel 16.0.20430, 2026-10-25,
             // iteration off: a table over `=A1+C1`, A1 on a cycle, shows 0 in each cell, as
             // a formula that reads the cycle does).
+            local.entered_evaluator = true;
             local.kept_read.set(false);
             let view = shared.view(state, inputs, local);
             let outcome = crate::data_table::evaluate_cell(
@@ -6040,6 +6161,7 @@ fn evaluate_unstamped(
         );
         local.observation = Some(pin);
     }
+    local.entered_evaluator = true;
     let reference_view = local.references.clone();
     let rtd_connector = local.rtd_connector.clone();
     let observation_pin = local.observation.clone();
@@ -6081,8 +6203,12 @@ fn evaluate_unstamped(
         )
     });
     let name_reads = RefCell::new(std::mem::take(&mut local.name_reads));
+    let iteration_reads = RefCell::new(IterativeReads::default());
+    let iteration_watch = shared.iterates.is_some().then_some(&iteration_reads);
     let view = shared.view(state, inputs, &*local);
-    let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
+    let mut cells = WorkbookReader::new(view, &uncomputed)
+        .with_batch(batch)
+        .with_iterative_reads(iteration_watch);
     let catalog = SnapshotCatalog::traced(inputs, &name_reads);
     let silent = observer.is_silent();
     let observer = RefCell::new(observer);
@@ -6127,7 +6253,8 @@ fn evaluate_unstamped(
                 blanks: &observation_blanks,
                 stopped: None,
             });
-            let mut host = WorkbookReader::new(view, &uncomputed);
+            let mut host =
+                WorkbookReader::new(view, &uncomputed).with_iterative_reads(iteration_watch);
             let mut services = FormulaEvaluationContext::new(
                 calculation.mode(),
                 &mut observed,
@@ -6191,6 +6318,7 @@ fn evaluate_unstamped(
     });
     let external_cache = unresolved_links || cells.read_external_links();
     local.read_batch = cells.into_batch();
+    local.iteration_reads = iteration_reads.into_inner();
     local.external_cache |= external_cache;
     let calculation = if local.external_cache {
         calculation.with_external_links()
