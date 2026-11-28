@@ -4,6 +4,7 @@ mod dialog;
 pub mod live_tree;
 pub mod name_manager;
 pub mod page;
+pub mod paste_special;
 pub mod scenario_manager;
 pub mod session;
 pub mod sort_dialog;
