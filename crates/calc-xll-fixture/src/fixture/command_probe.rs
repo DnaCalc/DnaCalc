@@ -1,6 +1,6 @@
-//! AF-6 C2: call one Excel12 command from a registered XLL macro, with exact operands.
+//! AF-6 C2: call one Excel12 command or file-context function from a registered XLL macro.
 use super::*;
-use std::{fs, path::PathBuf, sync::OnceLock};
+use std::{fmt::Write as _, fs, path::PathBuf, sync::OnceLock};
 
 static DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
 
@@ -54,13 +54,23 @@ unsafe fn probe() -> Option<()> {
     let path = DIRECTORY.get()?;
     let request = fs::read_to_string(path.join("command-probe-request.txt")).ok()?;
     let mut lines = request.lines();
-    let ordinal: i32 = lines.next()?.parse().ok()?;
-    if !matches!(
-        ordinal,
-        17 | 47 | 49..=55 | 61 | 96 | 97 | 109 | 110 | 122 | 127 | 141 | 386
-    ) {
-        return None;
-    }
+    let request_number = lines.next()?;
+    let function = if let Some(number) = request_number.strip_prefix("function ") {
+        let number = number.parse().ok()?;
+        if !matches!(number, 132..=139 | 166 | 186 | 188) {
+            return None;
+        }
+        number
+    } else {
+        let ordinal: i32 = request_number.parse().ok()?;
+        if !matches!(
+            ordinal,
+            17 | 47 | 49..=55 | 61 | 96 | 97 | 109 | 110 | 122 | 127 | 141 | 386
+        ) {
+            return None;
+        }
+        XL_COMMAND | ordinal
+    };
     let mut arena = Arena::new();
     let mut operands = Vec::new();
     let mut references = Vec::new();
@@ -101,14 +111,10 @@ unsafe fn probe() -> Option<()> {
     }
     let arguments: Vec<_> = operands.iter_mut().map(|value| value as *mut _).collect();
     let mut result = XlOper12::default();
-    let code = unsafe { call(0x8000 | ordinal, &arguments, &mut result) };
-    let kind = result.xltype & TYPE_MASK;
-    let value = match kind {
-        XL_BOOL => (unsafe { result.value.integer } != 0).to_string(),
-        XL_NUM => format!("0x{:016x}", unsafe { result.value.number }.to_bits()),
-        XL_ERR | XL_INT => unsafe { result.value.integer }.to_string(),
-        _ => String::new(),
-    };
+    let code = unsafe { call(function, &arguments, &mut result) };
+    let xltype = result.xltype;
+    let kind = xltype & TYPE_MASK;
+    let value = unsafe { result_value(&result) };
     if code == SUCCESS {
         unsafe {
             call(XL_FREE_FN, &[&mut result], std::ptr::null_mut());
@@ -119,9 +125,53 @@ unsafe fn probe() -> Option<()> {
             call(XL_FREE_FN, &[reference], std::ptr::null_mut());
         }
     }
-    fs::write(
-        path.join("command-probe-result.txt"),
-        format!("{code}\t{kind}\t{value}"),
-    )
-    .ok()
+    let mut report = format!("{code}\t{kind}\t{value}");
+    if function & XL_COMMAND == 0 {
+        write!(report, "\t{xltype}").ok()?;
+    }
+    fs::write(path.join("command-probe-result.txt"), report).ok()
+}
+
+// Strings use counted UTF-16, and arrays include each element's type and payload in row order.
+unsafe fn result_value(result: &XlOper12) -> String {
+    match result.xltype & TYPE_MASK {
+        XL_BOOL => (unsafe { result.value.integer } != 0).to_string(),
+        XL_NUM => format!("0x{:016x}", unsafe { result.value.number }.to_bits()),
+        XL_ERR | XL_INT => unsafe { result.value.integer }.to_string(),
+        XL_STR => {
+            let ptr = unsafe { result.value.string };
+            if ptr.is_null() {
+                return "null".into();
+            }
+            let len = usize::from(unsafe { *ptr });
+            let text = unsafe { std::slice::from_raw_parts(ptr.add(1), len) };
+            let mut hex = String::with_capacity(6 + text.len() * 4);
+            hex.push_str("utf16:");
+            for unit in text {
+                write!(hex, "{unit:04x}").unwrap();
+            }
+            hex
+        }
+        XL_MULTI => {
+            let array = unsafe { result.value.array };
+            let count = usize::try_from(array.rows)
+                .ok()
+                .zip(usize::try_from(array.columns).ok())
+                .and_then(|(rows, columns)| rows.checked_mul(columns))
+                .unwrap_or(0);
+            let mut text = format!("{}x{}", array.rows, array.columns);
+            if array.values.is_null() && count != 0 {
+                text.push_str(";null");
+                return text;
+            }
+            for index in 0..count {
+                let item = unsafe { &*array.values.add(index) };
+                let kind = item.xltype & TYPE_MASK;
+                let value = unsafe { result_value(item) };
+                write!(text, ";{kind}:{value}").unwrap();
+            }
+            text
+        }
+        _ => String::new(),
+    }
 }

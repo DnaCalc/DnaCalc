@@ -60,3 +60,19 @@ effects. `1+2` returned a double 3, `1/0` returned a Variant error, and
 `=1+2` raised a dispatch exception. SELECT, FORMULA, FORMULA.FILL, MESSAGE
 and ECHO returned Boolean TRUE. The CalcHost object model refused all 16
 calls because `_Application.ExecuteExcel4Macro` has no handler.
+
+## Windows file context, lane ww27
+
+The same probe accepts `function <number>` on the first line for Excel12
+functions 132–139, 166, 186 and 188. Its result appends the full XLOPER12
+type word to the status, base type and payload. Strings are counted UTF-16
+in hex. Array payloads include dimensions and each element's type and value.
+The existing decimal command request and its three-column response still work.
+
+[ww27-file-context.json](ww27-file-context.json) records 43 calls on Excel
+16.0.20625.20108. GET.DOCUMENT(2) returned an Excel error in the new workbook
+and a path after SaveAs. FILES returned an array for the scratch file and an
+Excel error for the unmatched pattern. FOPEN, FREAD, FREADLN, FSIZE, FPOS and
+FCLOSE returned results on the scratch input. FWRITE and FWRITELN succeeded
+on existing files opened with modes 1 and 3. The source capture includes the
+exact paths and complete GET.WORKSPACE(44) registration table.
