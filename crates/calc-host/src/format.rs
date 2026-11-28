@@ -1,8 +1,10 @@
 //! Atomic cell formatting through the ordinary authored command and history route.
-use crate::{CellEdit, HostState};
+use crate::format_edges::{side_patch, strips};
+use crate::{CellEdit, EdgeChange, HostState};
 use calc_doc_model::{
     Border, BorderEdge, CellFormat, Fill, Font, NumberFormat, StyleColor, StyleTable,
 };
+use calc_skin::BorderSide;
 use calc_value::{CellKey, GridArea};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -834,25 +836,48 @@ pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<Ce
     prepare_border_groups(host, area, groups, &default_border())
 }
 
-/// The selected rectangle and the adjacent strips where its shared edges are stored.
-pub fn border_affected_areas(area: GridArea) -> Vec<GridArea> {
-    std::iter::once(area).chain(neighbour_edges(area).map(|(strip, _)| strip)).collect()
+/// Prepare one selected border and the matching edge on neighbouring cells.
+pub fn prepare_side_border(
+    host: &HostState,
+    area: GridArea,
+    side: BorderSide,
+) -> Result<Vec<CellEdit>, String> {
+    let edge = default_border();
+    let groups: Vec<_> = side_edges(area, side)
+        .map(|(strip, side)| border_format_group(strip, side, &edge))
+        .collect();
+    prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
 }
 
-fn neighbour_edges(area: GridArea) -> impl Iterator<Item = (GridArea, crate::format_edges::BorderSide)> {
-    crate::format_edges::BorderSide::ALL.into_iter().filter_map(move |side| side.strips(area).1)
+/// The areas holding the borders to change, including neighbouring cells with shared sides.
+pub fn border_affected_areas(area: GridArea, side: Option<BorderSide>) -> Vec<GridArea> {
+    match side {
+        Some(side) => side_edges(area, side).map(|(strip, _)| strip).collect(),
+        None => std::iter::once(area).chain(neighbour_edges(area).map(|(strip, _)| strip)).collect(),
+    }
+}
+
+fn side_edges(area: GridArea, side: BorderSide) -> impl Iterator<Item = (GridArea, BorderSide)> {
+    let (strip, neighbour) = strips(area, side);
+    std::iter::once((strip, side)).chain(neighbour)
+}
+
+fn neighbour_edges(area: GridArea) -> impl Iterator<Item = (GridArea, BorderSide)> {
+    BorderSide::ALL.into_iter().filter_map(move |side| strips(area, side).1)
+}
+
+fn border_format_group(area: GridArea, side: BorderSide, edge: &EdgeChange) -> ([GridArea; 1], FormatPatch) {
+    let patch = FormatPatch { edges: Some(side_patch(side, edge.clone())), ..Default::default() };
+    ([area], patch)
 }
 
 fn prepare_border_groups(
     host: &HostState,
     area: GridArea,
     mut groups: Vec<([GridArea; 1], FormatPatch)>,
-    edge: &crate::EdgeChange,
+    edge: &EdgeChange,
 ) -> Result<Vec<CellEdit>, String> {
-    groups.extend(neighbour_edges(area).map(|(strip, side)| {
-        let patch = FormatPatch { edges: Some(side.patch(edge.clone())), ..Default::default() };
-        ([strip], patch)
-    }));
+    groups.extend(neighbour_edges(area).map(|(strip, side)| border_format_group(strip, side, edge)));
     prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
 }
 

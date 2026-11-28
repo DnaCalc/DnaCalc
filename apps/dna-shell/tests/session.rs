@@ -1018,6 +1018,47 @@ fn classic_home_no_border_removes_only_the_selected_cells_shared_boundaries() {
     assert_eq!(edges(1, 2), [false, false, true, false]);
 }
 
+/// Native-only: routes the four Home borders through Classic and inspects their shared edges.
+#[test]
+fn classic_home_borders_apply_one_selected_side_and_its_opposite_edge() {
+    let page = Page::open();
+    page.session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in ["Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown", "Shift+ArrowDown"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    let edges = |(row, column)| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .map_or([false; 4], |border| {
+                    [&border.top, &border.right, &border.bottom, &border.left]
+                        .map(|edge| edge.as_ref().and_then(|edge| edge.style.as_deref()) == Some("thin"))
+                })
+        })
+    };
+    for (tip, at, side, neighbour, opposite) in [
+        ("p", (2, 3), 0, (1, 3), 2),
+        ("o", (4, 3), 2, (5, 3), 0),
+        ("l", (3, 2), 3, (3, 1), 1),
+        ("r", (3, 4), 1, (3, 5), 3),
+    ] {
+        for key in ["F10", "h", "b", tip] {
+            assert!(page.press(key, Focus::Stage), "{key}");
+        }
+        let expected = |side| -> [bool; 4] { std::array::from_fn(|index| side == index) };
+        assert_eq!(edges(at), expected(side), "selected side {tip}");
+        assert_eq!(edges(neighbour), expected(opposite), "shared side {tip}");
+        assert_eq!(edges((3, 3)), [false; 4]);
+        assert_eq!(edges((1, 1)), [false; 4]);
+        assert!(page.press("Ctrl+z", Focus::Stage));
+        assert_eq!(edges(at), [false; 4]);
+        assert_eq!(edges(neighbour), [false; 4]);
+    }
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {

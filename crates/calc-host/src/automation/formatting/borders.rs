@@ -2,9 +2,10 @@
 use super::interior::{color_bgr, color_index};
 use super::mutation::PreWrite;
 use super::*;
-use crate::format_edges::{BorderSide, span};
+use crate::format_edges::{span, strips as side_strips};
 use crate::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, FillColor, decompose_edge};
 use calc_doc_model::{Border, BorderEdge};
+use calc_skin::BorderSide;
 
 const AUTOMATIC_COLOR: i32 = -4105;
 const NO_LINE: i32 = -4142;
@@ -53,7 +54,7 @@ fn strips(area: GridArea, edge: i32) -> Result<Vec<Strip>, AutoError> {
     let mut out = Vec::new();
     let mut add = |area, edge, primary| out.push(Strip { area, edge, primary });
     if let Some((_, side)) = OUTSIDE_SIDES.iter().find(|(index, _)| *index == edge) {
-        let (primary, neighbour) = side.strips(area);
+        let (primary, neighbour) = side_strips(area, *side);
         add(primary, edge, true);
         if let Some((neighbour, side)) = neighbour {
             let (index, _) = OUTSIDE_SIDES.iter().find(|(_, mapped)| *mapped == side)

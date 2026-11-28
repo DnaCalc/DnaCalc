@@ -780,14 +780,19 @@ pub(crate) fn prepare(
                 }
                 ModelChange::SetAllBorders { selected }
                 | ModelChange::SetOutlineBorder { selected }
-                | ModelChange::ClearBorders { selected } => {
+                | ModelChange::ClearBorders { selected }
+                | ModelChange::SetSideBorder { selected, .. } => {
                     require_current_model(request, base.model)?;
                     if request.changes.len() != 1 {
                         return Err(invalid("Apply borders as one workbook change"));
                     }
                     let selected = grid_area(*selected)?;
                     let host = state.session.host();
-                    let affected = calc_host::border_affected_areas(selected);
+                    let side = match change {
+                        ModelChange::SetSideBorder { side, .. } => Some(*side),
+                        _ => None,
+                    };
+                    let affected = calc_host::border_affected_areas(selected, side);
                     if host.merged_areas(selected.sheet()).iter().any(|merge| {
                         affected.iter().any(|area| merge.intersection(*area).is_some())
                     }) {
@@ -797,6 +802,9 @@ pub(crate) fn prepare(
                     let border_edits = match change {
                         ModelChange::SetAllBorders { .. } => calc_host::prepare_all_borders(host, selected),
                         ModelChange::SetOutlineBorder { .. } => calc_host::prepare_outline_border(host, selected),
+                        ModelChange::SetSideBorder { side, .. } => {
+                            calc_host::prepare_side_border(host, selected, *side)
+                        }
                         ModelChange::ClearBorders { .. } => {
                             for at in calc_host::format_samples(host, &affected).map_err(excel)? {
                                 let border = calc_host::border_for_style(host.styles(), host.cell_style(at))

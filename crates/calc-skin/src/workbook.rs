@@ -604,6 +604,10 @@ pub enum ModelChange {
     ClearBorders {
         selected: Area,
     },
+    SetSideBorder {
+        selected: Area,
+        side: BorderSide,
+    },
     /// Refresh the workbook cache used by the PivotTable at this cell.
     RefreshPivot { at: Key, expected: Stamp },
     /// Sort a selected rectangle by its relative columns, using workbook values.
@@ -688,6 +692,19 @@ pub enum PasteArithmetic {
     Subtract,
     Multiply,
     Divide,
+}
+
+/// A side of a rectangular worksheet selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BorderSide {
+    Left,
+    Top,
+    Bottom,
+    Right,
+}
+
+impl BorderSide {
+    pub const ALL: [Self; 4] = [Self::Left, Self::Top, Self::Bottom, Self::Right];
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

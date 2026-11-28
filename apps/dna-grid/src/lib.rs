@@ -8,8 +8,8 @@
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
 use calc_skin::{
-    Batch, Change, FillDirection, FreezeBand, Interest, ModelChange, Operation, Provenance, RawValue,
-    Selection, SourceRef, ThinBorder, address, query,
+    Batch, BorderSide, Change, FillDirection, FreezeBand, Interest, ModelChange, Operation,
+    Provenance, RawValue, Selection, SourceRef, ThinBorder, address, query,
 };
 use dna_kit::{InputMode, Invocation, Live, Session, ViewCommand, commands::CommandId};
 use leptos::prelude::*;
@@ -325,6 +325,14 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         })
         .when("mode:ready && writable")
     };
+    let border = |id, label, chords: &[&'static str], change: fn(Area) -> ModelChange| {
+        ViewCommand::new(view, id, label, chords, move |_| {
+            let batch = range_batch(session, label, "Select one worksheet range to format.", change)?;
+            session.submit(batch);
+            Ok(())
+        })
+        .when("mode:ready && writable")
+    };
     let mut commands = vec![
         moves("grid.move-down", "Move down", &["ArrowDown"], 1, 0),
         moves("grid.move-up", "Move up", &["ArrowUp"], -1, 0),
@@ -349,27 +357,23 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
-        ViewCommand::new(view, "grid.all-borders", "All Borders", &[], move |_| {
-            let batch = range_batch(session, "All Borders", "Select one worksheet range to format.",
-                |selected| ModelChange::SetAllBorders { selected })?;
-            session.submit(batch);
-            Ok(())
-        })
-        .when("mode:ready && writable"),
-        ViewCommand::new(view, "grid.outline-border", "Outline Border", &["Ctrl+Shift+&"], move |_| {
-            let batch = range_batch(session, "Outline Border", "Select one worksheet range to format.",
-                |selected| ModelChange::SetOutlineBorder { selected })?;
-            session.submit(batch);
-            Ok(())
-        })
-        .when("mode:ready && writable"),
-        ViewCommand::new(view, "grid.no-border", "No Border", &[], move |_| {
-            let batch = range_batch(session, "No Border", "Select one worksheet range to format.",
-                |selected| ModelChange::ClearBorders { selected })?;
-            session.submit(batch);
-            Ok(())
-        })
-        .when("mode:ready && writable"),
+        border("grid.all-borders", "All Borders", &[], |selected| ModelChange::SetAllBorders { selected }),
+        border("grid.outline-border", "Outline Border", &["Ctrl+Shift+&"], |selected| {
+            ModelChange::SetOutlineBorder { selected }
+        }),
+        border("grid.no-border", "No Border", &[], |selected| ModelChange::ClearBorders { selected }),
+        border("grid.top-border", "Top Border", &[], |selected| {
+            ModelChange::SetSideBorder { selected, side: BorderSide::Top }
+        }),
+        border("grid.bottom-border", "Bottom Border", &[], |selected| {
+            ModelChange::SetSideBorder { selected, side: BorderSide::Bottom }
+        }),
+        border("grid.left-border", "Left Border", &[], |selected| {
+            ModelChange::SetSideBorder { selected, side: BorderSide::Left }
+        }),
+        border("grid.right-border", "Right Border", &[], |selected| {
+            ModelChange::SetSideBorder { selected, side: BorderSide::Right }
+        }),
         ViewCommand::new(view, "grid.add-selection", "Add cell to selection", &[], move |invocation| {
             let at = serde_json::from_value(invocation.args.clone()).map_err(|_| "Choose a worksheet cell.")?;
             tab_run.set_value(None);

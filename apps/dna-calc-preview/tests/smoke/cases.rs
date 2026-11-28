@@ -2105,6 +2105,64 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Home Top and Bottom Borders each paint one horizontal side",
+        actions: &[
+            Action::Keys("grid", "\u{e03a}hbp"),
+            Action::Wait(Check::Js(
+                "the top of the selection is bordered",
+                r#"['B1','C1','D1'].every(at => getComputedStyle(document.querySelector('[data-cell='+at+']')).borderBottomColor !== 'rgba(0, 0, 0, 0)')
+                    && getComputedStyle(document.querySelector('[data-cell=C4]')).borderBottomColor === 'rgba(0, 0, 0, 0)'"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+            Action::Wait(Check::Js(
+                "Undo removed the top border",
+                "getComputedStyle(document.querySelector('[data-cell=C1]')).borderBottomColor === 'rgba(0, 0, 0, 0)'",
+            )),
+            Action::Keys("grid", "\u{e03a}hbo"),
+            Action::Wait(Check::Js(
+                "the bottom of the selection is bordered",
+                r#"['B4','C4','D4'].every(at => getComputedStyle(document.querySelector('[data-cell='+at+']')).borderBottomColor !== 'rgba(0, 0, 0, 0)')
+                    && getComputedStyle(document.querySelector('[data-cell=C1]')).borderBottomColor === 'rgba(0, 0, 0, 0)'"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Js(
+                "Undo removed the bottom border",
+                "getComputedStyle(document.querySelector('[data-cell=C4]')).borderBottomColor === 'rgba(0, 0, 0, 0)'",
+            ),
+        ],
+    },
+    Case {
+        name: "Classic Home Left and Right Borders each paint one vertical side",
+        actions: &[
+            Action::Keys("grid", "\u{e03a}hbl"),
+            Action::Wait(Check::Js(
+                "the left of the selection is bordered",
+                r#"['A2','A3','A4'].every(at => getComputedStyle(document.querySelector('[data-cell='+at+']')).borderRightColor !== 'rgba(0, 0, 0, 0)')
+                    && getComputedStyle(document.querySelector('[data-cell=D3]')).borderRightColor === 'rgba(0, 0, 0, 0)'"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+            Action::Wait(Check::Js(
+                "Undo removed the left border",
+                "getComputedStyle(document.querySelector('[data-cell=A3]')).borderRightColor === 'rgba(0, 0, 0, 0)'",
+            )),
+            Action::Keys("grid", "\u{e03a}hbr"),
+            Action::Wait(Check::Js(
+                "the right of the selection is bordered",
+                r#"['D2','D3','D4'].every(at => getComputedStyle(document.querySelector('[data-cell='+at+']')).borderRightColor !== 'rgba(0, 0, 0, 0)')
+                    && getComputedStyle(document.querySelector('[data-cell=A3]')).borderRightColor === 'rgba(0, 0, 0, 0)'"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Js(
+                "Undo removed the right border",
+                "getComputedStyle(document.querySelector('[data-cell=D3]')).borderRightColor === 'rgba(0, 0, 0, 0)'",
+            ),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2569,6 +2627,15 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
 
 const BEFORE_MAP: usize = PREVIEW_CASES.len() - 7;
 
+const BORDER_RECTANGLE: &[Action] = &[
+    Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+    Action::Keys("grid", "\u{e03a}wvg"),
+    Action::Wait(Check::Rendered("[class~='dna-sheet-gridlines-hidden']", true)),
+    Action::Click("[data-cell=B2]"),
+    Action::Keys("grid", "\u{e008}\u{e014}\u{e014}\u{e015}\u{e015}\u{e000}"),
+    Action::Wait(Check::Attr("[data-cell=D4]", "aria-selected", "true")),
+];
+
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "classic",
@@ -2898,6 +2965,20 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         end: 81,
         core: 1,
         setup: &[],
+    },
+    CaseGroup {
+        name: "classic-top-bottom-borders",
+        start: 81,
+        end: 82,
+        core: 1,
+        setup: BORDER_RECTANGLE,
+    },
+    CaseGroup {
+        name: "classic-left-right-borders",
+        start: 82,
+        end: 83,
+        core: 1,
+        setup: BORDER_RECTANGLE,
     },
     CaseGroup {
         name: "inspector-dependencies",
