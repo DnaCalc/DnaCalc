@@ -66,6 +66,9 @@ query!(
     /// The workbook's name, state, sheets and what this host can do.
     Summary => WorkbookSummary, |_: &Summary| WorkbookQuery::Summary);
 query!(
+    /// Opening-to-current workbook edits, read when the operator asks to close.
+    CloseSummaryOf => crate::CloseSummary, |_: &CloseSummaryOf| WorkbookQuery::CloseSummary);
+query!(
     /// Counts taken without calculating; what `View::fit` decides from.
     CensusOf { scope: SourceRef } => Census, |q: &CensusOf| WorkbookQuery::Census { scope: q.scope.clone() });
 query!(
