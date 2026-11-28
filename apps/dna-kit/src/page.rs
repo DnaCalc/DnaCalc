@@ -1,11 +1,12 @@
 //! Shared renderer for code-free workbook pages. Every part owns its typed watches.
 
 use crate::commands::{CommandId, Invocation};
-use crate::{Live, Session};
+use crate::{Following, Live, Session};
 use calc_skin::grid::Key;
 use calc_skin::query;
 use calc_skin::{
-    BindingKind, BindingSnapshot, BindingValue, Bound, ChartImage, Coverage, DocId, Page, PageNode,
+    BindingKind, BindingSnapshot, BindingValue, Bound, Budget, ChartImage, Coverage, DocId,
+    ErrorOrigin, Evidence, Page, PageNode,
     PartialWhy, Provenance, RawValue, RowWindow, SourceRef, InventoryItem, InventoryKind, RowPage,
     WorkbookCell,
 };
@@ -52,6 +53,41 @@ struct PageMode {
     report: Option<PageReport>,
     clock_document: Option<DocId>,
     snapshot: Option<StoredValue<BindingSnapshot>>,
+    errors: Option<PageErrors>,
+}
+
+#[derive(Clone, Copy)]
+struct PageErrors {
+    issues: Following<query::IssuesIn>,
+    visible: RwSignal<u32>,
+}
+
+impl PageErrors {
+    fn new(session: Session) -> Self {
+        Self {
+            issues: session.following_with_budget(Budget {
+                cells: 32_768,
+                nodes: 65_536,
+                edges: 65_536,
+                bytes: 4 * 1024 * 1024,
+                millis: 2_000,
+            }),
+            visible: RwSignal::new(0),
+        }
+    }
+
+    fn mounted(self) {
+        self.visible.update(|visible| *visible += 1);
+        on_cleanup(move || {
+            let remaining = self.visible.try_update(|visible| {
+                *visible -= 1;
+                *visible
+            });
+            if remaining == Some(0) {
+                self.issues.at(None);
+            }
+        });
+    }
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -68,7 +104,10 @@ pub fn PageRenderer(
     #[prop(optional)] snapshot: Option<StoredValue<BindingSnapshot>>,
     #[prop(optional)] report_footer: Option<String>,
 ) -> impl IntoView {
-    let mode = PageMode { input, author, scenario, compare, report, clock_document, snapshot };
+    let mode = PageMode {
+        input, author, scenario, compare, report, clock_document, snapshot,
+        errors: input.is_some().then(|| PageErrors::new(session)),
+    };
     let schedules = report.zip(snapshot).map(|(report, snapshot)| {
         snapshot.with_value(|snapshot| report::schedules(&document, report, snapshot))
     });
@@ -292,6 +331,7 @@ fn part(
                         bound.clone(),
                         if component == "input" { mode.input } else { None },
                         mode.compare && component == "value",
+                        mode.errors.filter(|_| component == "value"),
                     )
                 }
             }
@@ -485,6 +525,70 @@ fn shown_value(cell: WorkbookCell, label: Option<String>) -> impl IntoView {
     }
 }
 
+fn error_explanation(session: Session, at: Key, errors: PageErrors) -> impl IntoView {
+    const UNAVAILABLE: &str = "The source of this error is unavailable";
+    errors.mounted();
+    let label = move |at: Key| {
+        let a1 = format!("{}{}", calc_skin::address::column_letters(at.3), at.2);
+        let sheet = session
+            .summary()?
+            .sheets
+            .into_iter()
+            .find(|sheet| sheet.sheet == calc_skin::grid::Sheet(at.0, at.1))?;
+        Some(format!("{}!{a1}", calc_skin::address::quoted_sheet(&sheet.name)))
+    };
+    view! {
+        <div class="dna-page-error-detail">
+            <p data-dnacalc="app-error-explanation">{move || {
+                let answer = match errors.issues.at(Some(query::IssuesIn { scope: SourceRef::Workbook })) {
+                    Live::Ready(answer) if answer.coverage == Coverage::Complete => answer,
+                    Live::Ready(_) | Live::Refused(_) => return UNAVAILABLE.into(),
+                    _ => return "Looking for the source of this error".into(),
+                };
+                if !session.stamp().is_some_and(|stamp| {
+                    stamp.workbook == answer.stamp.workbook
+                        && stamp.model == answer.stamp.model
+                        && stamp.calc == answer.stamp.calc
+                }) {
+                    return "Looking for the source of this error".into();
+                }
+                let (Evidence::Observed { body, .. } | Evidence::Derived { body, .. }) = answer.body else {
+                    return UNAVAILABLE.into();
+                };
+                let Some(issue) = body.errors.into_iter().find(|issue| issue.at == at) else {
+                    return UNAVAILABLE.into();
+                };
+                if let Some(source) = issue.exact_root.and_then(label) {
+                    return if issue.exact_root == Some(at) {
+                        format!("{source} returned {}", issue.code)
+                    } else {
+                        format!("The error came from {source}")
+                    };
+                }
+                match issue.origin {
+                    ErrorOrigin::CandidatePropagation { roots } => {
+                        let sources = roots.into_iter().filter_map(label).collect::<Vec<_>>().join(", ");
+                        if sources.is_empty() {
+                            UNAVAILABLE.into()
+                        } else {
+                            format!("The trace points to a possible source at {sources}")
+                        }
+                    }
+                    ErrorOrigin::RootCandidate => label(at)
+                        .map_or_else(|| UNAVAILABLE.into(),
+                            |source| format!("{source} returned {}", issue.code)),
+                    _ => UNAVAILABLE.into(),
+                }
+            }}</p>
+            <button type="button" data-command="edit.undo"
+                disabled=move || session.context().read_only || !matches!(session.seam(), crate::Seam::Idle)
+                on:click=move |_| { let _ = session.command("edit.undo"); }>
+                "Undo my last change"
+            </button>
+        </div>
+    }
+}
+
 fn scalar(
     session: Session,
     source: SourceRef,
@@ -492,16 +596,28 @@ fn scalar(
     bound: Bound,
     input: Option<PageInput>,
     compare: bool,
+    errors: Option<PageErrors>,
 ) -> AnyView {
     let Some(at) = single_cell(&source) else {
         return missing();
     };
     let read = first_cell(session, source);
     let Some(input) = input else {
+        let has_error = Memo::new(move |_| read.with(|cell| cell.as_ref().is_some_and(|cell| {
+            matches!(cell.shown.value, RawValue::Error(_))
+                && matches!(cell.shown.provenance, Provenance::Calculated { .. } | Provenance::Literal)
+        })));
         return view! {
             <div class="dna-page-value">
                 <strong>{label}</strong>
                 {move || read.get().map(|cell| shown_value(cell, None))}
+                {errors.map(|errors| {
+                    view! {
+                        <Show when=move || has_error.get()>
+                            {error_explanation(session, at, errors)}
+                        </Show>
+                    }
+                })}
                 {compare.then(|| comparison(session, bound))}
             </div>
         }
