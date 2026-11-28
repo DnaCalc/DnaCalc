@@ -193,6 +193,25 @@ query!(
     /// Observed formula-result differences in the latest publication.
     CalcChanges => Evidence<Vec<FormulaResultChange>>, |_: &CalcChanges| WorkbookQuery::CalcChanges);
 query!(
+    CalcExecution => Evidence<ExecutionReport>, |_: &CalcExecution| WorkbookQuery::CalcExecution);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExecutionReport {
+    pub bands: Vec<ExecutionBand>,
+    pub total_entries: u64,
+    pub finished: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExecutionBand {
+    pub pass: u32,
+    pub workers: bool,
+    pub cells: Vec<Key>,
+}
+query!(
+    /// The measured final pass of the latest observed iterative publication.
+    CalcIteration => Evidence<crate::IterationFacts>, |_: &CalcIteration| WorkbookQuery::CalcIteration);
+query!(
     /// Authored notes, optionally limited to a single anchor.
     NotesOf { anchor: Option<crate::AnchorId> } => Vec<crate::AnchoredNote>, |q: &NotesOf| WorkbookQuery::Notes { anchor: q.anchor });
 query!(
@@ -240,6 +259,16 @@ pub struct FormulaResultChange {
     pub at: Key,
     pub before: FormulaObservation,
     pub after: FormulaObservation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spill_anchor: Option<Key>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<ResultAlias>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResultAlias {
+    pub name: String,
+    pub scope: crate::NameScope,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

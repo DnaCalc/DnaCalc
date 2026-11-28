@@ -60,6 +60,26 @@ fn selected_areas(session: Session) -> Vec<Area> {
     }
 }
 
+fn fill_batch(
+    session: Session,
+    label: &str,
+    change: impl FnOnce(Area) -> ModelChange,
+) -> Result<Batch, String> {
+    let areas = selected_areas(session);
+    let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
+        return Err("Select one worksheet range to fill.".into());
+    };
+    Ok(Batch {
+        id: String::new(),
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        expects: Vec::new(),
+        selection_seq: None,
+        label: Some(label.into()),
+        changes: vec![Change::Model(change(*selected))],
+    })
+}
+
 fn select_range(session: Session, anchor: Key, to: Key) {
     session.select(Selection {
         seq: 0,
@@ -239,19 +259,8 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
     };
     let fill = |id, label, chords: &[&'static str], direction| {
         ViewCommand::new(view, id, label, chords, move |_| {
-            let areas = selected_areas(session);
-            let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
-                return Err("Select one worksheet range to fill.".into());
-            };
-            session.submit(Batch {
-                id: String::new(),
-                workbook: Some(stamp.workbook),
-                base: Some(stamp.model),
-                expects: Vec::new(),
-                selection_seq: None,
-                label: Some(label.into()),
-                changes: vec![Change::Model(ModelChange::FillRange { selected: *selected, direction })],
-            });
+            let batch = fill_batch(session, label, |selected| ModelChange::FillRange { selected, direction })?;
+            session.submit(batch);
             Ok(())
         })
         .when("mode:ready && writable")
@@ -273,6 +282,12 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         fill("grid.fill-right", "Fill Right", &["Ctrl+R"], FillDirection::Right),
         fill("grid.fill-up", "Fill Up", &[], FillDirection::Up),
         fill("grid.fill-left", "Fill Left", &[], FillDirection::Left),
+        ViewCommand::new(view, "grid.flash-fill", "Flash Fill", &["Ctrl+E"], move |_| {
+            let batch = fill_batch(session, "Flash Fill", |selected| ModelChange::FlashFill { selected })?;
+            session.submit_for_review(batch);
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.add-selection", "Add cell to selection", &[], move |invocation| {
             let at = serde_json::from_value(invocation.args.clone()).map_err(|_| "Choose a worksheet cell.")?;
             tab_run.set_value(None);

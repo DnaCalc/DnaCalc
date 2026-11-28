@@ -293,6 +293,32 @@ pub struct ErrorRoot {
     pub affected: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum IterationStop {
+    MaximumIterations,
+    Converged,
+    NoNumericSample,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IterationFacts {
+    pub members: Vec<Key>,
+    pub omitted_members: usize,
+    pub passes: u32,
+    pub residual_bits: Option<u64>,
+    pub max_change_bits: u64,
+    pub stop: IterationStop,
+    pub reads: Vec<IterationRead>,
+    pub reads_limited: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IterationRead {
+    pub reader: Key,
+    pub source: Key,
+    pub current_pass: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Contributions {
     pub formula: Key,

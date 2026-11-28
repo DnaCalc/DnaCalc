@@ -3,7 +3,7 @@ use calc_doc_model::{CellInput, ModelRoot, ScenarioInput, ViewAnchor, WorksheetS
 use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{
     Axis, CellEdit, CommandError, HostSession, IntentError, PasteMode, PasteSource, SortKey, SortOptions,
-    prepare_column_visibility, prepare_filter_toggle, prepare_paste_oriented, prepare_sort_rows,
+    prepare_column_visibility, prepare_filter_toggle, prepare_paste, prepare_paste_oriented, prepare_sort_rows,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
@@ -660,6 +660,16 @@ pub(crate) fn prepare(
                         ranges_with_metadata.push(target);
                     }
                     edits.extend(plan.into_edits(host).map_err(excel)?);
+                }
+                ModelChange::FlashFill { selected } => {
+                    require_current_model(request, base.model)?;
+                    let host = state.session.host();
+                    let excel = |reason| Refusal::Excel { reason };
+                    let plan = prepare_paste(host, PasteSource::FlashFill, grid_area(*selected)?, PasteMode::Values)
+                        .map_err(excel)?;
+                    areas.push(plan.target());
+                    edits.extend(plan.into_edits(host).map_err(excel)?);
+                    warnings.push("Flash Fill writes literal text.".into());
                 }
                 ModelChange::SetColumnsHidden { sheet, bands, hidden } => {
                     require_current_model(request, base.model)?;
