@@ -236,6 +236,7 @@ pub enum WorkbookQuery {
     OutputCandidates {
         scope: SourceRef,
     },
+    Objects { sheet: Sheet },
     ChartImage {
         object: SourceRef,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -611,6 +612,7 @@ pub enum PastePart {
     Validation,
     AllUsingSourceTheme,
     AllExceptBorders,
+    ColumnWidths,
     FormulasAndNumberFormats,
     ValuesAndNumberFormats,
     AllMergingConditionalFormats,
@@ -725,6 +727,7 @@ pub enum ModelProperty {
     Hyperlinks,
     RichText,
     ColumnVisibility,
+    ColumnWidths,
     AutoFilter,
     Charts,
     Shapes,

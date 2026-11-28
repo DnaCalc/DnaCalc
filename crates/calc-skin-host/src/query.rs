@@ -28,32 +28,43 @@ pub(crate) fn chart_image(
     bound: Option<&Bound>,
     meter: &mut QueryWork,
 ) -> Result<ChartImage, Refusal> {
-    use base64::Engine as _;
     let SourceRef::Object { sheet, name } = object else {
         return Err(invalid("Choose a worksheet chart"));
     };
     let chart = state.session.host().chart_named(sheet.id(), name)
         .ok_or_else(|| invalid("Source missing"))?;
+    let previous = bound.and_then(|bound| crate::comparison::chart(state, bound, object));
+    render_chart_image(&chart, previous, meter)
+}
+
+pub(crate) fn render_chart_image(
+    chart: &calc_host::ChartView,
+    previous: Option<&calc_host::ChartView>,
+    meter: &mut QueryWork,
+) -> Result<ChartImage, Refusal> {
+    use base64::Engine as _;
     let mut uses_saved_values = false;
     for series in chart.plots.iter().flat_map(|plot| &plot.series) {
         let points = series.values.len().max(series.categories.len()).max(series.sizes.len());
         meter.work(points as u64, 1, 0)?;
         uses_saved_values |= series.cached;
     }
-    let overlay = if let Some(previous) = bound.and_then(|bound| crate::comparison::chart(state, bound, object)) {
+    let overlay = if let Some(previous) = previous {
         for series in previous.plots.iter().flat_map(|plot| &plot.series) {
             meter.work(series.values.len().max(series.categories.len()) as u64, 1, 0)?;
         }
-        calc_chart_render::chart_comparison_svg(&chart, previous, 640.0, 360.0)
+        calc_chart_render::chart_comparison_svg(chart, previous, 640.0, 360.0)
     } else {
         None
     };
     let compares_baseline = overlay.is_some();
-    let svg = overlay.unwrap_or_else(|| calc_chart_render::chart_svg(&chart, 640.0, 360.0));
+    let svg = overlay.unwrap_or_else(|| calc_chart_render::chart_svg(chart, 640.0, 360.0));
+    let prefix = "data:image/svg+xml;base64,";
+    meter.charge_payload(prefix.len() as u64 + (svg.len().div_ceil(3) as u64) * 4)?;
     let data = base64::engine::general_purpose::STANDARD.encode(svg);
     Ok(ChartImage {
-        label: chart.title.filter(|title| !title.is_empty()).unwrap_or(chart.name),
-        data_url: format!("data:image/svg+xml;base64,{data}"),
+        label: chart.title.as_ref().filter(|title| !title.is_empty()).unwrap_or(&chart.name).clone(),
+        data_url: format!("{prefix}{data}"),
         uses_saved_values,
         compares_baseline,
     })
@@ -345,6 +356,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::InputCandidates { .. } | WorkbookQuery::OutputCandidates { .. } => {
             authored || recalculated
         }
+        WorkbookQuery::Objects { .. } => authored || recalculated || rtd_changed,
         WorkbookQuery::ChartImage { comparison, .. } => {
             authored || recalculated || rtd_changed || (comparison.is_some() && presentation)
         }
@@ -474,9 +486,13 @@ impl QueryWork {
     }
 
     pub(crate) fn charge_bytes(&mut self, value: &impl Serialize) -> Result<(), Refusal> {
-        self.counts.bytes += serde_json::to_vec(value)
-            .map_err(|error| Refusal::Transport(error.to_string()))?
-            .len() as u64;
+        let bytes = serde_json::to_vec(value)
+            .map_err(|error| Refusal::Transport(error.to_string()))?.len() as u64;
+        self.charge_payload(bytes)
+    }
+
+    pub(crate) fn charge_payload(&mut self, bytes: u64) -> Result<(), Refusal> {
+        self.counts.bytes = self.counts.bytes.saturating_add(bytes);
         self.check()
     }
 
@@ -776,6 +792,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         | WorkbookQuery::Structure { .. }
         | WorkbookQuery::OutputCandidates { .. } => Some("Choose a smaller worksheet area"),
         WorkbookQuery::InputCandidates { .. } => Some("Choose a smaller worksheet area or open Forms maker"),
+        WorkbookQuery::Objects { .. } => Some("Choose a sheet with fewer objects or increase the budget"),
         WorkbookQuery::ChartImage { .. } => Some("Choose a chart with fewer points"),
         WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
         WorkbookQuery::DependencyAtlas => Some("Increase the sheet dependency budget"),
@@ -889,6 +906,9 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         }
         WorkbookQuery::OutputCandidates { scope } => {
             query::OutputCandidates::encode(&structure::outputs(state, scope, &mut meter)?)?
+        }
+        WorkbookQuery::Objects { sheet } => {
+            query::Objects::encode(&crate::objects::worksheet_objects(host, *sheet, &mut meter)?)?
         }
         WorkbookQuery::ChartImage { object, comparison } => {
             if let Some(bound) = comparison && &bound_source(state, bound)? != object {

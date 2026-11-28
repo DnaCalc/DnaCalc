@@ -165,7 +165,7 @@ pub use actions::{
 };
 pub use paste::{
     PasteArithmetic, PasteCellOptions, PasteOptionsRefusal, PastePlan, PasteSource, matrix_shape,
-    prepare_paste, prepare_paste_oriented,
+    prepare_paste, prepare_paste_column_widths, prepare_paste_oriented,
 };
 pub mod conditional;
 mod copy;

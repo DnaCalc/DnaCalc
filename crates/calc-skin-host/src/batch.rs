@@ -4,12 +4,13 @@ use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{
     Axis, CellEdit, CommandError, HostSession, IntentError, PasteArithmetic as HostPasteArithmetic,
     PasteCellOptions, PasteMode, PasteOptionsRefusal, PasteSource, SortKey, SortOptions,
-    prepare_column_visibility, prepare_filter_toggle, prepare_paste, prepare_paste_oriented, prepare_sort_rows,
+    prepare_column_visibility, prepare_filter_toggle, prepare_paste, prepare_paste_column_widths,
+    prepare_paste_oriented, prepare_sort_rows,
     search::entry_text,
 };
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::*;
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::{BTreeMap, BTreeSet}, sync::Arc};
 
 pub(crate) fn source_area(area: GridArea) -> SourceRef {
     SourceRef::Cells {
@@ -172,24 +173,31 @@ fn column_properties(
 ) -> Vec<ModelPropertyDiff> {
     let before = before.definitions();
     let after = after.definitions();
-    let sheets: BTreeSet<_> = edits
-        .iter()
-        .filter_map(|edit| {
-            let CellEdit::AxisFormat(edit) = edit else {
-                return None;
-            };
-            let sheet = edit.sheet();
-            let hidden = |root: &calc_doc_model::Definitions| {
-                root.axis_layouts().get(sheet, Axis::Columns, edit.index()).hidden()
-            };
-            (edit.axis() == Axis::Columns && hidden(before) != hidden(after)).then_some(sheet)
-        })
-        .collect();
+    let mut sheets = BTreeMap::<_, (bool, bool)>::new();
+    for edit in edits {
+        let CellEdit::AxisFormat(edit) = edit else { continue };
+        if edit.axis() != Axis::Columns {
+            continue;
+        }
+        let layout = |root: &calc_doc_model::Definitions| {
+            root.axis_layouts().get(edit.sheet(), Axis::Columns, edit.index())
+        };
+        let old = layout(before);
+        let new = layout(after);
+        let visibility = old.hidden() != new.hidden();
+        let width = old.size() != new.size() || old.custom() != new.custom();
+        if visibility || width {
+            let changed = sheets.entry(edit.sheet()).or_default();
+            changed.0 |= visibility;
+            changed.1 |= width;
+        }
+    }
     let mut properties = Vec::new();
-    for sheet in sheets {
+    for (sheet, (visibility, width)) in sheets {
         let source = SourceRef::Sheet(Sheet::of(sheet));
         for (property, changed) in [
-            (ModelProperty::ColumnVisibility, true),
+            (ModelProperty::ColumnVisibility, visibility),
+            (ModelProperty::ColumnWidths, width),
             (ModelProperty::Charts, before.charts(sheet) != after.charts(sheet)),
             (ModelProperty::Shapes, before.shapes(sheet) != after.shapes(sheet)),
         ] {
@@ -588,21 +596,22 @@ pub(crate) fn prepare(
                         .ok_or_else(|| invalid("Copy worksheet cells again before pasting."))?;
                     let plain = PasteCellOptions::default();
                     let (mode, transpose, options) = match contents {
-                        PasteContents::Values => (PasteMode::Values, false, plain),
-                        PasteContents::Formulas => (PasteMode::Formulas, false, plain),
-                        PasteContents::AllTransposed => (PasteMode::All, true, plain),
+                        PasteContents::Values => (Some(PasteMode::Values), false, plain),
+                        PasteContents::Formulas => (Some(PasteMode::Formulas), false, plain),
+                        PasteContents::AllTransposed => (Some(PasteMode::All), true, plain),
                         PasteContents::Special { part, transpose, skip_blanks, arithmetic } => {
                             let mode = match part {
-                                PastePart::All | PastePart::AllUsingSourceTheme => PasteMode::All,
-                                PastePart::Formulas => PasteMode::Formulas,
-                                PastePart::Values => PasteMode::Values,
-                                PastePart::Formats => PasteMode::Formats,
-                                PastePart::Comments => PasteMode::Comments,
-                                PastePart::Validation => PasteMode::Validation,
-                                PastePart::AllExceptBorders => PasteMode::AllExceptBorders,
-                                PastePart::FormulasAndNumberFormats => PasteMode::FormulasAndNumberFormats,
-                                PastePart::ValuesAndNumberFormats => PasteMode::ValuesAndNumberFormats,
-                                PastePart::AllMergingConditionalFormats => PasteMode::AllMergingConditionalFormats,
+                                PastePart::All | PastePart::AllUsingSourceTheme => Some(PasteMode::All),
+                                PastePart::Formulas => Some(PasteMode::Formulas),
+                                PastePart::Values => Some(PasteMode::Values),
+                                PastePart::Formats => Some(PasteMode::Formats),
+                                PastePart::Comments => Some(PasteMode::Comments),
+                                PastePart::Validation => Some(PasteMode::Validation),
+                                PastePart::AllExceptBorders => Some(PasteMode::AllExceptBorders),
+                                PastePart::FormulasAndNumberFormats => Some(PasteMode::FormulasAndNumberFormats),
+                                PastePart::ValuesAndNumberFormats => Some(PasteMode::ValuesAndNumberFormats),
+                                PastePart::AllMergingConditionalFormats => Some(PasteMode::AllMergingConditionalFormats),
+                                PastePart::ColumnWidths => None,
                             };
                             let arithmetic = arithmetic.map(|operation| match operation {
                                 PasteArithmetic::Add => HostPasteArithmetic::Add,
@@ -614,6 +623,18 @@ pub(crate) fn prepare(
                         }
                     };
                     let host = state.session.host();
+                    let to = grid_area(*to)?;
+                    let Some(mode) = mode else {
+                        // Excel's Column Widths uses axis edits independently of cell options.
+                        if host.sheet_contents_protected(to.sheet()) {
+                            return Err(Refusal::Protected(SourceRef::Sheet(Sheet::of(to.sheet()))));
+                        }
+                        let (target, widths) = prepare_paste_column_widths(host, &copied.snapshot, to)
+                            .map_err(|reason| Refusal::Excel { reason: reason.to_string() })?;
+                        areas.push(target);
+                        edits.extend(widths);
+                        continue;
+                    };
                     let excel = |reason| Refusal::Excel { reason };
                     let plan = prepare_paste_oriented(
                         host,
@@ -621,7 +642,7 @@ pub(crate) fn prepare(
                             snapshot: &copied.snapshot,
                             cut: false,
                         },
-                        grid_area(*to)?,
+                        to,
                         mode,
                         transpose,
                     )

@@ -2,9 +2,10 @@
 //! only the host can construct a plan and the host checks its revision when applying it.
 use crate::value::{CellKey, CoreRef, GridArea, WorksheetErrorCode};
 use crate::{
-    CellEdit, CellInput, CopySnapshot, FiniteNumber, HostState, PasteMode, ProjectedValue,
-    ProjectionRequest,
+    CellEdit, CellInput, CopyRefusal, CopySnapshot, FiniteNumber, HostState, PasteMode,
+    ProjectedValue, ProjectionRequest,
 };
+use calc_doc_model::{Axis, AxisFormatEdit};
 use std::collections::{HashMap, HashSet};
 
 /// Input to the host paste planner.
@@ -236,6 +237,46 @@ fn apply_paste_arithmetic(
         };
     }
     Ok(())
+}
+
+/// Prepare Column Widths from a copy, returning the actual target and its axis edits.
+pub fn prepare_paste_column_widths(
+    host: &HostState,
+    snapshot: &CopySnapshot,
+    to: GridArea,
+) -> Result<(GridArea, Vec<CellEdit>), CopyRefusal> {
+    if host.model().sheet_by_id(to.sheet()).is_none() {
+        return Err(CopyRefusal::UnknownSheet);
+    }
+    let source = snapshot.area();
+    let source_columns = source.column_count();
+    // Whole copies tile across the destination. A narrower selection still takes one copy.
+    let tiles = (to.column_count() / source_columns).max(1);
+    let columns = tiles * source_columns;
+    let end = CellKey::new(
+        to.sheet(),
+        to.last().row(),
+        to.first().column() + columns - 1,
+    )
+    .map_err(|_| CopyRefusal::PastTheGrid)?;
+    let target = GridArea::new(to.first(), end).map_err(|_| CopyRefusal::PastTheGrid)?;
+    let layouts = host.model().definitions().axis_layouts();
+    let mut edits = Vec::with_capacity(columns as usize);
+    for offset in 0..columns {
+        let source_column = source.first().column() + offset % source_columns;
+        let copied = snapshot.axis_format(Axis::Columns, source_column);
+        let column = to.first().column() + offset;
+        let destination = layouts.get(to.sheet(), Axis::Columns, column);
+        // The width and hidden state transfer. The destination keeps its outline level.
+        let layout = destination
+            .with_size(copied.size(), copied.custom())
+            .ok_or(CopyRefusal::PastTheGrid)?
+            .with_hidden(copied.hidden());
+        let edit = AxisFormatEdit::new(to.sheet(), Axis::Columns, column, layout)
+            .ok_or(CopyRefusal::PastTheGrid)?;
+        edits.push(CellEdit::AxisFormat(edit));
+    }
+    Ok((target, edits))
 }
 
 /// Validate the source and destination and prepare a paste in its original orientation.
