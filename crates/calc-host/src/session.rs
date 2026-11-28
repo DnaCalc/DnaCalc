@@ -570,6 +570,7 @@ impl HostSession {
         self.cancel_calculation();
         if self.host.model.definitions().workbook_name() != Some(name) {
             self.file_location = None;
+            self.host.set_file(None);
         }
         self.host.model = self.host.model.with_file_identity(name, macro_enabled);
         self.notify_file_identity(name);
@@ -587,8 +588,34 @@ impl HostSession {
     /// Native file identity, supplied only after a successful open or save. Browser files
     /// have a name but no local directory. This metadata is independent of cell undo.
     pub fn set_file_location(&mut self, full_name: String) {
+        if self.file_location.as_ref() == Some(&full_name) {
+            return;
+        }
+        let name_start = full_name.rfind(['/', '\\']).map_or(0, |index| index + 1);
+        let (folder, name) = full_name.split_at(name_start);
+        self.cancel_calculation();
+        self.host.set_file(Some(calc_fml::WorkbookFile {
+            folder: (!folder.is_empty()).then(|| folder.to_owned()),
+            name: name.to_owned(),
+        }));
         self.file_location = Some(full_name);
         self.notify_workbook_context();
+    }
+
+    /// Update the Windows directory text that INFO reads in this session.
+    pub fn set_current_directory(&mut self, directory: Option<String>) {
+        let mut application = self.host.application.clone().unwrap_or_default();
+        application.directory = directory.map(|mut path| {
+            if !path.ends_with('\\') {
+                path.push('\\');
+            }
+            path
+        });
+        if self.host.application.as_ref() == Some(&application) {
+            return;
+        }
+        self.cancel_calculation();
+        self.host.set_application(Some(application));
     }
     /// Returns the supplied native location, or the workbook name when no location was supplied.
     pub fn file_full_name(&self) -> &str {

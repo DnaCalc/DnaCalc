@@ -57,7 +57,21 @@ pub(crate) fn open_session(cli: &Cli) -> Result<HostSession, Failure> {
 /// Open the session and admit the workbook's VBA under the selected macro level.
 pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
     let mut session = open_session(cli)?;
-    let name = file_name(&cli.book);
+    #[cfg(not(windows))]
+    let (files, name) = crate::mounts::configure(cli)?;
+    #[cfg(windows)]
+    let name = {
+        if cli.mounts.is_some() {
+            return Err(fail("--mounts is available on macOS and Linux"));
+        }
+        std::path::absolute(&cli.book)
+            .map_err(|error| fail(format!("cannot resolve {}: {error}", cli.book)))?
+            .to_string_lossy()
+            .replace('/', "\\")
+    };
+    session.set_file_location(name.clone());
+    #[cfg(not(windows))]
+    session.set_current_directory(files.current_directory());
     let has_project = session
         .host()
         .loaded()
@@ -74,13 +88,14 @@ pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
         (Some(policy), true) => {
             let by = format!("dnacalc --macro-level {}", cli.level.key());
             let grant = calc_host_vba::ProjectGrant::trust_all(&by, policy);
-            match calc_host_vba::open_file_project(
-                &grant,
-                &mut session,
-                &name,
-                cli.steps,
-                None,
-            ) {
+            let mut prepare = || {
+                calc_host_vba::open_file_project(&grant, &mut session, &name, cli.steps, None)
+            };
+            #[cfg(not(windows))]
+            let opened = files.with(&mut prepare);
+            #[cfg(windows)]
+            let opened = prepare();
+            match opened {
                 Ok(project) => (
                     json!({"level": cli.level.key(), "project": true, "ran": true,
                            "policy": match policy { VbaPolicy::Guarded => "guarded", VbaPolicy::Full => "full" }}),

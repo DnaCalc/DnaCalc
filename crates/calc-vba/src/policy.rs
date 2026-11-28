@@ -143,9 +143,19 @@ pub fn denials_ever() -> u64 {
 /// Wrap a host with the thread's policy, sharing the thread's audit log.
 pub(crate) fn wrap(host: Arc<dyn HostServices>) -> Arc<dyn HostServices> {
     ACTIVE.with(|active| match active.borrow().as_ref() {
-        Some(active) => PolicyHost::with_mode(host, active.mode)
-            .with_audit(active.audit.clone())
-            .into_host(),
+        Some(active) => {
+            let denied = active.mode.denied_capabilities();
+            // The mounted facet applies authority per path and operation.
+            #[cfg(not(any(windows, target_arch = "wasm32")))]
+            let denied = if host.policy().windows_faithful && crate::files::current_host().is_some() {
+                denied.difference(CapabilitySet::of(&[Capability::FsRead, Capability::FsWrite]))
+            } else {
+                denied
+            };
+            PolicyHost::with_denied(host, denied)
+                .with_audit(active.audit.clone())
+                .into_host()
+        }
         None => host,
     })
 }

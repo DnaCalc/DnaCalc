@@ -341,12 +341,18 @@ impl SpreadsheetHost {
         } else {
             None
         };
-        let base = HostBuilder::new()
-            .policy(HostPolicy {
-                allow_dynamic_link: native_dynlink.is_some(),
-                ..HostPolicy::default()
-            })
-            .build();
+        #[cfg(not(target_arch = "wasm32"))]
+        let mounted_host = crate::files::current_host();
+        #[cfg(target_arch = "wasm32")]
+        let mounted_host = None;
+        let base = mounted_host.unwrap_or_else(|| {
+            HostBuilder::new()
+                .policy(HostPolicy {
+                    allow_dynamic_link: native_dynlink.is_some(),
+                    ..HostPolicy::default()
+                })
+                .build()
+        });
         Self {
             late,
             base,

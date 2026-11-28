@@ -64,6 +64,11 @@ mod value;
 /// The application supplies access, never a copied value reader. `None` means no admitted
 /// worksheet invocation; `Some(Err(..))` must never fall back to the command route.
 pub trait AutomationHost: ApplicationHost {
+    /// The configured starting directory in the workbook's Windows persona.
+    fn default_file_path(&self) -> Option<&str> {
+        None
+    }
+
     /// Facilities this application can provide to its object-model callers.
     fn host_profile(&self) -> crate::portability::HostProfile {
         crate::portability::HostProfile::new(crate::portability::HostKind::local())

@@ -10,6 +10,8 @@ mod descriptor;
 mod dialog;
 mod msforms_constants;
 pub mod events;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod files;
 mod invocation_model;
 pub mod office;
 pub mod policy;
