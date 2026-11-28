@@ -1,0 +1,550 @@
+{
+  "timestamp": "2026-11-28T09:15:05.8374667Z",
+  "build": "16.0.20625.20108",
+  "fixture_sha256": "2BD3714EA84553D6C02317114E3D1A41BAD0A81FF234E389D0CD853565ED90D3",
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+  "cases": [
+    {
+      "id": "ordinary-command-route-control",
+      "function": 122,
+      "operands": [],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 4,
+      "value": "true"
+    },
+    {
+      "id": "new-GET.WORKSPACE-23",
+      "function": 186,
+      "operands": [
+        "i2\t23"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "<profile>\\AppData\\Roaming\\Microsoft\\Excel\\XLSTART",
+      "xltype": 2
+    },
+    {
+      "id": "new-GET.WORKSPACE-24",
+      "function": 186,
+      "operands": [
+        "i2\t24"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 16,
+      "value": "42",
+      "xltype": 16
+    },
+    {
+      "id": "new-GET.WORKSPACE-48",
+      "function": 186,
+      "operands": [
+        "i2\t48"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "C:\\Program Files\\Microsoft Office\\root\\Office16\\LIBRARY",
+      "xltype": 2
+    },
+    {
+      "id": "new-GET.WORKSPACE-44",
+      "function": 186,
+      "operands": [
+        "i2\t44"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 64,
+      "value": {
+        "shape": "49x3",
+        "utf16_matrix_sha256": "3135ffe2537d6a5ddc3063d9cf52e506ebb40e2eba6d927ffeb0746858be9c9d"
+      },
+      "xltype": 64
+    },
+    {
+      "id": "new-GET.DOCUMENT-2",
+      "function": 188,
+      "operands": [
+        "i2\t2"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 16,
+      "value": "42",
+      "xltype": 16
+    },
+    {
+      "id": "saved-GET.WORKSPACE-23",
+      "function": 186,
+      "operands": [
+        "i2\t23"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "<profile>\\AppData\\Roaming\\Microsoft\\Excel\\XLSTART",
+      "xltype": 2
+    },
+    {
+      "id": "saved-GET.WORKSPACE-24",
+      "function": 186,
+      "operands": [
+        "i2\t24"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 16,
+      "value": "42",
+      "xltype": 16
+    },
+    {
+      "id": "saved-GET.WORKSPACE-48",
+      "function": 186,
+      "operands": [
+        "i2\t48"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "C:\\Program Files\\Microsoft Office\\root\\Office16\\LIBRARY",
+      "xltype": 2
+    },
+    {
+      "id": "saved-GET.WORKSPACE-44",
+      "function": 186,
+      "operands": [
+        "i2\t44"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 64,
+      "value": {
+        "shape": "49x3",
+        "utf16_matrix_sha256": "3135ffe2537d6a5ddc3063d9cf52e506ebb40e2eba6d927ffeb0746858be9c9d"
+      },
+      "xltype": 64
+    },
+    {
+      "id": "saved-GET.DOCUMENT-2",
+      "function": 188,
+      "operands": [
+        "i2\t2"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final",
+      "xltype": 2
+    },
+    {
+      "id": "FILES-present",
+      "function": 166,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-*.txt"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 64,
+      "value": "1x1;2:utf16:0073006300720061007400630068002d0069006e007000750074002e007400780074",
+      "xltype": 64
+    },
+    {
+      "id": "FILES-missing",
+      "function": 166,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/no-match-*.txt"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 16,
+      "value": "42",
+      "xltype": 16
+    },
+    {
+      "id": "FOPEN-absent",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/absent/no-file.txt",
+        "i2\t1"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "42",
+      "xltype": 16
+    },
+    {
+      "id": "FOPEN-read",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-input.txt",
+        "i2\t1"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FSIZE-input",
+      "function": 134,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x402a000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FPOS-get",
+      "function": 139,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x3ff0000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FREADLN-input",
+      "function": 135,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "utf16:0061006c007000680061",
+      "xltype": 2
+    },
+    {
+      "id": "FREAD-three",
+      "function": 136,
+      "operands": [
+        "number\t0",
+        "i2\t3"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 2,
+      "value": "utf16:006200650074",
+      "xltype": 2
+    },
+    {
+      "id": "FPOS-set",
+      "function": 139,
+      "operands": [
+        "number\t0",
+        "i2\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "FCLOSE-input",
+      "function": 133,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FREAD-closed",
+      "function": 136,
+      "operands": [
+        "number\t0",
+        "i2\t2"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "FOPEN-write",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-output.txt",
+        "i2\t2"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "42",
+      "xltype": 16
+    },
+    {
+      "id": "FOPEN-existing-mode-1",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-existing-mode-1.txt",
+        "i2\t1"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FWRITE-mode-1",
+      "function": 138,
+      "operands": [
+        "number\t0",
+        "text\talpha"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x4014000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FWRITELN-mode-1",
+      "function": 137,
+      "operands": [
+        "number\t0",
+        "text\tbeta"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x4018000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FCLOSE-mode-1",
+      "function": 133,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FOPEN-existing-mode-2",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-existing-mode-2.txt",
+        "i2\t2"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FWRITE-mode-2",
+      "function": 138,
+      "operands": [
+        "number\t0",
+        "text\talpha"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "FWRITELN-mode-2",
+      "function": 137,
+      "operands": [
+        "number\t0",
+        "text\tbeta"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "FCLOSE-mode-2",
+      "function": 133,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FOPEN-existing-mode-3",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-existing-mode-3.txt",
+        "i2\t3"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FWRITE-mode-3",
+      "function": 138,
+      "operands": [
+        "number\t0",
+        "text\talpha"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x4014000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FWRITELN-mode-3",
+      "function": 137,
+      "operands": [
+        "number\t0",
+        "text\tbeta"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x4018000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FCLOSE-mode-3",
+      "function": 133,
+      "operands": [
+        "number\t0"
+      ],
+      "macro_return": 1.0,
+      "return_code": 0,
+      "kind": 1,
+      "value": "0x0000000000000000",
+      "xltype": 1
+    },
+    {
+      "id": "FOPEN-existing-mode-4",
+      "function": 132,
+      "operands": [
+        "text\tC:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final/scratch-existing-mode-4.txt",
+        "i2\t4"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-133",
+      "function": 133,
+      "operands": [
+        "i2\t30000"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-134",
+      "function": 134,
+      "operands": [
+        "i2\t30000"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-135",
+      "function": 135,
+      "operands": [
+        "i2\t30000"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-136",
+      "function": 136,
+      "operands": [
+        "i2\t30000",
+        "i2\t1"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-137",
+      "function": 137,
+      "operands": [
+        "i2\t30000",
+        "text\tscratch"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-138",
+      "function": 138,
+      "operands": [
+        "i2\t30000",
+        "text\tscratch"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    },
+    {
+      "id": "invalid-handle-139",
+      "function": 139,
+      "operands": [
+        "i2\t30000"
+      ],
+      "macro_return": 1.0,
+      "return_code": 32,
+      "kind": 16,
+      "value": "15",
+      "xltype": 16
+    }
+  ],
+  "mode_1_bytes": "616C706861626574610D0A",
+  "mode_2_bytes": "73656564",
+  "mode_3_bytes": "616C706861626574610D0A",
+  "raw_capture": "C:/Work/DnaCalc/codex-runs/ww27/c-api-final/result.json"
+}

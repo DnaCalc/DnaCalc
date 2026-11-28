@@ -385,6 +385,16 @@ pub struct IterationFacts {
     pub stop: IterationStop,
     pub reads: Vec<IterationRead>,
     pub reads_limited: bool,
+    /// Prior-pass reads also backed by an admitted local clock and a worksheet tick guard.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clock_delays: Vec<ClockDelay>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClockDelay {
+    pub state: Key,
+    pub clock: Key,
+    pub tick: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

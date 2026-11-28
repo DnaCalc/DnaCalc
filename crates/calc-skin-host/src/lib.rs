@@ -184,6 +184,23 @@ impl State {
                         calc_host::IterationStop::Converged => IterationStop::Converged,
                         calc_host::IterationStop::NoNumericSample => IterationStop::NoNumericSample,
                     };
+                    let mut clock_delays = Vec::new();
+                    let host = self.session.host();
+                    if let Some(clock) = &self.clock
+                        && observed.passes == 1
+                        && host.model().definitions().iteration().max_iterations() == 1
+                    {
+                        for read in &observed.reads {
+                            if read.reader == read.source
+                                && read.kind == calc_host::IterationReadKind::PriorPass
+                                && let Some((source, tick)) = clock.observed_balance(host, read.reader)
+                            {
+                                clock_delays.push(ClockDelay {
+                                    state: Key::of(read.reader), clock: Key::of(source), tick,
+                                });
+                            }
+                        }
+                    }
                     Some((stamp, IterationFacts {
                         members: observed.members.iter().copied().map(Key::of).collect(),
                         omitted_members: observed.omitted_members,
@@ -197,6 +214,7 @@ impl State {
                             current_pass: read.kind == calc_host::IterationReadKind::CurrentPass,
                         }).collect(),
                         reads_limited: observed.reads_limited,
+                        clock_delays,
                     }))
                 })
             }

@@ -219,8 +219,8 @@ impl FormulaResult {
             Self::FileCached(_) => None,
         }
     }
-    /// Read subscriptions used for invalidation, including results beyond the certification path.
-    pub(crate) fn rtd_reads(&self) -> &[calc_fml::RtdRead] {
+    /// RTD reads observed by the calculation, including iterative results without a certificate.
+    pub fn rtd_reads(&self) -> &[calc_fml::RtdRead] {
         match self {
             Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
                 match calculation.stamp() {
