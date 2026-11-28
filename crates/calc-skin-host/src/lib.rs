@@ -4,6 +4,7 @@ mod batch;
 mod comparison;
 mod contributions;
 mod dependencies;
+mod effects;
 mod inventory;
 mod issues;
 mod names;
@@ -580,28 +581,34 @@ impl WorkbookPort for Connection {
     }
 
     fn preview(&self, request: &Batch, depth: PreviewDepth) -> Result<Preview, Refusal> {
-        if !matches!(depth, PreviewDepth::WritesOnly) {
-            return Err(unavailable("dc-zh096", "Preview with calculation effects"));
-        }
         let mut state = self.host.borrow_mut();
         let base = state.stamp();
         let local = self.local.borrow();
-        Ok(
-            match self
-                .check_write(&state)
-                .and_then(|()| batch::prepare(&mut state, request, local.copied.as_ref()))
-            {
-                Ok(staged) => staged.preview,
-                Err(refusal) => Preview {
-                    base,
-                    writes: Vec::new(),
-                    properties: Vec::new(),
-                    presentation: Vec::new(),
-                    warnings: Vec::new(),
-                    refusal: Some(refusal),
-                },
-            },
-        )
+        let access = if !state.read_only && self.policy == WritePolicy::Propose
+            && matches!(self.origin, Origin::Agent { .. })
+        {
+            Ok(())
+        } else {
+            self.check_write(&state)
+        };
+        let mut staged = match access.and_then(|()| {
+            batch::prepare(&mut state, request, local.copied.as_ref())
+        }) {
+            Ok(staged) => staged,
+            Err(refusal) => return Ok(Preview {
+                base,
+                writes: Vec::new(),
+                properties: Vec::new(),
+                effects: Vec::new(),
+                presentation: Vec::new(),
+                warnings: Vec::new(),
+                refusal: Some(refusal),
+            }),
+        };
+        if let PreviewDepth::WithEffects { budget } = depth {
+            effects::append(state.session.host(), &mut staged, budget);
+        }
+        Ok(staged.preview)
     }
 
     fn commit(&self, request: Batch) -> Result<Stamp, Refusal> {

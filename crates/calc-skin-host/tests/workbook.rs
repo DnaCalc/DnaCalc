@@ -1835,3 +1835,103 @@ fn an_agent_look_reaches_the_operator_without_editing_the_workbook() {
     }).is_err());
     assert!(operator.next_frame().unwrap().is_none());
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_calculate_the_candidate_in_isolation() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let assumption = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    connection.commit(batch(1, vec![enter(assumption, "3"), enter(output, "=A1*2")])).unwrap();
+    while host.advance() {}
+    let before = connection.next_frame().unwrap().unwrap().stamp;
+    let candidate = batch(2, vec![enter(assumption, "4")]);
+    let agent = host.connect(
+        Origin::Agent { agent: "Planner assistant".into(), proposal: "assumption".into() },
+        WritePolicy::Propose,
+    );
+    let preview = agent.preview(&candidate, PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert_eq!(agent.commit(candidate), Err(Refusal::PolicyRefused));
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    let effect = preview.effects.iter().find(|effect| effect.at == output).unwrap();
+    assert_eq!(effect.before.value, RawValue::Number { bits: 6.0f64.to_bits() });
+    assert_eq!(effect.after.value, RawValue::Number { bits: 8.0f64.to_bits() });
+    assert!(matches!(effect.before.provenance, Provenance::Calculated { .. }));
+    assert!(matches!(effect.after.provenance, Provenance::Calculated { .. }));
+    let live = ask(&connection, query::Cells { interest: Interest::Area(Area(output, output)) });
+    assert_eq!(live.cells[0].shown.value, RawValue::Number { bits: 6.0f64.to_bits() });
+    assert_eq!(preview.base, before);
+    assert!(connection.next_frame().unwrap().is_none());
+    assert_eq!(ask(&connection, query::History).undo.len(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_refuses_volatile_dependencies_and_enforces_the_budget() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    let volatile = Key(sheet.0, sheet.1, 1, 3);
+    connection.commit(batch(1, vec![enter(input, "3"), enter(output, "=A1+C1"), enter(volatile, "=RAND()")])).unwrap();
+    while host.advance() {}
+    let before = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let candidate = batch(2, vec![enter(input, "4")]);
+    let preview = connection.preview(&candidate, PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert!(matches!(&preview.refusal, Some(Refusal::NotModelled { owner, what })
+        if owner == "dc-zh096" && what.contains("volatile")), "{preview:?}");
+    assert_eq!(preview.writes.len(), 1);
+    assert!(preview.effects.is_empty());
+    let preview = connection.preview(&candidate, PreviewDepth::WithEffects {
+        budget: Budget { cells: 0, ..BUDGET },
+    }).unwrap();
+    assert!(matches!(&preview.refusal, Some(Refusal::OverBudget { .. })), "{preview:?}");
+    assert_eq!(connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp, before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_can_leave_an_unrelated_volatile_formula_outside_the_trial() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    let unrelated = Key(sheet.0, sheet.1, 1, 26);
+    connection.commit(batch(1, vec![
+        enter(input, "3"),
+        enter(output, "=A1*2"),
+        enter(unrelated, "=RAND()"),
+    ])).unwrap();
+    while host.advance() {}
+    let volatile = || ask(&connection, query::Cells {
+        interest: Interest::Area(Area(unrelated, unrelated))
+    }).cells[0].shown.clone();
+    let before = volatile();
+    let preview = connection.preview(&batch(2, vec![enter(input, "4")]),
+        PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    assert_eq!(preview.effects.iter().map(|item| item.at).collect::<Vec<_>>(), [output]);
+    assert_eq!(volatile(), before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_include_new_spill_members() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let anchor = Key(sheet.0, sheet.1, 1, 2);
+    let new_member = Key(sheet.0, sheet.1, 3, 2);
+    connection.commit(batch(1, vec![enter(input, "2"), enter(anchor, "=SEQUENCE(A1,1)")])).unwrap();
+    while host.advance() {}
+    let candidate = batch(2, vec![enter(input, "3")]);
+    let preview = connection.preview(&candidate, PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    let member = preview.effects.iter().find(|effect| effect.at == new_member).unwrap();
+    assert_eq!(member.before.value, RawValue::Blank);
+    assert_eq!(member.after.value, RawValue::Number { bits: 3.0f64.to_bits() });
+    assert!(matches!(member.after.provenance, Provenance::Calculated { .. }));
+    let live = ask(&connection, query::Cells { interest: Interest::Area(Area(new_member, new_member)) });
+    assert!(live.cells.is_empty());
+}

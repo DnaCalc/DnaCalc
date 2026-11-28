@@ -176,6 +176,8 @@ mod shift;
 pub use shift::shift_cell_edits;
 mod session;
 mod state;
+mod trial;
+pub use trial::{CalculationTrial, TrialGraph};
 pub mod validation;
 
 pub use chart::{ChartCorner, ChartKind, ChartPlace, ChartView, PlotView, SeriesView};
