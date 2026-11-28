@@ -29,6 +29,15 @@ const fn quick_access(path: &'static str) -> KeyTip {
     }
 }
 
+const fn command_group(path: &'static str, label: &'static str, id: &'static str) -> KeyTip {
+    KeyTip {
+        path,
+        label,
+        action: KeyTipAction::CommandGroup(id),
+        hidden: false,
+    }
+}
+
 const fn pending(path: &'static str, label: &'static str) -> KeyTip {
     KeyTip {
         path,
@@ -109,7 +118,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
         hidden: true,
         ..group("E", "Edit")
     },
-    group("E S", "Paste Special"),
-    group("E S V", "Values"),
+    command_group("E S", "Paste Special", dna_kit::paste_special::OPEN),
+    command_group("E S V", "Values", dna_kit::paste_special::SELECT_VALUES),
     command("E S V ENTER", "Paste Values", "classic.paste-values"),
 ];

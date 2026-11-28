@@ -221,7 +221,11 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         Ok(())
     });
     session.register(spec("edit.cancel", "Cancel", ""), move |_| {
-        if session.step_back_key_tips() {
+        if session.step_back_key_tips(|| {
+            let active = session.view();
+            chrome.views.with_value(|views| views.iter().find(|view| view.spec().id == active)
+                .is_some_and(|view| view.cancel_interaction(session)))
+        }) {
             return Ok(());
         }
         if chrome.search.get_untracked() {

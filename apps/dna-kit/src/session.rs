@@ -794,10 +794,19 @@ impl Session {
         }
     }
 
-    pub fn step_back_key_tips(self) -> bool {
+    /// Cancel the pending dialog of a command group or return to the parent key tips.
+    pub fn step_back_key_tips(self, close_group_dialog: impl FnOnce() -> bool) -> bool {
         let Some(path) = self.tip_path.get_untracked() else {
             return false;
         };
+        let view = self.view.get_untracked();
+        let command_group = self.inner().keymap.borrow().key_tips(&view).iter().any(|tip| {
+            tip.path == path && matches!(tip.action, KeyTipAction::CommandGroup(_))
+        });
+        if command_group && close_group_dialog() {
+            self.dismiss_key_tips();
+            return true;
+        }
         self.tip_path.set(match path {
             "" => None,
             _ => Some(path.rsplit_once(' ').map_or("", |(parent, _)| parent)),
@@ -829,6 +838,11 @@ impl Session {
                 KeyTipAction::Command(id) => {
                     self.dismiss_key_tips();
                     let _ = self.command(id);
+                }
+                KeyTipAction::CommandGroup(id) => {
+                    self.dismiss_key_tips();
+                    let _ = self.command(id);
+                    self.tip_path.set(Some(tip.path));
                 }
                 KeyTipAction::QuickAccess => {
                     if let Some(command) = self.quick_access_command(tip.key()) {

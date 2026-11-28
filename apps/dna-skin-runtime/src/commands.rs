@@ -366,6 +366,8 @@ pub struct KeyTip {
 pub enum KeyTipAction {
     Group,
     Command(&'static str),
+    /// Runs a command while keeping the next keys available on this path.
+    CommandGroup(&'static str),
     /// Resolve this numbered tip through the same binding as Alt plus its digit.
     QuickAccess,
     NotModelled { owner: &'static str },

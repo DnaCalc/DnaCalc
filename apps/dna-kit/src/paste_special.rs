@@ -9,6 +9,7 @@ use calc_skin::{
 use leptos::prelude::*;
 
 pub const OPEN: &str = "classic.paste-special";
+pub const SELECT_VALUES: &str = "classic.select-paste-special-values";
 const APPLY: &str = "classic.apply-paste-special";
 const LINK: &str = "classic.paste-link";
 
@@ -65,15 +66,17 @@ impl Clipboard {
         })
     }
 
+    fn dialog_destination(self, session: Session) -> Option<Destination> {
+        self.destination.get_untracked().filter(|target| {
+            session
+                .stamp()
+                .is_some_and(|stamp| stamp.workbook == target.workbook)
+        })
+    }
+
     fn apply(self, session: Session, label: &str, contents: PasteContents) -> Result<(), String> {
         let to = self
-            .destination
-            .get_untracked()
-            .filter(|target| {
-                session
-                    .stamp()
-                    .is_some_and(|stamp| stamp.workbook == target.workbook)
-            })
+            .dialog_destination(session)
             .ok_or("Open Paste Special for the current workbook.")?;
         close(session);
         session.submit(to.batch(label, contents));
@@ -91,10 +94,13 @@ fn single_range(session: Session) -> Result<Area, String> {
     Err("Select one rectangular range of worksheet cells.".into())
 }
 
-pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 7] {
+pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 8] {
     let clipboard = session.local::<Clipboard>();
     let paste = |id, label, chords: &[&'static str], contents| {
         ViewCommand::new(view, id, label, chords, move |_| {
+            if clipboard.dialog_destination(session).is_some() {
+                return clipboard.apply(session, label, contents);
+            }
             let to = clipboard.destination(session)?;
             session.submit(to.batch(label, contents));
             Ok(())
@@ -160,6 +166,20 @@ pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 7] {
             clipboard.destination.set(Some(to));
             Ok(())
         })
+        .when("mode:ready && writable"),
+        ViewCommand::new(
+            view,
+            SELECT_VALUES,
+            "Select Values in Paste Special",
+            &[],
+            move |_| {
+                if clipboard.dialog_destination(session).is_none() {
+                    return Err("Open Paste Special first.".into());
+                }
+                clipboard.part.set(PastePart::Values);
+                Ok(())
+            },
+        )
         .when("mode:ready && writable"),
         ViewCommand::new(view, APPLY, "Apply Paste Special", &[], move |_| {
             let contents = PasteContents::Special {
@@ -268,13 +288,14 @@ const OPERATIONS: &[(Option<PasteArithmetic>, &str, &str, &str)] = &[
 
 pub fn close(session: Session) -> bool {
     let clipboard = session.local::<Clipboard>();
-    if clipboard.destination.get_untracked().is_none() {
+    if clipboard.dialog_destination(session).is_none() {
         return false;
     }
     if let Some(dialog) = clipboard.dialog.get_untracked() {
         dialog.close();
     }
     clipboard.destination.set(None);
+    session.dismiss_key_tips();
     true
 }
 
@@ -291,6 +312,11 @@ pub fn mount(session: Session) -> impl IntoView {
 }
 
 fn dialog(session: Session, clipboard: Clipboard) -> impl IntoView {
+    Effect::new(move |_| {
+        if clipboard.dialog.get().is_some() {
+            session.dismiss_key_tips();
+        }
+    });
     crate::dialog::show_modal(clipboard.dialog);
     let mnemonic_key = |event: &leptos::ev::KeyboardEvent| {
         (!event.ctrl_key()
@@ -311,7 +337,11 @@ fn dialog(session: Session, clipboard: Clipboard) -> impl IntoView {
             .iter()
             .find(|(_, letter, _, _)| letter.eq_ignore_ascii_case(&key))
         {
-            clipboard.part.set(*part);
+            if *part == PastePart::Values {
+                let _ = session.command(SELECT_VALUES);
+            } else {
+                clipboard.part.set(*part);
+            }
         } else if let Some((operation, _, _, _)) = OPERATIONS
             .iter()
             .find(|(_, letter, _, _)| letter.eq_ignore_ascii_case(&key))
