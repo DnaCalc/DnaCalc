@@ -3,7 +3,10 @@
 //! `Worksheet.Paste` write it through the host's one paste planner (`prepare_paste_oriented`, the route the
 //! applications' paste takes). A Copy stays on the clipboard for further pastes; a pasted Cut is spent.
 use super::*;
-use crate::{CopySnapshot, PasteMode, PasteSource, SkinIntent, WorkbookCommand, prepare_paste_oriented};
+use crate::{
+    CopySnapshot, PasteArithmetic, PasteCellOptions, PasteMode, PasteOptionsRefusal, PasteSource,
+    SkinIntent, WorkbookCommand, prepare_paste_oriented,
+};
 
 /// The open bead that owns the clipboard remainders this file refuses.
 const OWNER: &str = "dc-oxh8w.43";
@@ -26,22 +29,15 @@ const XL_PASTE_OPERATION_ADD: i64 = 2;
 const XL_PASTE_OPERATION_SUBTRACT: i64 = 3;
 const XL_PASTE_OPERATION_MULTIPLY: i64 = 4;
 const XL_PASTE_OPERATION_DIVIDE: i64 = 5;
-const XL_PASTE_OPERATIONS: [i64; 5] = [
-    XL_PASTE_OPERATION_NONE,
-    XL_PASTE_OPERATION_ADD,
-    XL_PASTE_OPERATION_SUBTRACT,
-    XL_PASTE_OPERATION_MULTIPLY,
-    XL_PASTE_OPERATION_DIVIDE,
-];
-
-const NO_COMBINE: Combine = Combine { operation: None, skip_blanks: false, column_widths: false };
+const NO_COMBINE: Combine = Combine {
+    options: PasteCellOptions { arithmetic: None, skip_blanks: false },
+    column_widths: false,
+};
 
 /// What Paste Special does on top of the paste plan.
 #[derive(Clone, Copy)]
 struct Combine {
-    /// One of the xlPasteSpecialOperation constants other than xlNone, when given.
-    operation: Option<i64>,
-    skip_blanks: bool,
+    options: PasteCellOptions,
     /// xlPasteColumnWidths: only the source columns' widths are pasted.
     column_widths: bool,
 }
@@ -116,23 +112,26 @@ impl WorkbookAutomation {
             }
         };
         let operation = if given(1) { geometry::integer(call.arg(1))? } else { XL_PASTE_OPERATION_NONE };
-        if !XL_PASTE_OPERATIONS.contains(&operation) {
-            return Err(AutoError::excel(1004, "PasteSpecial method of Range class failed"));
-        }
+        let arithmetic = match operation {
+            XL_PASTE_OPERATION_NONE => None,
+            XL_PASTE_OPERATION_ADD => Some(PasteArithmetic::Add),
+            XL_PASTE_OPERATION_SUBTRACT => Some(PasteArithmetic::Subtract),
+            XL_PASTE_OPERATION_MULTIPLY => Some(PasteArithmetic::Multiply),
+            XL_PASTE_OPERATION_DIVIDE => Some(PasteArithmetic::Divide),
+            _ => return Err(failed("PasteSpecial")),
+        };
         let flag = |index: usize| match call.arg(index) {
             AutoValue::Missing | AutoValue::Empty => Ok(false),
             AutoValue::Bool(value) => Ok(*value),
             _ => Err(geometry::type_mismatch()),
         };
         let combine = Combine {
-            operation: (operation != XL_PASTE_OPERATION_NONE).then_some(operation),
-            skip_blanks: flag(2)?,
+            options: PasteCellOptions { arithmetic, skip_blanks: flag(2)? },
             column_widths: false,
         };
         let transpose = flag(3)?;
         if paste == XL_PASTE_COLUMN_WIDTHS {
             // Excel ww21/ww24: Transpose and every Operation are ignored when pasting column widths.
-            let combine = Combine { operation: None, ..combine };
             return self.paste_clip(target, call, mode, false, false, Combine { column_widths: true, ..combine });
         }
         self.paste_clip(target, call, mode, transpose, false, combine)
@@ -253,7 +252,7 @@ impl WorkbookAutomation {
                 }
                 return Ok(SkinIntent::Edit { edits });
             }
-            let mut plan = prepare_paste_oriented(
+            let plan = prepare_paste_oriented(
                 session.host(),
                 PasteSource::Snapshot { snapshot: &clip.snapshot, cut: clip.cut },
                 to,
@@ -261,12 +260,19 @@ impl WorkbookAutomation {
                 transpose,
             )
             .map_err(|why| AutoError::excel(1004, format!("{member} failed: {why}")))?;
-            if combine.skip_blanks || combine.operation.is_some() {
+            let plan = if combine.options != PasteCellOptions::default() {
                 if clip.cut {
                     return Err(failed("PasteSpecial"));
                 }
-                Self::combine_plan(session.host(), &mut plan, combine)?;
-            }
+                plan.with_cell_options(session.host(), combine.options).map_err(|reason| match reason {
+                    PasteOptionsRefusal::NotModelled(what) => {
+                        AutoError::not_modelled(format!("Range.PasteSpecial Operation {what}"), OWNER)
+                    }
+                    _ => failed("PasteSpecial"),
+                })?
+            } else {
+                plan
+            };
             Ok(SkinIntent::Command(WorkbookCommand::Paste(plan)))
         };
         self.mutate(target, call, intent)?;
@@ -275,93 +281,5 @@ impl WorkbookAutomation {
             *self.clipboard.borrow_mut() = None;
         }
         Ok(AutoValue::Bool(true))
-    }
-}
-
-impl WorkbookAutomation {
-    /// SkipBlanks leaves the destination cell where the source is blank; an Operation combines the
-    /// destination with the source number (an empty destination counts as zero). Sources or destinations
-    /// that are not literal numbers are refused: the formula-wrapping and text results are unmeasured (dc-oxh8w.43).
-    fn combine_plan(host: &crate::HostState, plan: &mut crate::PastePlan, combine: Combine) -> Result<(), AutoError> {
-        use crate::{CellEdit, CellInput, ProjectedValue, ProjectionRequest};
-        if combine.skip_blanks {
-            // ww23 VBA.e35: a blank source cell is skipped whole, its format as well as its (empty) contents.
-            let blanks: Vec<_> = plan
-                .edits_mut()
-                .iter()
-                .filter_map(|edit| if let CellEdit::Clear { area } = edit { Some(*area) } else { None })
-                .collect();
-            plan.edits_mut().retain(|edit| match edit {
-                CellEdit::Clear { .. } => false,
-                CellEdit::SetFormat { at, .. } => !blanks.iter().any(|area| area.contains(*at)),
-                _ => true,
-            });
-        }
-        let Some(operation) = combine.operation else {
-            return Ok(());
-        };
-        let refuse = |what: &str| AutoError::not_modelled(format!("Range.PasteSpecial Operation {what}"), OWNER);
-        let cells: Vec<CellKey> = plan
-            .edits_mut()
-            .iter()
-            .filter_map(|edit| match edit {
-                CellEdit::Set { at, .. } => Some(*at),
-                CellEdit::Clear { area } => Some(area.first()),
-                _ => None,
-            })
-            .collect();
-        let page = crate::project(host, &ProjectionRequest { cells }).map_err(|_| failed("PasteSpecial"))?;
-        let mut current = HashMap::new();
-        let mut dest_empty = std::collections::HashSet::new();
-        for cell in page.cells() {
-            let number = match cell.value() {
-                ProjectedValue::Empty => {
-                    dest_empty.insert(cell.at());
-                    0.0
-                }
-                ProjectedValue::Literal(v) => match v.core_ref() {
-                    calc_value::CoreRef::Number(n) => n,
-                    _ => return Err(refuse("onto a destination cell that is not a number")),
-                },
-                _ => return Err(refuse("onto a formula destination")),
-            };
-            current.insert(cell.at(), number);
-        }
-        for edit in plan.edits_mut().iter_mut() {
-            // A blank source cell counts as zero onto a numeric destination; blank-on-blank is uncaptured (dc-2rjye).
-            let (at, source) = match edit {
-                CellEdit::Set { at, input } => match input {
-                    CellInput::Number(source) => (*at, source.get()),
-                    _ => return Err(refuse("with a source that is not a number")),
-                },
-                CellEdit::Clear { area } => {
-                    let at = area.first();
-                    // Excel ww22: blank on blank stays empty for every Operation.
-                    if dest_empty.contains(&at) {
-                        continue;
-                    }
-                    (at, 0.0)
-                }
-                _ => continue,
-            };
-            let dest = current[&at];
-            let result = match operation {
-                XL_PASTE_OPERATION_ADD => dest + source,
-                XL_PASTE_OPERATION_SUBTRACT => dest - source,
-                XL_PASTE_OPERATION_MULTIPLY => dest * source,
-                _ if source == 0.0 => {
-                    *edit = CellEdit::Set { at, input: CellInput::Error(WorksheetErrorCode::Div0) };
-                    continue;
-                }
-                _ => dest / source,
-            };
-            *edit = CellEdit::Set {
-                at,
-                input: crate::FiniteNumber::new(result)
-                    .map(CellInput::Number)
-                    .unwrap_or(CellInput::Error(WorksheetErrorCode::Num)),
-            };
-        }
-        Ok(())
     }
 }

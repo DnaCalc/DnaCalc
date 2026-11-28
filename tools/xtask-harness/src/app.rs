@@ -75,7 +75,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc|classic-preview [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc|classic-preview [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app cast calc --out <dir>\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate]
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc|classic-preview [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc|classic-preview [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins | --skin <manifest.json>] [--profile <cpuprofile.json>]]\n       cargo xtask app cast calc --out <dir>\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate]
        cargo xtask app xll-accept calc --exe <dna-calc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
        cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
@@ -344,6 +344,7 @@ pub(crate) struct WorkbookRun {
     profile: Option<PathBuf>,
     /// Time each skin's showing and the edit with it shown (`--skins`).
     skins: bool,
+    skin: Option<PathBuf>,
     renderer_report: Option<PathBuf>,
 }
 
@@ -413,6 +414,7 @@ pub fn run(raw: &[String]) -> ExitCode {
             let mut edit = None;
             let mut profile = None;
             let mut skins = false;
+            let mut skin = None;
             let mut renderer_report = None;
             let mut selection = SmokeSelection::default();
             let mut args = rest.iter();
@@ -445,7 +447,10 @@ pub fn run(raw: &[String]) -> ExitCode {
                     ("--desktop", Some(exe)) if matches!(app.key, "onecalc" | "calc") => {
                         selection.desktop = Some(PathBuf::from(exe))
                     }
-                    ("--workbook", Some(path)) if app.key == "calc" => {
+                    ("--skin", Some(path)) if matches!(app.key, "calc" | "classic-preview") => {
+                        skin = Some(PathBuf::from(path));
+                    }
+                    ("--workbook", Some(path)) if matches!(app.key, "calc" | "classic-preview") => {
                         workbook = Some(PathBuf::from(path))
                     }
                     ("--profile", Some(path)) if app.key == "calc" => {
@@ -457,6 +462,17 @@ pub fn run(raw: &[String]) -> ExitCode {
                     },
                     _ => return usage(raw),
                 }
+            }
+            if app.key == "classic-preview" && skin.is_none() && workbook.is_some() {
+                return usage(raw);
+            }
+            if skin.is_some()
+                && (workbook.is_none() || edit.is_some() || skins || renderer_report.is_some()
+                    || profile.is_some() || selection.desktop.is_some() || selection.renderer.is_some()
+                    || selection.list || selection.suite.is_some() || !selection.groups.is_empty()
+                    || !selection.cases.is_empty())
+            {
+                return usage(raw);
             }
             if (edit.is_some() && workbook.is_none())
                 || (skins && edit.is_none())
@@ -480,11 +496,17 @@ pub fn run(raw: &[String]) -> ExitCode {
                     }
                 }
             }
+            let app = if skin.is_some() {
+                APPS.iter().find(|app| app.key == "classic-preview").expect("registered Classic preview")
+            } else {
+                app
+            };
             let workbook = workbook.map(|path| WorkbookRun {
                 path,
                 edit,
                 profile,
                 skins,
+                skin,
                 renderer_report,
             });
             let target = match (url, bundle_dir) {
@@ -3787,6 +3809,120 @@ fn desktop_skip(app: &App, group: &CaseGroup, _selected: &[usize]) -> Option<&'s
     None
 }
 
+/// Drive a manifest through the operator's Studio and confirm the workbook identity and
+/// model revision stay fixed. The images show the declared preview and the three base themes.
+fn run_skin_workbook(
+    ws: &Workspace,
+    session: &Session,
+    browser: &str,
+    workbook: &Path,
+    manifest: &Path,
+) -> Result<(), String> {
+    let workbook = fs::canonicalize(workbook).map_err(|error| error.to_string())?;
+    let source = fs::read_to_string(manifest).map_err(|error| error.to_string())?;
+    let skin: calc_skin::SkinManifest =
+        serde_json::from_str(&source).map_err(|error| error.to_string())?;
+    session.keys("[data-dnacalc=open-file]", &workbook.to_string_lossy())?;
+    let file = serde_json::to_string(&workbook.file_name().unwrap_or_default().to_string_lossy())
+        .map_err(|error| error.to_string())?;
+    let before = wait_skin(session, &format!(
+        "const probe = window.__dnaProbe?.(); return document.querySelector('.dna-book-title')?.textContent === {file} && probe?.stamp && probe?.seam === 'idle' ? probe.stamp : null;"
+    ), "the workbook failed to open")?;
+    let classic = session.element("[data-command='view.classic']")?;
+    session.post(&format!("/element/{classic}/click"), json!({}))?;
+    wait_skin(session,
+        "return window.__dnaProbe?.().view === 'classic' && !!document.querySelector('.dna-sheet tbody tr');",
+        "Classic did not show the worksheet"
+    )?;
+    let out = ws.root.join("target/app-smoke-skins").join(std::process::id().to_string()).join(browser);
+    fs::create_dir_all(&out).map_err(|error| error.to_string())?;
+    let after = skin_trial(session, &out, &source, "declared", &skin.theme.base, &before)?;
+    for theme in ["cockpit-light", "cockpit-dark", "high-contrast"] {
+        let sample = json!({
+            "schema": "dna.skin/1",
+            "id": "smoke-base-theme",
+            "name": theme,
+            "theme": { "base": theme, "density": "working" },
+        });
+        skin_trial(session, &out, &sample.to_string(), theme, theme, &before)?;
+    }
+    println!(
+        "SKIN {browser} · {} · model {} → {} · 4 images in {}",
+        skin.name, before["model"], after["model"], out.display()
+    );
+    Ok(())
+}
+
+fn skin_trial(
+    session: &Session,
+    out: &Path,
+    source: &str,
+    image: &str,
+    theme: &str,
+    before: &Value,
+) -> Result<Value, String> {
+    let click = |command: &str| {
+        let button = session.element(&format!("[data-command='{command}']"))?;
+        session.post(&format!("/element/{button}/click"), json!({})).map(|_| ())
+    };
+    const SOURCE: &str = "[data-dnacalc=skin-source]";
+    click("studio.open")?;
+    wait_skin(session, &format!("return !!document.querySelector({});", json!(SOURCE)),
+        "Studio did not open")?;
+    // Insert the whole declaration once through the textarea's native input event. In
+    // particular, multiline JSON remains one draft instead of repeatedly starting validation.
+    session.script(&format!(
+        "const field=document.querySelector({}); field.value={}; field.dispatchEvent(new Event('input', {{bubbles:true}})); return true;",
+        json!(SOURCE), json!(source)
+    ))?;
+    click("studio.try-on")?;
+    let skin: calc_skin::SkinManifest = serde_json::from_str(source).map_err(|error| error.to_string())?;
+    let tokens = dna_strand::theme::Theme::ALL.into_iter()
+        .find(|variant| variant.id() == theme)
+        .ok_or_else(|| format!("Unknown Strand theme {theme}"))?
+        .tokens();
+    let colour = |token, default: dna_strand::Rgb| {
+        skin.theme.overrides.get(token).cloned().unwrap_or_else(|| default.to_hex())
+    };
+    let applied = wait_skin(session, &format!(
+        r#"const book=document.querySelector('.dna-workbook');
+        if (book?.dataset.dnaTheme !== {} || !document.querySelector('[data-dnacalc=skin-try-on]')) return null;
+        const sample=document.createElement('span');
+        const matches=(selector, colour) => {{
+            sample.style.backgroundColor=colour;
+            return getComputedStyle(book.querySelector(selector)).backgroundColor === sample.style.backgroundColor;
+        }};
+        return matches('.dna-book-stage', {}) && matches('.dna-book-mast', {}) ? window.__dnaProbe().stamp : null;"#,
+        json!(theme), json!(colour("paper", tokens.paper)), json!(colour("chrome", tokens.chrome)),
+    ), "Studio did not mount the declared skin")?;
+    if ["workbook", "model", "view"].into_iter().any(|field| before[field] != applied[field]) {
+        return Err(format!("The workbook changed during Try-On ({before} → {applied})"));
+    }
+    paint::paint_frames(session)?;
+    let screenshot = webdriver(session.port, "GET", &format!("/session/{}/screenshot", session.id), None)?;
+    fs::write(
+        out.join(format!("{image}.png.base64")),
+        screenshot.as_str().ok_or("WebDriver returned no screenshot")?,
+    ).map_err(|error| error.to_string())?;
+    click("studio.discard")?;
+    Ok(applied)
+}
+
+fn wait_skin(session: &Session, script: &str, message: &str) -> Result<Value, String> {
+    let start = Instant::now();
+    loop {
+        let value = session.script(script)?;
+        if !value.is_null() && value != Value::Bool(false) {
+            return Ok(value);
+        }
+        if start.elapsed() > Duration::from_secs(15) {
+            let notice = session.script("return window.__dnaProbe?.().notice ?? null;")?;
+            return Err(format!("{message}. {notice}"));
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
 fn run_browser(
     ws: &Workspace,
     app: &App,
@@ -3809,7 +3945,7 @@ fn run_browser(
     let page = page.as_str();
     let outcome = (|| {
         let (mut passed, mut failed, mut skipped) = (0, 0, 0);
-        for group in app.groups {
+        for group in app.groups.iter().filter(|_| !workbook.is_some_and(|run| run.skin.is_some())) {
             let selected: Vec<usize> = (group.start..group.end)
                 .filter(|&i| selection.selected(group, i, &app.cases[i]))
                 .collect();
@@ -3914,7 +4050,12 @@ fn run_browser(
         if let Some(run) = workbook {
             let started = Instant::now();
             start_group(app, &session, page)?;
-            let failures = run_workbook(app, &session, browser.name, run);
+            let failures = if let Some(manifest) = &run.skin {
+                run_skin_workbook(ws, &session, browser.name, &run.path, manifest)
+                    .err().into_iter().collect()
+            } else {
+                run_workbook(app, &session, browser.name, run)
+            };
             if failures.is_empty() {
                 passed += 1;
             } else {
@@ -4236,6 +4377,13 @@ fn smoke_selected(
     if workbook.is_some_and(|r| r.renderer_report.is_some()) {
         println!(
             "{} RESULT {}: 6 renderer trials per browser; {}",
+            app.label,
+            if all_passed { "passed" } else { "failed" },
+            summary.join("; ")
+        );
+    } else if workbook.is_some_and(|run| run.skin.is_some()) {
+        println!(
+            "{} RESULT {}: 1 skin workbook per browser; {}",
             app.label,
             if all_passed { "passed" } else { "failed" },
             summary.join("; ")

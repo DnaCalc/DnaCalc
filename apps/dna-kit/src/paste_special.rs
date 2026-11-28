@@ -3,8 +3,8 @@
 use crate::{Seam, Session, ViewCommand};
 use calc_skin::grid::Area;
 use calc_skin::{
-    Batch, Change, ModelChange, Operation, PasteContents, PastePart, Revision, SourceRef, ViewId,
-    WorkbookId,
+    Batch, Change, ModelChange, Operation, PasteArithmetic, PasteContents, PastePart, Revision,
+    SourceRef, ViewId, WorkbookId,
 };
 use leptos::prelude::*;
 
@@ -43,6 +43,8 @@ struct Clipboard {
     destination: RwSignal<Option<Destination>>,
     part: RwSignal<PastePart>,
     transpose: RwSignal<bool>,
+    skip_blanks: RwSignal<bool>,
+    arithmetic: RwSignal<Option<PasteArithmetic>>,
     dialog: NodeRef<leptos::html::Dialog>,
 }
 
@@ -137,6 +139,8 @@ pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 6] {
             let to = clipboard.destination(session)?;
             clipboard.part.set(PastePart::All);
             clipboard.transpose.set(false);
+            clipboard.skip_blanks.set(false);
+            clipboard.arithmetic.set(None);
             clipboard.destination.set(Some(to));
             Ok(())
         })
@@ -154,6 +158,8 @@ pub fn commands(view: &ViewId, session: Session) -> [ViewCommand; 6] {
             let contents = PasteContents::Special {
                 part: clipboard.part.get_untracked(),
                 transpose: clipboard.transpose.get_untracked(),
+                skip_blanks: clipboard.skip_blanks.get_untracked(),
+                arithmetic: clipboard.arithmetic.get_untracked(),
             };
             close(session);
             session.submit(to.batch("Paste Special", contents));
@@ -217,6 +223,34 @@ const CHOICES: &[(PastePart, &str, &str, &str)] = &[
     ),
 ];
 
+const OPERATIONS: &[(Option<PasteArithmetic>, &str, &str, &str)] = &[
+    (None, "", "None", "paste-special-operation-none"),
+    (
+        Some(PasteArithmetic::Add),
+        "D",
+        "Add",
+        "paste-special-operation-add",
+    ),
+    (
+        Some(PasteArithmetic::Subtract),
+        "S",
+        "Subtract",
+        "paste-special-operation-subtract",
+    ),
+    (
+        Some(PasteArithmetic::Multiply),
+        "M",
+        "Multiply",
+        "paste-special-operation-multiply",
+    ),
+    (
+        Some(PasteArithmetic::Divide),
+        "I",
+        "Divide",
+        "paste-special-operation-divide",
+    ),
+];
+
 pub fn close(session: Session) -> bool {
     let clipboard = session.local::<Clipboard>();
     if clipboard.destination.get_untracked().is_none() {
@@ -243,26 +277,42 @@ pub fn mount(session: Session) -> impl IntoView {
 
 fn dialog(session: Session, clipboard: Clipboard) -> impl IntoView {
     crate::dialog::show_modal(clipboard.dialog);
+    let mnemonic_key = |event: &leptos::ev::KeyboardEvent| {
+        (!event.ctrl_key()
+            && !event.meta_key()
+            && !event.get_modifier_state("AltGraph")
+            && !event.is_composing())
+        .then(|| event.key())
+    };
     let mnemonic = move |event: leptos::ev::KeyboardEvent| {
-        if event.ctrl_key()
-            || event.meta_key()
-            || event.get_modifier_state("AltGraph")
-            || event.is_composing()
-        {
+        let Some(key) = mnemonic_key(&event) else {
             return;
-        }
-        let key = event.key();
+        };
         if key.eq_ignore_ascii_case("e") {
             clipboard.transpose.update(|value| *value = !*value);
+        } else if key.eq_ignore_ascii_case("s") {
+            clipboard.skip_blanks.update(|value| *value = !*value);
         } else if let Some((part, _, _, _)) = CHOICES
             .iter()
             .find(|(_, letter, _, _)| letter.eq_ignore_ascii_case(&key))
         {
             clipboard.part.set(*part);
+        } else if let Some((operation, _, _, _)) = OPERATIONS
+            .iter()
+            .find(|(_, letter, _, _)| letter.eq_ignore_ascii_case(&key))
+        {
+            clipboard.arithmetic.set(*operation);
         } else {
             return;
         }
         event.prevent_default();
+    };
+    let subtract = move |event: leptos::ev::KeyboardEvent| {
+        if mnemonic_key(&event).is_some_and(|key| key.eq_ignore_ascii_case("s")) {
+            clipboard.arithmetic.set(Some(PasteArithmetic::Subtract));
+            event.stop_propagation();
+            event.prevent_default();
+        }
     };
     view! {
         <dialog class="dna-workbook-dialog dna-paste-special" node_ref=clipboard.dialog
@@ -287,6 +337,25 @@ fn dialog(session: Session, clipboard: Clipboard) -> impl IntoView {
                         }).collect_view()}
                     </div>
                 </fieldset>
+                <fieldset on:keydown=subtract>
+                    <legend>"Operation"</legend>
+                    <div class="dna-paste-special-options">
+                        {OPERATIONS.iter().copied().map(|(operation, key, label, role)| view! {
+                            <label>
+                                <input type="radio" name="paste-operation" data-dnacalc=role
+                                    prop:checked=move || clipboard.arithmetic.get() == operation
+                                    on:change=move |_| clipboard.arithmetic.set(operation)/>
+                                {label} {(!key.is_empty()).then(|| view! { <kbd>{key}</kbd> })}
+                            </label>
+                        }).collect_view()}
+                    </div>
+                </fieldset>
+                <label>
+                    <input type="checkbox" data-dnacalc="paste-special-skip-blanks"
+                        prop:checked=move || clipboard.skip_blanks.get()
+                        on:change=move |event| clipboard.skip_blanks.set(event_target_checked(&event))/>
+                    "Skip blanks" <kbd>"S"</kbd>
+                </label>
                 <label>
                     <input type="checkbox" prop:checked=move || clipboard.transpose.get()
                         on:change=move |event| clipboard.transpose.set(event_target_checked(&event))/>

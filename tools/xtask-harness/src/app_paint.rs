@@ -617,7 +617,7 @@ fn capture_viewport(
     Ok(())
 }
 
-fn paint_frames(session: &Session) -> Result<(), String> {
+pub(super) fn paint_frames(session: &Session) -> Result<(), String> {
     session.post("/execute/async",json!({"script":"const done=arguments[arguments.length-1];document.fonts.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))));","args":[]}))?;
     Ok(())
 }
