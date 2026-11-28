@@ -6,6 +6,7 @@ use calc_host::value::{CellKey, GridArea, NameId};
 use calc_host::{HostState, Prerequisite};
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::{
+    DependencyAtlas, DependencyAtlasLink, DependencyAtlasSheet,
     Dependencies, DependencyDirection, DependencyEdge, DependencyGrouping, DependencyKind,
     DependencySheetGroup, DependencyTarget, NameScope, Refusal, SourceRef,
 };
@@ -75,6 +76,71 @@ pub(crate) fn deps(
             .collect();
     }
     Ok(graph.output)
+}
+
+pub(crate) fn atlas(host: &HostState, meter: &mut QueryWork) -> Result<DependencyAtlas, Refusal> {
+    let mut output = DependencyAtlas::default();
+    let mut links = BTreeMap::new();
+    let mut names = BTreeMap::new();
+    for sheet in host.sheets() {
+        meter.work(0, 1, 0)?;
+        let consumer = Sheet::of(sheet.id());
+        let mut summary = DependencyAtlasSheet { sheet: consumer, formulas: 0, unbound: 0 };
+        for (at, input) in host.model().sheet_cells(sheet.id()).into_iter().flatten() {
+            meter.work(1, 0, 0)?;
+            if !matches!(input, calc_doc_model::CellInput::Formula(_)) {
+                continue;
+            }
+            summary.formulas += 1;
+            let Some((placed, dynamic)) = host.dependency_inputs(at) else {
+                summary.unbound += 1;
+                continue;
+            };
+            let mut read_sheets = BTreeSet::new();
+            for (is_dynamic, reads) in [(false, placed), (true, dynamic)] {
+                for prerequisite in reads {
+                    let mut observe = |precedent: Sheet| {
+                        meter.work(0, 0, 1)?;
+                        if precedent == consumer {
+                            return Ok::<(), Refusal>(());
+                        }
+                        let entry = links.entry((consumer, precedent)).or_insert(DependencyAtlasLink {
+                            consumer, precedent, readers: 0, placed: 0, dynamic: 0,
+                        });
+                        if read_sheets.insert(precedent) {
+                            entry.readers += 1;
+                        }
+                        if is_dynamic { entry.dynamic += 1; } else { entry.placed += 1; }
+                        Ok(())
+                    };
+                    match *prerequisite {
+                        Prerequisite::Cell(cell) => observe(Sheet::of(cell.sheet()))?,
+                        Prerequisite::Area(area) => observe(Sheet::of(area.sheet()))?,
+                        Prerequisite::AxisValue(axis) => observe(Sheet::of(axis.area().sheet()))?,
+                        Prerequisite::SheetSpan(span) => {
+                            for sheet in span.sheets(host.model()).into_iter().flatten() {
+                                observe(Sheet::of(sheet.id()))?;
+                            }
+                        }
+                        Prerequisite::Name(name) => {
+                            let sheet = names.entry(name).or_insert_with(|| {
+                                host.stable_name_source(name).map(|(area, _)| Sheet::of(area.sheet()))
+                            });
+                            if let Some(sheet) = *sheet {
+                                observe(sheet)?;
+                            } else {
+                                output.unattributed_names += 1;
+                                meter.work(0, 0, 1)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        output.sheets.push(summary);
+    }
+    output.links = links.into_values().collect();
+    Ok(output)
 }
 
 struct Graph<'a> {

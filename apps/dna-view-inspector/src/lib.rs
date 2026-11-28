@@ -1,6 +1,7 @@
 //! Audit instruments over the workbook session. The bench and dock use the same components.
 
 mod audit;
+mod dependency_tree;
 mod export;
 mod live;
 mod notes;
@@ -148,6 +149,7 @@ impl View for Inspector {
                 session.show(ViewId(ID.into()));
                 Ok(())
             }),
+            audit::atlas_command(session),
             ViewCommand::global(
                 "inspector.reveal",
                 "Reveal source",
@@ -184,6 +186,7 @@ impl View for Inspector {
             .when("!editing"),
         ]);
         commands.extend(trace_commands(session));
+        commands.extend(dependency_tree::commands(session));
         commands.extend(notes::commands(session));
         commands.extend(live::commands(session));
         commands.extend(export::commands(session));

@@ -189,6 +189,32 @@ pub struct Dependencies {
     pub unbound: Vec<Key>,
 }
 
+/// A sheet-tier summary of the workbook's bound dependency graph.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyAtlas {
+    pub sheets: Vec<DependencyAtlasSheet>,
+    pub links: Vec<DependencyAtlasLink>,
+    /// Name edges with no fixed worksheet in the retained binding.
+    pub unattributed_names: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyAtlasSheet {
+    pub sheet: Sheet,
+    pub formulas: u64,
+    pub unbound: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyAtlasLink {
+    pub consumer: Sheet,
+    pub precedent: Sheet,
+    /// Distinct formulas in the consumer that read the precedent.
+    pub readers: u64,
+    pub placed: u64,
+    pub dynamic: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Issues {
     /// Current errors in the scope.

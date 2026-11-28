@@ -1077,6 +1077,38 @@ fn source_watch_tracks_rtd_admission_without_calculating() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dependency_atlas_counts_cross_sheet_readers_at_sheet_granularity() {
+    let (host, report) = workbook();
+    let connection = port(&host);
+    let placement = query::NewSheetPlacement { name: "Inputs".into(), kind: PlacementKind::Scalar, shape: None };
+    let placed = query::NewSheetPlacement::decode(connection.ask(placement.request(), BUDGET).unwrap()).unwrap();
+    let data = Sheet(placed.body.at.0, placed.body.at.1);
+    let a1 = Key(data.0, data.1, 1, 1);
+    let b1 = Key(data.0, data.1, 1, 2);
+    let c1 = Key(report.0, report.1, 1, 3);
+    let c2 = Key(report.0, report.1, 2, 3);
+    let mut new_sheet = batch(1, vec![
+        Change::Model(ModelChange::InsertWorksheet { name: "Inputs".into(), sheet: data }),
+    ]);
+    new_sheet.base = Some(placed.stamp.model);
+    connection.commit(new_sheet).unwrap();
+    connection.commit(batch(2, vec![enter(a1, "3"), enter(b1, "4"), enter(c1, "=Inputs!A1+Inputs!B1"), enter(c2, "=C1+1")])).unwrap();
+    while host.advance() {}
+    let request = query::DependencyAtlasOf;
+    let answer = query::DependencyAtlasOf::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.coverage, Coverage::Complete);
+    let Evidence::Derived { from: Derivation::Dependencies, body, .. } = answer.body else {
+        panic!("the sheet atlas is derived from the dependency graph");
+    };
+    assert_eq!(body.sheets.len(), 2);
+    let [link] = body.links.as_slice() else { panic!("one cross-sheet link") };
+    assert_eq!(link.consumer, report);
+    assert_eq!(link.precedent, data);
+    assert_eq!((link.readers, link.placed, link.dynamic), (1, 2, 0));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dependency_query_preserves_dynamic_edges_and_bounds_both_directions() {
     use calc_skin::query::{Deps, Query};
 

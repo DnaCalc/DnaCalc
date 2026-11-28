@@ -127,6 +127,15 @@ impl ViewCommand {
         self.chords.extend(chords);
         self
     }
+
+    /// Offer these chords while focus is inside a named keyboard component.
+    pub fn in_component(mut self, component: &str) -> Self {
+        for (layer, when, _) in &mut self.chords {
+            *layer = Layer::Component;
+            *when = when.clone().and(When::component(component));
+        }
+        self
+    }
 }
 
 /// What a view hands back when it mounts.
