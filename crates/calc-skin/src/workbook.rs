@@ -245,6 +245,7 @@ pub enum WorkbookQuery {
         depth: u16,
         group: crate::DependencyGrouping,
     },
+    DependencyAtlas,
     Issues {
         scope: SourceRef,
     },

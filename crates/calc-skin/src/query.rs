@@ -117,6 +117,9 @@ Deps { of: SourceRef, dir: DependencyDirection, depth: u16, group: DependencyGro
         of: q.of.clone(), dir: q.dir, depth: q.depth, group: q.group,
     });
 query!(
+    /// Summarize bound reads at worksheet granularity.
+    DependencyAtlasOf => Evidence<crate::DependencyAtlas>, |_: &DependencyAtlasOf| WorkbookQuery::DependencyAtlas);
+query!(
     /// Current worksheet errors and possible roots in the requested scope.
     IssuesIn { scope: SourceRef } => Evidence<Issues>, |q: &IssuesIn| WorkbookQuery::Issues { scope: q.scope.clone() });
 query!(

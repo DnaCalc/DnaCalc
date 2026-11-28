@@ -1202,6 +1202,79 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Absent("[alt='Sales by region']"),
         ],
     },
+    Case {
+        name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
+        actions: &[
+            Action::WriteCast("SalesNotebook"),
+            Action::UploadDownloadTo("SalesNotebook.xlsx", "open-file"),
+            Action::Wait(Check::Js(
+                "Sales opened with its Report worksheet",
+                "Array.from(document.querySelectorAll('.dna-book-sheets button')).some(button => button.textContent === 'Report')",
+            )),
+            Action::Into("name-box", "Report!B5"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Click("[data-command='inspector.dock']"),
+            Action::Click("[data-command='inspector.precedents']"),
+            Action::Wait(Check::Js(
+                "The selected Report formula has a collapsed dependency branch",
+                "document.querySelector('[role=treeitem][tabindex=\"0\"][aria-expanded=false]')?.textContent.includes('Report!B5') === true",
+            )),
+            Action::Keys("[role='treeitem'][tabindex='0']", "\u{e014}"),
+            Action::Wait(Check::Attr("[role='treeitem'][tabindex='0']", "aria-expanded", "true")),
+            Action::Keys("[role='treeitem'][tabindex='0']", "\u{e014}"),
+            Action::Wait(Check::Js(
+                "Right reaches the first child",
+                "document.activeElement.matches('[role=treeitem][aria-level=\"2\"][aria-selected=true]')",
+            )),
+            Action::Keys("[role='treeitem'][tabindex='0']", "\u{e015}"),
+            Action::Wait(Check::Js(
+                "Down reaches the next child",
+                "document.activeElement.matches('[role=treeitem][aria-level=\"2\"][aria-selected=true]') && document.activeElement === document.querySelectorAll('[role=treeitem][aria-level=\"2\"]')[1]",
+            )),
+            Action::Click("[data-command='inspector.enlarge']"),
+            Action::Wait(Check::Js(
+                "Enlarging preserves the selected child and its open branch",
+                "window.__dnaProbe().view === 'inspector' && document.querySelector('[role=treeitem][aria-level=\"1\"][aria-expanded=true]') && document.querySelector('[role=treeitem][aria-level=\"2\"][aria-selected=true]') === document.querySelectorAll('[role=treeitem][aria-level=\"2\"]')[1]",
+            )),
+            Action::Keys("[role='treeitem'][tabindex='0']", "\u{e007}"),
+            Action::Wait(Check::Js(
+                "Enter reveals a bound Orders range at its first data row",
+                "window.__dnaProbe().active?.[2] === 2 && window.__dnaProbe().active?.[3] !== 2",
+            )),
+            Action::Keys("formula-bar", "\u{e00a}\u{e012}\u{e000}"),
+        ],
+        checks: &[
+            Check::Js(
+                "Alt+Left returns to the inspected Report cell",
+                "window.__dnaProbe().active?.slice(2).join(',') === '5,2'",
+            ),
+            Check::Attr("[role='treeitem'][aria-level='1']", "aria-expanded", "true"),
+        ],
+    },
+    Case {
+        name: "Inspector opens the optional sheet-level dependency atlas",
+        actions: &[
+            Action::Click("[data-command='inspector.overview']"),
+            Action::Wait(Check::Attr("[data-command='inspector.atlas']", "aria-expanded", "false")),
+            Action::Click("[data-command='inspector.atlas']"),
+            Action::Wait(Check::TextContains("[data-inspector='atlas-counts']", "sheet links")),
+            Action::Keys(
+                "[data-atlas-reader='Report'][data-atlas-source='Orders'] td:nth-child(2) button",
+                "\u{e007}",
+            ),
+        ],
+        checks: &[
+            Check::Attr("[data-command='inspector.atlas']", "aria-expanded", "true"),
+            Check::Js(
+                "The atlas identifies Report as a reader of Orders",
+                "Array.from(document.querySelectorAll('table[aria-label=\"Cross-sheet dependencies\"] tbody tr')).some(row => row.cells[0].textContent === 'Report' && row.cells[1].textContent === 'Orders' && Number(row.cells[2].textContent) > 0)",
+            ),
+            Check::Js(
+                "The source link reveals Orders at A1",
+                "window.__dnaProbe().active?.join(',') === '0,0,1,1'",
+            ),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1390,8 +1463,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "notebook-sales",
         start: 47,
-        end: PREVIEW_CASES.len(),
+        end: 55,
         core: 8,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-dependencies",
+        start: 55,
+        end: PREVIEW_CASES.len(),
+        core: 2,
         setup: &[],
     },
 ];
