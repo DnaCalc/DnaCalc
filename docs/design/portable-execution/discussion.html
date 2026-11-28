@@ -1,0 +1,329 @@
+<title>Portability Beside Guarded</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Recursive:wght,MONO@400..800,0..1&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: one reading column with wide tables in their own scrollers; petrol chrome hero, Strand signal colours as meaning only */
+:root{
+  --bg:#EDF1F2; --paper:#FFFFFF; --paper-2:#F4F7F8; --ink:#1B2A30; --ink-2:#3F545D; --ink-3:#5B717B;
+  --line:#CFDADD; --line-soft:#E2E9EB;
+  --chrome:#193F49; --chrome-2:#12303A; --chrome-ink:#EDF1F2; --chrome-ink-2:#B4CBD1;
+  --teal:#318995; --teal-ink:#1B5F6B; --teal-soft:#DCEEF0; --cyan:#3DB6CF;
+  --amber:#FFB301; --amber-ink:#8A5A00; --amber-soft:#FFF1CC; --on-amber:#12303A;
+  --green:#3F8B76; --green-ink:#2E6E5B; --green-soft:#DDEFE8;
+  --signal:#FF8001; --signal-ink:#A35400; --signal-soft:#FFE8D1;
+  --red:#D02A23; --red-ink:#B3221C; --red-soft:#FBE3E1;
+  --code-bg:#12303A; --code-ink:#E4ECEE; --code-dim:#9DB6BD; --code-key:#6FD0E3; --code-str:#9ED8C2;
+  --sans:"Recursive","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"Recursive","Cascadia Code",Consolas,ui-monospace,monospace;
+  --serif:"Source Serif 4",Charter,Georgia,serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0C1C22; --paper:#1A262B; --paper-2:#22343C; --ink:#E4ECEE; --ink-2:#A4B8C2; --ink-3:#93AAB3;
+  --line:#344A52; --line-soft:#283A41; --chrome:#12303A; --chrome-2:#0A171C; --chrome-ink:#EDF1F2; --chrome-ink-2:#A9C2C9;
+  --teal:#318995; --teal-ink:#4FC0D8; --teal-soft:#17373E; --cyan:#3DB6CF;
+  --amber:#FFB301; --amber-ink:#FFD04D; --amber-soft:#3A3014; --on-amber:#12303A;
+  --green:#3F8B76; --green-ink:#74C7AB; --green-soft:#17332C;
+  --signal:#FF8001; --signal-ink:#F0A35C; --signal-soft:#3A2814;
+  --red:#D02A23; --red-ink:#E4625C; --red-soft:#3B1D1B;
+  --code-bg:#0A171C; --code-ink:#E4ECEE; --code-dim:#8FA9B1; --code-key:#6FD0E3; --code-str:#9ED8C2; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0C1C22; --paper:#1A262B; --paper-2:#22343C; --ink:#E4ECEE; --ink-2:#A4B8C2; --ink-3:#93AAB3;
+  --line:#344A52; --line-soft:#283A41; --chrome:#12303A; --chrome-2:#0A171C; --chrome-ink:#EDF1F2; --chrome-ink-2:#A9C2C9;
+  --teal:#318995; --teal-ink:#4FC0D8; --teal-soft:#17373E; --cyan:#3DB6CF;
+  --amber:#FFB301; --amber-ink:#FFD04D; --amber-soft:#3A3014; --on-amber:#12303A;
+  --green:#3F8B76; --green-ink:#74C7AB; --green-soft:#17332C;
+  --signal:#FF8001; --signal-ink:#F0A35C; --signal-soft:#3A2814;
+  --red:#D02A23; --red-ink:#E4625C; --red-soft:#3B1D1B;
+  --code-bg:#0A171C; --code-ink:#E4ECEE; --code-dim:#8FA9B1; --code-key:#6FD0E3; --code-str:#9ED8C2; color-scheme:dark }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1080px;margin:0 auto;padding-block:0 40px}
+a{color:var(--teal-ink)}
+code,.mono{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:.9em}
+code{background:var(--paper-2);border:1px solid var(--line-soft);border-radius:5px;padding:.05em .3em;overflow-wrap:anywhere}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.15}
+.hero{background:var(--chrome);color:var(--chrome-ink);border-radius:0 0 14px 14px;padding:26px 22px 22px;margin-bottom:22px}
+.eyebrow{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+.hero h1{font-size:clamp(30px,5.4vw,52px);font-weight:800;letter-spacing:-.02em;margin:.25em 0 .25em}
+.hero h1 em{font-style:normal;color:var(--amber)}
+.hero p{color:var(--chrome-ink-2);max-width:48em;font-size:17px;margin:.4em 0}
+.hero p b{color:var(--chrome-ink)}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:0;list-style:none}
+.facts li{border:1px solid rgba(237,241,242,.22);border-radius:9px;padding:6px 10px;font-size:13.5px;color:var(--chrome-ink-2)}
+.facts b{color:var(--chrome-ink)}
+section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px clamp(14px,3vw,30px) 24px;margin:0 0 18px}
+section h2{font-size:clamp(22px,3.2vw,30px);margin:0 0 8px}
+.tag{display:inline-block;font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:1px 7px;margin-bottom:8px}
+.tag.f{background:var(--teal-soft);color:var(--teal-ink)}.tag.o{background:var(--amber-soft);color:var(--amber-ink)}.tag.m{background:var(--green-soft);color:var(--green-ink)}
+h3{font-size:18px;margin:20px 0 6px}
+.lead{font-size:18px;color:var(--ink-2);max-width:46em;margin:.2em 0 .6em}
+.prose{font-family:var(--serif);font-size:17px;max-width:44em}
+.tw{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:9px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;background:var(--paper)}
+th,td{text-align:left;vertical-align:top;padding:7px 11px;border-bottom:1px solid var(--line-soft)}
+th{background:var(--paper-2);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+.v{font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:12px;font-weight:700;border-radius:4px;padding:0 6px;white-space:nowrap}
+.v.native{background:var(--green-soft);color:var(--green-ink)}.v.model{background:var(--green-soft);color:var(--green-ink)}
+.v.host{background:var(--teal-soft);color:var(--teal-ink)}.v.shim{background:var(--teal-soft);color:var(--teal-ink)}
+.v.replace{background:var(--amber-soft);color:var(--amber-ink)}.v.mediated{background:var(--signal-soft);color:var(--signal-ink)}
+.v.reject{background:var(--red-soft);color:var(--red-ink)}
+.fig{margin:14px 0;border:1px solid var(--line);border-radius:9px;background:var(--paper-2);overflow-x:auto}
+.fig svg{display:block;width:100%;height:auto;min-width:640px}
+.fig figcaption{font-size:13.5px;color:var(--ink-3);padding:8px 12px;border-top:1px solid var(--line);background:var(--paper)}
+figure{margin:0}
+svg text{font-family:var(--sans);font-size:12.5px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0}
+.card{background:var(--paper-2);border:1px solid var(--line);border-radius:9px;padding:12px 14px;min-width:0}
+.card h4{margin:0 0 4px;font-size:15.5px}.card p{margin:.3em 0 0;font-size:14.5px;color:var(--ink-2)}
+.card.t{border-top:4px solid var(--teal)}.card.a{border-top:4px solid var(--amber)}.card.g{border-top:4px solid var(--green)}.card.r{border-top:4px solid var(--red)}
+pre{background:var(--code-bg);color:var(--code-ink);border-radius:9px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-variation-settings:"MONO" 1;font-size:13px;line-height:1.5}
+pre .c{color:var(--code-dim)}pre .k{color:var(--code-key)}pre .s{color:var(--code-str)}
+.note{border-left:4px solid var(--amber);background:var(--amber-soft);border-radius:0 9px 9px 0;padding:10px 14px;margin:12px 0;font-size:15px}
+.note.t{border-left-color:var(--teal);background:var(--teal-soft)}
+.big{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}
+.big div{flex:1 1 170px;background:var(--paper-2);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.big b{display:block;font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.big span{font-size:13.5px;color:var(--ink-2)}
+.big .g b{color:var(--green-ink)}.big .t b{color:var(--teal-ink)}.big .a b{color:var(--amber-ink)}.big .r b{color:var(--red-ink)}
+ol.dec{padding-left:1.3em}ol.dec li{margin:.5em 0}
+ol.dec li b{color:var(--ink)}
+.rec{font-size:13px;font-family:var(--mono);font-variation-settings:"MONO" 1;color:var(--green-ink)}
+footer{color:var(--ink-3);font-size:13.5px;padding:4px}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">DNA Calc · design discussion · 2026-11-28</div>
+  <h1>Portability, <em>beside</em> Guarded</h1>
+  <p><b>Guarded asks "may this code do it?" Portability asks "can this host do it?"</b> Both are questions about capabilities, so they share one vocabulary and one declaration per member of every API face: VBA, the Excel object model, COM classes, Win32 Declares, the C API and worksheet functions.</p>
+  <p>Design pass by Fable (<code>docs/design/PORTABLE_EXECUTION.md</code>, 1,042 lines, nine data files, bead dc-54aki), measured on the Linux corpus run. Synthesis and recommendations by the coordinator.</p>
+  <ul class="facts">
+    <li><b>45%</b> of macro entries that ran on Linux succeeded</li>
+    <li><b>83%</b> of clean projects need nothing a Linux desktop lacks</li>
+    <li><b>6</b> decisions for you, at the end</li>
+  </ul>
+</header>
+
+<section id="model">
+  <span class="tag f">Fable · the model</span>
+  <h2>Two questions, one vocabulary</h2>
+  <p class="lead">A capability is something the host can hand to code: a file tree, the network, a dialog, a COM class. Each API member declares what it needs. Each host profile says how it provides each need. The verdict for a member on a host is computed from the two, never written by hand per cell.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 900 250" role="img" aria-label="Guarded and portability as two filters over one capability vocabulary">
+      <rect x="20" y="20" width="250" height="210" rx="12" fill="var(--paper)" stroke="var(--line)"/>
+      <text x="36" y="46" fill="var(--ink)" font-weight="700">One declaration per member</text>
+      <text x="36" y="72" fill="var(--ink-3)" font-family="var(--mono)">Open #1 (file)</text>
+      <text x="36" y="92" fill="var(--teal-ink)" font-size="12">reach: fs.read, fs.write</text>
+      <text x="36" y="110" fill="var(--amber-ink)" font-size="12">needs: fs, path.windows</text>
+      <text x="36" y="140" fill="var(--ink-3)" font-family="var(--mono)">CreateObject("Outlook…")</text>
+      <text x="36" y="160" fill="var(--teal-ink)" font-size="12">reach: com.activate</text>
+      <text x="36" y="178" fill="var(--amber-ink)" font-size="12">needs: com.os</text>
+      <text x="36" y="210" fill="var(--ink-3)" font-size="11.5">reach = Guarded's column · needs = portability's</text>
+      <rect x="330" y="20" width="240" height="95" rx="12" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="346" y="46" fill="var(--ink)" font-weight="700">Guarded: may it?</text>
+      <text x="346" y="68" fill="var(--ink-2)" font-size="12.5">Off · Guarded + grants · Unguarded</text>
+      <text x="346" y="88" fill="var(--ink-2)" font-size="12.5">a grant set narrows what is handed over</text>
+      <rect x="330" y="135" width="240" height="95" rx="12" fill="var(--amber-soft)" stroke="var(--amber)"/>
+      <text x="346" y="161" fill="var(--ink)" font-weight="700">Portability: can it, here?</text>
+      <text x="346" y="183" fill="var(--ink-2)" font-size="12.5">Windows · macOS · Linux · server</text>
+      <text x="346" y="203" fill="var(--ink-2)" font-size="12.5">web-hosted · web-wasm · WASI</text>
+      <rect x="630" y="70" width="250" height="110" rx="12" fill="var(--chrome)"/>
+      <text x="646" y="98" fill="var(--chrome-ink)" font-weight="700">Allowance for this run</text>
+      <text x="646" y="122" fill="var(--chrome-ink-2)" font-size="12.5">= what the level grants</text>
+      <text x="646" y="142" fill="var(--chrome-ink-2)" font-size="12.5">∩ what the host provides</text>
+      <text x="646" y="166" fill="var(--amber)" font-size="12">each refusal names its axis</text>
+      <path d="M270 90 H326 M270 170 H326 M570 67 C600 67 600 110 626 110 M570 183 C600 183 600 140 626 140" stroke="var(--ink-3)" stroke-width="1.6" fill="none"/>
+    </svg>
+    <figcaption>"You didn't allow it" and "this machine can't" lead to different fixes, so a refusal always says which axis refused.</figcaption>
+  </figure>
+
+  <h3>One verdict vocabulary</h3>
+  <p>CalcVBA's six words plus one for the meeting point with Guarded. Ordered by how much of Excel-on-Windows they give:</p>
+  <p><span class="v reject">reject</span> &lt; <span class="v mediated">mediated</span> &lt; <span class="v replace">replace</span> &lt; <span class="v shim">shim</span> &lt; <span class="v host">host</span> &lt; <span class="v model">model</span> &lt; <span class="v native">native</span></p>
+  <div class="tw"><table>
+    <thead><tr><th>Verdict</th><th>Meaning</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td><span class="v native">native</span></td><td>the host has it as Excel has it</td><td><code>Range.Value</code>, charts, every worksheet function</td></tr>
+      <tr><td><span class="v model">model</span></td><td>we model it inside the engine</td><td>the internal clipboard, <code>Application.Run</code>, XLM</td></tr>
+      <tr><td><span class="v host">host</span></td><td>the host app provides its own form of it</td><td><code>MsgBox</code>, printing, the clock</td></tr>
+      <tr><td><span class="v shim">shim</span></td><td>translated at the boundary, same behaviour</td><td>paths through the mount table, <code>Environ</code></td></tr>
+      <tr><td><span class="v replace">replace</span></td><td>a portable implementation of the same class</td><td><code>Scripting.FileSystemObject</code> in Rust</td></tr>
+      <tr><td><span class="v mediated">mediated</span></td><td>available only through a person's act or a grant</td><td>a file picker in the browser, <code>ShellExecute "open"</code></td></tr>
+      <tr><td><span class="v reject">reject</span></td><td>not on this host; Excel's own error plus a typed <code>NotAvailableHere</code></td><td><code>FindWindowA</code>, Outlook, a PE XLL on Linux</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note t"><b>The key insight in Fable's pass:</b> a host is just a machine on which some things aren't installed, and Excel already defines what happens then. An unregistered class raises 429, a missing DLL raises 53 at the first call, a missing drive raises 68 or 76. A portability refusal reaches VBA as that same Excel error and reaches the host as a typed <code>NotAvailableHere</code>. So refusing lazily, at the call, is not new behaviour. It is Excel's.</div>
+</section>
+
+<section id="linux">
+  <span class="tag m">Measured · Linux, today</span>
+  <h2>What runs on Linux right now</h2>
+  <p class="lead">Every staged triage-clean macro workbook (3,248) ran through <code>dnacalc run --all --macro-level guarded</code> on firehorse, one fresh sandbox per workbook, no network, nothing opened in Office. This is the headless CLI under Guarded with no grants: the strictest Linux profile.</p>
+  <div class="big">
+    <div class="g"><b>1,104</b><span>entries run today, of 2,449 run (45.1%)</span></div>
+    <div class="t"><b>76</b><span>would run with a shim or replacement</span></div>
+    <div class="a"><b>65</b><span>need a Guarded grant (files, network, FFI)</span></div>
+    <div class="r"><b>43</b><span>cannot run off Windows</span></div>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Linux class of the entry</th><th class="n">Succeeded</th><th class="n">Member not modelled</th><th class="n">VBA error</th><th class="n">No UI (CLI)</th><th class="n">Guarded denial</th><th class="n">Not run (not admitted)</th></tr></thead>
+    <tbody>
+      <tr><td><span class="v native">native</span> needs nothing from the host</td><td class="n">932</td><td class="n">398</td><td class="n">371</td><td class="n">0</td><td class="n">1</td><td class="n">5,182</td></tr>
+      <tr><td><span class="v model">model</span> internal clipboard, Run, XLM</td><td class="n">22</td><td class="n">59</td><td class="n">86</td><td class="n">0</td><td class="n">0</td><td class="n">111</td></tr>
+      <tr><td><span class="v host">host</span> dialogs, clock, status bar, print</td><td class="n">133</td><td class="n">203</td><td class="n">52</td><td class="n">52</td><td class="n">0</td><td class="n">1,448</td></tr>
+      <tr><td><span class="v shim">shim</span> files, paths, Environ, file dialogs</td><td class="n">0</td><td class="n">36</td><td class="n">4</td><td class="n">1</td><td class="n">4</td><td class="n">146</td></tr>
+      <tr><td><span class="v replace">replace</span> portable class or forms runtime</td><td class="n">17</td><td class="n">6</td><td class="n">24</td><td class="n">0</td><td class="n">0</td><td class="n">405</td></tr>
+      <tr><td><span class="v reject">reject</span> cannot run on Linux</td><td class="n">0</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">9</td><td class="n">32</td></tr>
+      <tr><td><b>Total</b></td><td class="n"><b>1,104</b></td><td class="n"><b>704</b></td><td class="n"><b>537</b></td><td class="n"><b>53</b></td><td class="n"><b>14</b></td><td class="n"><b>7,324</b></td></tr>
+    </tbody>
+  </table></div>
+  <div class="cols">
+    <div class="card g"><h4>Your chart button runs</h4><p><code>Module1.CreateAdvancedChart</code> builds a chart from data and succeeds on Linux. 348 procedures in 31 clean projects use chart members, and none of the chart entries that ran stopped for a portability reason. The 8 that stopped hit chart members not modelled yet (<code>ChartObject.Select</code>, <code>FullSeriesCollection</code>).</p></div>
+    <div class="card a"><h4>Your file-I/O macro stops at the path</h4><p><code>importarHoja</code> calls <code>Dir("c:\libros\*.xl??")</code>; Guarded denies <code>fs.read</code> (error 70, audited). With a file grant, the next question is the mount table: <code>c:\libros</code> exists only if a mount names it. Of 40 file entries that ran, 30 stopped earlier on unmodelled members (<code>Workbooks.Open</code>, <code>GetOpenFilename</code>, <code>FileDialog</code>).</p></div>
+  </div>
+  <h3>Every project, per host (static scan, worst verdict over its procedures)</h3>
+  <p>1,324 distinct triage-clean projects. Failure is per call, so per procedure it's better than this.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Worst verdict</th><th class="n">Windows</th><th class="n">macOS</th><th class="n">Linux</th><th class="n">server</th><th class="n">web-hosted</th><th class="n">web-wasm</th><th class="n">WASI</th></tr></thead>
+    <tbody>
+      <tr><td><span class="v native">native</span></td><td class="n">872</td><td class="n">821</td><td class="n">821</td><td class="n">820</td><td class="n">820</td><td class="n">817</td><td class="n">820</td></tr>
+      <tr><td><span class="v model">model</span></td><td class="n">91</td><td class="n">79</td><td class="n">79</td><td class="n">79</td><td class="n">79</td><td class="n">76</td><td class="n">79</td></tr>
+      <tr><td><span class="v host">host</span></td><td class="n">361</td><td class="n">199</td><td class="n">199</td><td class="n">136</td><td class="n">199</td><td class="n">185</td><td class="n">135</td></tr>
+      <tr><td><span class="v shim">shim</span></td><td class="n">0</td><td class="n">67</td><td class="n">67</td><td class="n">38</td><td class="n">67</td><td class="n">8</td><td class="n">34</td></tr>
+      <tr><td><span class="v replace">replace</span></td><td class="n">0</td><td class="n">134</td><td class="n">134</td><td class="n">95</td><td class="n">132</td><td class="n">95</td><td class="n">17</td></tr>
+      <tr><td><span class="v mediated">mediated</span></td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">3</td><td class="n">119</td><td class="n">0</td></tr>
+      <tr><td><span class="v reject">reject</span></td><td class="n">0</td><td class="n">24</td><td class="n">24</td><td class="n">156</td><td class="n">24</td><td class="n">24</td><td class="n">239</td></tr>
+    </tbody>
+  </table></div>
+  <p>Triage-suspect projects (532, scanned, never run) are the mirror image: 46 need nothing and 204 hold something that cannot run off Windows. <b>The triage filter and the portability filter turn out to be nearly the same filter.</b> The constructs that make a macro suspect are the ones that reach the host.</p>
+</section>
+
+<section id="hosts">
+  <span class="tag f">Fable · hosts</span>
+  <h2>Hosts form a lattice, and the web is two hosts</h2>
+  <p class="lead">You were right that web and wasm differ. "Web-hosted" means our server runs the engine: a per-user session store, server-side network under policy, no access to your disk. "Web-wasm" means the engine runs in your browser: OPFS storage, the file picker, fetch under CORS, and synchronous VBA I/O only inside a Worker that can block.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Need</th><th>Windows</th><th>macOS / Linux</th><th>server</th><th>web-hosted</th><th>web-wasm</th><th>WASI</th></tr></thead>
+    <tbody>
+      <tr><td><code>fs</code> on your own disk</td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v mediated">upload/download</span></td><td><span class="v mediated">picker</span></td><td><span class="v native">preopens</span></td></tr>
+      <tr><td><code>path.windows</code></td><td><span class="v native">native</span></td><td><span class="v shim">shim</span></td><td><span class="v shim">shim</span></td><td><span class="v shim">shim</span></td><td><span class="v shim">shim</span></td><td><span class="v shim">shim</span></td></tr>
+      <tr><td><code>settings</code> (SaveSetting)</td><td><span class="v native">registry</span></td><td><span class="v shim">file</span></td><td><span class="v shim">file</span></td><td><span class="v shim">session</span></td><td><span class="v shim">IndexedDB</span></td><td><span class="v shim">file</span></td></tr>
+      <tr><td>portable COM classes</td><td><span class="v native">native</span></td><td><span class="v replace">replace</span></td><td><span class="v replace">replace</span></td><td><span class="v replace">replace</span></td><td><span class="v replace">replace</span></td><td><span class="v replace">replace</span></td></tr>
+      <tr><td><code>com.os</code> (Outlook, Word, WMI)</td><td><span class="v native">native</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td></tr>
+      <tr><td><code>network</code></td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v native">egress policy</span></td><td><span class="v mediated">CORS</span></td><td>runtime</td></tr>
+      <tr><td><code>ui.forms</code> (UserForms)</td><td><span class="v native">MSForms</span></td><td><span class="v replace">replace</span></td><td><span class="v reject">reject</span></td><td><span class="v replace">replace</span></td><td><span class="v replace">replace</span></td><td><span class="v reject">reject</span></td></tr>
+      <tr><td><code>block</code> (sync I/O)</td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v native">native</span></td><td><span class="v shim">isolation / JSPI</span></td><td><span class="v native">native</span></td></tr>
+      <tr><td><code>process</code>, <code>native.code:dll</code>, <code>ui.keys</code></td><td><span class="v native">native</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td><td><span class="v reject">reject</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="prose">A profile maps each need onto the verdict chain, so profiles are ordered pointwise and form a lattice: a product of chains, not a ladder. <code>server</code> has files and no UI; <code>web-wasm</code> has UI and no free files, and neither is above the other. So a workbook carries a <b>footprint</b> (a set of needs) and gets a verdict <b>per host</b>, not a single "portability level". The meet of all profiles is the portable core. And Guarded with no grants is just one more, very low, profile, so "can it run on WASI?" and "can it run Guarded with a folder grant?" are answered by the same check.</p>
+</section>
+
+<section id="paths">
+  <span class="tag f">Fable · paths</span>
+  <h2>Paths are resolved, never rewritten</h2>
+  <p class="lead"><code>c:\Temp\MyFile</code> stays that string inside the macro. The file facet resolves it through a per-session mount table, as Plan 9 namespaces and Wine's drive map do. The macro sees a Windows persona, because it was written against Win32.</p>
+<pre><span class="c"># ~/.config/dnacalc/mounts.toml  (a workbook session may add or remove)</span>
+<span class="k">[[mount]]</span>  windows = <span class="s">'C:\'</span>                         host = <span class="s">'~/.local/share/dnacalc/drive_c'</span>  <span class="c"># private, never /</span>
+<span class="k">[[mount]]</span>  windows = <span class="s">'C:\Users\{user}'</span>             host = <span class="s">'~'</span>
+<span class="k">[[mount]]</span>  windows = <span class="s">'C:\Users\{user}\Documents'</span>   host = <span class="s">'{xdg:DOCUMENTS}'</span>
+<span class="k">[[mount]]</span>  windows = <span class="s">'C:\Temp'</span>                     host = <span class="s">'~/tmp'</span>                            <span class="c"># your example</span>
+<span class="k">[[mount]]</span>  windows = <span class="s">'\\fileserver\finance'</span>        host = <span class="s">'/mnt/finance'</span>  mode = <span class="s">'read'</span></pre>
+  <div class="cols">
+    <div class="card t"><h4>Rules</h4><p>Longest prefix wins, compared case-insensitively. <code>C:</code> is a private directory, never the host root. The workbook's own folder is always mounted while it is open, which makes <code>ThisWorkbook.Path &amp; "\data.csv"</code> work. Unmapped means absent: <code>ChDrive "Q"</code> raises 68, as on a PC without a Q: drive.</p></div>
+    <div class="card a"><h4>Win32 quirks kept</h4><p>Case-insensitive lookup with case-preserving creation (two names differing only in case is an error). <code>Dir</code> returns names sorted as NTFS does, not in ext4 hash order. Trailing dots dropped, CRLF and the project code page on write, archive bit on new files, so <code>GetAttr</code> returns 32.</p></div>
+    <div class="card g"><h4>The same table is the Guarded grant</h4><p>Under Guarded, the grant <i>is</i> the mount list. No file grant means an empty table; "this workbook's folder, read only" means exactly one read mount. One mechanism serves both axes. A file the person picks creates a session mount: the pick is the grant.</p></div>
+  </div>
+  <p><code>Environ("TEMP")</code>, <code>USERPROFILE</code> and <code>APPDATA</code> return persona paths backed by mounts. <code>USERNAME</code> and <code>COMPUTERNAME</code> return the real host names. <code>OS</code> returns <code>Windows_NT</code>. Host variables pass through only by name. Device paths, pipes, alternate streams and raw volumes are refused everywhere.</p>
+</section>
+
+<section id="com">
+  <span class="tag f">Fable · COM</span>
+  <h2>COM without COM, and no DCOM</h2>
+  <p class="lead">VBA needs the Automation object protocol: invoke by DISPID, type information, enumerators, events, identity. It does not need activation, apartments, marshalling, monikers or a registry. Two tables replace those.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Class</th><th class="n">Projects</th><th>Off Windows</th><th>Today</th></tr></thead>
+    <tbody>
+      <tr><td><code>Scripting.Dictionary</code></td><td class="n">138</td><td><span class="v replace">replace</span></td><td>exists</td></tr>
+      <tr><td><code>Scripting.FileSystemObject</code></td><td class="n">136</td><td><span class="v replace">replace</span> over the file facet and path map</td><td>missing, build first</td></tr>
+      <tr><td><code>WScript.Shell</code></td><td class="n">71</td><td><span class="v replace">replace in part</span>: SpecialFolders, ExpandEnvironmentStrings, Popup. <code>Run</code>/<code>Exec</code>/<code>RegRead</code> reject</td><td>missing</td></tr>
+      <tr><td><code>ADODB.Stream</code></td><td class="n">62</td><td><span class="v replace">replace</span>: bytes, charsets, LoadFromFile, SaveToFile</td><td>missing</td></tr>
+      <tr><td><code>VBScript.RegExp</code></td><td class="n">61</td><td><span class="v replace">replace</span></td><td>exists</td></tr>
+      <tr><td><code>MSXML2.XMLHTTP</code>, <code>WinHttp.WinHttpRequest</code></td><td class="n">69</td><td><span class="v replace">replace</span> on the network facet; <span class="v mediated">mediated</span> in web-wasm</td><td>missing</td></tr>
+      <tr><td><code>MSXML2.DOMDocument</code></td><td class="n">29</td><td><span class="v replace">replace</span>: DOM and XPath</td><td>missing</td></tr>
+      <tr><td><code>Outlook</code>, <code>Word</code>, WMI, <code>htmlfile</code>, ADODB.Connection</td><td class="n">96</td><td><span class="v reject">reject</span> (another program, or a provider)</td><td>refused</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>References</b> resolve by typelib GUID to one of three states. <i>Implemented</i>: compiles and runs on our class. <i>Types only</i>: compiles against descriptors extracted on Windows, and <code>New</code> raises 429. <i>Unknown</i>: the reference is missing. In each case only the procedures that use the library fail; the rest of the project runs, which is kinder than VBA's compile-time "Can't find project or library". On Windows, real COM stays available as a host capability.</p>
+</section>
+
+<section id="declare">
+  <span class="tag f">Fable · Declare and the C API</span>
+  <h2>Win32 Declares, XLLs and the C API</h2>
+  <p class="lead">736 distinct Declare entry points in 175 projects (only 7 of them triage-clean). A small shim table, Wine-style but tiny, ordered by corpus use.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Group</th><th class="n">Uses</th><th>Off Windows</th><th>Most used</th></tr></thead>
+    <tbody>
+      <tr><td>time</td><td class="n">212</td><td><span class="v replace">replace</span></td><td><code>Sleep</code> 49, <code>GetTimeZoneInformation</code> 37, <code>QueryPerformanceCounter</code> 11</td></tr>
+      <tr><td>memory</td><td class="n">124</td><td><span class="v replace">replace</span> over VM memory; Guarded refuses</td><td><code>RtlMoveMemory</code> 52, <code>GlobalAlloc</code> 13</td></tr>
+      <tr><td>string, identity, guid, path</td><td class="n">156</td><td><span class="v replace">replace</span></td><td><code>lstrlenW</code>, <code>GetSystemMetrics</code>, <code>CoCreateGuid</code>, <code>SetCurrentDirectoryA</code></td></tr>
+      <tr><td>clipboard, keys, open, download</td><td class="n">84</td><td><span class="v replace">replace</span> / <span class="v mediated">mediated</span></td><td><code>OpenClipboard</code>, <code>GetAsyncKeyState</code>, <code>ShellExecuteA</code> (open verb only)</td></tr>
+      <tr><td>window, gdi, own DLLs, code, raw handles</td><td class="n">951</td><td><span class="v reject">reject</span></td><td><code>FindWindowA</code>, <code>GetDC</code>, add-in helper DLLs, <code>DispCallFunc</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>The tiers cover 40 projects fully, then 51 with memory, then 68 (39%) with clipboard, keys and dialogs. Window functions are deliberately <i>not</i> given empty implementations: "no such window" would let code fail later and less clearly.</p>
+  <h3>XLLs: three options</h3>
+  <div class="cols">
+    <div class="card r"><h4>A · refuse foreign binaries</h4><p>A PE XLL off Windows is <code>NotAvailableHere { NativeAddins }</code>. Today's rule; keep it as the default for existing binaries.</p></div>
+    <div class="card t"><h4>B · source-compatible XLL</h4><p>The same exports and <code>Excel12</code> callback built as ELF or Mach-O. <code>calc-xll-abi</code> already compiles and passes its layout tests on Linux.</p></div>
+    <div class="card g"><h4>C · XLL compiled to wasm</h4><p>The same C source for wasm32, whose only imports are the C API callbacks. A wasm module has no ambient authority, so it is contained by construction, and it runs on every host, the browser included. Fable prefers C.</p></div>
+  </div>
+  <p>Most of the C API is portable because it works on the model. Host reach sits in <code>xlfRegister</code>/<code>xlfCall</code>/<code>CALL</code> (FFI), the path and identity info types of <code>xlfGetWorkspace</code> and <code>xlfGetDocument</code> (persona), the XLM file functions (same file facet as VBA), <code>xlfExec</code>/<code>SendKeys</code> and DDE (reject).</p>
+  <h3>Workbooks without macros have footprints too</h3>
+  <p>Formulas are code, so a workbook's footprint is the join of its VBA and its formulas. <code>CELL("filename")</code> and <code>INFO("directory")</code> need the persona (today: typed refusals). <code>WEBSERVICE</code> and <code>IMAGE</code> need the network, and in the browser mediation. <code>RTD</code> off Windows is <code>#N/A</code>, which is Excel's own value for a server it can't create. Microsoft-service functions (<code>STOCKHISTORY</code>, <code>COPILOT</code>, <code>PY</code>) are rejected on every host, Windows included.</p>
+</section>
+
+<section id="theory">
+  <span class="tag f">Fable · theory</span>
+  <h2>The computer science underneath</h2>
+  <div class="cols">
+    <div class="card t"><h4>An effect system</h4><p>A procedure's footprint is its effects, closed over the call graph: <i>may</i> effects (some path reaches it) versus <i>must</i> effects (every path does). Effects pass up through calls, like effect polymorphism.</p></div>
+    <div class="card t"><h4>Constant propagation</h4><p>Most late binding is literal: <code>CreateObject("Scripting.FileSystemObject")</code>, path prefixes, <code>Application.Run</code> names. Propagating those strings turns late binding into a static answer.</p></div>
+    <div class="card a"><h4>Sound by construction</h4><p>The static scan over-approximates. The run-time <code>NotAvailableHere</code>, delivered as Excel's own error, is the safety net that keeps the whole thing sound when the analysis guesses wrong.</p></div>
+    <div class="card g"><h4>Object capabilities</h4><p>Both axes are the object-capability model: code reaches only what it was handed. Guarded decides what is handed over; the host profile decides what exists to be handed.</p></div>
+    <div class="card g"><h4>Namespaces</h4><p>The mount table is a per-session namespace, as in Plan 9. Wine's <code>dosdevices</code> is the precedent on the same Windows-path problem.</p></div>
+    <div class="card a"><h4>A lattice of profiles</h4><p>Profiles ordered pointwise over the verdict chain form a product lattice. A footprint that runs on a profile runs on every profile above it, so testing one host also answers for the richer ones.</p></div>
+  </div>
+</section>
+
+<section id="view">
+  <span class="tag o">Coordinator · synthesis</span>
+  <h2>What I take from it</h2>
+  <ol class="dec">
+    <li><b>Portability is not today's bottleneck on Linux; object-model coverage is.</b> Of the 1,345 run entries that did not succeed, 1,241 stopped at product gaps: members not modelled yet (<code>Window.SelectedSheets</code> 87, <code>SmallScroll</code> 60, <code>Range.Sort</code> custom order 36) and VBA errors. Only about 150 stopped for a portability or grant reason. A further 322 projects never got admitted (compile refusals 130, locked projects 75). So for "runs on Linux", the biggest lever is still the macro-host work already under way (dc-oxh8w, dc-cmruz). Portability work pays mostly on the suspect corpus and on the web.</li>
+    <li><b>Within portability, the order is clear from the data.</b> The two cheap decisions first (reject per call, lazy references), because they let whole projects run around one bad procedure. Then the path persona and mount table (P1). Then UserForms, which appear in 104 clean projects and are the largest "replace" item. Then FileSystemObject, ADODB.Stream and the HTTP classes. The Declare table last, because almost all of it serves triage-suspect projects.</li>
+    <li><b>The persona is a choice, and it should be visible.</b> Windows-faithful by default is right: it bit-matches Excel and keeps old macros working. But <code>INFO("osversion")</code> answering <code>Windows (64-bit) NT 10.00</code> on Linux is a white lie. I'd keep CalcVBA's existing <i>native</i> mode as an opt-in for new code, and show the persona in the Strip ("Windows persona · Linux host") so nobody is surprised.</li>
+    <li><b>Web-wasm needs a hosting decision.</b> Synchronous VBA file and network calls in the browser need a Worker that can block, which means serving the app with COOP/COEP headers (or JSPI when it ships). Those headers affect embedding and third-party resources on dnacalc.com, so it's a deployment decision, not only an engine one.</li>
+    <li><b>Measure the friendly profile next.</b> The measurement is the strictest Linux case: headless CLI, Guarded, no grants. The Linux desktop under Unguarded, where <code>MsgBox</code> answers and files open through the mount table, isn't measured yet. That's the number to put on the website, and it needs the path persona first.</li>
+    <li><b>The badge is the product.</b> A per-host badge on each workbook (from <code>dnacalc portability &lt;book&gt; --host &lt;h&gt;</code>), with a per-entry list behind it, turns this whole matrix into one line a user can read: <i>runs anywhere · desktop · Windows · needs Excel</i>.</li>
+  </ol>
+</section>
+
+<section id="decide">
+  <span class="tag o">For discussion</span>
+  <h2>Six decisions</h2>
+  <ol class="dec">
+    <li><b>Reject per call in faithful mode</b>, so CalcVBA's "reject at load" applies only in strict mode. <span class="rec">Recommended: yes. This is what lets the chart button run in a project that also has a FindWindow call.</span></li>
+    <li><b>Unknown references:</b> modules that don't use the library still run. <span class="rec">Recommended: yes.</span></li>
+    <li><b>XLLs:</b> source-compatible (B) and/or compiled to wasm (C). <span class="rec">Recommended: decide once the Linux C API dispatcher exists; prefer C.</span></li>
+    <li><b>Four new shared capability names:</b> <code>ui.dialog</code>, <code>ui.filedialog</code>, <code>clipboard</code>, <code>print</code>, allowed under Guarded as today so the audit shows them. <span class="rec">Recommended: add now.</span></li>
+    <li><b>Default mounts:</b> map <code>C:\Users\{user}</code> to your home directory, or use a private tree with only the workbook's folder mounted. <span class="rec">Recommended: private tree plus the workbook's folder under Guarded; home mapping under Unguarded.</span></li>
+    <li><b><code>Shell</code>:</b> no general shim. <span class="rec">Recommended: keep reject plus CalcVBA's per-project command map; never translate command lines.</span></li>
+  </ol>
+  <p>Fable filed 12 beads to build it, related to epic dc-8svfs. The P1s are the <code>needs</code> overlay with <code>HostProfile</code> and <code>NotAvailableHere</code> (dc-x8vql), the path persona in calc-host (dc-0uw7j), and the <code>dnacalc portability</code> report and badge (dc-4hzu2). Nothing is scheduled until we've talked.</p>
+</section>
+
+<footer>Sources: docs/design/PORTABLE_EXECUTION.md and docs/design/portable-execution/*.tsv (Fable, lane pt1, bead dc-54aki, 2026-11-28), measured on dna-firehorse with master 4d2013218; CalcVBA docs/design/portability.md; GUARDED_EXECUTION.md. Synthesis by the coordinator.</footer>
+</div>
