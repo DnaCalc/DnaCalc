@@ -36,11 +36,12 @@ pub(crate) fn overview(session: Session) -> impl IntoView {
                     InventoryKind::VbaProject, InventoryKind::PivotTables,
                 ] }));
                 match result(inventory, "") {
-                    Ok(answer) => inventory_view(answer.body, coverage(answer.coverage)),
+                    Ok(answer) => inventory_view(session, answer.body, coverage(answer.coverage)),
                     Err(message) => status(message),
                 }
             }}
         </div>
+        {pivot_freshness(session)}
         <div class="dna-inspector-card">
             <h2>"Structure"</h2>
             {move || {
@@ -188,7 +189,7 @@ fn atlas_sheet(session: Session, sheet: calc_skin::grid::Sheet, label: String) -
     crate::invoke(session, "inspector.reveal", serde_json::json!(at), label)
 }
 
-fn inventory_view(items: Vec<InventoryItem>, limit: Option<String>) -> AnyView {
+fn inventory_view(session: Session, items: Vec<InventoryItem>, limit: Option<String>) -> AnyView {
     let mut hidden = Vec::new();
     let mut broken = Vec::new();
     let mut links = Vec::new();
@@ -211,7 +212,9 @@ fn inventory_view(items: Vec<InventoryItem>, limit: Option<String>) -> AnyView {
             {
                 broken.push(view! { <li>{name}<code>{formula}</code></li> });
             }
-            InventoryItem::PivotTable { name, .. } => pivots.push(view! { <li>{name}</li> }),
+            InventoryItem::PivotTable { name, area } => pivots.push(view! {
+                <li data-dna-action-field="">{crate::invoke(session, "inspector.inspect-pivot", serde_json::json!(area.0), name)}</li>
+            }),
             InventoryItem::ExternalLink(link) => links.push(format!(
                 "{} · {} cached sheets · {} refresh errors",
                 link.file_name
@@ -233,6 +236,45 @@ fn inventory_view(items: Vec<InventoryItem>, limit: Option<String>) -> AnyView {
         </div>
         <p>{if vba { "VBA project present" } else { "No VBA project in inventory" }}</p>
     }.into_any()
+}
+
+pub(crate) fn pivot_freshness_label(freshness: calc_skin::PivotFreshness) -> &'static str {
+    match freshness {
+        calc_skin::PivotFreshness::Current => "Cache matches the worksheet source",
+        calc_skin::PivotFreshness::Stale => "Stale cache",
+        calc_skin::PivotFreshness::Unassessed => "Freshness unavailable",
+    }
+}
+
+fn pivot_freshness(session: Session) -> impl IntoView {
+    let selected = session.local::<crate::State>().pivot;
+    let read = session.following_with_budget::<query::PivotFreshnessAt>(crate::INSTRUMENT_BUDGET);
+    move || {
+        let workbook = session.stamp().map(|stamp| stamp.workbook);
+        let target = selected.get().filter(|(owner, _)| workbook == Some(*owner));
+        let answer = read.at(target.map(|(_, at)| query::PivotFreshnessAt { at }));
+        target.map(|_| match result(answer, "") {
+            Ok(answer) => {
+                let report = answer.body;
+                let label = pivot_freshness_label(report.freshness);
+                view! {
+                    <section class="dna-inspector-card" data-inspector="pivot-freshness">
+                        <h2>{report.name}</h2>
+                        <p>{label}</p>
+                        {report.source.map(|area| view! { <p>{area_label(session, area)}</p> })}
+                        {report.observed_refresh_unix_ms.and_then(dna_kit::format_utc_millis)
+                            .map(|date| {
+                                let caption = date.clone();
+                                view! { <p>"Refresh read " <time datetime=date>{caption}</time></p> }
+                            })}
+                        {report.saved_refresh.map(|date| view! { <p>"Saved refresh " {date}</p> })}
+                        {report.unavailable.map(status)}
+                    </section>
+                }.into_any()
+            }
+            Err(message) => status(message),
+        })
+    }
 }
 
 fn issues(session: Session) -> impl IntoView {

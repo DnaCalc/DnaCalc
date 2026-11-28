@@ -1736,6 +1736,41 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::TextContains("[data-inspector='trace-chosen']", "A2"),
         ],
     },
+    Case {
+        name: "Inspector detects an authored PivotTable cache becoming stale",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/pivot/m5-structure/base-table.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Js(
+                "The PivotTable workbook opened",
+                "[...document.querySelectorAll('.dna-book-sheets button')].some(button => button.textContent === 'Src')",
+            )),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Click("[data-command='inspector.overview']"),
+            Action::Click("[data-command='inspector.inspect-pivot']"),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='pivot-freshness']",
+                "Cache matches the worksheet source",
+            )),
+            Action::Click("[data-command='view.classic']"),
+            Action::Into("name-box", "Src!D3"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Into("formula-bar", "999"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=D3]", "999")),
+            Action::Click("[data-command='view.inspector']"),
+            Action::Wait(Check::TextContains("[data-inspector='pivot-freshness']", "Stale cache")),
+            Action::Click("[data-command='edit.undo']"),
+        ],
+        checks: &[
+            Check::TextContains("[data-inspector='pivot-freshness']", "pvt_m5"),
+            Check::TextContains("[data-inspector='pivot-freshness']", "Saved refresh"),
+            Check::TextContains("[data-inspector='pivot-freshness']", "Cache matches the worksheet source"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -1966,22 +2001,29 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "inspector-dependencies",
         start: 66,
-        end: PREVIEW_CASES.len() - 3,
+        end: PREVIEW_CASES.len() - 4,
         core: 2,
         setup: &[],
     },
     CaseGroup {
         name: "inspector-comparison",
-        start: PREVIEW_CASES.len() - 3,
-        end: PREVIEW_CASES.len() - 2,
+        start: PREVIEW_CASES.len() - 4,
+        end: PREVIEW_CASES.len() - 3,
         core: 1,
         setup: &[],
     },
     CaseGroup {
         name: "inspector-contributions",
-        start: PREVIEW_CASES.len() - 2,
-        end: PREVIEW_CASES.len(),
+        start: PREVIEW_CASES.len() - 3,
+        end: PREVIEW_CASES.len() - 1,
         core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-pivot",
+        start: PREVIEW_CASES.len() - 1,
+        end: PREVIEW_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];

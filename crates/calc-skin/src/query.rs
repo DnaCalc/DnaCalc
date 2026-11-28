@@ -111,6 +111,10 @@ query!(
     /// Workbook link caches, admitted RTD topics and bound volatile cells.
     SourceInventory => Sources, |_: &SourceInventory| WorkbookQuery::Sources);
 query!(
+    /// Compare a PivotTable's retained cache with its current bound worksheet source.
+    PivotFreshnessAt { at: Key } => crate::PivotCacheFacts,
+    |q: &PivotFreshnessAt| WorkbookQuery::PivotFreshness { at: q.at });
+query!(
 /// Edges of the bound workbook graph in the requested direction.
 Deps { of: SourceRef, dir: DependencyDirection, depth: u16, group: DependencyGrouping }
     => Evidence<Dependencies>, |q: &Deps| WorkbookQuery::Deps {

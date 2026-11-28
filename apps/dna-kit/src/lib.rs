@@ -162,3 +162,21 @@ pub fn DataFrame(
         </div>
     }
 }
+
+/// Render a captured Unix timestamp as an ISO 8601 UTC time in the browser.
+#[cfg(target_arch = "wasm32")]
+pub fn format_utc_millis(unix_ms: u64) -> Option<String> {
+    use leptos::web_sys::js_sys::Date;
+    let date = Date::new(&leptos::wasm_bindgen::JsValue::from_f64(unix_ms as f64));
+    if date.get_time().is_finite() {
+        date.to_iso_string().as_string()
+    } else {
+        None
+    }
+}
+
+/// ISO 8601 browser rendering is unavailable in native unit tests.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn format_utc_millis(_: u64) -> Option<String> {
+    None
+}

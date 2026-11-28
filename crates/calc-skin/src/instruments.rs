@@ -33,6 +33,23 @@ pub struct TableInfo {
     pub columns: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PivotFreshness {
+    Current,
+    Stale,
+    Unassessed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PivotCacheFacts {
+    pub name: String,
+    pub source: Option<Area>,
+    pub saved_refresh: Option<String>,
+    pub observed_refresh_unix_ms: Option<u64>,
+    pub freshness: PivotFreshness,
+    pub unavailable: Option<String>,
+}
+
 /// A worksheet chart drawn by the workbook's chart renderer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartImage {

@@ -90,6 +90,7 @@ struct State {
     trace_window: RwSignal<Option<trace::TraceWindow>>,
     details: RwSignal<bool>,
     notes: RwSignal<bool>,
+    pivot: RwSignal<Option<(calc_skin::WorkbookId, Key)>>,
     recording: RwSignal<live::Recording>,
 }
 
@@ -174,6 +175,16 @@ impl View for Inspector {
                 Ok(())
             }),
             audit::atlas_command(session),
+            ViewCommand::global("inspector.inspect-pivot", "Inspect PivotTable cache", &[], move |invocation| {
+                let at: Key = serde_json::from_value(invocation.args.clone())
+                    .map_err(|_| "Choose a PivotTable to inspect.")?;
+                let workbook = session.stamp().ok_or("Open the workbook first.")?.workbook;
+                state.pivot.update(|held| {
+                    let target = (workbook, at);
+                    *held = (*held != Some(target)).then_some(target);
+                });
+                Ok(())
+            }),
             ViewCommand::global(
                 "inspector.calculate-observed",
                 "Calculate and record order",
