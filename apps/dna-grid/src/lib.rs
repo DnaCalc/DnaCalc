@@ -7,7 +7,10 @@
 
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
-use calc_skin::{Batch, Change, FillDirection, Interest, ModelChange, Operation, Provenance, RawValue, Selection, SourceRef, address, query};
+use calc_skin::{
+    Batch, Change, FillDirection, Interest, ModelChange, Operation, Provenance, RawValue,
+    Selection, SourceRef, ThinBorder, address, query,
+};
 use dna_kit::{InputMode, Invocation, Live, Session, ViewCommand, commands::CommandId};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
@@ -60,14 +63,15 @@ fn selected_areas(session: Session) -> Vec<Area> {
     }
 }
 
-fn fill_batch(
+fn range_batch(
     session: Session,
     label: &str,
+    refusal: &str,
     change: impl FnOnce(Area) -> ModelChange,
 ) -> Result<Batch, String> {
     let areas = selected_areas(session);
     let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
-        return Err("Select one worksheet range to fill.".into());
+        return Err(refusal.into());
     };
     Ok(Batch {
         id: String::new(),
@@ -78,6 +82,13 @@ fn fill_batch(
         label: Some(label.into()),
         changes: vec![Change::Model(change(*selected))],
     })
+}
+
+fn border_css(border: ThinBorder) -> String {
+    match border {
+        ThinBorder::Automatic => "1px solid var(--dna-ink)".into(),
+        ThinBorder::Rgb([red, green, blue]) => format!("1px solid #{red:02x}{green:02x}{blue:02x}"),
+    }
 }
 
 fn select_range(session: Session, anchor: Key, to: Key) {
@@ -259,7 +270,8 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
     };
     let fill = |id, label, chords: &[&'static str], direction| {
         ViewCommand::new(view, id, label, chords, move |_| {
-            let batch = fill_batch(session, label, |selected| ModelChange::FillRange { selected, direction })?;
+            let batch = range_batch(session, label, "Select one worksheet range to fill.",
+                |selected| ModelChange::FillRange { selected, direction })?;
             session.submit(batch);
             Ok(())
         })
@@ -283,8 +295,16 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         fill("grid.fill-up", "Fill Up", &[], FillDirection::Up),
         fill("grid.fill-left", "Fill Left", &[], FillDirection::Left),
         ViewCommand::new(view, "grid.flash-fill", "Flash Fill", &["Ctrl+E"], move |_| {
-            let batch = fill_batch(session, "Flash Fill", |selected| ModelChange::FlashFill { selected })?;
+            let batch = range_batch(session, "Flash Fill", "Select one worksheet range to fill.",
+                |selected| ModelChange::FlashFill { selected })?;
             session.submit_for_review(batch);
+            Ok(())
+        })
+        .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.all-borders", "All Borders", &[], move |_| {
+            let batch = range_batch(session, "All Borders", "Select one worksheet range to format.",
+                |selected| ModelChange::SetAllBorders { selected })?;
+            session.submit(batch);
             Ok(())
         })
         .when("mode:ready && writable"),
@@ -502,7 +522,7 @@ fn worksheet(
                         class:dna-frozen-column-edge=Some(column) == pane_column_edge
                         style:inset-inline-start=pinned_left(column)>{address::column_letters(column)}</th> }
                 }).collect_view();
-                let rows = row_bands.into_iter().flat_map(|(a, b)| a..=b)
+                let rows = row_bands.iter().copied().flat_map(|(a, b)| a..=b)
                     .filter(|&row| layout.height(row) > 0.).map(|row| {
                     let row_height = pixels(layout.height(row));
                     let pinned_top = (row <= frozen_rows)
@@ -511,6 +531,22 @@ fn worksheet(
                         let key = Key(first.0, first.1, row, column);
                         let cell = cells.get(&key).copied();
                         let text = cell.map(|cell| cell.text.clone()).unwrap_or_default();
+                        let borders = cell.map(|cell| cell.borders).unwrap_or_default();
+                        let top = borders.top.filter(|_| {
+                            let previous = row - 1;
+                            let painted = row_bands.iter().any(|&(a, b)| (a..=b).contains(&previous))
+                                && layout.height(previous) > 0.
+                                && cells.get(&Key(key.0, key.1, previous, column))
+                                    .is_some_and(|above| above.borders.bottom.is_some());
+                            !painted
+                        });
+                        let left = borders.left.filter(|_| {
+                            let previous = column - 1;
+                            let painted = columns.binary_search(&previous).is_ok()
+                                && cells.get(&Key(key.0, key.1, row, previous))
+                                    .is_some_and(|before| before.borders.right.is_some());
+                            !painted
+                        });
                         let number = cell.is_some_and(|cell| matches!(cell.shown.value, RawValue::Number { .. }));
                         let error = cell.is_some_and(|cell| matches!(cell.shown.value, RawValue::Error(_)));
                         let filter_header = geometry.as_ref().is_some_and(|geometry| {
@@ -546,6 +582,10 @@ fn worksheet(
                                 class:dna-frozen-column-edge=Some(column) == pane_column_edge
                                 style:inset-block-start=pinned_top.clone()
                                 style:inset-inline-start=pinned_left(column)
+                                style:border-block-start=top.map(border_css)
+                                style:border-inline-start=left.map(border_css)
+                                style:border-block-end=borders.bottom.map(border_css)
+                                style:border-inline-end=borders.right.map(border_css)
                                 data-cell=location data-provenance=provenance
                                 data-filter-header=filter_header.to_string()
                                 title=filter_header.then_some("AutoFilter is enabled for this column")

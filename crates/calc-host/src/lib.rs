@@ -142,7 +142,10 @@ mod names;
 pub use model_clock::{ModelClock, ModelClockTick};
 pub use facts::alignment as style_alignment;
 pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
-pub use format::{BorderPatch, FillColor, FormatPatch, InteriorPatch, format_regions, format_samples, patched_style};
+pub use format::{
+    BorderPatch, FillColor, FormatPatch, InteriorPatch, border_for_style, format_regions,
+    format_samples, patched_style, prepare_all_borders,
+};
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use calc_engine::DependencySpelling;
 pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView, lambda_parameters};

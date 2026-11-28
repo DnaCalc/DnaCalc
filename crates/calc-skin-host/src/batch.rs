@@ -764,6 +764,21 @@ pub(crate) fn prepare(
                         ranges_with_metadata.push(selected);
                     }
                 }
+                ModelChange::SetAllBorders { selected } => {
+                    require_current_model(request, base.model)?;
+                    if request.changes.len() != 1 {
+                        return Err(invalid("Apply All Borders as one workbook change"));
+                    }
+                    let selected = grid_area(*selected)?;
+                    let host = state.session.host();
+                    if host.merged_areas(selected.sheet()).iter().any(|area| area.intersection(selected).is_some()) {
+                        return Err(unavailable("dc-s2xup", "All Borders on merged cells"));
+                    }
+                    edits.extend(calc_host::prepare_all_borders(host, selected)
+                        .map_err(|reason| Refusal::Excel { reason })?);
+                    areas.push(selected);
+                    ranges_with_metadata.push(selected);
+                }
                 ModelChange::RefreshPivot { at, expected } => {
                     require_current_model(request, base.model)?;
                     if expected.workbook != base.workbook || expected.calc != base.calc || expected.model != base.model {

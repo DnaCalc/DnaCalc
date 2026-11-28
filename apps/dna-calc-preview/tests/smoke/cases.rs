@@ -1815,6 +1815,44 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic All Borders paints the selected rectangle and undoes it without changing the formula",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}wvg"),
+            Action::Wait(Check::Rendered("[class~='dna-sheet-gridlines-hidden']", true)),
+            Action::Click("[data-cell=B2]"),
+            Action::Into("formula-bar", "=4+3"),
+            Action::Keys("formula-bar", "\u{e007}"),
+            Action::Wait(Check::Text("[data-cell=B2]", "7")),
+            Action::Click("[data-cell=B2]"),
+            Action::Keys("grid", "\u{e008}\u{e014}\u{e015}\u{e000}"),
+            Action::Wait(Check::Attr("[data-cell=C3]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}hba"),
+            Action::Wait(Check::Js(
+                "the authored outside and inside borders are visible with gridlines hidden",
+                r#"(() => {
+                    const first = getComputedStyle(document.querySelector('[data-cell=B2]'));
+                    const last = getComputedStyle(document.querySelector('[data-cell=C3]'));
+                    return first.borderTopStyle === 'solid' && first.borderLeftStyle === 'solid'
+                        && first.borderRightColor !== 'rgba(0, 0, 0, 0)'
+                        && first.borderBottomColor !== 'rgba(0, 0, 0, 0)'
+                        && last.borderRightColor !== 'rgba(0, 0, 0, 0)'
+                        && last.borderBottomColor !== 'rgba(0, 0, 0, 0)';
+                })()"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Text("[data-cell=B2]", "7"),
+            Check::Attr("[data-cell=B2]", "data-provenance", "calculated"),
+            Check::Js(
+                "one Undo removed the authored borders",
+                r#"getComputedStyle(document.querySelector('[data-cell=B2]')).borderTopStyle === 'none'
+                    && getComputedStyle(document.querySelector('[data-cell=C3]')).borderBottomColor === 'rgba(0, 0, 0, 0)'"#,
+            ),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2479,8 +2517,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "inspector-dependencies",
+        name: "classic-borders",
         start: 72,
+        end: 73,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "inspector-dependencies",
+        start: 73,
         end: BEFORE_MAP - 7,
         core: 2,
         setup: &[],

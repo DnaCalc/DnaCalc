@@ -746,6 +746,31 @@ pub(crate) fn shown_value_for(
     }
 }
 
+fn cell_borders(host: &HostState, style: u32) -> CellBorders {
+    let Some(border) = calc_host::border_for_style(host.styles(), style).ok().flatten() else {
+        return CellBorders::default();
+    };
+    let stroke = |edge: &Option<calc_doc_model::BorderEdge>| {
+        let edge = edge.as_ref().filter(|edge| edge.style.as_deref() == Some("thin"))?;
+        let Some(color) = edge.color.as_ref().filter(|color| !color.auto) else {
+            return Some(ThinBorder::Automatic);
+        };
+        let rgb = host.resolved_style_color(color)?;
+        let hex = rgb.trim_start_matches('#');
+        if !matches!(hex.len(), 6 | 8) {
+            return None;
+        }
+        let [_, red, green, blue] = u32::from_str_radix(hex, 16).ok()?.to_be_bytes();
+        Some(ThinBorder::Rgb([red, green, blue]))
+    };
+    CellBorders {
+        top: stroke(&border.top),
+        right: stroke(&border.right),
+        bottom: stroke(&border.bottom),
+        left: stroke(&border.left),
+    }
+}
+
 pub(crate) fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCell {
     let host = state.session.host();
     let at = projected.at();
@@ -784,6 +809,7 @@ pub(crate) fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCel
         calc_host::ProjectedSpill::Filled(area) => SpillExtent::Filled(Area::of(area)),
         calc_host::ProjectedSpill::Blocked(area) => SpillExtent::Blocked(Area::of(area)),
     });
+    let style = host.cell_style(at);
     WorkbookCell {
         at: Key::of(at),
         input,
@@ -793,7 +819,8 @@ pub(crate) fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCel
         },
         text,
         spill,
-        style: host.cell_style(at),
+        style,
+        borders: cell_borders(host, style),
     }
 }
 

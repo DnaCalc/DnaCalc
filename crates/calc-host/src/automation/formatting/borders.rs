@@ -122,20 +122,7 @@ fn patch_for(edge: i32, change: &EdgeChange) -> FormatPatch {
 }
 
 fn cell_border(host: &HostState, style: u32) -> Result<Option<&Border>, AutoError> {
-    let styles = host.styles();
-    let format = styles.cell_formats.get(style as usize);
-    if format.is_none() && style != 0 {
-        return Err(AutoError::not_modelled(format!("Cell format {style} is unavailable"), OWNER));
-    }
-    let id = format.and_then(|xf| xf.border_id.or_else(|| styles.cell_style_formats.get(xf.xf_id? as usize)?.border_id));
-    match id {
-        Some(id) => styles
-            .borders
-            .get(id as usize)
-            .map(Some)
-            .ok_or_else(|| AutoError::not_modelled(format!("Border record {id} is unavailable"), OWNER)),
-        None => Ok(styles.borders.first()),
-    }
+    crate::border_for_style(host.styles(), style).map_err(|reason| AutoError::not_modelled(reason, OWNER))
 }
 
 pub(super) fn side(border: Option<&Border>, edge: i32) -> Option<&BorderEdge> {

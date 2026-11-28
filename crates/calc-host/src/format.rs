@@ -751,6 +751,39 @@ pub(crate) fn interior_fill(before: &Fill, patch: &InteriorPatch) -> Result<Fill
     Ok(fill)
 }
 
+/// Resolve the direct or inherited border record of a cell format.
+pub fn border_for_style(styles: &StyleTable, style: u32) -> Result<Option<&Border>, String> {
+    let format = styles.cell_formats.get(style as usize);
+    if format.is_none() && style != 0 {
+        return Err(format!("Cell format {style} is unavailable"));
+    }
+    let border = format.and_then(|format| {
+        format.border_id.or_else(|| styles.cell_style_formats.get(format.xf_id? as usize)?.border_id)
+    });
+    match border {
+        Some(id) => styles.borders.get(id as usize).map(Some)
+            .ok_or_else(|| format!("Border record {id} is unavailable")),
+        None => Ok(styles.borders.first()),
+    }
+}
+
+/// Prepare the default All Borders command on a worksheet rectangle.
+pub fn prepare_all_borders(host: &HostState, area: GridArea) -> Result<Vec<CellEdit>, String> {
+    let edge = crate::EdgeChange {
+        line: Some(crate::EdgeLine::Continuous),
+        weight: Some(crate::EdgeWeight::Thin),
+        color: Some(FillColor::Automatic),
+    };
+    let edges = crate::EdgesPatch {
+        left: Some(edge.clone()),
+        right: Some(edge.clone()),
+        top: Some(edge.clone()),
+        bottom: Some(edge),
+        ..Default::default()
+    };
+    prepare(host, &[area], &FormatPatch { edges: Some(edges), ..Default::default() })
+}
+
 pub(crate) fn prepare(
     host: &HostState,
     areas: &[GridArea],
