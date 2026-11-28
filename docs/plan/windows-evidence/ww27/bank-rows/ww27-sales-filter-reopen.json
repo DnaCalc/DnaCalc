@@ -1,0 +1,83 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "CASE_SALES_FILTER_REOPEN",
+  "selection": "Normal Excel open of the ui9 Sales cast compared with DNA Calc recalculation of the same package.",
+  "readings": [
+    {
+      "id": "ww27-sales-filter-reopen",
+      "source": "ww27/views/result.json",
+      "excel_build": "16.0.20625.20108",
+      "platform": "windows",
+      "bitness": "x64",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "lane": "ww27",
+      "timestamp": "2026-11-28T08:55:41.9039022Z",
+      "invocation": {
+        "capture_date": "2026-11-28",
+        "input_transport": "owned Excel private desktop"
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "salesnotebook-a10",
+      "args": [
+        "workbook_sha256=00457c9c9e2f3ca95a731da29bf410abf6d5c033b48fefc0dad063a4174e5d67",
+        "Analysis!A10",
+        "formula=_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "B2=All",
+        "B3=Pending",
+        "B4=0x3ff0000000000000",
+        "B5=0x403c000000000000"
+      ],
+      "expected_bits": "error:Name",
+      "calc_func": "text:SO08292",
+      "reading": "ww27-sales-filter-reopen"
+    },
+    {
+      "id": "salesnotebook-j2",
+      "args": [
+        "workbook_sha256=00457c9c9e2f3ca95a731da29bf410abf6d5c033b48fefc0dad063a4174e5d67",
+        "Analysis!J2",
+        "formula=IF(ISERROR($A$10),$A$10,_xlfn.LET(_xlpm.items,scopeOrders,_xlpm.amounts,_xlfn.CHOOSECOLS(_xlpm.items,7),SUM(_xlpm.amounts)))",
+        "B2=All",
+        "B3=Pending",
+        "B4=0x3ff0000000000000",
+        "B5=0x403c000000000000"
+      ],
+      "expected_bits": "error:Name",
+      "calc_func": "0x4151ce4d00000000",
+      "reading": "ww27-sales-filter-reopen"
+    },
+    {
+      "id": "salesblocked-a10",
+      "args": [
+        "workbook_sha256=9c98ab3a197ca534e8d1f8663fa856fd8b27c22242441ad8c3f8ccb350d3f649",
+        "Analysis!A10",
+        "formula=_xlfn._xlws.FILTER(Orders,((Orders[Region]=$B$2)+($B$2=\"All\"))*((Orders[Status]=$B$3)+($B$3=\"All\"))*(Orders[Date]>=DATE(2026,11,$B$4))*(Orders[Date]<=DATE(2026,11,$B$5)))",
+        "B2=West",
+        "B3=Pending",
+        "B4=0x3ff0000000000000",
+        "B5=0x403c000000000000"
+      ],
+      "expected_bits": "error:Name",
+      "calc_func": "text:SO10482",
+      "reading": "ww27-sales-filter-reopen"
+    },
+    {
+      "id": "salesblocked-j2",
+      "args": [
+        "workbook_sha256=9c98ab3a197ca534e8d1f8663fa856fd8b27c22242441ad8c3f8ccb350d3f649",
+        "Analysis!J2",
+        "formula=IF(ISERROR($A$10),$A$10,_xlfn.LET(_xlpm.items,scopeOrders,_xlpm.amounts,_xlfn.CHOOSECOLS(_xlpm.items,7),SUM(_xlpm.amounts)))",
+        "B2=West",
+        "B3=Pending",
+        "B4=0x3ff0000000000000",
+        "B5=0x403c000000000000"
+      ],
+      "expected_bits": "error:Name",
+      "calc_func": "0x40b0680000000000",
+      "reading": "ww27-sales-filter-reopen"
+    }
+  ]
+}

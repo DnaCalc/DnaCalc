@@ -1,0 +1,62 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "CASE_VBA_NATIVE_HOST",
+  "selection": "Scratch Excel VBA read compared with the pinned CalcVBA VM3 and JIT in Windows-faithful mode.",
+  "readings": [
+    {
+      "id": "ww27-vba-native-host",
+      "source": "ww27/portability/portability.tsv",
+      "excel_build": "16.0.20625.20108",
+      "platform": "windows",
+      "bitness": "x64",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "lane": "ww27",
+      "timestamp": "2026-11-28T08:54:16.9259214Z",
+      "invocation": {
+        "capture_date": "2026-11-28",
+        "input_transport": "owned Excel private desktop"
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "portability-779cdf8374b7",
+      "args": [
+        "case=DeclareMissingDll:True",
+        "excel_input=True",
+        "portable_input=C:\\DnaWw27_FFC03F35_absent.dll",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found: C:\\\\DnaWw27_FFC03F35_absent.dll\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":53,\"description\":\"No portable implementation for C:\\\\DnaWw27_FFC03F35_absent.dll!CallProbe\"},\"jit\":{\"err\":53,\"description\":\"No portable implementation for C:\\\\DnaWw27_FFC03F35_absent.dll!CallProbe\"}}",
+      "reading": "ww27-vba-native-host"
+    },
+    {
+      "id": "portability-6f8be4515162",
+      "args": [
+        "case=DeclareMissingEntry:True",
+        "excel_input=True",
+        "portable_input=kernel32.dll!DnaWw27_FFC03F35_AbsentExport",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":453,\"description\":\"Can't find DLL entry point DnaWw27_FFC03F35_AbsentExport in kernel32.dll\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":53,\"description\":\"No portable implementation for kernel32.dll!DnaWw27_FFC03F35_AbsentExport\"},\"jit\":{\"err\":53,\"description\":\"No portable implementation for kernel32.dll!DnaWw27_FFC03F35_AbsentExport\"}}",
+      "reading": "ww27-vba-native-host"
+    },
+    {
+      "id": "portability-a83a6e6e2d7a",
+      "args": [
+        "case=ShellMissing:True",
+        "excel_input=True",
+        "portable_input=C:\\absent-FFC03F35.exe",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":53,\"description\":\"entity not found\"},\"jit\":{\"err\":53,\"description\":\"entity not found\"}}",
+      "reading": "ww27-vba-native-host"
+    }
+  ]
+}

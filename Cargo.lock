@@ -1679,6 +1679,7 @@ name = "dnacalc"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "calc-doc",
  "calc-host",
  "calc-host-vba",
  "calc-macro-security",

@@ -3,6 +3,7 @@
 use crate::session::{self, cell_json, provenance};
 use crate::{Cli, Failure, fail};
 use calc_host::SkinIntent;
+use calc_host_vba::{DialogAnswer, DialogAnswers};
 use serde_json::{Value, json};
 
 fn counts(book: &session::Book) -> (u64, u64, u64, u64) {
@@ -148,9 +149,12 @@ fn invocation_json(record: &calc_host_vba::InvocationRecord) -> Value {
         O::Refused { member, owner, reason } => json!({
             "kind": "refused", "member": member, "owner": owner, "reason": reason,
         }),
+        O::NotAvailableHere { member, capability } => json!({
+            "kind": "not-available-here", "member": member, "need": capability.key(),
+        }),
         O::Failed(why) => json!({"kind": "failed", "reason": why}),
     };
-    json!({
+    let mut invocation = json!({
         "entry": record.entry,
         "invocation": "command",
         "outcome": outcome,
@@ -158,12 +162,55 @@ fn invocation_json(record: &calc_host_vba::InvocationRecord) -> Value {
             "capability": d.capability, "subject": d.subject, "layer": d.layer,
         })).collect::<Vec<_>>(),
         "allowed": record.allowed,
-    })
+    });
+    if !record.dialogs.is_empty() {
+        let dialogs: Vec<_> = record
+            .dialogs
+            .iter()
+            .map(|call| {
+                let answer = match &call.answer {
+                    Some(DialogAnswer::Button(value)) => json!(value),
+                    Some(DialogAnswer::Text(value)) => json!(value),
+                    None => Value::Null,
+                };
+                json!({"member": call.member, "prompt": call.prompt, "answer": answer})
+            })
+            .collect();
+        invocation["dialogs"] = json!(dialogs);
+    }
+    invocation
+}
+
+fn read_answers(path: Option<&str>) -> Result<DialogAnswers, Failure> {
+    let Some(path) = path else {
+        return Ok(DialogAnswers::default());
+    };
+    let bytes = std::fs::read(path)
+        .map_err(|error| fail(format!("cannot read answers file {path}: {error}")))?;
+    let mut fields: serde_json::Map<String, Value> = serde_json::from_slice(&bytes)
+        .map_err(|error| fail(format!("invalid answers file {path}: {error}")))?;
+    let msgbox = fields
+        .remove("msgbox")
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| fail(format!("invalid msgbox answers in {path}: {error}")))?
+        .unwrap_or_default();
+    let inputbox = fields
+        .remove("inputbox")
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| fail(format!("invalid inputbox answers in {path}: {error}")))?
+        .unwrap_or_default();
+    if let Some(name) = fields.keys().next() {
+        return Err(fail(format!("unknown answers field {name:?} in {path}")));
+    }
+    Ok(DialogAnswers { msgbox, inputbox })
 }
 
 pub(crate) fn run_macro(cli: &Cli) -> Result<(Value, u8), Failure> {
+    let answers = read_answers(cli.dialog_answers.as_deref())?;
     if cli.all_macros {
-        return run_all(cli);
+        return run_all(cli, &answers);
     }
     let name = cli
         .macro_name
@@ -184,7 +231,7 @@ pub(crate) fn run_macro(cli: &Cli) -> Result<(Value, u8), Failure> {
     };
     let args: Vec<_> = cli.macro_args.iter().map(|a| procedure_argument(a)).collect();
     // The command route: the Sub or Function runs against the live workbook session.
-    let record = project.run_procedure(&mut book.session, name, &args);
+    let record = project.run_procedure_with_dialog_answers(&mut book.session, name, &args, &answers);
     if let calc_host_vba::Outcome::NotCallable(why) = &record.outcome {
         return Err(fail(format!("{name} was not run: {why}")));
     }
@@ -215,7 +262,7 @@ pub(crate) fn run_macro(cli: &Cli) -> Result<(Value, u8), Failure> {
 /// `run --all`: every public Sub and Function of the project that needs no argument, each in a
 /// freshly opened session, so one entry's workbook edits or module state never reach another's
 /// outcome. Entries that take required arguments are listed as `needs-arguments`.
-fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
+fn run_all(cli: &Cli, answers: &DialogAnswers) -> Result<(Value, u8), Failure> {
     if cli.level == calc_macro_security::MacroSecurity::Off {
         return Err(fail("the macro level is off, so the file's VBA project does not run; pass --macro-level guarded or unguarded"));
     }
@@ -250,11 +297,13 @@ fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
         let Some(project) = book.project.clone() else {
             return Err(fail("the project was not admitted on reopening"));
         };
-        let record = project.run_procedure(&mut book.session, &qualified, &missing);
+        let record = project.run_procedure_with_dialog_answers(
+            &mut book.session, &qualified, &missing, answers,
+        );
         match &record.outcome {
             calc_host_vba::Outcome::Success(_) => success += 1,
             calc_host_vba::Outcome::RuntimeError { .. } => runtime += 1,
-            calc_host_vba::Outcome::Refused { .. } => refused += 1,
+            calc_host_vba::Outcome::Refused { .. } | calc_host_vba::Outcome::NotAvailableHere { .. } => refused += 1,
             _ => other += 1,
         }
         let mut row = invocation_json(&record);

@@ -1,0 +1,254 @@
+{
+  "c-api": {
+    "desktop": "DnaWw27c-api",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api",
+    "exit": 1,
+    "guard_samples": 1896,
+    "owned_pids": [
+      10100
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:08:35.7195081Z"
+  },
+  "c-api-final": {
+    "desktop": "DnaWw27c-api-final",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\c-api-final",
+    "exit": 1,
+    "guard_samples": 2569,
+    "owned_pids": [
+      51716
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:15:17.6089504Z"
+  },
+  "context": {
+    "desktop": "DnaWw27context",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\context",
+    "exit": 0,
+    "guard_samples": 2145,
+    "owned_pids": [
+      63660
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:06:01.8898905Z"
+  },
+  "goal": {
+    "desktop": "DnaWw27goal",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\goal",
+    "exit": 0,
+    "guard_samples": 2165,
+    "owned_pids": [
+      46828
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T08:55:15.5152493Z"
+  },
+  "goal-settings": {
+    "desktop": "DnaWw27goal-settings",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\goal-settings",
+    "exit": 0,
+    "guard_samples": 1911,
+    "owned_pids": [
+      18004
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T08:58:11.0413940Z"
+  },
+  "missing": {
+    "desktop": "DnaWw27missing",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\missing",
+    "exit": 0,
+    "guard_samples": 2221,
+    "owned_pids": [
+      20992
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:01:18.9155990Z"
+  },
+  "missing-typelib": {
+    "desktop": "DnaWw27missing-typelib",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\missing-typelib",
+    "exit": 0,
+    "guard_samples": 1938,
+    "owned_pids": [
+      17852
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:16:39.8715995Z"
+  },
+  "modal": {
+    "desktop": "DnaWw27modal",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\modal",
+    "exit": 1,
+    "guard_samples": 14687,
+    "owned_pids": [
+      49744
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:06:34.0373241Z"
+  },
+  "modal-framework": {
+    "desktop": "DnaWw27modal-framework",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\modal-framework",
+    "exit": 1,
+    "guard_samples": 15185,
+    "owned_pids": [
+      18428
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:17:06.8243000Z"
+  },
+  "modal-retry": {
+    "desktop": "DnaWw27modal-retry",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\modal-retry",
+    "exit": 1,
+    "guard_samples": 14645,
+    "owned_pids": [
+      14740
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:10:00.0863193Z"
+  },
+  "no-server": {
+    "desktop": "DnaWw27no-server",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\no-server",
+    "exit": 0,
+    "guard_samples": 1942,
+    "owned_pids": [
+      64876
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:11:52.0802039Z"
+  },
+  "portability": {
+    "desktop": "DnaWw27portability",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability",
+    "exit": 0,
+    "guard_samples": 2779,
+    "owned_pids": [
+      20576
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T08:54:30.9784957Z"
+  },
+  "reference": {
+    "desktop": "DnaWw27reference",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\reference",
+    "exit": 1,
+    "guard_samples": 2264,
+    "owned_pids": [
+      15612
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T08:57:16.1009845Z"
+  },
+  "smoke": {
+    "desktop": "DnaWw27smoke",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\smoke",
+    "exit": 0,
+    "guard_samples": 1808,
+    "owned_pids": [
+      55788
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T08:52:06.2912428Z"
+  },
+  "typelib-prepare": {
+    "desktop": "DnaWw27typelib-prepare",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\typelib-prepare",
+    "exit": 0,
+    "guard_samples": 2565,
+    "owned_pids": [
+      65952
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:00:43.6905101Z"
+  },
+  "undo": {
+    "desktop": "DnaWw27undo",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\undo",
+    "exit": 0,
+    "guard_samples": 2285,
+    "owned_pids": [
+      6612
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:00:39.5992545Z"
+  },
+  "view-followup": {
+    "desktop": "DnaWw27view-followup",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\view-followup",
+    "exit": 0,
+    "guard_samples": 2600,
+    "owned_pids": [
+      58604
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T09:11:07.8974118Z"
+  },
+  "views": {
+    "desktop": "DnaWw27views",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\ww27\\views",
+    "exit": 0,
+    "guard_samples": 2678,
+    "owned_pids": [
+      31888
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-28T08:56:01.9668102Z"
+  }
+}

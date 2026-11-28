@@ -164,6 +164,72 @@ fn run_calls_a_project_function_under_each_macro_level() {
     assert_eq!(code, 2, "{report}");
 }
 
+fn dialog_workbook(file: &str, source: &str) -> String {
+    let path = temp(file);
+    let bytes = calc_doc::source_vba_package(&[calc_doc::SourceModule {
+        name: "Dialogs",
+        kind: calc_doc::SourceModuleKind::Standard,
+        source,
+    }])
+    .unwrap();
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+#[test]
+fn headless_dialogs_use_explicit_answers_and_record_each_call() {
+    let book = dialog_workbook(
+        "dialog-answers.xlsm",
+        "Public Function Reply() As String\r\n\
+         Reply = CStr(MsgBox(\"Continue?\", 4)) & \"/\" & InputBox(\"Name?\", , \"Default\")\r\n\
+         End Function\r\n",
+    );
+    let answers = temp("dialog-answers.json");
+    std::fs::write(&answers, r#"{"msgbox":{"Continue?":6},"inputbox":{"Name?":"Alice"}}"#).unwrap();
+    let (report, code, text) = dnacalc(&[
+        "run", &book, "--macro", "Dialogs.Reply", "--macro-level", "guarded", "--answers", &answers, "--json",
+    ]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(report["result"]["value"], "6/Alice");
+    let dialogs = report["invocation"]["dialogs"].as_array().unwrap();
+    assert_eq!(dialogs.len(), 2);
+    assert_eq!(dialogs[0]["member"], "MsgBox");
+    assert_eq!(dialogs[0]["answer"], 6);
+    assert_eq!(dialogs[1]["member"], "InputBox");
+    assert_eq!(dialogs[1]["answer"], "Alice");
+
+    let (all, code, text) = dnacalc(&[
+        "run", &book, "--all", "--macro-level", "guarded", "--answers", &answers, "--json",
+    ]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(all["success"], 1);
+    assert_eq!(all["invocations"][0]["dialogs"], report["invocation"]["dialogs"]);
+}
+
+#[test]
+fn headless_dialogs_report_an_unanswered_call_even_when_vba_handles_it() {
+    let book = dialog_workbook(
+        "dialog-unanswered.xlsm",
+        "Public Function Reply() As String\r\n\
+         On Error Resume Next\r\n\
+         Reply = InputBox(\"Unanswered?\")\r\n\
+         End Function\r\n",
+    );
+    let (report, code, text) = dnacalc(&[
+        "run", &book, "--macro", "Dialogs.Reply", "--macro-level", "guarded", "--json",
+    ]);
+    assert_eq!(code, 1, "{text}");
+    assert_eq!(report["invocation"]["outcome"]["kind"], "not-available-here");
+    assert_eq!(report["invocation"]["outcome"]["need"], "ui.dialog");
+    assert_eq!(report["invocation"]["dialogs"][0]["member"], "InputBox");
+
+    let (all, code, text) = dnacalc(&["run", &book, "--all", "--macro-level", "guarded", "--json"]);
+    assert_eq!(code, 1, "{text}");
+    assert_eq!(all["success"], 0);
+    assert_eq!(all["refused"], 1);
+    assert_eq!(all["invocations"][0]["outcome"], report["invocation"]["outcome"]);
+}
+
 #[test]
 fn set_recalculates_dependents_and_saves_a_file_diff_reads_back() {
     let book = inbook("dna-simple.xlsm");

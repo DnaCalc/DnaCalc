@@ -694,7 +694,7 @@ fn engine_error(error: calcvba_host::Error) -> Error {
     }
 }
 
-fn coerce_argument(value: Variant, ty: &OxTy) -> Result<Variant, Error> {
+pub(crate) fn coerce_argument(value: Variant, ty: &OxTy) -> Result<Variant, Error> {
     use calcvba_bundle::NumericCoerceTarget as Target;
     let target = match ty {
         OxTy::Variant => return Ok(value),

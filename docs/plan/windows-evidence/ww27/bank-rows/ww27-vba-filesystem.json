@@ -1,0 +1,599 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "CASE_VBA_FILESYSTEM",
+  "selection": "Scratch Excel VBA read compared with the pinned CalcVBA VM3 and JIT in Windows-faithful mode.",
+  "readings": [
+    {
+      "id": "ww27-vba-filesystem",
+      "source": "ww27/portability/portability.tsv",
+      "excel_build": "16.0.20625.20108",
+      "platform": "windows",
+      "bitness": "x64",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "lane": "ww27",
+      "timestamp": "2026-11-28T08:54:16.9259214Z",
+      "invocation": {
+        "capture_date": "2026-11-28",
+        "input_transport": "owned Excel private desktop"
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "portability-789b268197c6",
+      "args": [
+        "case=DirOrder:*.*/0",
+        "excel_input=*.*/0",
+        "portable_input=*.*/0",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt\"},\"jit\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-1fdceb71b3b6",
+      "args": [
+        "case=DirOrder:*.*/16",
+        "excel_input=*.*/16",
+        "portable_input=*.*/16",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\".|..|a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt|sub\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt\"},\"jit\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-2be686e0d95a",
+      "args": [
+        "case=DirOrder:*.*/2",
+        "excel_input=*.*/2",
+        "portable_input=*.*/2",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt|zeta.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|zeta.txt\"},\"jit\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|zeta.txt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-f228c47c4dc5",
+      "args": [
+        "case=DirOrder:*.*/50",
+        "excel_input=*.*/50",
+        "portable_input=*.*/50",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\".|..|a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt|sub|zeta.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|zeta.txt\"},\"jit\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|zeta.txt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-797785eaea50",
+      "args": [
+        "case=DirOrder:*/0",
+        "excel_input=*/0",
+        "portable_input=*/0",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt\"},\"jit\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-c51d2745556b",
+      "args": [
+        "case=DirOrder:*/16",
+        "excel_input=*/16",
+        "portable_input=*/16",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\".|..|a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt|sub\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt|sub\"},\"jit\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt|sub\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-cad83245309d",
+      "args": [
+        "case=DirOrder:*/2",
+        "excel_input=*/2",
+        "portable_input=*/2",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt|zeta.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt|zeta.txt\"},\"jit\":{\"type\":\"String\",\"value\":\"a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt|zeta.txt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-639d74aaf2ab",
+      "args": [
+        "case=DirOrder:*/50",
+        "excel_input=*/50",
+        "portable_input=*/50",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\".|..|a-b.txt|Alpha.txt|a_b.txt|beta.TXT|case.txt|from.txt|NoExt|sub|zeta.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt|sub|zeta.txt\"},\"jit\":{\"type\":\"String\",\"value\":\".|..|a-b.txt|a_b.txt|Alpha.txt|beta.TXT|case.txt|from.txt|NoExt|sub|zeta.txt\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-f6b299d30733",
+      "args": [
+        "case=DriveChDir",
+        "excel_input=Z:\\",
+        "portable_input=Z:\\",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-552cdee4c139",
+      "args": [
+        "case=DriveChDrive",
+        "excel_input=Z",
+        "portable_input=Z",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":68,\"description\":\"Device unavailable\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-8c6c99441468",
+      "args": [
+        "case=DriveCopyFrom",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-66f741457b51",
+      "args": [
+        "case=DriveCopyTo",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-bf87e740d9e1",
+      "args": [
+        "case=DriveCurDir",
+        "excel_input=Z",
+        "portable_input=Z",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":68,\"description\":\"Device unavailable\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-2a1a41c6b0a0",
+      "args": [
+        "case=DriveDir",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-74e49d8822bc",
+      "args": [
+        "case=DriveFileDateTime",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-7cd98c759fb0",
+      "args": [
+        "case=DriveFileLen",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-3c22f183540e",
+      "args": [
+        "case=DriveGetAttr",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-4a4f3faa1089",
+      "args": [
+        "case=DriveKill",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-7aa8718feeb3",
+      "args": [
+        "case=DriveMkDir",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-3cc799d48274",
+      "args": [
+        "case=DriveMoveFrom",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-fcd38e785433",
+      "args": [
+        "case=DriveMoveTo",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive Z: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive Z: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-01168b22bbda",
+      "args": [
+        "case=DriveOpenInput",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful",
+        "VBA statement pair: Open; Close"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":52,\"description\":\"invalid file handle: 1\"},\"jit\":{\"err\":52,\"description\":\"invalid file handle: 1\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-6e4ae98ac5c8",
+      "args": [
+        "case=DriveOpenOutput",
+        "excel_input=Z:\\ww27-absent\\item.txt",
+        "portable_input=Z:\\ww27-absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful",
+        "VBA statement pair: Open; Close"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":52,\"description\":\"invalid file handle: 1\"},\"jit\":{\"err\":52,\"description\":\"invalid file handle: 1\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-41168924aef4",
+      "args": [
+        "case=TrailingDir:case.txt ",
+        "excel_input=C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability\\files\\case.txt ",
+        "portable_input=case.txt ",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"case.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"\"},\"jit\":{\"type\":\"String\",\"value\":\"\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-2b0d47fa5aaa",
+      "args": [
+        "case=TrailingDir:case.txt.",
+        "excel_input=C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability\\files\\case.txt.",
+        "portable_input=case.txt.",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"case.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"\"},\"jit\":{\"type\":\"String\",\"value\":\"\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-ae7e960daae9",
+      "args": [
+        "case=TrailingDir:case.txt. ",
+        "excel_input=C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability\\files\\case.txt. ",
+        "portable_input=case.txt. ",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"case.txt\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"\"},\"jit\":{\"type\":\"String\",\"value\":\"\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-0f14c134e506",
+      "args": [
+        "case=TrailingGetAttr:case.txt ",
+        "excel_input=C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability\\files\\case.txt ",
+        "portable_input=case.txt ",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"Long\",\"value\":\"32\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":53,\"description\":\"failed to stat /home/koderbot/codex-runs/ww27-xbuild/runtime-probes-r2/vm3/68/ww27-dir/case.txt : No such file or directory (os error 2)\"},\"jit\":{\"err\":53,\"description\":\"failed to stat /home/koderbot/codex-runs/ww27-xbuild/runtime-probes-r2/jit/68/ww27-dir/case.txt : No such file or directory (os error 2)\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-755c3d1753f8",
+      "args": [
+        "case=TrailingGetAttr:case.txt.",
+        "excel_input=C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability\\files\\case.txt.",
+        "portable_input=case.txt.",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"Long\",\"value\":\"32\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":53,\"description\":\"failed to stat /home/koderbot/codex-runs/ww27-xbuild/runtime-probes-r2/vm3/66/ww27-dir/case.txt.: No such file or directory (os error 2)\"},\"jit\":{\"err\":53,\"description\":\"failed to stat /home/koderbot/codex-runs/ww27-xbuild/runtime-probes-r2/jit/66/ww27-dir/case.txt.: No such file or directory (os error 2)\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-52b717a11308",
+      "args": [
+        "case=TrailingGetAttr:case.txt. ",
+        "excel_input=C:\\Work\\DnaCalc\\codex-runs\\ww27\\portability\\files\\case.txt. ",
+        "portable_input=case.txt. ",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"Long\",\"value\":\"32\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":53,\"description\":\"failed to stat /home/koderbot/codex-runs/ww27-xbuild/runtime-probes-r2/vm3/70/ww27-dir/case.txt. : No such file or directory (os error 2)\"},\"jit\":{\"err\":53,\"description\":\"failed to stat /home/koderbot/codex-runs/ww27-xbuild/runtime-probes-r2/jit/70/ww27-dir/case.txt. : No such file or directory (os error 2)\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-40d44740c30e",
+      "args": [
+        "case=UNCChDir",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-3cc7e9adbdef",
+      "args": [
+        "case=UNCChDrive",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":5,\"description\":\"Invalid procedure call or argument\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"drive \\\\: is unmapped\"},\"jit\":{\"err\":76,\"description\":\"drive \\\\: is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-cb17f2b9b4ca",
+      "args": [
+        "case=UNCCopyFrom",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":75,\"description\":\"Path/File access error\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-b3ede876012d",
+      "args": [
+        "case=UNCCopyTo",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":75,\"description\":\"Path/File access error\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-db19d79f476d",
+      "args": [
+        "case=UNCCurDir",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":5,\"description\":\"Invalid procedure call or argument\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":5,\"description\":\"HalError { kind: AdapterFault, stable_code: \\\"HAL-E-ADAPTER-FAULT\\\", profile: Linux, capability: FileSystemIo, operation: \\\"curdir\\\", message: \\\"invalid drive letter\\\", host_error_code: None, host_error_info: None }\"},\"jit\":{\"err\":5,\"description\":\"HalError { kind: AdapterFault, stable_code: \\\"HAL-E-ADAPTER-FAULT\\\", profile: Linux, capability: FileSystemIo, operation: \\\"curdir\\\", message: \\\"invalid drive letter\\\", host_error_code: None, host_error_info: None }\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-f7aba5c9a3fc",
+      "args": [
+        "case=UNCDir",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":52,\"description\":\"Bad file name or number\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-1cc294ba2553",
+      "args": [
+        "case=UNCFileDateTime",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":5,\"description\":\"Invalid procedure call or argument\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-3db9beb0fb07",
+      "args": [
+        "case=UNCFileLen",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":5,\"description\":\"Invalid procedure call or argument\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-189af9d2dd11",
+      "args": [
+        "case=UNCGetAttr",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":5,\"description\":\"Invalid procedure call or argument\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-2aab1db3d476",
+      "args": [
+        "case=UNCKill",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-31f9ab86de0b",
+      "args": [
+        "case=UNCMkDir",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":76,\"description\":\"Path not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-4795c94bcc31",
+      "args": [
+        "case=UNCMoveFrom",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-4d5152eb9e2d",
+      "args": [
+        "case=UNCMoveTo",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":53,\"description\":\"File not found\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"},\"jit\":{\"err\":76,\"description\":\"UNC share localhost/DnaWw27FFC03F35Absent is unmapped\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-4a782bc5dbef",
+      "args": [
+        "case=UNCOpenInput",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful",
+        "VBA statement pair: Open; Close"
+      ],
+      "expected_bits": "text:{\"err\":75,\"description\":\"Path/File access error\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":52,\"description\":\"invalid file handle: 1\"},\"jit\":{\"err\":52,\"description\":\"invalid file handle: 1\"}}",
+      "reading": "ww27-vba-filesystem"
+    },
+    {
+      "id": "portability-0279b8a2d205",
+      "args": [
+        "case=UNCOpenOutput",
+        "excel_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "portable_input=\\\\localhost\\DnaWw27FFC03F35Absent\\item.txt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful",
+        "VBA statement pair: Open; Close"
+      ],
+      "expected_bits": "text:{\"err\":75,\"description\":\"Path/File access error\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":52,\"description\":\"invalid file handle: 1\"},\"jit\":{\"err\":52,\"description\":\"invalid file handle: 1\"}}",
+      "reading": "ww27-vba-filesystem"
+    }
+  ]
+}

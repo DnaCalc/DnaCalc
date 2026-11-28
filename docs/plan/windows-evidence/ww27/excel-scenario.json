@@ -1,0 +1,74 @@
+{
+  "before": [
+    {
+      "formula": "0.105",
+      "value": 0.105,
+      "text": "10.50%",
+      "type": "Double"
+    },
+    {
+      "formula": "999.5",
+      "value": 999.5,
+      "text": "999.5",
+      "type": "Double"
+    },
+    {
+      "formula": "001",
+      "value": "001",
+      "text": "001",
+      "type": "String"
+    },
+    {
+      "formula": "",
+      "value": null,
+      "text": "",
+      "type": null
+    }
+  ],
+  "created": {
+    "cells": "$B$3,$D$1:$D$3",
+    "name": "WW27 Excel snapshot",
+    "values": [
+      "0.105",
+      "999.5",
+      "001",
+      ""
+    ]
+  },
+  "shown": [
+    {
+      "formula": "0.105",
+      "value": 0.105,
+      "text": "10.50%",
+      "type": "Double"
+    },
+    {
+      "formula": "999.5",
+      "value": 999.5,
+      "text": "999.5",
+      "type": "Double"
+    },
+    {
+      "formula": "1",
+      "value": 1.0,
+      "text": "1",
+      "type": "Double"
+    },
+    {
+      "formula": "",
+      "value": null,
+      "text": "",
+      "type": null
+    }
+  ],
+  "reopened": {
+    "cells": "$B$3,$D$1:$D$3",
+    "name": "WW27 Excel snapshot",
+    "values": [
+      "0.105",
+      "999.5",
+      "001",
+      ""
+    ]
+  }
+}

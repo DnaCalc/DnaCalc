@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-28T08:54:16.9259214Z",
+  "lane": "ww27",
+  "version": "16.0",
+  "build": "16.0.20625.20108",
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+  "locale": "en-ZA",
+  "excel_country": 27.0,
+  "automation_security": 1,
+  "filesystem": "NTFS",
+  "absent_drive": "Z",
+  "absent_share": "\\\\localhost\\DnaWw27FFC03F35Absent",
+  "module_sha256": "982D1AC73D98D60DF512B00A07624EC2A1A68D72F5CEBF248541A01EB24ED19A",
+  "unrelated_before": 2701,
+  "rows": 218,
+  "unrelated_after": 2701,
+  "automation_security_after": 1
+}

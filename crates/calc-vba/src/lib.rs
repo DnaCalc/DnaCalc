@@ -7,6 +7,7 @@ use calc_func::value::{CellKey, ReferenceLike};
 use calc_func::{UserFunction, UserFunctionContext};
 pub use calcvba_host::Backend;
 mod descriptor;
+mod dialog;
 mod msforms_constants;
 pub mod events;
 mod invocation_model;
@@ -14,6 +15,7 @@ pub mod office;
 pub mod policy;
 mod projection;
 mod runtime;
+pub use dialog::{DialogAnswer, DialogAnswers, DialogCall};
 pub use office::{
     OfficeModule, OfficeModuleKind, OfficeProject, OfficeReadLimits, OfficeReference,
     read_office_project, read_office_project_with,

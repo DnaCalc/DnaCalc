@@ -1,0 +1,170 @@
+[
+  {
+    "id": "loan-0",
+    "seeds": {
+      "B2": "0x4130ae57a7f0c5a5",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=-PMT(B3/12,B4,B2)",
+    "excel": "0x40c3880000000000",
+    "dnacalc": "0x40c3880000000000",
+    "match": true
+  },
+  {
+    "id": "loan-1",
+    "seeds": {
+      "B2": "0x4130ae57a7f0c5a5",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=-PMT(B3/12,B4,B2)",
+    "excel": "0x40c3880000000000",
+    "dnacalc": "0x40c3880000000000",
+    "match": true
+  },
+  {
+    "id": "loan-1000000",
+    "seeds": {
+      "B2": "0x4130ae57a7f0c5a7",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=-PMT(B3/12,B4,B2)",
+    "excel": "0x40c3880000000002",
+    "dnacalc": "0x40c3880000000002",
+    "match": true
+  },
+  {
+    "id": "loan-minus-1000000",
+    "seeds": {
+      "B2": "0x4130ae57a7f0c5a5",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=-PMT(B3/12,B4,B2)",
+    "excel": "0x40c3880000000000",
+    "dnacalc": "0x40c3880000000000",
+    "match": true
+  },
+  {
+    "id": "loan-2000000",
+    "seeds": {
+      "B2": "0x4130ae57a7f0c5a5",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=-PMT(B3/12,B4,B2)",
+    "excel": "0x40c3880000000000",
+    "dnacalc": "0x40c3880000000000",
+    "match": true
+  },
+  {
+    "id": "square-positive",
+    "seeds": {
+      "B2": "0x3ff6a09bfd22faea",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=B2^2",
+    "excel": "0x3ffffff92dd7b5c8",
+    "dnacalc": "0x3ffffff92dd7b5c8",
+    "match": true
+  },
+  {
+    "id": "square-negative",
+    "seeds": {
+      "B2": "0xbff6a09bfd22faea",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=B2^2",
+    "excel": "0x3ffffff92dd7b5c8",
+    "dnacalc": "0x3ffffff92dd7b5c8",
+    "match": true
+  },
+  {
+    "id": "square-stationary",
+    "seeds": {
+      "B2": "0x3ff6a0a9db4e516c",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=B2^2",
+    "excel": "0x4000001033a2596d",
+    "dnacalc": "0x4000001033a2596d",
+    "match": true
+  },
+  {
+    "id": "square-no-real-solution",
+    "seeds": {
+      "B2": "0xc2b99999999999b6",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=B2^2",
+    "excel": "0x45847ae147ae14a8",
+    "dnacalc": "0x45847ae147ae14a8",
+    "match": true
+  },
+  {
+    "id": "zero-slope",
+    "seeds": {
+      "B2": "0xc12eb84beb851eb8",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=B2*0+5",
+    "excel": "0x4014000000000000",
+    "dnacalc": "0x4014000000000000",
+    "match": true
+  },
+  {
+    "id": "flat-already-at-goal",
+    "seeds": {
+      "B2": "0x4008000000000000",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=B2*0+5",
+    "excel": "0x4014000000000000",
+    "dnacalc": "0x4014000000000000",
+    "match": true
+  },
+  {
+    "id": "no-direct-dependency",
+    "seeds": {
+      "B2": "0xc12eb84beb851eb8",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=5",
+    "excel": "0x4014000000000000",
+    "dnacalc": "0x4014000000000000",
+    "match": true
+  },
+  {
+    "id": "round-plateau",
+    "seeds": {
+      "B2": "0x4021851eb851eb85",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=ROUND(B2,0)",
+    "excel": "0x4022000000000000",
+    "dnacalc": "0x4022000000000000",
+    "match": true
+  },
+  {
+    "id": "formula-domain-error",
+    "seeds": {
+      "B2": "0xc008000000000000",
+      "B3": "0x3fbae147ae147ae1",
+      "B4": "0x4076800000000000"
+    },
+    "formula": "=SQRT(B2)",
+    "excel": "error:Num",
+    "dnacalc": "error:Num",
+    "match": true
+  }
+]

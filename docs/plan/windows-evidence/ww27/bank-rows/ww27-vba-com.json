@@ -1,0 +1,205 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "CASE_VBA_COM",
+  "selection": "Scratch Excel VBA read compared with the pinned CalcVBA VM3 and JIT in Windows-faithful mode.",
+  "readings": [
+    {
+      "id": "ww27-vba-com",
+      "source": "ww27/portability/portability.tsv",
+      "excel_build": "16.0.20625.20108",
+      "platform": "windows",
+      "bitness": "x64",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "lane": "ww27",
+      "timestamp": "2026-11-28T08:54:16.9259214Z",
+      "invocation": {
+        "capture_date": "2026-11-28",
+        "input_transport": "owned Excel private desktop"
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "portability-178b36d93610",
+      "args": [
+        "case=CreateObject",
+        "excel_input=DnaWw27FFC03F35.AbsentClass",
+        "portable_input=CreateObject(\"DnaWw27FFC03F35.AbsentClass\")",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":429,\"description\":\"ActiveX component can't create object\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"create_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"},\"jit\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"create_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-38b4a929a7ae",
+      "args": [
+        "case=FSOGetExtensionName:C:\\a.b\\",
+        "excel_input=C:\\a.b\\",
+        "portable_input=C:\\a.b\\",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"b\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"\"},\"jit\":{\"type\":\"String\",\"value\":\"\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-9d07a51d734d",
+      "args": [
+        "case=FSOGetFileName:C:\\a.b\\",
+        "excel_input=C:\\a.b\\",
+        "portable_input=C:\\a.b\\",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"a.b\"}",
+      "calc_func": "text:{\"vm3\":{\"type\":\"String\",\"value\":\"\"},\"jit\":{\"type\":\"String\",\"value\":\"\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-1ea0e9afbe1b",
+      "args": [
+        "case=FSOGetFileNameNamed:.hidden",
+        "excel_input=.hidden",
+        "portable_input=.hidden",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\".hidden\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-79d6c74a4a26",
+      "args": [
+        "case=FSOGetFileNameNamed:C:",
+        "excel_input=C:",
+        "portable_input=C:",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-d74e2b3a8ed0",
+      "args": [
+        "case=FSOGetFileNameNamed:C:\\a.b\\",
+        "excel_input=C:\\a.b\\",
+        "portable_input=C:\\a.b\\",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"a.b\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-941380ba9390",
+      "args": [
+        "case=FSOGetFileNameNamed:C:\\a.b\\NoExt",
+        "excel_input=C:\\a.b\\NoExt",
+        "portable_input=C:\\a.b\\NoExt",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"NoExt\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-c90d6ae5f51d",
+      "args": [
+        "case=FSOGetFileNameNamed:C:\\scratch\\missing.TxT",
+        "excel_input=C:\\scratch\\missing.TxT",
+        "portable_input=C:\\scratch\\missing.TxT",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"missing.TxT\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-a85ceb0b0070",
+      "args": [
+        "case=FSOGetFileNameNamed:C:drive.Relative",
+        "excel_input=C:drive.Relative",
+        "portable_input=C:drive.Relative",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"drive.Relative\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-c6938258a089",
+      "args": [
+        "case=FSOGetFileNameNamed:UPPER.CAFÉ",
+        "excel_input=UPPER.CAFÉ",
+        "portable_input=UPPER.CAFÉ",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"UPPER.CAFÉ\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-88ea5bbb0247",
+      "args": [
+        "case=FSOGetFileNameNamed:\\\\localhost\\share\\",
+        "excel_input=\\\\localhost\\share\\",
+        "portable_input=\\\\localhost\\share\\",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"type\":\"String\",\"value\":\"\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":448,\"description\":\"Named argument not found\"},\"jit\":{\"err\":448,\"description\":\"Named argument not found\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-c51510b136f6",
+      "args": [
+        "case=GetObjectEmpty",
+        "excel_input=DnaWw27FFC03F35.AbsentClass",
+        "portable_input=GetObject(\"\", \"DnaWw27FFC03F35.AbsentClass\")",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":429,\"description\":\"ActiveX component can't create object\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"create_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"},\"jit\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"create_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-b70720a0b8fa",
+      "args": [
+        "case=GetObjectMissingFile",
+        "excel_input=DnaWw27FFC03F35.AbsentClass",
+        "portable_input=GetObject(\"C:\\absent-file.zzz\",\"DnaWw27FFC03F35.AbsentClass\")",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":429,\"description\":\"ActiveX component can't create object\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"get_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"},\"jit\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"get_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"}}",
+      "reading": "ww27-vba-com"
+    },
+    {
+      "id": "portability-2a6b4246394b",
+      "args": [
+        "case=GetObjectOmitted",
+        "excel_input=DnaWw27FFC03F35.AbsentClass",
+        "portable_input=GetObject(, \"DnaWw27FFC03F35.AbsentClass\")",
+        "CalcVBA=7a81159e632c72518b0d26dc1e9c28186ba54bbd",
+        "profile=linux-stdio/windows-faithful"
+      ],
+      "expected_bits": "text:{\"err\":429,\"description\":\"ActiveX component can't create object\"}",
+      "calc_func": "text:{\"vm3\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"get_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"},\"jit\":{\"err\":5,\"description\":\"HalError { kind: CapabilityUnavailable, stable_code: \\\"HAL-E-CAP-UNAVAILABLE\\\", profile: Linux, capability: ComActivationDispatch, operation: \\\"get_object\\\", message: \\\"capability is not supported by active HAL profile\\\", host_error_code: None, host_error_info: None }\"}}",
+      "reading": "ww27-vba-com"
+    }
+  ]
+}

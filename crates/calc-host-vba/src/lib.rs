@@ -41,6 +41,7 @@ pub use command::{
     Denial, InvocationKind, InvocationRecord, Outcome, ProcedureArg, ProcedureEntry,
     ProcedureKind, ProcedureResult,
 };
+pub use calc_vba::{DialogAnswer, DialogAnswers, DialogCall};
 mod command;
 mod book;
 pub use book::{ApplicationOptions, install_application};
