@@ -25,6 +25,7 @@ impl View for Classic {
         let mut commands = dna_grid::commands(&view, session);
         commands.extend(clipboard::commands(&view, session));
         commands.extend(dna_kit::sort_dialog::commands(&view, session));
+        commands.extend(dna_kit::scenario_manager::commands(&view, session));
         commands.push(
             ViewCommand::new(&view, "classic.key-tips", "Key tips", &["F10"], move |_| {
                 session.toggle_key_tips();
@@ -39,11 +40,12 @@ impl View for Classic {
         MountedView::exact(leptos::view! {
             {dna_grid::mount(session)}
             {dna_kit::sort_dialog::mount(session)}
+            {dna_kit::scenario_manager::mount(session)}
         })
     }
 
     fn cancel_interaction(&self, session: Session) -> bool {
-        dna_kit::sort_dialog::close(session)
+        dna_kit::sort_dialog::close(session) || dna_kit::scenario_manager::close(session)
     }
 }
 

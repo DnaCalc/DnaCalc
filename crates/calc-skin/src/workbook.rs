@@ -500,6 +500,11 @@ pub enum ModelChange {
         scenario: crate::ScenarioRef,
         inputs: Vec<Bound>,
     },
+    /// Capture the current literal values in the selected worksheet areas.
+    SaveScenarioCells {
+        scenario: crate::ScenarioRef,
+        areas: Vec<Area>,
+    },
     /// Restore the exact authored literals from the open workbook to the chosen bound inputs.
     ResetInputs { inputs: Vec<Bound> },
     ClearContents {

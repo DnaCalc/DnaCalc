@@ -81,6 +81,17 @@
     color: var(--dna-ink);
     background: var(--dna-paper);
 }
+.dna-scenario-manager ul { list-style: none; padding-inline-start: 0; }
+.dna-scenario-manager li + li { margin-block-start: var(--dna-gap-1); }
+.dna-scenario-manager button[aria-pressed="true"] { font-weight: 600; }
+.dna-scenario-manager form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dna-gap-2);
+    align-items: end;
+    margin-block: var(--dna-gap-3);
+}
+.dna-scenario-manager label { display: grid; gap: var(--dna-gap-1); }
 .dna-page-value { display: grid; }
 .dna-page-prose { white-space: pre-wrap; }
 .dna-page-chart { max-inline-size: 100%; block-size: auto; }
