@@ -677,15 +677,26 @@ fn stock_ticked() -> BuildResult {
     }
     w.text(0, 5, 1, "Run clock");
     w.input(0, 5, 2, CellInput::Logical(false));
+    w.edits.push(WorkbookOp::SetIteration(IterationSettings::new(true, 1, 0.001)));
+    // The tick and both stock readings live in one scalar so a pass cannot see
+    // half an update. Same-tick recalculation returns the old scalar verbatim.
+    let [guarded, current, previous] = calc_host::ClockBalance {
+        state: w.at(0, 11, 2),
+        tick: w.at(0, 8, 2),
+        reset: w.at(0, 7, 2),
+        opening: w.at(0, 2, 2),
+        debit: w.at(0, 3, 2),
+    }.formulas().expect("clock and stock are authored on the same worksheet");
     for (row, label, formula) in [
         (8, "Tick", r#"RTD("DnaCalc.Clock",,"Stock","tick",B4,B5,B6,B7)"#),
-        (9, "Stock", "MAX(0,B2-B3*B8)"),
-        (10, "Stock at previous tick", "MAX(0,B2-B3*MAX(0,B8-1))"),
+        (9, "Stock", &current),
+        (10, "Stock at previous tick", &previous),
+        (11, "Tick, stock and previous stock", &guarded),
     ] {
         w.text(0, row, 1, label);
         w.formula(0, row, 2, formula);
     }
-    for (name, row) in [("Stock.Tick", 8), ("Stock.OnHand", 9), ("Prev.Stock", 10)] {
+    for (name, row) in [("Stock.Tick", 8), ("Stock.OnHand", 9), ("Prev.Stock", 10), ("Stock.State", 11)] {
         w.edits.push(WorkbookOp::SetNameFormula {
             scope: NameScope::Workbook,
             name: name.into(),
@@ -766,6 +777,66 @@ mod tests {
     };
     use calc_skin_host::SkinHost;
     use std::sync::Arc;
+
+    #[test]
+    fn stock_ticked_holds_during_edits_and_calculations_at_the_same_tick() {
+        use calc_skin::query::{CalcIteration, Cells, Query};
+        use calc_skin::{ClockDelay, Evidence, Interest, Operation, Provenance};
+
+        let (bytes, _) = super::stock_ticked().unwrap();
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default(),
+        ).unwrap();
+        let sheet = Sheet::of(session.host().sheets()[0].id());
+        let host = SkinHost::new(session);
+        host.enable_model_clock();
+        let port = host.connect(Origin::User { view: ViewId("map".into()) }, WritePolicy::Commit);
+        let budget = Budget { cells: 50, nodes: 50, edges: 50, bytes: 16_384, millis: 5_000 };
+        let at = |row| Key(sheet.0, sheet.1, row, 2);
+        let settle = || while host.advance() {};
+        let sequence = std::cell::Cell::new(0);
+        let enter = |row, text: &str| {
+            sequence.set(sequence.get() + 1);
+            port.commit(Batch {
+                id: sequence.get().to_string(),
+                workbook: None, base: None, expects: vec![], selection_seq: None, label: None,
+                changes: vec![Change::Model(ModelChange::Enter { at: at(row), text: text.into() })],
+            }).unwrap();
+            settle();
+        };
+        let expect = |tick: u64, current: f64, previous: f64| {
+            let read = Cells { interest: Interest::Area(Area(at(8), at(10))) };
+            let answer = Cells::decode(port.ask(read.request(), budget).unwrap()).unwrap();
+            for (cell, expected) in answer.body.cells.iter().zip([tick as f64, current, previous]) {
+                assert!(matches!(cell.shown.provenance, Provenance::Calculated { .. }));
+                assert_eq!(cell.shown.value, RawValue::Number { bits: expected.to_bits() });
+            }
+            assert_eq!(answer.body.cells.len(), 3);
+            let report = CalcIteration::decode(port.ask(CalcIteration.request(), budget).unwrap()).unwrap();
+            let Evidence::Observed { body, .. } = report.body else { panic!("Expected observed iteration") };
+            assert_eq!(body.clock_delays, [ClockDelay { state: at(11), clock: at(8), tick }]);
+        };
+
+        settle();
+        expect(0, 400., 400.);
+        enter(6, "1");
+        expect(1, 300., 400.);
+        enter(3, "40");
+        expect(1, 300., 400.);
+        for operation in [Operation::Calculate { scope: SourceRef::Workbook }, Operation::CalculateFull] {
+            port.run(operation).unwrap();
+            settle();
+            expect(1, 300., 400.);
+        }
+        enter(6, "2");
+        expect(2, 260., 300.);
+        enter(7, "1");
+        expect(0, 400., 400.);
+        enter(8, "=0");
+        let report = CalcIteration::decode(port.ask(CalcIteration.request(), budget).unwrap()).unwrap();
+        let Evidence::Observed { body, .. } = report.body else { panic!("Expected observed iteration") };
+        assert!(body.clock_delays.is_empty(), "delay evidence requires a current RTD read");
+    }
 
     #[test]
     fn sales_notebook_recalculates_the_full_chain_and_preserves_the_blocked_layout() {

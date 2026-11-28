@@ -140,6 +140,14 @@ fn cycle(
         _ => None,
     };
     if let Some(body) = observed {
+        if let Some(delay) = body.clock_delays.iter().find(|delay| delay.state == at) {
+            return view! {
+                <div class="dna-map-cycle" data-map-cycle="delay">
+                    <strong>"z⁻¹ · per tick"</strong>
+                    <span>{format!("Clock {} · tick {}", a1(delay.clock), delay.tick)}</span>
+                </div>
+            }.into_any();
+        }
         let tolerance = f64::from_bits(body.max_change_bits);
         return view! {
             <div class="dna-map-iteration" data-map-cycle="iteration">

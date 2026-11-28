@@ -139,7 +139,7 @@ mod merge;
 mod name_calculation;
 mod model_clock;
 mod names;
-pub use model_clock::{ModelClock, ModelClockTick};
+pub use model_clock::{ClockBalance, ModelClock, ModelClockTick};
 pub use facts::alignment as style_alignment;
 pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
 pub use format::{

@@ -1,9 +1,11 @@
 //! An in-process RTD clock driven by elapsed time supplied by the workbook owner.
 
 use crate::{
-    RtdConnection, RtdConnector, RtdLease, TopicKey,
+    FormulaResult, HostState, RtdConnection, RtdConnector, RtdLease, TopicKey,
     value::{CalcValue, CellKey},
 };
+use calc_doc_model::CellInput;
+use calc_fml::reference::column_letters;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc, time::Duration};
 
 const PROG_ID: &str = "dnacalc.clock";
@@ -93,6 +95,53 @@ pub struct ModelClockTick {
     pub value: CalcValue,
 }
 
+/// Worksheet cells used by the guarded clock balance.
+///
+/// The scalar state carries the reset count, tick, current balance and previous balance.
+/// Keeping them together makes the old balance available without relying on the order in
+/// which Excel evaluates several cells in a circular component.
+pub struct ClockBalance {
+    /// The self-referencing state formula.
+    pub state: CellKey,
+    /// The RTD clock formula.
+    pub tick: CellKey,
+    /// The control that starts a new sequence at tick zero.
+    pub reset: CellKey,
+    /// The balance at the start of a sequence.
+    pub opening: CellKey,
+    /// The amount to debit on the next tick, with a lower balance limit of zero.
+    pub debit: CellKey,
+}
+
+impl ClockBalance {
+    /// Ordinary A1 formulas for state, current balance, and previous balance, on one sheet.
+    pub fn formulas(&self) -> Option<[String; 3]> {
+        let [state, tick, reset, opening, debit] =
+            [self.state, self.tick, self.reset, self.opening, self.debit];
+        if [tick, reset, opening, debit]
+            .iter()
+            .any(|at| at.sheet() != state.sheet())
+        {
+            return None;
+        }
+        let [state, tick, reset, opening, debit] = [state, tick, reset, opening, debit]
+            .map(|at| format!("{}{}", column_letters(at.column()), at.row()));
+        let first = format!(r#"FIND("|",{state})"#);
+        let second = format!(r#"FIND("|",{state},{first}+1)"#);
+        let prior_stamp = format!(r#"IFERROR(LEFT({state},{first}-1),"")"#);
+        let current = format!("--MID({state},{first}+1,{second}-{first}-1)");
+        let previous = format!("--MID({state},{second}+1,32767)");
+        let stamp = format!(r#"{reset}&":"&{tick}"#);
+        let initial = format!(r#"{reset}&":0|"&{opening}&"|"&{opening}"#);
+        let next = format!(r#"{stamp}&"|"&MAX(0,{current}-{debit})&"|"&{current}"#);
+        let previous_stamp = format!(r#"{reset}&":"&({tick}-1)"#);
+        let state_formula = format!(
+            "IF({prior_stamp}={stamp},{state},IF({tick}=0,{initial},IF({prior_stamp}={previous_stamp},{next},{state})))"
+        );
+        Some([state_formula, current, previous])
+    }
+}
+
 /// The in-process provider for the `DnaCalc.Clock` RTD topic.
 #[derive(Debug, Default)]
 pub struct ModelClock {
@@ -109,6 +158,75 @@ impl ModelClock {
     /// Drop the models from a workbook that was replaced.
     pub fn reset(&self) {
         self.state.borrow_mut().models.clear();
+    }
+
+    /// The clock cell and tick backing a just-calculated, guarded balance.
+    ///
+    /// The caller checks iteration evidence for a prior-pass self-read. Require the exact
+    /// guard, a current local lease, and agreement between the state, clock cell and ledger.
+    pub fn observed_balance(&self, host: &HostState, at: CellKey) -> Option<(CellKey, u64)> {
+        let CellInput::Formula(formula) = host.model().cell(at)? else {
+            return None;
+        };
+        let formula = formula.rendered();
+        let formula = String::from_utf16(formula.utf16_code_units()).ok()?;
+        if !formula.starts_with("IF(IFERROR(LEFT(") {
+            return None;
+        }
+        let mut sites = Vec::new();
+        for (_, target) in host.scalar_reference_sites(at, &format!("={formula}")) {
+            if !sites.contains(&target) {
+                sites.push(target);
+            }
+        }
+        let [state, reset, tick, opening, debit] = sites.as_slice() else {
+            return None;
+        };
+        if *state != at {
+            return None;
+        }
+        let [guard, ..] = (ClockBalance {
+            state: *state,
+            tick: *tick,
+            reset: *reset,
+            opening: *opening,
+            debit: *debit,
+        })
+        .formulas()?;
+        if formula != guard {
+            return None;
+        }
+        let state = self.state.borrow();
+        let model = state.models.values().find(|model| model.caller == *tick)?;
+        let entry = host.rtd_inputs.entry(&model.topic)?;
+        let clock = model.value();
+        if entry.lease != model.lease || entry.sequence != model.sequence || entry.value != clock {
+            return None;
+        }
+        let clock_result = host.engine.result(*tick)?;
+        let FormulaResult::Calculated { value, calculation } = clock_result else {
+            return None;
+        };
+        if *value != clock
+            || calculation.held_by_circular_rule()
+            || calculation.reads_external_links()
+            || !clock_result.rtd_reads().iter().any(|read| {
+                read.topic == model.topic
+                    && read.lease == model.lease
+                    && read.sequence == model.sequence
+            })
+        {
+            return None;
+        }
+        let Some(FormulaResult::Calculated { value, calculation }) = host.engine.result(at) else {
+            return None;
+        };
+        if calculation.held_by_circular_rule() || calculation.reads_external_links() {
+            return None;
+        }
+        let content = value.as_text()?.to_string_lossy();
+        let (stamp, _) = content.split_once('|')?;
+        (stamp == format!("{}:{}", model.controls.reset, model.tick)).then_some((*tick, model.tick))
     }
 
     /// Hold elapsed time while the workbook is busy. Publish one due tick per model at a time.
