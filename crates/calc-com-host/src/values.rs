@@ -1,5 +1,5 @@
 //! The only VARIANT/Automation conversion. Both COM call routes and RTD use it.
-use calc_object_model::{AutoArray, AutoError, AutoValue, ObjectRef, descriptor::TypeRef};
+use calc_object_model::{AutoArray, AutoArrayShape, AutoError, AutoValue, ObjectRef, descriptor::TypeRef};
 use calc_value::ExcelText;
 use std::mem::ManuallyDrop;
 use windows::{
@@ -82,11 +82,16 @@ pub(crate) fn to_variant(objects: &dyn Objects, value: &AutoValue) -> Result<VAR
         AutoValue::Object(target) => objects.wrap(target)?.into(),
         AutoValue::Foreign(key) => objects.foreign(*key)?.into(),
         AutoValue::Array(array) => {
-            if array.rows == 0
-                || array.columns == 0
-                || array.rows > i32::MAX as u32
-                || array.columns > i32::MAX as u32
-                || u64::from(array.rows) * u64::from(array.columns) != array.values.len() as u64
+            let (rows, columns) = array.grid_size();
+            let (rank, lower_row, lower_column) = match array.shape {
+                AutoArrayShape::Vector { lower } => (1, 0, lower),
+                AutoArrayShape::Matrix { lower, .. } => (2, lower.0, lower.1),
+            };
+            if rows == 0
+                || columns == 0
+                || lower_row.checked_add_unsigned(rows - 1).is_none()
+                || lower_column.checked_add_unsigned(columns - 1).is_none()
+                || u64::from(rows) * u64::from(columns) != array.values.len() as u64
             {
                 return Err(AutoError::Status(E_INVALIDARG.0));
             }
@@ -94,25 +99,30 @@ pub(crate) fn to_variant(objects: &dyn Objects, value: &AutoValue) -> Result<VAR
             // private to OLE; Get/PutElement take logical [row, column] indices as well.
             let bounds = [
                 SAFEARRAYBOUND {
-                    cElements: array.rows,
-                    lLbound: 1,
+                    cElements: rows,
+                    lLbound: lower_row,
                 },
                 SAFEARRAYBOUND {
-                    cElements: array.columns,
-                    lLbound: 1,
+                    cElements: columns,
+                    lLbound: lower_column,
                 },
             ];
-            let held = ArrayOwner::new(unsafe { SafeArrayCreate(VT_VARIANT, 2, bounds.as_ptr()) })?;
-            for row in 0..array.rows {
-                for column in 0..array.columns {
+            let first = 2 - rank as usize;
+            let held = ArrayOwner::new(unsafe { SafeArrayCreate(VT_VARIANT, rank, bounds[first..].as_ptr()) })?;
+            for row in 0..rows {
+                for column in 0..columns {
                     let value = to_variant(
                         objects,
-                        &array.values[row as usize * array.columns as usize + column as usize],
+                        &array.values[row as usize * columns as usize + column as usize],
                     )?;
+                    let indices = [
+                        lower_row.checked_add_unsigned(row).unwrap(),
+                        lower_column.checked_add_unsigned(column).unwrap(),
+                    ];
                     unsafe {
                         SafeArrayPutElement(
                             held.0,
-                            [row as i32 + 1, column as i32 + 1].as_ptr(),
+                            indices[first..].as_ptr(),
                             (&value as *const VARIANT).cast(),
                         )
                     }
@@ -249,9 +259,26 @@ pub(crate) unsafe fn from_array(
     objects: &dyn Objects,
     array: *const SAFEARRAY,
 ) -> Result<AutoValue, AutoError> {
+    if array.is_null() {
+        return mismatch();
+    }
+    if unsafe { SafeArrayGetDim(array) } == 1 {
+        unsafe { variant_array_type(array)? };
+        let (lower, upper) = unsafe { array_dimension(array, 1)? };
+        let count = dimension_len(lower, upper)?;
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(count as usize)
+            .map_err(|_| AutoError::Status(E_OUTOFMEMORY.0))?;
+        for index in lower..=upper {
+            let value = unsafe { variant_element(array, &[index])? };
+            values.push(from_variant(objects, &value)?);
+        }
+        return Ok(AutoValue::Array(Box::new(AutoArray::vector(lower, values))));
+    }
     let (r, c, end_r, end_c) = unsafe { array_bounds(array)? };
-    let rows = (i64::from(end_r) - i64::from(r) + 1).max(0) as u32;
-    let columns = (i64::from(end_c) - i64::from(c) + 1).max(0) as u32;
+    let rows = dimension_len(r, end_r)?;
+    let columns = dimension_len(c, end_c)?;
     let mut values = Vec::new();
     values
         .try_reserve_exact(
@@ -267,12 +294,12 @@ pub(crate) unsafe fn from_array(
             })?);
         }
     }
-    Ok(AutoValue::Array(Box::new(AutoArray {
-        rows,
-        columns,
-        lower: (r, c),
-        values,
-    })))
+    Ok(AutoValue::Array(Box::new(AutoArray::matrix(rows, columns, (r, c), values))))
+}
+
+fn dimension_len(lower: i32, upper: i32) -> Result<u32, AutoError> {
+    u32::try_from((i64::from(upper) - i64::from(lower) + 1).max(0))
+        .map_err(|_| AutoError::Status(E_INVALIDARG.0))
 }
 
 /// Logical lower/upper bounds of a two-dimensional SAFEARRAY(VARIANT).
@@ -288,26 +315,26 @@ pub(crate) unsafe fn array_bounds(
             "dc-1nbp.6",
         ));
     }
-    let kind = unsafe { SafeArrayGetVartype(array) }.map_err(status)?;
-    if kind != VT_VARIANT {
+    unsafe { variant_array_type(array)? };
+    let (r, end_r) = unsafe { array_dimension(array, 1)? };
+    let (c, end_c) = unsafe { array_dimension(array, 2)? };
+    Ok((r, c, end_r, end_c))
+}
+
+unsafe fn variant_array_type(array: *const SAFEARRAY) -> Result<(), AutoError> {
+    if unsafe { SafeArrayGetVartype(array) }.map_err(status)? != VT_VARIANT {
         return Err(AutoError::not_modelled(
             "Automation SAFEARRAY element type (E11)",
             "dc-1nbp.6",
         ));
     }
-    let (r, c, end_r, end_c) = unsafe {
-        (
-            SafeArrayGetLBound(array, 1),
-            SafeArrayGetLBound(array, 2),
-            SafeArrayGetUBound(array, 1),
-            SafeArrayGetUBound(array, 2),
-        )
-    };
+    Ok(())
+}
+
+unsafe fn array_dimension(array: *const SAFEARRAY, dimension: u32) -> Result<(i32, i32), AutoError> {
     Ok((
-        r.map_err(status)?,
-        c.map_err(status)?,
-        end_r.map_err(status)?,
-        end_c.map_err(status)?,
+        unsafe { SafeArrayGetLBound(array, dimension) }.map_err(status)?,
+        unsafe { SafeArrayGetUBound(array, dimension) }.map_err(status)?,
     ))
 }
 pub(crate) unsafe fn array_element(
@@ -315,11 +342,15 @@ pub(crate) unsafe fn array_element(
     row: i32,
     column: i32,
 ) -> Result<VARIANT, AutoError> {
+    unsafe { variant_element(array, &[row, column]) }
+}
+
+unsafe fn variant_element(array: *const SAFEARRAY, indices: &[i32]) -> Result<VARIANT, AutoError> {
     let mut value = VARIANT::default();
     unsafe {
         SafeArrayGetElement(
             array,
-            [row, column].as_ptr(),
+            indices.as_ptr(),
             (&mut value as *mut VARIANT).cast(),
         )
     }
@@ -389,6 +420,7 @@ pub(crate) fn to_calc(value: &AutoValue) -> Result<calc_value::CalcValue, AutoEr
             _ => return mismatch(),
         }),
         AutoValue::Array(array) => {
+            let (rows, columns) = array.grid_size();
             let cells = array
                 .values
                 .iter()
@@ -397,8 +429,8 @@ pub(crate) fn to_calc(value: &AutoValue) -> Result<calc_value::CalcValue, AutoEr
             CalcValue::array(
                 calc_value::CalcArray::new(
                     calc_value::ArrayShape {
-                        rows: array.rows as usize,
-                        cols: array.columns as usize,
+                        rows: rows as usize,
+                        cols: columns as usize,
                     },
                     cells,
                 )
@@ -432,15 +464,15 @@ pub(crate) fn from_calc(
                 AutoError::not_modelled("Automation worksheet error", "dc-17spk")
             })?,
         ),
-        CoreRef::Array(array) => AutoValue::Array(Box::new(AutoArray {
-            rows: array.shape().rows as u32,
-            columns: array.shape().cols as u32,
-            lower: (1, 1),
-            values: array
+        CoreRef::Array(array) => AutoValue::Array(Box::new(AutoArray::matrix(
+            array.shape().rows as u32,
+            array.shape().cols as u32,
+            (1, 1),
+            array
                 .iter_row_major()
                 .map(|v| from_calc(v, false))
                 .collect::<Result<Vec<_>, _>>()?,
-        })),
+        ))),
         _ => {
             return Err(AutoError::not_modelled(
                 "Automation value kind",

@@ -34,11 +34,14 @@ pub fn to_wire(
             h: handle_of(object),
         },
         AutoValue::Foreign(h) => WireValue::Object { h: *h },
-        AutoValue::Array(array) => WireValue::Array {
-            rows: array.rows,
-            cols: array.columns,
-            v: array.values.iter().map(|v| to_wire(v, handle_of)).collect(),
-        },
+        AutoValue::Array(array) => {
+            let (rows, cols) = array.grid_size();
+            WireValue::Array {
+                rows,
+                cols,
+                v: array.values.iter().map(|v| to_wire(v, handle_of)).collect(),
+            }
+        }
     }
 }
 
@@ -71,15 +74,15 @@ pub fn from_wire(
             if (*rows as usize).checked_mul(*cols as usize) != Some(v.len()) {
                 return Err("array size does not match rows x cols".into());
             }
-            AutoValue::Array(Box::new(AutoArray {
-                rows: *rows,
-                columns: *cols,
-                lower: (1, 1),
-                values: v
+            AutoValue::Array(Box::new(AutoArray::matrix(
+                *rows,
+                *cols,
+                (1, 1),
+                v
                     .iter()
                     .map(|x| from_wire(x, object_of))
                     .collect::<Result<_, _>>()?,
-            }))
+            )))
         }
     })
 }

@@ -43,8 +43,8 @@ pub enum Outcome {
     /// A host member the run needed is not modelled. `member` is the descriptor member as the
     /// refusal names it; `owner` is the work package that owns it.
     Refused { member: String, owner: String, reason: String },
-    /// A headless invocation reached a dialog for which it had no answer.
-    NotAvailableHere { member: &'static str, capability: Need },
+    /// A call needed a facility this invocation could not use.
+    NotAvailableHere { member: String, capability: Need, route: Option<&'static str> },
     /// The run exceeded its step budget or the backend failed.
     Failed(String),
 }
@@ -215,6 +215,13 @@ impl WorkbookEvents {
                         let (member, owner) = split_refusal(&reason);
                         Outcome::Refused { member, owner, reason }
                     }
+                    Err(ProcedureError::NotAvailableHere { facility, member }) => {
+                        Outcome::NotAvailableHere {
+                            member,
+                            capability: facility.capability,
+                            route: facility.route,
+                        }
+                    }
                     Err(ProcedureError::Budget) => {
                         Outcome::Failed("the step budget was exhausted".into())
                     }
@@ -222,8 +229,9 @@ impl WorkbookEvents {
                 };
                 let outcome = match dialogs.iter().find(|dialog| dialog.answer.is_none()) {
                     Some(dialog) => Outcome::NotAvailableHere {
-                        member: dialog.member,
+                        member: dialog.member.to_owned(),
                         capability: Need::Dialog,
+                        route: None,
                     },
                     None => outcome,
                 };
@@ -420,6 +428,13 @@ impl WorkbookEvents {
             Err(ProcedureError::Refused(reason)) => {
                 let (member, owner) = split_refusal(&reason);
                 Err(AutoError::not_modelled(member, interned(owner)))
+            }
+            Err(ProcedureError::NotAvailableHere { facility, member }) => {
+                Err(AutoError::NotAvailableHere {
+                    subject: member,
+                    capability: facility.capability,
+                    route: facility.route,
+                })
             }
             Err(ProcedureError::Arguments) => Err(AutoError::excel(
                 1004,

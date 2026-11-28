@@ -1350,12 +1350,12 @@ impl WorkbookAutomation {
         if area.cell_count() == 1 {
             return Ok(values.pop().expect("one cell"));
         }
-        Ok(AutoValue::Array(Box::new(AutoArray {
-            rows: area.row_count(),
-            columns: area.column_count(),
-            lower: (1, 1),
+        Ok(AutoValue::Array(Box::new(AutoArray::matrix(
+            area.row_count(),
+            area.column_count(),
+            (1, 1),
             values,
-        })))
+        ))))
     }
     fn union(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() < 2

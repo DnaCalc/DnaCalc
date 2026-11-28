@@ -2,9 +2,9 @@
 use super::interior::{color_bgr, color_index};
 use super::mutation::PreWrite;
 use super::*;
+use crate::format_edges::{BorderSide, span};
 use crate::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, FillColor, decompose_edge};
 use calc_doc_model::{Border, BorderEdge};
-use calc_value::CellKey;
 
 const AUTOMATIC_COLOR: i32 = -4105;
 const NO_LINE: i32 = -4142;
@@ -17,6 +17,12 @@ pub(super) const BOTTOM: i32 = 9;
 pub(super) const RIGHT: i32 = 10;
 const INSIDE_VERTICAL: i32 = 11;
 const INSIDE_HORIZONTAL: i32 = 12;
+const OUTSIDE_SIDES: &[(i32, BorderSide)] = &[
+    (LEFT, BorderSide::Left),
+    (TOP, BorderSide::Top),
+    (BOTTOM, BorderSide::Bottom),
+    (RIGHT, BorderSide::Right),
+];
 pub(super) const LINES: &[(i32, EdgeLine)] = &[
     (NO_LINE, EdgeLine::None),
     (1, EdgeLine::Continuous),
@@ -41,41 +47,22 @@ struct Strip {
     primary: bool,
 }
 
-fn span(area: GridArea, rows: (u32, u32), cols: (u32, u32)) -> GridArea {
-    let key = |row, column| CellKey::new(area.sheet(), row, column).expect("strip inside the grid");
-    GridArea::new(key(rows.0, cols.0), key(rows.1, cols.1)).expect("one sheet")
-}
-
 /// The strips Excel changes for one border index of one area, including the neighbours' matching edges.
 fn strips(area: GridArea, edge: i32) -> Result<Vec<Strip>, AutoError> {
     let (r1, c1, r2, c2) = (area.first().row(), area.first().column(), area.last().row(), area.last().column());
     let mut out = Vec::new();
     let mut add = |area, edge, primary| out.push(Strip { area, edge, primary });
+    if let Some((_, side)) = OUTSIDE_SIDES.iter().find(|(index, _)| *index == edge) {
+        let (primary, neighbour) = side.strips(area);
+        add(primary, edge, true);
+        if let Some((neighbour, side)) = neighbour {
+            let (index, _) = OUTSIDE_SIDES.iter().find(|(_, mapped)| *mapped == side)
+                .expect("each outside side has an Excel index");
+            add(neighbour, *index, false);
+        }
+        return Ok(out);
+    }
     match edge {
-        LEFT => {
-            add(span(area, (r1, r2), (c1, c1)), LEFT, true);
-            if c1 > 1 {
-                add(span(area, (r1, r2), (c1 - 1, c1 - 1)), RIGHT, false);
-            }
-        }
-        RIGHT => {
-            add(span(area, (r1, r2), (c2, c2)), RIGHT, true);
-            if c2 < calc_value::MAX_COLUMNS {
-                add(span(area, (r1, r2), (c2 + 1, c2 + 1)), LEFT, false);
-            }
-        }
-        TOP => {
-            add(span(area, (r1, r1), (c1, c2)), TOP, true);
-            if r1 > 1 {
-                add(span(area, (r1 - 1, r1 - 1), (c1, c2)), BOTTOM, false);
-            }
-        }
-        BOTTOM => {
-            add(span(area, (r2, r2), (c1, c2)), BOTTOM, true);
-            if r2 < calc_value::MAX_ROWS {
-                add(span(area, (r2 + 1, r2 + 1), (c1, c2)), TOP, false);
-            }
-        }
         INSIDE_VERTICAL => {
             if c1 == c2 {
                 return Err(format_error());

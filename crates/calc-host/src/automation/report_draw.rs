@@ -711,10 +711,10 @@ impl WorkbookAutomation {
         )))
     }
     /// `Series.Values` / `Series.XValues`: the points the series reads now (cells' values), as a
-    /// one-row array; a series without the data answers Empty.
+    /// one-dimensional, 1-based array; a series without the data answers Empty.
     fn series_points(&self, target: &ObjectRef, call: &Call<'_>, values: bool) -> Reply {
         no_args(call)?;
-        let (place, series) = self.series_at(target)?;
+        let (_, series) = self.series_at(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
         let data = if values { series.values } else { series.categories };
         let Some(data) = data else {
@@ -722,7 +722,6 @@ impl WorkbookAutomation {
         };
         let points = self.read_host(target, |s, _, _| {
             let origin = CellKey::new(sheet, 1, 1).expect("A1 is a cell");
-            let _ = place;
             Ok(s.host().data_values(&data, origin).0)
         })?;
         let values = points
@@ -732,12 +731,7 @@ impl WorkbookAutomation {
                 Some(v) => auto_value(v),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(AutoValue::Array(Box::new(AutoArray {
-            rows: 1,
-            columns: values.len() as u32,
-            lower: (1, 1),
-            values,
-        })))
+        Ok(AutoValue::Array(Box::new(AutoArray::vector(1, values))))
     }
     pub(super) fn series_values_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.series_points(target, call, true)

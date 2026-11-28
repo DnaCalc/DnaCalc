@@ -10,7 +10,8 @@ pub use source::{
     ParameterKind, ProcedureParameter, ProcedureResult,
 };
 pub(crate) use source::{
-    callback_active, lease_is_active, record_event_refusal, record_object_denial, with_event_read,
+    callback_active, lease_is_active, record_event_refusal, record_event_unavailable,
+    record_object_denial, with_event_read,
 };
 
 /// Commands admitted by a mutable document-event owner. Ordinary worksheet UDFs

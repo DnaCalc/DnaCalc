@@ -9,7 +9,7 @@
 //! `AutoValue` / `AutoError`, and never implements Excel member semantics itself.
 use crate::descriptor;
 use calc_object_model::{
-    AutoArray, AutoError, AutoValue, Call, Descriptor, InterfaceId, InvokeKind, Member,
+    AutoArray, AutoArrayShape, AutoError, AutoValue, Call, Descriptor, InterfaceId, InvokeKind, Member,
     ObjectModel, ObjectRef, ParamFlag,
 };
 use calc_func::value::ExcelText;
@@ -260,8 +260,12 @@ fn map_auto_error(model: &dyn ObjectModel, error: AutoError) -> api::TypedFault 
             crate::events::record_object_denial(capability, subject.clone());
             fault(*number, error.description())
         }
-        AutoError::NotAvailableHere { .. } => {
+        AutoError::NotAvailableHere { capability, route, subject } => {
             model.record_refusal(&error);
+            crate::events::record_event_unavailable(
+                calc_object_model::policy::Unavailable { capability: *capability, route: *route },
+                subject.clone(),
+            );
             fault(error.number(), error.description())
         }
         AutoError::Status(hr) => {
@@ -457,9 +461,9 @@ pub(crate) fn variant_to_auto(value: &Variant) -> Result<AutoValue, AutoError> {
             let bounds = array
                 .bounds()
                 .ok_or(AutoError::Status(DISP_E_TYPEMISMATCH))?;
-            let (rows, columns, lower) = match bounds.as_slice() {
-                [cols] => (1u32, cols.count, (1, cols.lower)),
-                [rows, cols] => (rows.count, cols.count, (rows.lower, cols.lower)),
+            let (rows, columns) = match bounds.as_slice() {
+                [dimension] => (1, dimension.count),
+                [rows, cols] => (rows.count, cols.count),
                 _ => {
                     return Err(AutoError::not_modelled(
                         "Automation array with rank > 2",
@@ -480,12 +484,12 @@ pub(crate) fn variant_to_auto(value: &Variant) -> Result<AutoValue, AutoError> {
                     values.push(variant_to_auto(&elem)?);
                 }
             }
-            AutoValue::Array(Box::new(AutoArray {
-                rows,
-                columns,
-                lower,
-                values,
-            }))
+            let array = match bounds.as_slice() {
+                [dimension] => AutoArray::vector(dimension.lower, values),
+                [row, column] => AutoArray::matrix(rows, columns, (row.lower, column.lower), values),
+                _ => unreachable!("rank checked before decoding elements"),
+            };
+            AutoValue::Array(Box::new(array))
         }
         _ => {
             return Err(AutoError::not_modelled(
@@ -528,8 +532,9 @@ pub(crate) fn auto_to_variant(
             ));
         }
         AutoValue::Array(arr) => {
-            let (rows, cols) = (arr.rows as usize, arr.columns as usize);
-            if rows == 0 || cols == 0 || rows.checked_mul(cols) != Some(arr.values.len()) {
+            let (rows, columns) = arr.grid_size();
+            let (row_count, column_count) = (rows as usize, columns as usize);
+            if rows == 0 || columns == 0 || row_count.checked_mul(column_count) != Some(arr.values.len()) {
                 return Err(AutoError::not_modelled(
                     "malformed Automation array result",
                     "dc-piw0",
@@ -537,28 +542,44 @@ pub(crate) fn auto_to_variant(
             }
             // Convert AutoArray row-major to VBA column-major (first dimension fastest).
             let mut cells = Vec::with_capacity(arr.values.len());
-            for c in 0..cols {
-                for r in 0..rows {
-                    cells.push(auto_to_variant(arr.values[r * cols + c].clone(), model)?);
+            for c in 0..column_count {
+                for r in 0..row_count {
+                    cells.push(auto_to_variant(arr.values[r * column_count + c].clone(), model)?);
                 }
             }
-            let safe = SafeArray::from_shape_and_variants(
-                vec![
-                    SafeArrayBound {
-                        count: arr.rows,
-                        lower: arr.lower.0,
-                    },
-                    SafeArrayBound {
-                        count: arr.columns,
-                        lower: arr.lower.1,
-                    },
+            let bounds = match arr.shape {
+                AutoArrayShape::Vector { lower } => vec![SafeArrayBound { count: columns, lower }],
+                AutoArrayShape::Matrix { lower, .. } => vec![
+                    SafeArrayBound { count: rows, lower: lower.0 },
+                    SafeArrayBound { count: columns, lower: lower.1 },
                 ],
-                cells,
-            )
-            .map_err(|_| AutoError::not_modelled("SafeArray allocation", "dc-piw0"))?;
+            };
+            let safe = SafeArray::from_shape_and_variants(bounds, cells)
+                .map_err(|_| AutoError::not_modelled("SafeArray allocation", "dc-piw0"))?;
             Variant::from_safearray(safe)
         }
     })
+}
+
+#[cfg(test)]
+mod array_tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn variant_vector_keeps_its_negative_lower_bound() {
+        let array = SafeArray::from_shape_and_variants(
+            vec![SafeArrayBound { count: 2, lower: -3 }],
+            vec![Variant::from_i32(7), Variant::from_i32(8)],
+        )
+        .unwrap();
+        let decoded = variant_to_auto(&Variant::from_safearray(array)).unwrap();
+        let AutoValue::Array(decoded) = decoded else {
+            panic!("expected an Automation array");
+        };
+        assert_eq!(decoded.shape, AutoArrayShape::Vector { lower: -3 });
+        assert!(matches!(decoded.values.as_slice(), [AutoValue::I4(7), AutoValue::I4(8)]));
+    }
 }
 
 impl ModelObject {

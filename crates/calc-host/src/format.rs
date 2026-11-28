@@ -785,7 +785,8 @@ pub fn prepare_all_borders(host: &HostState, area: GridArea) -> Result<Vec<CellE
         bottom: Some(edge),
         ..Default::default()
     };
-    prepare(host, &[area], &FormatPatch { edges: Some(edges), ..Default::default() })
+    let patch = FormatPatch { edges: Some(edges), ..Default::default() };
+    prepare_border_groups(host, area, vec![([area], patch)])
 }
 
 /// Prepare the default outline border while retaining the rectangle's inside edges.
@@ -808,12 +809,31 @@ pub fn prepare_outline_border(host: &HostState, area: GridArea) -> Result<Vec<Ce
                 continue;
             }
             // The bands split the selection into disjoint corners and sides.
-            let lo = CellKey::new(area.sheet(), top, left).unwrap();
-            let hi = CellKey::new(area.sheet(), bottom, right).unwrap();
-            let part = GridArea::new(lo, hi).unwrap();
+            let part = crate::format_edges::span(area, (top, bottom), (left, right));
             groups.push(([part], FormatPatch { edges: Some(edges), ..Default::default() }));
         }
     }
+    prepare_border_groups(host, area, groups)
+}
+
+/// The selected rectangle and the adjacent strips where its shared edges are stored.
+pub fn border_affected_areas(area: GridArea) -> Vec<GridArea> {
+    std::iter::once(area).chain(neighbour_edges(area).map(|(strip, _)| strip)).collect()
+}
+
+fn neighbour_edges(area: GridArea) -> impl Iterator<Item = (GridArea, crate::format_edges::BorderSide)> {
+    crate::format_edges::BorderSide::ALL.into_iter().filter_map(move |side| side.strips(area).1)
+}
+
+fn prepare_border_groups(
+    host: &HostState,
+    area: GridArea,
+    mut groups: Vec<([GridArea; 1], FormatPatch)>,
+) -> Result<Vec<CellEdit>, String> {
+    groups.extend(neighbour_edges(area).map(|(strip, side)| {
+        let patch = FormatPatch { edges: Some(side.patch(default_border())), ..Default::default() };
+        ([strip], patch)
+    }));
     prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
 }
 

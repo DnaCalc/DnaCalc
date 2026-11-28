@@ -6,6 +6,7 @@
 use crate::{invocation_model, projection};
 use calc_func::value::{CalcValue, ReferenceLike};
 use calc_object_model::{AutoError, ObjectModel, ObjectRef};
+use calc_object_model::policy::Unavailable;
 use calcvba_host_api as api;
 use std::{
     cell::RefCell,
@@ -34,8 +35,13 @@ pub trait EventReadContext {
 }
 
 scoped_tls_hkt::scoped_thread_local!(static EVENT_SCOPE: for<'a> (
-    Option<&'a (dyn EventReadContext + 'a)>, u64, &'a RefCell<Option<String>>
+    Option<&'a (dyn EventReadContext + 'a)>, u64, &'a RefCell<Option<EventRefusal>>
 ));
+
+enum EventRefusal {
+    NotModelled(String),
+    Unavailable { facility: Unavailable, member: String },
+}
 
 thread_local! {
     /// Object-model members the execution policy denied since the last run of a procedure,
@@ -62,6 +68,14 @@ pub(crate) fn lease_is_active(expected: u64) -> bool {
 }
 
 pub(crate) fn record_event_refusal(reason: String) {
+    record_refusal(EventRefusal::NotModelled(reason));
+}
+
+pub(crate) fn record_event_unavailable(facility: Unavailable, member: String) {
+    record_refusal(EventRefusal::Unavailable { facility, member });
+}
+
+fn record_refusal(reason: EventRefusal) {
     if EVENT_SCOPE.is_set() {
         EVENT_SCOPE.with(|(_, _, refused)| {
             refused.borrow_mut().get_or_insert(reason);
@@ -468,7 +482,14 @@ impl EventSource {
             api::publish_unhandled_event_fault(budget, fault);
         }
         match (refused.into_inner(), fault_reason) {
-            (Some(reason), _) => Err(format!("{reason} (dc-hsa5.12)")),
+            (Some(EventRefusal::NotModelled(reason)), _) => Err(format!("{reason} (dc-hsa5.12)")),
+            (Some(EventRefusal::Unavailable { facility, member }), _) => {
+                Err(AutoError::NotAvailableHere {
+                    capability: facility.capability,
+                    route: facility.route,
+                    subject: member,
+                }.description())
+            }
             (None, Some(reason)) => Err(reason),
             (None, None) => result,
         }
@@ -509,6 +530,8 @@ pub enum ProcedureError {
     Runtime { number: i32, description: String, source: String },
     /// A host member the run needed is not modelled; the owning work package follows.
     Refused(String),
+    /// An object-model call reached a facility absent on the current host.
+    NotAvailableHere { facility: Unavailable, member: String },
     Budget,
     Backend(String),
 }
@@ -757,8 +780,13 @@ impl super::LoadedProject {
                 crate::runtime::Error::Backend(String::new())
             }),
         };
-        if let Some(reason) = refused.into_inner() {
-            return Err(ProcedureError::Refused(reason));
+        if let Some(refusal) = refused.into_inner() {
+            return Err(match refusal {
+                EventRefusal::NotModelled(reason) => ProcedureError::Refused(reason),
+                EventRefusal::Unavailable { facility, member } => {
+                    ProcedureError::NotAvailableHere { facility, member }
+                }
+            });
         }
         let value = match outcome {
             Ok(value) => value,

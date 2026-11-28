@@ -47,12 +47,12 @@ impl WorkbookAutomation {
         if values.len() == 1 {
             return Ok(values.remove(0));
         }
-        Ok(AutoValue::Array(Box::new(AutoArray {
-            rows: area.row_count(),
-            columns: area.column_count(),
-            lower: (1, 1),
+        Ok(AutoValue::Array(Box::new(AutoArray::matrix(
+            area.row_count(),
+            area.column_count(),
+            (1, 1),
             values,
-        })))
+        ))))
     }
 
     /// What Excel's `Range.Formula` answers (dc-piw0.10 Q16): always a String. A formula is its text in
@@ -272,16 +272,17 @@ impl WorkbookAutomation {
             let area = range.areas()[0];
             let mut entries = match call.arg(0) {
                 AutoValue::Array(a) => {
-                    if u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64 {
+                    let (rows, columns) = a.grid_size();
+                    if u64::from(rows) * u64::from(columns) != a.values.len() as u64 {
                         return Err(AutoError::not_modelled(
                             "Range.Formula array of unusual shape",
                             OWNER,
                         ));
                     }
-                    // A one-row array is a 1-D VBA array: it goes along each row of the range (a column
+                    // A 1-D VBA array goes along each row of the range (a column
                     // range gets its first element in every row). A 2-D array goes element by element and
                     // the cells it does not reach get #N/A, as an array entered into a larger range does.
-                    let one_dimensional = a.rows == 1;
+                    let one_dimensional = matches!(a.shape, calc_object_model::AutoArrayShape::Vector { .. });
                     let mut entries = Vec::with_capacity(area.cell_count() as usize);
                     for row in 0..area.row_count() {
                         for column in 0..area.column_count() {
@@ -292,8 +293,8 @@ impl WorkbookAutomation {
                             )
                             .expect("cell in valid area");
                             let source = if one_dimensional { 0 } else { row };
-                            let entry = if source < a.rows && column < a.columns {
-                                Self::entry_of(&a.values[(source * a.columns + column) as usize])?
+                            let entry = if source < rows && column < columns {
+                                Self::entry_of(&a.values[(source * columns + column) as usize])?
                             } else {
                                 "#N/A".to_owned()
                             };
