@@ -67,7 +67,7 @@ Workbooks carry **zero executable UI code** (`R-31`): opening any `.xlsx` with c
 
 See [Pro 21 U01 — Customisation Studio](http://127.0.0.1:8720/p21/customise.html#U01), [Pro 21 U04 — Agent dark Classic restyle](http://127.0.0.1:8720/p21/customise.html#U04), and [Pro 21 U05 — Agent 3-line Loan App](http://127.0.0.1:8720/p21/customise.html#U05).
 
-The published Skin SDK (`calc-skin`, `dna-kit` component catalogue, `dna.skin/1` & `dna.page/1` JSON schemas, and Customisation Studio `Alt,W,U`) pairs with a two-speed verification harness (`dnacalc skin validate <skin.json>` for sub-second schema/61-pair contrast/keymap/anchor checks + `cargo xtask app smoke calc --skin <skin.json>` driving `__dnaProbe()`, Light/Dark/High-Contrast screenshots, and `before.model == after.model` assertions in headless Chromium and Firefox) `[FRAMING-0019, FRAMING-0038, FRAMING-0127, FRAMING-0156]`.
+The published Skin SDK (`calc-skin`, `dna-kit` component catalogue, `dna.skin/1` & `dna.page/1` JSON schemas, and Customisation Studio `Alt,W,U`) pairs with a two-speed verification harness (`dnacalc skin validate <skin.json>` for sub-second schema/61-pair contrast/keymap/anchor checks + `cargo xtask app smoke calc --skin <skin.json> --workbook <file.xlsx>` driving `__dnaProbe()`, Light/Dark/High-Contrast screenshots, and `before.model == after.model` assertions in headless Chromium and Firefox) `[FRAMING-0019, FRAMING-0038, FRAMING-0127, FRAMING-0156]`.
 
 ### 12.5.1 Worked Example 1: Agent Restyles Classic (`U04`, `D-85`, `R-60`)
 

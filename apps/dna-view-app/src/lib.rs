@@ -29,6 +29,7 @@ const SAVE_SCENARIO: &str = "app.save-scenario";
 mod controls;
 mod printing;
 mod rail;
+mod trial;
 
 pub fn install(registry: &mut Registry) {
     registry.view(Surface::new(APP, "App"));
@@ -174,6 +175,7 @@ impl View for Surface {
                 ),
             ];
             commands.extend(printing::commands(state, &id));
+            commands.push(trial::command(session, &id));
             commands
         } else {
             let mut commands = vec![
@@ -402,6 +404,7 @@ impl State {
         let page = serde_json::from_value(invocation.args.clone())
             .map_err(|error| format!("Choose a dna.page/1 declaration ({error})"))?;
         dna_kit::page::validate_page(&page)?;
+        trial::reset(self.session);
         preview_state(self.session).set(Some(PagePreview {
             stamp,
             page,
@@ -1090,6 +1093,7 @@ fn operator(session: Session, state: State) -> AnyView {
                             {button(session, KEEP_PREVIEW, "Keep for file")}
                             {button(session, DISCARD_PREVIEW, "Discard")}
                         </header>
+                        {(!page_inputs(&preview.page).is_empty()).then(|| trial::mount(session, &preview.page))}
                         <PageRenderer session document=preview.page />
                     }.into_any();
                 }

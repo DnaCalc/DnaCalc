@@ -184,10 +184,24 @@ impl Client {
         &mut self, proposal: calc_skin::ProposalId, units: Vec<calc_skin::UnitId>, depth: PreviewDepth,
         complete: impl FnOnce(Result<Preview, Refusal>) + 'static,
     ) {
-        self.complete(WorkbookRequest::PreviewProposal { proposal, units, depth }, move |result| {
+        self.preview_request(WorkbookRequest::PreviewProposal { proposal, units, depth }, complete);
+    }
+
+    pub fn preview_batch(
+        &mut self, batch: Batch, depth: PreviewDepth,
+        complete: impl FnOnce(Result<Preview, Refusal>) + 'static,
+    ) {
+        self.preview_request(WorkbookRequest::Preview { batch, depth }, complete);
+    }
+
+    fn preview_request(
+        &mut self, request: WorkbookRequest,
+        complete: impl FnOnce(Result<Preview, Refusal>) + 'static,
+    ) {
+        self.complete(request, move |result| {
             complete(result.and_then(|reply| match reply {
                 WorkbookReply::Preview(preview) => Ok(preview),
-                _ => Err(Refusal::Transport("Expected a proposal preview".into())),
+                _ => Err(Refusal::Transport("Expected a workbook preview".into())),
             }));
         });
     }
