@@ -24,7 +24,7 @@ pub(crate) fn contributions(
         return Err(refusal);
     }
     let observation = observer.observed.ok_or_else(|| {
-        unavailable("dc-b67gh", "A bound COUNTIFS, SUMIFS, or AVERAGEIFS calculation is needed for contribution analysis")
+        unavailable("dc-b67gh", "Contribution analysis needs a bound COUNTIFS, SUMIFS, AVERAGEIFS, FILTER, or XLOOKUP calculation")
     })?;
     let result = evaluated.map_err(|error| Refusal::NotModelled {
         owner: "dc-b67gh".into(),
@@ -37,6 +37,7 @@ pub(crate) fn contributions(
         inspected: observation.inspected,
         matching_count: observation.matching_count,
         matching: observation.matching,
+        selected: observation.selected,
         undetermined: observation.undetermined,
         criteria: observation.criteria,
         result: raw(&result),
@@ -55,6 +56,7 @@ struct Observation {
     inspected: u64,
     matching_count: u64,
     matching: Vec<Area>,
+    selected: Option<Area>,
     undetermined: u64,
     criteria: Vec<ContributionCriterion>,
 }
@@ -79,22 +81,30 @@ impl ConditionalObserver for Collector<'_> {
             self.refusal = Some(refusal);
             return false;
         }
+        let function = calc_func::catalogue()
+            .resolve(id)
+            .expect("kernel entry")
+            .spelling()
+            .to_owned();
+        let label = match function.as_str() {
+            "FILTER" => Some("Include mask"),
+            "XLOOKUP" => Some("Lookup criterion"),
+            _ => None,
+        };
         self.observed = Some(Observation {
-            function: calc_func::catalogue()
-                .resolve(id)
-                .expect("kernel entry")
-                .spelling()
-                .into(),
+            function,
             source,
             inspected: source.cell_count(),
             matching_count: 0,
             matching: Vec::new(),
+            selected: None,
             undetermined: 0,
             criteria: ranges
                 .iter()
                 .copied()
                 .map(|range| ContributionCriterion {
                     range: Area::of(range),
+                    label: label.map(str::to_owned),
                     matching: 0,
                     failing_only_this: Vec::new(),
                 })
@@ -129,14 +139,7 @@ impl ConditionalObserver for Collector<'_> {
         if unknown {
             observed.undetermined += u64::from(failures == 0);
         } else if failures <= 1 {
-            let top = observed.source.first();
-            let width = u64::from(observed.source.column_count());
-            let at = CellKey::new(
-                top.sheet(),
-                top.row() + (offset / width) as u32,
-                top.column() + (offset % width) as u32,
-            )
-            .expect("within the admitted range");
+            let at = position(observed.source, offset);
             if failures == 0 {
                 observed.matching_count += 1;
                 add_position(&mut observed.matching, Key::of(at));
@@ -149,6 +152,23 @@ impl ConditionalObserver for Collector<'_> {
         }
         true
     }
+
+    fn selected(&mut self, offset: u64) {
+        let observed = self.observed.as_mut().expect("observation admitted");
+        let at = Key::of(position(observed.source, offset));
+        observed.selected = Some(Area(at, at));
+    }
+}
+
+fn position(source: GridArea, offset: u64) -> CellKey {
+    let top = source.first();
+    let width = u64::from(source.column_count());
+    CellKey::new(
+        top.sheet(),
+        top.row() + (offset / width) as u32,
+        top.column() + (offset % width) as u32,
+    )
+    .expect("within the admitted range")
 }
 
 fn add_position(spans: &mut Vec<Area>, at: Key) {

@@ -382,6 +382,16 @@ impl HostState {
         let mut engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
         // Excel names the first circular cell of the saved calculation chain (dc-y2o.1).
         engine.set_calc_chain(loaded.calc_chain());
+        Ok(Self::from_parts(loaded, model, sheet_ids, engine, options))
+    }
+
+    pub(crate) fn from_parts(
+        loaded: LoadedWorkbook,
+        model: Arc<ModelRoot>,
+        sheet_ids: IdAllocator<SheetId>,
+        engine: EngineState,
+        options: HostOptions,
+    ) -> Self {
         let initial_snapshot = model.definitions().data_model().map(Arc::downgrade);
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
@@ -438,7 +448,20 @@ impl HostState {
         // NOW, TODAY and a date read without a year are refused.
         let environment = host.entry_environment();
         host.engine.set_environment(Some(environment));
-        Ok(host)
+        host
+    }
+
+    pub(crate) fn isolated_at(&self, model: Arc<ModelRoot>) -> Self {
+        let engine = EngineState::new(&model);
+        let mut host = Self::from_parts(
+            self.loaded.clone(), model, IdAllocator::new(), engine, self.options.clone(),
+        );
+        host.axis_edits = self.axis_edits.clone();
+        host.file = self.file.clone();
+        host.application = self.application.clone();
+        host.sheet_view_overrides = self.sheet_view_overrides.clone();
+        host.sheet_protection_saves = self.sheet_protection_saves.clone();
+        host
     }
 
     /// Independent counters for the skin model/view boundary.

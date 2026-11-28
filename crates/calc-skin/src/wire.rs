@@ -44,6 +44,11 @@ pub enum WorkbookRequest {
         batch: Batch,
         depth: PreviewDepth,
     },
+    PreviewProposal {
+        proposal: crate::ProposalId,
+        units: Vec<crate::UnitId>,
+        depth: PreviewDepth,
+    },
     Commit(Batch),
     Run(Operation),
     FormulaQuery(FormulaQuery),

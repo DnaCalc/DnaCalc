@@ -79,6 +79,7 @@ pub(crate) fn rules(session: &HostSession, at: CellKey) -> Result<(), Refusal> {
 pub(crate) struct Prepared {
     pub change: PreparedChange,
     pub preview: Preview,
+    pub after: Arc<ModelRoot>,
 }
 
 pub(crate) enum PreparedChange {
@@ -210,6 +211,7 @@ fn require_current_model(request: &Batch, current: Revision) -> Result<(), Refus
         return Err(Refusal::Conflict {
             base: expected,
             conflicts: vec![Target::Source(SourceRef::Workbook)],
+            diffs: Vec::new(),
         });
     }
     Ok(())
@@ -229,6 +231,7 @@ fn require_formula(
         return Err(Refusal::Conflict {
             base,
             conflicts: vec![Target::Source(source_area(GridArea::cell(at)))],
+            diffs: Vec::new(),
         });
     }
     if !text.starts_with('=') {
@@ -279,6 +282,7 @@ fn rewrite_run(
         .ok_or_else(|| Refusal::Conflict {
             base,
             conflicts: vec![Target::Source(source.clone())],
+            diffs: Vec::new(),
         })?;
     for target in &targets {
         for row in target.first().row()..=target.last().row() {
@@ -435,6 +439,7 @@ pub(crate) fn prepare(
                         return Err(Refusal::Conflict {
                             base: request.base.unwrap_or(base.model),
                             conflicts: vec![Target::Source(SourceRef::Workbook)],
+                            diffs: Vec::new(),
                         });
                     }
                     let (id, edit) = state.session.prepare_worksheet_insert(name.clone()).map_err(refusal)?;
@@ -846,7 +851,9 @@ pub(crate) fn prepare(
     }
     let mut writes = Vec::new();
     let mut properties = scenario_changes;
-    if !edits.is_empty() {
+    let after = if edits.is_empty() {
+        before.clone()
+    } else {
         let after = match &cut {
             Some((paste, _, _)) => state.session.preview_skin_paste(paste),
             None => state.session.preview_edits(&edits),
@@ -903,7 +910,8 @@ pub(crate) fn prepare(
                 });
             }
         }
-    }
+        after
+    };
     if let Some((sheet, name)) = inserted {
         properties.push(ModelPropertyDiff::WorksheetInserted { sheet, name });
     }
@@ -911,6 +919,7 @@ pub(crate) fn prepare(
         base,
         writes,
         properties,
+        effects: Vec::new(),
         presentation,
         warnings,
         refusal: None,
@@ -919,7 +928,7 @@ pub(crate) fn prepare(
         Some((paste, _, _)) => PreparedChange::Paste(paste),
         None => PreparedChange::Edits(edits),
     };
-    Ok(Prepared { change, preview })
+    Ok(Prepared { change, preview, after })
 }
 
 fn prepare_entry(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<CellEdit>, Refusal> {

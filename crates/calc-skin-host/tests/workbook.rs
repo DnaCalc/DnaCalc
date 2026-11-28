@@ -1308,6 +1308,96 @@ fn contributions_scan_every_position_and_use_the_formula_kernels_matches() {
     assert_eq!(answer.stamp.calc, committed.calc);
 }
 
+fn contribution_fixture() -> (SkinHost, Sheet) {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let changes = [
+        (key(1, 1), "5"),
+        (key(2, 1), "8"),
+        (key(3, 1), "5"),
+        (key(4, 1), "7"),
+        (key(1, 2), "10"),
+        (key(2, 2), "20"),
+        (key(3, 2), "30"),
+        (key(4, 2), "40"),
+        (key(1, 4), "=FILTER(B1:B4,A1:A4=5)"),
+        (key(1, 5), "=XLOOKUP(5,A1:A4,B1:B4,,0,-1)"),
+        (key(6, 1), "5"),
+        (key(6, 2), "7"),
+        (key(6, 3), "5"),
+        (key(6, 4), "8"),
+        (key(7, 1), "10"),
+        (key(7, 2), "20"),
+        (key(7, 3), "30"),
+        (key(7, 4), "40"),
+        (key(8, 1), "=FILTER(A7:D7,A6:D6=5)"),
+    ];
+    port.commit(batch(
+        1,
+        changes
+            .into_iter()
+            .map(|(at, text)| enter(at, text))
+            .collect(),
+    ))
+    .unwrap();
+    while host.advance() {}
+
+    (host, sheet)
+}
+
+fn contribution_at(host: &SkinHost, at: Key) -> Contributions {
+    let query = query::ContributionsAt { at };
+    let reply =
+        query::ContributionsAt::decode(port(host).ask(query.request(), BUDGET).unwrap()).unwrap();
+    let Evidence::Derived { body, .. } = reply.body else {
+        panic!("a kernel contribution report")
+    };
+    body
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn filter_contributions_report_the_kernel_mask() {
+    let (host, sheet) = contribution_fixture();
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let filter = contribution_at(&host, key(1, 4));
+    assert_eq!(filter.function, "FILTER");
+    assert_eq!(filter.selected, None);
+    assert_eq!((filter.inspected, filter.matching_count), (4, 2));
+    assert_eq!(
+        filter.matching,
+        [Area(key(1, 2), key(1, 2)), Area(key(3, 2), key(3, 2))]
+    );
+    let column_filter = contribution_at(&host, key(8, 1));
+    assert_eq!(column_filter.source, Area(key(7, 1), key(7, 4)));
+    assert_eq!(
+        column_filter.matching,
+        [Area(key(7, 1), key(7, 1)), Area(key(7, 3), key(7, 3))]
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lookup_contributions_distinguish_matches_and_the_selected_position() {
+    let (host, sheet) = contribution_fixture();
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let lookup = contribution_at(&host, key(1, 5));
+    assert_eq!(lookup.function, "XLOOKUP");
+    assert_eq!(lookup.selected, Some(Area(key(3, 2), key(3, 2))));
+    assert_eq!((lookup.inspected, lookup.matching_count), (4, 2));
+    assert_eq!(
+        lookup.matching,
+        [Area(key(1, 2), key(1, 2)), Area(key(3, 2), key(3, 2))]
+    );
+    assert_eq!(
+        lookup.result,
+        RawValue::Number {
+            bits: 30f64.to_bits()
+        }
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn anchored_note_uses_one_undo_entry_and_round_trips_as_presentation() {
@@ -1834,4 +1924,351 @@ fn an_agent_look_reaches_the_operator_without_editing_the_workbook() {
         look: TryOnPayload::Skin(malformed),
     }).is_err());
     assert!(operator.next_frame().unwrap().is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_calculate_the_candidate_in_isolation() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let assumption = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    connection.commit(batch(1, vec![enter(assumption, "3"), enter(output, "=A1*2")])).unwrap();
+    while host.advance() {}
+    let before = connection.next_frame().unwrap().unwrap().stamp;
+    let candidate = batch(2, vec![enter(assumption, "4")]);
+    let agent = host.connect(
+        Origin::Agent { agent: "Planner assistant".into(), proposal: "assumption".into() },
+        WritePolicy::Propose,
+    );
+    let preview = agent.preview(&candidate, PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert_eq!(agent.commit(candidate), Err(Refusal::PolicyRefused));
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    let effect = preview.effects.iter().find(|effect| effect.at == output).unwrap();
+    assert_eq!(effect.before.value, RawValue::Number { bits: 6.0f64.to_bits() });
+    assert_eq!(effect.after.value, RawValue::Number { bits: 8.0f64.to_bits() });
+    assert!(matches!(effect.before.provenance, Provenance::Calculated { .. }));
+    assert!(matches!(effect.after.provenance, Provenance::Calculated { .. }));
+    let live = ask(&connection, query::Cells { interest: Interest::Area(Area(output, output)) });
+    assert_eq!(live.cells[0].shown.value, RawValue::Number { bits: 6.0f64.to_bits() });
+    assert_eq!(preview.base, before);
+    assert!(connection.next_frame().unwrap().is_none());
+    assert_eq!(ask(&connection, query::History).undo.len(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_refuses_volatile_dependencies_and_enforces_the_budget() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    let volatile = Key(sheet.0, sheet.1, 1, 3);
+    connection.commit(batch(1, vec![enter(input, "3"), enter(output, "=A1+C1"), enter(volatile, "=RAND()")])).unwrap();
+    while host.advance() {}
+    let before = connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let candidate = batch(2, vec![enter(input, "4")]);
+    let preview = connection.preview(&candidate, PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert!(matches!(&preview.refusal, Some(Refusal::NotModelled { owner, what })
+        if owner == "dc-zh096" && what.contains("volatile")), "{preview:?}");
+    assert_eq!(preview.writes.len(), 1);
+    assert!(preview.effects.is_empty());
+    let preview = connection.preview(&candidate, PreviewDepth::WithEffects {
+        budget: Budget { cells: 0, ..BUDGET },
+    }).unwrap();
+    assert!(matches!(&preview.refusal, Some(Refusal::OverBudget { .. })), "{preview:?}");
+    assert_eq!(connection.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp, before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_can_leave_an_unrelated_volatile_formula_outside_the_trial() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    let unrelated = Key(sheet.0, sheet.1, 1, 26);
+    connection.commit(batch(1, vec![
+        enter(input, "3"),
+        enter(output, "=A1*2"),
+        enter(unrelated, "=RAND()"),
+    ])).unwrap();
+    while host.advance() {}
+    let volatile = || ask(&connection, query::Cells {
+        interest: Interest::Area(Area(unrelated, unrelated))
+    }).cells[0].shown.clone();
+    let before = volatile();
+    let preview = connection.preview(&batch(2, vec![enter(input, "4")]),
+        PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    assert_eq!(preview.effects.iter().map(|item| item.at).collect::<Vec<_>>(), [output]);
+    assert_eq!(volatile(), before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preview_effects_include_new_spill_members() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let anchor = Key(sheet.0, sheet.1, 1, 2);
+    let new_member = Key(sheet.0, sheet.1, 3, 2);
+    connection.commit(batch(1, vec![enter(input, "2"), enter(anchor, "=SEQUENCE(A1,1)")])).unwrap();
+    while host.advance() {}
+    let candidate = batch(2, vec![enter(input, "3")]);
+    let preview = connection.preview(&candidate, PreviewDepth::WithEffects { budget: BUDGET }).unwrap();
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    let member = preview.effects.iter().find(|effect| effect.at == new_member).unwrap();
+    assert_eq!(member.before.value, RawValue::Blank);
+    assert_eq!(member.after.value, RawValue::Number { bits: 3.0f64.to_bits() });
+    assert!(matches!(member.after.provenance, Provenance::Calculated { .. }));
+    let live = ask(&connection, query::Cells { interest: Interest::Area(Area(new_member, new_member)) });
+    assert!(live.cells.is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn agent_proposal_accepts_only_the_reviewed_subset_and_undoes_each_unit() {
+    let (host, sheet) = workbook();
+    let operator = host.connect(
+        Origin::User {
+            view: ViewId("classic".into()),
+        },
+        WritePolicy::Commit,
+    );
+    let agent = host.connect(
+        Origin::Agent {
+            agent: "Jo".into(),
+            proposal: "loan-assumptions".into(),
+        },
+        WritePolicy::Propose,
+    );
+    let principal = Key(sheet.0, sheet.1, 2, 2);
+    let rate = Key(sheet.0, sheet.1, 3, 2);
+    let term = Key(sheet.0, sheet.1, 4, 2);
+    let output = Key(sheet.0, sheet.1, 6, 2);
+    operator
+        .commit(batch(
+            1,
+            vec![
+                enter(principal, "30"),
+                enter(rate, "2"),
+                enter(term, "1"),
+                enter(output, "=B2*B3/B4"),
+            ],
+        ))
+        .unwrap();
+    while host.advance() {}
+    let stamp = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let watch = operator.watch(WorkbookQuery::Proposals, BUDGET).unwrap();
+    operator.next_frame().unwrap().unwrap();
+    let unit = |id: &str, need: Option<&str>, at, text: &str| {
+        let mut batch = batch(1, vec![enter(at, text)]);
+        batch.expects = vec![target(at)];
+        ProposalUnit {
+            id: UnitId(id.into()),
+            needs: need.into_iter().map(|name| UnitId(name.into())).collect(),
+            batch,
+        }
+    };
+    agent
+        .run(Operation::Propose(Proposal {
+            at: stamp,
+            intent: "Review planner assumptions".into(),
+            units: vec![
+                unit("principal", None, principal, "40"),
+                unit("rate", Some("principal"), rate, "3"),
+                unit("term", None, term, "2"),
+            ],
+        }))
+        .unwrap();
+    assert_eq!(
+        operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp,
+        stamp
+    );
+    assert_eq!(ask(&operator, query::Proposals).len(), 1);
+    let offered = operator.next_frame().unwrap().unwrap();
+    assert_eq!(offered.stamp, stamp);
+    assert!(offered.updates.iter().any(|update| matches!(update,
+        Update::Ready { watch: id, .. } if *id == watch
+    )));
+    let request = |name: &str| UnitId(name.into());
+    let proposal = ProposalId("loan-assumptions".into());
+    let decide = |accept: Vec<UnitId>, reject: Vec<UnitId>| Operation::Decide {
+        proposal: proposal.clone(),
+        accept,
+        reject,
+    };
+    assert!(
+        operator
+            .run(decide(vec![request("rate")], Vec::new()))
+            .is_err()
+    );
+    assert_eq!(
+        operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp,
+        stamp
+    );
+    let packet = operator.handle(Packet {
+        envelope: Envelope::new(
+            1,
+            Message::WorkbookRequest(WorkbookRequest::PreviewProposal {
+                proposal: proposal.clone(),
+                units: vec![request("rate"), request("principal")],
+                depth: PreviewDepth::WithEffects { budget: BUDGET },
+            }),
+        ),
+        bytes: None,
+    });
+    let Message::WorkbookReply(WorkbookReply::Preview(preview)) = packet.envelope.message else {
+        panic!("expected a preview");
+    };
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    assert_eq!(
+        preview
+            .writes
+            .iter()
+            .map(|write| write.at)
+            .collect::<Vec<_>>(),
+        [principal, rate]
+    );
+    assert_eq!(
+        preview
+            .effects
+            .iter()
+            .find(|effect| effect.at == output)
+            .unwrap()
+            .after
+            .value,
+        RawValue::Number {
+            bits: 120.0f64.to_bits()
+        }
+    );
+    operator
+        .run(decide(
+            vec![request("rate"), request("principal")],
+            vec![request("term")],
+        ))
+        .unwrap();
+    while host.advance() {}
+    let value = |at| {
+        ask(
+            &operator,
+            query::Cells {
+                interest: Interest::Area(Area(at, at)),
+            },
+        )
+        .cells[0]
+            .shown
+            .value
+            .clone()
+    };
+    assert_eq!(
+        value(term),
+        RawValue::Number {
+            bits: 1.0f64.to_bits()
+        }
+    );
+    assert_eq!(
+        value(output),
+        RawValue::Number {
+            bits: 120.0f64.to_bits()
+        }
+    );
+    let history = ask(&operator, query::History);
+    assert_eq!(history.undo.len(), 3);
+    assert!(matches!(history.undo[0].origin, Origin::Agent { .. }));
+    assert_eq!(history.undo[0].group, history.undo[1].group);
+    assert!(history.undo[0].group.is_some());
+    operator.run(Operation::Undo).unwrap();
+    while host.advance() {}
+    assert_eq!(
+        value(output),
+        RawValue::Number {
+            bits: 80.0f64.to_bits()
+        }
+    );
+    operator.run(Operation::Undo).unwrap();
+    while host.advance() {}
+    assert_eq!(
+        value(output),
+        RawValue::Number {
+            bits: 60.0f64.to_bits()
+        }
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn stale_proposal_refuses_every_unit_and_returns_reviewed_and_current_inputs() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let agent = host.connect(
+        Origin::Agent {
+            agent: "Jo".into(),
+            proposal: "shared-assumptions".into(),
+        },
+        WritePolicy::Propose,
+    );
+    let a = Key(sheet.0, sheet.1, 1, 1);
+    let b = Key(sheet.0, sheet.1, 1, 2);
+    let c = Key(sheet.0, sheet.1, 1, 3);
+    operator
+        .commit(batch(1, vec![enter(a, "1"), enter(b, "2"), enter(c, "3")]))
+        .unwrap();
+    let exposed = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let unit = |id: &str, at, text: &str| {
+        let mut batch = batch(1, vec![enter(at, text)]);
+        batch.expects = vec![target(at)];
+        ProposalUnit {
+            id: UnitId(id.into()),
+            needs: Vec::new(),
+            batch,
+        }
+    };
+    let proposal = ProposalId("shared-assumptions".into());
+    agent
+        .run(Operation::Propose(Proposal {
+            at: exposed,
+            intent: "Review three inputs".into(),
+            units: vec![unit("a", a, "10"), unit("b", b, "20"), unit("c", c, "30")],
+        }))
+        .unwrap();
+    operator.commit(batch(2, vec![enter(b, "25"), enter(c, "35")])).unwrap();
+    let before_decide = operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp;
+    let decision = Operation::Decide {
+        proposal,
+        accept: vec![UnitId("a".into()), UnitId("b".into())],
+        reject: Vec::new(),
+    };
+    assert_eq!(agent.run(decision.clone()), Err(Refusal::PolicyRefused));
+    let Err(Refusal::Conflict {
+        base,
+        conflicts,
+        diffs,
+    }) = operator.run(decision)
+    else {
+        panic!("expected both units to be refused for an intervening cell edit");
+    };
+    assert_eq!(base, exposed.model);
+    assert_eq!(conflicts, vec![Target::Source(target(b))]);
+    assert_eq!(
+        diffs,
+        vec![ModelWriteDiff {
+            at: b,
+            before: Some("2".into()),
+            after: Some("25".into())
+        }]
+    );
+    let first = ask(
+        &operator,
+        query::Cells {
+            interest: Interest::Area(Area(a, a)),
+        },
+    );
+    assert_eq!(first.cells[0].input, "1");
+    assert_eq!(
+        operator.ask(WorkbookQuery::Summary, BUDGET).unwrap().stamp,
+        before_decide
+    );
+    assert_eq!(ask(&operator, query::History).undo.len(), 2);
 }

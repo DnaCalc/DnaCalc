@@ -4,10 +4,12 @@ mod batch;
 mod comparison;
 mod contributions;
 mod dependencies;
+mod effects;
 mod inventory;
 mod issues;
 mod names;
 mod placement;
+mod proposal;
 mod publication;
 mod query;
 mod rows;
@@ -88,6 +90,8 @@ struct State {
     baseline_revision: u64,
     look: Option<LookOffer>,
     look_revision: u64,
+    proposals: BTreeMap<ProposalId, proposal::StagedProposal>,
+    proposal_revision: u64,
     clock: Option<Rc<calc_host::ModelClock>>,
 }
 
@@ -231,6 +235,7 @@ impl State {
             return Err(Refusal::Conflict {
                 base,
                 conflicts: vec![Target::Source(SourceRef::Workbook)],
+                diffs: Vec::new(),
             });
         }
 
@@ -279,7 +284,7 @@ impl State {
         if conflicts.is_empty() {
             Ok(())
         } else {
-            Err(Refusal::Conflict { base, conflicts })
+            Err(Refusal::Conflict { base, conflicts, diffs: Vec::new() })
         }
     }
 }
@@ -315,6 +320,8 @@ impl SkinHost {
                 baseline_revision: 0,
                 look: None,
                 look_revision: 0,
+                proposals: BTreeMap::new(),
+                proposal_revision: 0,
                 clock: None,
             })),
         }
@@ -350,6 +357,7 @@ impl SkinHost {
                 last_rtd: 0,
                 last_baseline: 0,
                 last_look: self.state.borrow().look_revision,
+                last_proposal: 0,
                 next_watch: 1,
                 next_publication: 1,
                 awaiting_tiles: None,
@@ -429,6 +437,7 @@ struct Local {
     last_rtd: u64,
     last_baseline: u64,
     last_look: u64,
+    last_proposal: u64,
     next_watch: u64,
     next_publication: u64,
     awaiting_tiles: Option<u64>,
@@ -580,28 +589,34 @@ impl WorkbookPort for Connection {
     }
 
     fn preview(&self, request: &Batch, depth: PreviewDepth) -> Result<Preview, Refusal> {
-        if !matches!(depth, PreviewDepth::WritesOnly) {
-            return Err(unavailable("dc-zh096", "Preview with calculation effects"));
-        }
         let mut state = self.host.borrow_mut();
         let base = state.stamp();
         let local = self.local.borrow();
-        Ok(
-            match self
-                .check_write(&state)
-                .and_then(|()| batch::prepare(&mut state, request, local.copied.as_ref()))
-            {
-                Ok(staged) => staged.preview,
-                Err(refusal) => Preview {
-                    base,
-                    writes: Vec::new(),
-                    properties: Vec::new(),
-                    presentation: Vec::new(),
-                    warnings: Vec::new(),
-                    refusal: Some(refusal),
-                },
-            },
-        )
+        let access = if !state.read_only && self.policy == WritePolicy::Propose
+            && matches!(self.origin, Origin::Agent { .. })
+        {
+            Ok(())
+        } else {
+            self.check_write(&state)
+        };
+        let mut staged = match access.and_then(|()| {
+            batch::prepare(&mut state, request, local.copied.as_ref())
+        }) {
+            Ok(staged) => staged,
+            Err(refusal) => return Ok(Preview {
+                base,
+                writes: Vec::new(),
+                properties: Vec::new(),
+                effects: Vec::new(),
+                presentation: Vec::new(),
+                warnings: Vec::new(),
+                refusal: Some(refusal),
+            }),
+        };
+        if let PreviewDepth::WithEffects { budget } = depth {
+            effects::append(state.session.host(), &mut staged.preview, staged.after, budget);
+        }
+        Ok(staged.preview)
     }
 
     fn commit(&self, request: Batch) -> Result<Stamp, Refusal> {
@@ -765,6 +780,16 @@ impl WorkbookPort for Connection {
         let mut state = self.host.borrow_mut();
         let before = state.stamp();
         let intent = match operation {
+            Operation::Propose(declaration) => {
+                return proposal::offer(&mut state, &self.origin, self.policy, declaration);
+            }
+            Operation::Decide { proposal, accept, reject } => {
+                if !matches!(self.origin, Origin::User { .. }) {
+                    return Err(Refusal::PolicyRefused);
+                }
+                self.check_write(&state)?;
+                return proposal::decide(&mut state, &proposal, &accept, &reject);
+            }
             Operation::TryOn { expected, look } => {
                 let Origin::Agent { agent, proposal } = &self.origin else {
                     return Err(Refusal::PolicyRefused);
@@ -917,6 +942,7 @@ impl WorkbookPort for Connection {
         let rtd = state.session.host().rtd_revision();
         let rtd_changed = local.last_rtd != rtd;
         let baseline_changed = local.last_baseline != state.baseline_revision;
+        let proposals_changed = local.last_proposal != state.proposal_revision;
         for (&watch, slot) in &mut local.watches {
             let completed_snapshot = matches!(slot.query, WorkbookQuery::ConsistentBindings { .. })
                 && !state.session.has_unfinished_calculation()
@@ -928,6 +954,7 @@ impl WorkbookPort for Connection {
                 ));
             if slot.answer.is_some()
                 && !completed_snapshot
+                && !(proposals_changed && matches!(slot.query, WorkbookQuery::Proposals))
                 && !(baseline_changed && matches!(
                     slot.query,
                     WorkbookQuery::NumericComparison { .. }
@@ -996,6 +1023,7 @@ impl WorkbookPort for Connection {
         local.last_selection = state.selection_seq;
         local.last_rtd = rtd;
         local.last_baseline = state.baseline_revision;
+        local.last_proposal = state.proposal_revision;
         if updates.is_empty() && events.is_empty() && prior == Some(stamp) {
             return Ok(None);
         }
@@ -1129,6 +1157,8 @@ impl Connection {
         state.clock = clock;
         state.opened_at = stamp;
         state.look = None;
+        state.proposals.clear();
+        state.proposal_revision += 1;
         state.touches.clear();
         state.calc_touches.clear();
         state.calculation_changes = None;
@@ -1181,6 +1211,13 @@ impl Connection {
             }
             WorkbookRequest::Preview { batch, depth } => {
                 WorkbookReply::Preview(self.preview(&batch, depth)?)
+            }
+            WorkbookRequest::PreviewProposal { proposal, units, depth } => {
+                if !matches!(self.origin, Origin::User { .. }) {
+                    return Err(Refusal::PolicyRefused);
+                }
+                let mut state = self.host.borrow_mut();
+                WorkbookReply::Preview(proposal::preview(&mut state, &proposal, &units, depth)?)
             }
             WorkbookRequest::Commit(batch) => WorkbookReply::Stamp(self.commit(batch)?),
             WorkbookRequest::Run(operation) => WorkbookReply::Stamp(self.run(operation)?),

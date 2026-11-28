@@ -176,6 +176,8 @@ mod shift;
 pub use shift::shift_cell_edits;
 mod session;
 mod state;
+mod trial;
+pub use trial::{CalculationTrial, TrialGraph};
 pub mod validation;
 
 pub use chart::{ChartCorner, ChartKind, ChartPlace, ChartView, PlotView, SeriesView};
@@ -203,7 +205,7 @@ pub use save_calculation::{
 pub use session::{
     CommandIngress, DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession,
     INTENT_LOG_LIMIT, IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome,
-    SkinIntent, SubscriptionId, UNDO_LIMIT, replay,
+    SkinEditUnit, SkinIntent, SubscriptionId, UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, OpenReport, RecalcContext};
 pub use validation::{
