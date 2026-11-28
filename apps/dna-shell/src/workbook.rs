@@ -435,6 +435,16 @@ fn focus_of(event: &leptos::ev::KeyboardEvent) -> Focus {
     }
 }
 
+fn keyboard_component(event: &leptos::ev::KeyboardEvent) -> Option<String> {
+    event
+        .target()?
+        .dyn_into::<leptos::web_sys::Element>()
+        .ok()?
+        .closest("[data-dna-key-component]")
+        .ok()??
+        .get_attribute("data-dna-key-component")
+}
+
 /// A Deck button: its label, its state and its key come from the command.
 fn command_button(session: Session, id: &'static str, label: &'static str) -> impl IntoView {
     let command = CommandId::new(id);
@@ -631,7 +641,8 @@ pub fn workbook(
             on:keydown=move |event: leptos::ev::KeyboardEvent| {
             let focus = focus_of(&event);
             let path = (focus == Focus::KeyTip).then(|| session.key_tip_path()).flatten();
-            if session.key(&key_input(&event), focus) {
+            let component = keyboard_component(&event);
+            if session.key_in_component(&key_input(&event), focus, component.as_deref()) {
                 event.prevent_default();
                 if let Some(path) = path {
                     tip_path_changed(session, chrome.tips, stage_node, path);

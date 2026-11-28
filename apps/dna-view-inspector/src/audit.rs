@@ -3,7 +3,7 @@ use calc_skin::{
     Dependencies, DependencyDirection, DependencyGrouping, DependencyTarget, ErrorOrigin,
     InventoryItem, InventoryKind, SheetVisibility, SourceRef, query,
 };
-use dna_kit::Session;
+use dna_kit::{Session, ViewCommand};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
@@ -26,6 +26,7 @@ pub(crate) fn overview(session: Session) -> impl IntoView {
             }}
         </div>
         {issues(session)}
+        {atlas(session)}
         <div class="dna-inspector-card">
             <h2>"Workbook inventory"</h2>
             {move || {
@@ -60,6 +61,87 @@ pub(crate) fn overview(session: Session) -> impl IntoView {
             }}
         </div>
     }
+}
+
+#[derive(Clone, Copy, Default)]
+struct AtlasState {
+    open: RwSignal<bool>,
+}
+
+pub(crate) fn atlas_command(session: Session) -> ViewCommand {
+    let state = session.local::<AtlasState>();
+    ViewCommand::global("inspector.atlas", "Toggle Sheet Atlas", &[], move |_| {
+        state.open.update(|open| *open = !*open);
+        Ok(())
+    })
+}
+
+fn atlas(session: Session) -> impl IntoView {
+    let state = session.local::<AtlasState>();
+    let query = session.following_with_budget::<query::DependencyAtlasOf>(crate::INSTRUMENT_BUDGET);
+    view! {
+        <section class="dna-inspector-card" data-inspector="dependency-atlas">
+            <h2>"Sheet Dependency Atlas"</h2>
+            <button
+                type="button"
+                data-command="inspector.atlas"
+                aria-expanded=move || state.open.get().to_string()
+                on:click=move |_| { let _ = session.command("inspector.atlas"); }
+            >{move || if state.open.get() { "Hide Sheet Atlas" } else { "Show Sheet Atlas" }}</button>
+            {move || {
+                let open = state.open.get();
+                let data = query.at(open.then_some(query::DependencyAtlasOf));
+                open.then(|| {
+                    match result(data, "").and_then(|answer| Ok((evidence(answer.body)?, coverage(answer.coverage)))) {
+                        Ok((atlas, limit)) => {
+                            let formulas: u64 = atlas.sheets.iter().map(|sheet| sheet.formulas).sum();
+                            let unbound: u64 = atlas.sheets.iter().map(|sheet| sheet.unbound).sum();
+                            let links = atlas.links.len();
+                            view! {
+                                <p data-inspector="atlas-counts">{format!(
+                                    "{} worksheets · {links} sheet links · {formulas} formulas",
+                                    atlas.sheets.len(),
+                                )}</p>
+                                {limit.map(status)}
+                                {(unbound > 0 || atlas.unattributed_names > 0).then(|| status(format!(
+                                    "{unbound} formulas awaiting bindings · {} name reads without a fixed worksheet",
+                                    atlas.unattributed_names,
+                                )))}
+                                {(links > 0).then(|| view! {
+                                    <table aria-label="Cross-sheet dependencies" data-dna-action-field="">
+                                        <thead><tr>
+                                            <th scope="col">"Reader worksheet"</th><th scope="col">"Source worksheet"</th>
+                                            <th scope="col">"Reading formulas"</th><th scope="col">"Placed reads"</th>
+                                            <th scope="col">"Dynamic reads"</th>
+                                        </tr></thead>
+                                        <tbody>{atlas.links.into_iter().map(|link| {
+                                            let reader = sheet_label(session, link.consumer);
+                                            let source = sheet_label(session, link.precedent);
+                                            let reader_name = reader.clone();
+                                            let source_name = source.clone();
+                                            view! {
+                                                <tr data-atlas-reader=reader_name data-atlas-source=source_name>
+                                                    <th scope="row">{atlas_sheet(session, link.consumer, reader)}</th>
+                                                    <td>{atlas_sheet(session, link.precedent, source)}</td>
+                                                    <td>{link.readers}</td><td>{link.placed}</td><td>{link.dynamic}</td>
+                                                </tr>
+                                            }
+                                        }).collect_view()}</tbody>
+                                    </table>
+                                })}
+                            }.into_any()
+                        }
+                        Err(message) => status(message),
+                    }
+                })
+            }}
+        </section>
+    }
+}
+
+fn atlas_sheet(session: Session, sheet: calc_skin::grid::Sheet, label: String) -> impl IntoView {
+    let at = calc_skin::grid::Key(sheet.0, sheet.1, 1, 1);
+    crate::invoke(session, "inspector.reveal", serde_json::json!(at), label)
 }
 
 fn inventory_view(items: Vec<InventoryItem>, limit: Option<String>) -> AnyView {
@@ -156,17 +238,23 @@ pub(crate) fn dependencies(session: Session, direction: DependencyDirection) -> 
                 DependencyDirection::Dependents => "Downstream dependencies",
             }}</h2>
             {move || {
-                let scope = session.selection().map(|selection| selection.target);
-                let data = result(deps.at(scope.map(|of| query::Deps {
-                    of, dir: direction, depth: 5, group: DependencyGrouping::Sheet,
+                let Some(source) = session.selection().map(|selection| selection.target) else {
+                    deps.at(None);
+                    names.at(None);
+                    return status("Select a cell to inspect.".into());
+                };
+                let data = result(deps.at(Some(query::Deps {
+                    of: source.clone(), dir: direction, depth: 5, group: DependencyGrouping::Sheet,
                 })), "Select a cell to inspect.")
-                    .and_then(|answer| Ok((evidence(answer.body)?, coverage(answer.coverage))));
+                    .and_then(|answer| Ok((answer.stamp.workbook, evidence(answer.body)?, coverage(answer.coverage))));
                 match data {
-                    Ok((graph, limit)) => {
+                    Ok((workbook, graph, limit)) => {
                         let has_names = graph.nodes.iter().any(|node| matches!(node, DependencyTarget::Source(SourceRef::Name { .. })));
                         let query = has_names.then(|| query::Inventory { kinds: vec![InventoryKind::Names] });
                         let names = result(names.at(query), "").map(|answer| answer.body).unwrap_or_default();
-                        graph_view(session, graph, names, limit)
+                        graph_view(session, crate::dependency_tree::Scope {
+                            workbook, source, direction,
+                        }, graph, names, limit)
                     }
                     Err(message) => {
                         names.at(None);
@@ -204,6 +292,7 @@ pub(crate) fn target_label(session: Session, target: &DependencyTarget) -> Strin
 
 fn graph_view(
     session: Session,
+    scope: crate::dependency_tree::Scope,
     graph: Dependencies,
     names: Vec<InventoryItem>,
     limit: Option<String>,
@@ -230,6 +319,7 @@ fn graph_view(
         .filter(|edge| edge.from < labels.len() && edge.to < labels.len())
         .take(EDGES)
         .collect();
+    let tree = crate::dependency_tree::mount(session, scope, &graph, labels.len());
     let grouped = graph
         .sheets
         .into_iter()
@@ -257,6 +347,7 @@ fn graph_view(
         })}
         {(!graph.unbound.is_empty()).then(|| view! { <p>{format!("{} cells await binding.", graph.unbound.len())}</p> })}
         <ul class="dna-inspector-names">{named_formulas}</ul>
+        {tree}
         {grouped}
         <ol class="dna-inspector-edges">
             {edges.into_iter().map(|edge| {

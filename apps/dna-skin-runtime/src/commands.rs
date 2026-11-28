@@ -105,6 +105,7 @@ pub struct Context {
     pub view: ViewId,
     pub mode: InputMode,
     pub read_only: bool,
+    pub component: Option<String>,
 }
 
 /// A condition on the context: a conjunction of `view:<id>`, `mode:<mode>`, `editing`, `writable`
@@ -115,6 +116,7 @@ pub struct When(Vec<(bool, Atom)>);
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Atom {
     View(ViewId),
+    Component(String),
     Mode(InputMode),
     Editing,
     Writable,
@@ -148,6 +150,10 @@ impl When {
         Self(vec![(true, Atom::View(ViewId(view.to_owned())))])
     }
 
+    pub fn component(component: &str) -> Self {
+        Self(vec![(true, Atom::Component(component.to_owned()))])
+    }
+
     pub fn and(mut self, other: Self) -> Self {
         self.0.extend(other.0);
         self
@@ -157,16 +163,21 @@ impl When {
     fn overlaps(&self, other: &Self) -> bool {
         // An unmentioned view can have the same truth values only as another unmentioned view.
         let mut views = vec![ViewId(String::new())];
+        let mut components = vec![None];
         for (_, atom) in self.0.iter().chain(&other.0) {
-            if let Atom::View(view) = atom {
-                views.push(view.clone());
+            match atom {
+                Atom::View(view) => views.push(view.clone()),
+                Atom::Component(component) => components.push(Some(component.clone())),
+                _ => {}
             }
         }
         views.into_iter().any(|view| {
             InputMode::ALL.into_iter().any(|mode| {
                 [false, true].into_iter().any(|read_only| {
-                    let context = Context { view: view.clone(), mode, read_only };
-                    self.holds(&context) && other.holds(&context)
+                    components.iter().any(|component| {
+                        let context = Context { view: view.clone(), mode, read_only, component: component.clone() };
+                        self.holds(&context) && other.holds(&context)
+                    })
                 })
             })
         })
@@ -177,6 +188,7 @@ impl When {
             *wanted
                 == match atom {
                     Atom::View(view) => *view == context.view,
+                    Atom::Component(component) => context.component.as_ref() == Some(component),
                     Atom::Mode(mode) => *mode == context.mode,
                     Atom::Editing => context.mode.editing(),
                     Atom::Writable => !context.read_only,
@@ -700,6 +712,7 @@ mod tests {
             view: ViewId(view.into()),
             mode,
             read_only: false,
+            component: None,
         }
     }
 
@@ -761,6 +774,25 @@ mod tests {
             alt_graph: false,
             composing: false,
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_keyboard_component_takes_control_only_while_focused() {
+        let mut keymap = keymap();
+        keymap.bind(
+            Layer::Component,
+            When::component("inspector-dependencies").and(When::parse("!editing").unwrap()),
+            "ArrowDown",
+            NEXT_ISSUE,
+        );
+        let input = press("ArrowDown", false, false);
+        let mut active = context("classic", InputMode::Ready);
+        assert_eq!(keymap.resolve(&input, &active), Resolution::Command(DOWN));
+        active.component = Some("inspector-dependencies".into());
+        assert_eq!(keymap.resolve(&input, &active), Resolution::Command(NEXT_ISSUE));
+        active.component = Some("other".into());
+        assert_eq!(keymap.resolve(&input, &active), Resolution::Command(DOWN));
     }
 
     fn table(log: &Rc<RefCell<Vec<String>>>) -> CommandTable {

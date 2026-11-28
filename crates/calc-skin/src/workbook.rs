@@ -245,6 +245,7 @@ pub enum WorkbookQuery {
         depth: u16,
         group: crate::DependencyGrouping,
     },
+    DependencyAtlas,
     Issues {
         scope: SourceRef,
     },
@@ -522,6 +523,13 @@ pub enum ModelChange {
     },
     ToggleAutoFilter {
         selected: Area,
+    },
+    /// Sort a selected rectangle by its relative columns, using workbook values.
+    SortRows {
+        selected: Area,
+        keys: Vec<RowSort>,
+        header: bool,
+        case_sensitive: bool,
     },
     RewriteFormula {
         at: Key,

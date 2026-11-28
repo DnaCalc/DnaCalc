@@ -1182,13 +1182,13 @@ pub(crate) fn prepare(
             header,
             revision,
             options,
-        } => sort_rows(host, area, &keys, header, revision, &options),
+        } => prepare_sort_rows(host, area, &keys, header, revision, &options),
         WorkbookCommand::SortRows {
             area,
             keys,
             header,
             revision,
-        } => sort_rows(host, area, &keys, header, revision, &SortOptions::default()),
+        } => prepare_sort_rows(host, area, &keys, header, revision, &SortOptions::default()),
         WorkbookCommand::Name(edit) => crate::names::prepare(host, edit),
         WorkbookCommand::FormatCells { areas, patch } => {
             crate::format::prepare(host, &areas, &patch)
@@ -2018,7 +2018,8 @@ pub(crate) fn conditional_edits(
 /// immutable copy snapshots and reference relocation as Paste, in one transaction. Source-only
 /// metadata and unsupported qualified references remain refused. Notes and validations follow
 /// the same validated permutation without overwriting one row’s metadata with another’s.
-fn sort_rows(
+/// Prepares the worksheet's row permutation and its authored metadata as one edit.
+pub fn prepare_sort_rows(
     host: &HostState,
     area: GridArea,
     keys: &[SortKey],

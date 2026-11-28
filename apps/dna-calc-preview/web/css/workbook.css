@@ -310,6 +310,22 @@
 .dna-inspector thead { background: var(--dna-paper-2); }
 .dna-inspector details { padding-block: var(--dna-gap-1); }
 .dna-inspector summary { cursor: pointer; }
+.dna-inspector-dependency-tree { list-style: none; padding-inline-start: 0; }
+.dna-inspector-dependency-tree [role="treeitem"]:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: var(--dna-gap-1);
+}
+.dna-inspector-dependency-tree [role="treeitem"]:focus-visible {
+  outline: 2px solid var(--dna-accent-ink);
+  outline-offset: -2px;
+}
+.dna-inspector-dependency-tree [aria-level="2"] { padding-inline-start: 1rem; }
+.dna-inspector-dependency-tree [aria-level="3"] { padding-inline-start: 2rem; }
+.dna-inspector-dependency-tree [aria-level="4"] { padding-inline-start: 3rem; }
+.dna-inspector-dependency-tree [aria-level="5"] { padding-inline-start: 4rem; }
+.dna-inspector-dependency-tree [aria-level="6"] { padding-inline-start: 5rem; }
+.dna-inspector-dependency-tree [aria-level="7"] { padding-inline-start: 6rem; }
 
 .dna-book-review-write { display: inline-flex; align-items: baseline; gap: var(--dna-gap-2); }
 .dna-book-review-write code { white-space: normal; overflow-wrap: anywhere; }

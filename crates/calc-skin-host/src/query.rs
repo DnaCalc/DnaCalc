@@ -352,6 +352,7 @@ pub(crate) fn invalidated(
             authored || recalculated || rtd_changed
         }
         WorkbookQuery::Deps { .. } => authored || recalculated,
+        WorkbookQuery::DependencyAtlas => authored || recalculated,
         WorkbookQuery::CalcState => true,
         WorkbookQuery::CalcChanges => recalculated,
         WorkbookQuery::Rules { .. } => authored || recalculated,
@@ -769,6 +770,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::InputCandidates { .. } => Some("Choose a smaller worksheet area or open Forms maker"),
         WorkbookQuery::ChartImage { .. } => Some("Choose a chart with fewer points"),
         WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
+        WorkbookQuery::DependencyAtlas => Some("Increase the sheet dependency budget"),
         WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
         WorkbookQuery::Notes { .. } => Some("Choose one anchor"),
         WorkbookQuery::Sources => Some("Increase the source inventory budget"),
@@ -908,6 +910,11 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             from: Derivation::Dependencies,
             at: stamp,
             body: issues::issues(state, scope, &mut meter)?,
+        })?,
+        WorkbookQuery::DependencyAtlas => query::DependencyAtlasOf::encode(&Evidence::Derived {
+            from: Derivation::Dependencies,
+            at: stamp,
+            body: dependencies::atlas(host, &mut meter)?,
         })?,
         WorkbookQuery::Contributions { at } => {
             query::ContributionsAt::encode(&Evidence::Derived {

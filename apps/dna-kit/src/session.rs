@@ -668,6 +668,7 @@ impl Session {
         self.peek(|client| Context {
             view,
             mode,
+            component: None,
             read_only: summary.is_some_and(|watch| match client.read(watch) {
                 Live::Ready(answer) => answer.body.capabilities.read_only,
                 _ => false,
@@ -804,7 +805,7 @@ impl Session {
             errors.into_iter().map(dna_skin_runtime::skin::keymap_error).collect::<Vec<_>>().join("\n")
         })?;
         let departures = keymap.departures(&Context {
-            view: ViewId("classic".into()), mode: InputMode::Ready, read_only: false,
+            view: ViewId("classic".into()), mode: InputMode::Ready, read_only: false, component: None,
         }).len();
         *inner.commands.borrow_mut() = commands;
         *inner.keymap.borrow_mut() = keymap;
@@ -847,8 +848,14 @@ impl Session {
 
     /// A key press. `true` when the session took it and the browser must not.
     pub fn key(self, input: &KeyInput, focus: Focus) -> bool {
-        let context = self.context();
-        let deck_keys = matches!(focus, Focus::Stage | Focus::KeyTip);
+        self.key_in_component(input, focus, None)
+    }
+
+    /// Resolve a key from a view's named keyboard component through the shared map.
+    pub fn key_in_component(self, input: &KeyInput, focus: Focus, component: Option<&str>) -> bool {
+        let mut context = self.context();
+        context.component = component.map(str::to_owned);
+        let deck_keys = component.is_none() && matches!(focus, Focus::Stage | Focus::KeyTip);
         if input.key == "Alt" && deck_keys
             && matches!(context.mode, InputMode::Ready | InputMode::KeyTips)
             && !input.ctrl && !input.shift && !input.meta && !input.alt_graph && !input.composing
@@ -858,6 +865,9 @@ impl Session {
             return true;
         }
         self.inner().alt_tap.set(false);
+        if component.is_some() && input.key == "Tab" && !input.ctrl && !input.alt && !input.meta {
+            return false;
+        }
         match focus {
             Focus::Field if !input.alt || input.alt_graph => return false,
             Focus::ActionField if (!input.alt || input.alt_graph) && input.key != "Escape" => return false,
@@ -884,7 +894,7 @@ impl Session {
                 true
             }
             Resolution::Text | Resolution::Unbound => {
-                let typed = (focus == Focus::Stage && context.mode == InputMode::Ready
+                let typed = (component.is_none() && focus == Focus::Stage && context.mode == InputMode::Ready
                     && !self.inner().passive_views.borrow().contains(&context.view))
                     .then(|| input.text())
                     .flatten()
