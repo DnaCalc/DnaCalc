@@ -1,4 +1,4 @@
-# Safe execution
+# Guarded execution
 
 Bead `dc-y46aj`, lane fbs1, 2026-11-27. It answers two questions:
 

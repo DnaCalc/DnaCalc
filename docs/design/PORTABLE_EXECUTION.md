@@ -1025,7 +1025,27 @@ is its order), dc-8svfs.14 (browser), dc-a6ee2 (Guarded measurement: section 9's
 its first static estimate), dc-hk7im (formula routes under Guarded), dc-1jia7 and dc-oxh8w.73
 (forms).
 
-### 11.5 Open decisions for the owner
+### 11.5 Owner decisions (2026-11-28)
+
+The owner took all six, and found the plan aligned with the intent:
+
+1. **Reject per call: yes.** Faithful mode refuses at the call; strict mode keeps rejection at
+   load (dc-1j8g7).
+2. **Unknown references: yes, run what can.** Spurious references are common. But the file
+   indicators must list every unknown reference even when nothing uses it yet; otherwise a
+   workbook reported "portable" with the reference already in it breaks unexpectedly the first
+   time that reference is used. The report and badge show such a workbook as carrying a dormant
+   reference, never as plainly portable (dc-9brxh, dc-4hzu2).
+3. **XLLs: source compatibility by plain C recompile.** It need not be perfect; we supply
+   `#define` headers for the `windows.h` types `xlcall.h` relies on. No magic mechanism: no PE
+   loading or emulation; PE binaries off Windows stay `NotAvailableHere`. Wasm XLLs (option C) are
+   not planned now. Built after the Linux C API dispatcher (dc-ljnou).
+4. **The four capability names: yes**, added now (dc-enu66).
+5. **Default mounts as recommended**, and the mount table is configurable host setup: these are
+   defaults a user or deployer changes, not fixed rules (dc-0uw7j).
+6. **`Shell`: agreed**, reject plus the per-project command map. A careful mechanism may come later.
+
+The recommendations as first put to the owner:
 
 1. **Reject per call in faithful mode** (section 3), changing CalcVBA's "reject at load" to apply
    only in strict mode. Recommended: yes; it is what lets the chart button run.
