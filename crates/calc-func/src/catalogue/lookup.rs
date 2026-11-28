@@ -928,12 +928,13 @@ fn index_number(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<f64> {
 }
 
 /// XMATCH's and XLOOKUP's match_mode and search_mode use Excel's tolerant integer floor.
-/// An unknown mode, and wildcards with a binary search, are #VALUE!; regex matching
-/// (match_mode 3) is not modelled.
+/// An unknown mode, wildcards with a binary search, and a regex lookup over a
+/// two-dimensional grid are #VALUE!. Regex matching itself is tracked by dc-j9k.233.
 fn modes(
     site: &Site<'_>,
     match_mode: Option<(usize, &CalcValue)>,
     search_mode: Option<(usize, &CalcValue)>,
+    lookup: Option<&Grid<'_>>,
 ) -> Step<(Mode, Search)> {
     let read = |argument: Option<(usize, &CalcValue)>, default: f64| -> Step<f64> {
         match argument {
@@ -953,6 +954,7 @@ fn modes(
         -1.0 => Mode::NextSmaller,
         1.0 => Mode::NextLarger,
         2.0 => Mode::Wildcard,
+        3.0 if lookup.is_some_and(|grid| grid.line().is_none()) => return Err(invalid()),
         3.0 => return Err(site.not_modelled(match_mode.map(|(index, _)| index))),
         _ => return Err(invalid()),
     };
@@ -1098,6 +1100,7 @@ fn xmatched(
         site,
         arguments.get(2).map(|value| (2, value)),
         arguments.get(3).map(|value| (3, value)),
+        grid.as_ref(),
     )?;
     let Some(grid) = grid else {
         return Err(Exit::Error(WorksheetErrorCode::NA));
@@ -1150,6 +1153,7 @@ fn xlooked_up(
         site,
         arguments.get(4).map(|value| (4, value)),
         arguments.get(5).map(|value| (5, value)),
+        lookup_grid.as_ref(),
     )?;
     let (Some(lookup_grid), Some(return_grid)) = (lookup_grid, return_grid) else {
         return Err(Exit::Error(WorksheetErrorCode::NA));

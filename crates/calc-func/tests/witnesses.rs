@@ -15,6 +15,84 @@ mod witness_call;
 use crate::x87_cpu;
 use calc_verdict::WitnessSet;
 
+/// Touchstone Excel 16.0.20625.20108, pz1 XMATCH match_mode 3.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xmatch_regex_mode_validates_lookup_array_shape() {
+    let two_columns = serde_json::json!([
+        ["0x3ff0000000000000", "0x4024000000000000"],
+        ["0x4000000000000000", "0x4034000000000000"],
+        ["0x4008000000000000", "0x403e000000000000"],
+    ]);
+    let cases = [
+        serde_json::json!([
+            "0xc0476d90aad54b5b",
+            [
+                ["0x3ff0000000000000", "0x4000000000000000", "0x4008000000000000"],
+                ["0x4024000000000000", "0x4034000000000000", "0x403e000000000000"],
+            ],
+            "0x4008000000000000",
+            "0xc000000000000000",
+        ]),
+        serde_json::json!(["ß", two_columns, "0x4008000000000000"]),
+        serde_json::json!([true, two_columns, "0x4008000000000000"]),
+    ];
+    let results: Vec<_> = cases
+        .iter()
+        .map(|args| witness_call::calculate("XMATCH", args.as_array().unwrap(), None, None, true))
+        .collect();
+    assert_eq!(results, ["error:Value"; 3]);
+}
+
+/// Touchstone Excel 16.0.20625.20108, pz1 sortby-controls control-8.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_rejects_conflicting_orders_for_the_same_index() {
+    let args = serde_json::json!([
+        [["0x403e000000000000"], ["0x4024000000000000"], ["0x4034000000000000"]],
+        [["0x3ff0000000000000"], ["0x3ff0000000000000"]],
+        [["0xbff0000000000000"], ["0x3ff0000000000000"]],
+    ]);
+    let actual = witness_call::calculate("SORT", args.as_array().unwrap(), None, None, true);
+    assert_eq!(actual, "error:Value");
+}
+
+/// Touchstone Excel 16.0.20625.20108, pz1 FILTERXML character references.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn filterxml_character_reference_text_nodes() {
+    use calc_func::value::{CalcArray, CalcValue};
+    use calc_verdict::{WitnessInvocation, decode_result, encode_result};
+
+    let mut differences = Vec::new();
+    let context = WitnessInvocation {
+        locale: Some("en-US".into()),
+        decimal_separator: Some(".".into()),
+        thousands_separator: Some("\u{a0}".into()),
+        ..Default::default()
+    };
+    let cases = [
+        ("<a><b>x&amp;y</b><b>7</b></a>", "//b/text()", ["error:Value", "error:Value"]),
+        ("<a><b>x&#32;y</b><b>7</b></a>", "//b/text()", ["error:Value", "error:Value"]),
+        ("<a><b>x&#32;y</b><b>7</b></a>", "//b", ["text:x y", "0x401c000000000000"]),
+        ("<a><b>&#32;</b><b>7</b></a>", "//b/text()", ["error:Value", "error:Value"]),
+        ("<a><b>&#32;</b><b>7</b></a>", "//b", ["error:Value", "0x401c000000000000"]),
+    ];
+    for (xml, xpath, expected) in cases {
+        let args = [serde_json::json!(xml), serde_json::json!(xpath)];
+        let expected = expected.map(|cell| vec![decode_result(cell).unwrap()]);
+        let expected = CalcValue::array(CalcArray::from_rows(expected.to_vec()).unwrap());
+        let expected = encode_result(&expected).unwrap();
+        let actual = witness_call::calculate("FILTERXML", &args, None, Some(&context), true);
+        if actual != expected {
+            differences.push(format!("{xml} {xpath}: Excel {expected}, DNA Calc {actual}"));
+        }
+    }
+    let matched = cases.len() - differences.len();
+    println!("FILTERXML character references: {matched}/{} matched", cases.len());
+    assert!(differences.is_empty(), "{differences:#?}");
+}
+
 /// Touchstone Excel 16.0.20625.20108, Ryzen 4800H, dc-ufazo.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

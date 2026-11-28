@@ -1120,6 +1120,42 @@ fn classic_home_borders_apply_one_selected_side_and_its_opposite_edge() {
     }
 }
 
+/// Native-only: verifies the thick outline and retained inside edges through the Classic Deck.
+#[test]
+fn classic_thick_outside_borders_keep_the_inside_lines_and_undo_to_thin() {
+    let page = Page::open();
+    page.session.select_cell(page.at(2, 2));
+    page.settle();
+    for key in [
+        "Shift+ArrowRight", "Shift+ArrowRight", "Shift+ArrowDown", "Shift+ArrowDown", "F10", "h", "b", "a",
+    ] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    let edges = |row, column| {
+        page.host.with_session(SelectionCause::History, |book| {
+            let host = book.host();
+            let at = page.at(row, column).cell().unwrap();
+            let border = calc_host::border_for_style(host.styles(), host.cell_style(at))
+                .unwrap()
+                .expect("there is an authored border");
+            [&border.top, &border.right, &border.bottom, &border.left].map(|edge| {
+                edge.as_ref().and_then(|edge| edge.style.clone()).unwrap_or_default()
+            })
+        })
+    };
+    assert_eq!(edges(2, 2), ["thin"; 4]);
+    for key in ["F10", "h", "b", "t"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(edges(2, 2), ["thick", "thin", "thin", "thick"]);
+    assert_eq!(edges(1, 2), ["", "", "thick", ""]);
+    assert_eq!(edges(4, 4), ["thin", "thick", "thick", "thin"]);
+    assert_eq!(edges(3, 3), ["thin"; 4]);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(edges(2, 2), ["thin"; 4]);
+    assert_eq!(edges(1, 2), ["", "", "thin", ""]);
+}
+
 /// Native-only: drives workbook clipboard commands through the real host.
 #[test]
 fn classic_paste_values_keeps_the_copied_result_and_pastes_as_one_edit() {

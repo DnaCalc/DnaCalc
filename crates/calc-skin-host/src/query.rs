@@ -751,17 +751,28 @@ fn cell_borders(host: &HostState, style: u32) -> CellBorders {
         return CellBorders::default();
     };
     let stroke = |edge: &Option<calc_doc_model::BorderEdge>| {
-        let edge = edge.as_ref().filter(|edge| edge.style.as_deref() == Some("thin"))?;
-        let Some(color) = edge.color.as_ref().filter(|color| !color.auto) else {
-            return Some(ThinBorder::Automatic);
+        let edge = edge.as_ref()?;
+        let thick = match edge.style.as_deref()? {
+            "thin" => false,
+            "thick" => true,
+            _ => return None,
         };
-        let rgb = host.resolved_style_color(color)?;
-        let hex = rgb.trim_start_matches('#');
-        if !matches!(hex.len(), 6 | 8) {
-            return None;
-        }
-        let [_, red, green, blue] = u32::from_str_radix(hex, 16).ok()?.to_be_bytes();
-        Some(ThinBorder::Rgb([red, green, blue]))
+        let rgb = if let Some(color) = edge.color.as_ref().filter(|color| !color.auto) {
+            let value = host.resolved_style_color(color)?;
+            let hex = value.trim_start_matches('#');
+            if !matches!(hex.len(), 6 | 8) {
+                return None;
+            }
+            let [_, red, green, blue] = u32::from_str_radix(hex, 16).ok()?.to_be_bytes();
+            Some([red, green, blue])
+        } else {
+            None
+        };
+        Some(match (thick, rgb) {
+            (true, rgb) => CellBorder::Thick { rgb },
+            (false, Some(rgb)) => CellBorder::Rgb(rgb),
+            (false, None) => CellBorder::Automatic,
+        })
     };
     CellBorders {
         top: stroke(&border.top),

@@ -2163,6 +2163,45 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Thick Outside Borders paints a three-pixel outline over thin inside lines",
+        actions: &[
+            Action::Keys("grid", "\u{e03a}hba"),
+            Action::Wait(Check::Js(
+                "the existing shared edge is thin",
+                r#"(() => {
+                    const edge = getComputedStyle(document.querySelector('[data-cell=B1]'));
+                    return edge.borderBottomWidth === '1px' && edge.borderBottomColor !== 'rgba(0, 0, 0, 0)';
+                })()"#,
+            )),
+            Action::Keys("grid", "\u{e03a}hbt"),
+            Action::Wait(Check::Js(
+                "only the outside edges became thick",
+                r#"(() => {
+                    const cell = address => getComputedStyle(document.querySelector('[data-cell='+address+']'));
+                    const first = cell('B1'), left = cell('A2'), last = cell('D4'), middle = cell('C3');
+                    return first.borderBottomWidth === '3px' && left.borderRightWidth === '3px'
+                        && last.borderRightWidth === '3px' && last.borderBottomWidth === '3px'
+                        && middle.borderRightWidth === '1px' && middle.borderBottomWidth === '1px'
+                        && middle.borderRightColor !== 'rgba(0, 0, 0, 0)'
+                        && middle.borderBottomColor !== 'rgba(0, 0, 0, 0)';
+                })()"#,
+            )),
+            Action::Keys("grid", "\u{e009}z\u{e000}"),
+        ],
+        checks: &[
+            Check::Js(
+                "Undo restores the thin outside border",
+                r#"(() => {
+                    const first = getComputedStyle(document.querySelector('[data-cell=B1]'));
+                    const last = getComputedStyle(document.querySelector('[data-cell=D4]'));
+                    return first.borderBottomWidth === '1px' && last.borderRightWidth === '1px'
+                        && first.borderBottomColor !== 'rgba(0, 0, 0, 0)'
+                        && last.borderRightColor !== 'rgba(0, 0, 0, 0)';
+                })()"#,
+            ),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2977,6 +3016,13 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         name: "classic-left-right-borders",
         start: 82,
         end: 83,
+        core: 1,
+        setup: BORDER_RECTANGLE,
+    },
+    CaseGroup {
+        name: "classic-thick-outside-borders",
+        start: 83,
+        end: 84,
         core: 1,
         setup: BORDER_RECTANGLE,
     },
