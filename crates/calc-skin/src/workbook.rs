@@ -230,6 +230,9 @@ pub enum WorkbookQuery {
     Structure {
         scope: SourceRef,
     },
+    ReferenceOperands {
+        at: Key,
+    },
     InputCandidates {
         scope: SourceRef,
     },
@@ -576,6 +579,13 @@ pub enum ModelChange {
         at: Key,
         expected_old: String,
         new_text: String,
+    },
+    /// Replace one explicitly chosen scalar reference. Its bounds refer to `expected_old`.
+    ReplaceReference {
+        at: Key,
+        expected_old: String,
+        occurrence: crate::OperandSpan,
+        with: String,
     },
     /// Replace matching members of one inferred formula run, using `at` as the copy origin.
     RewriteFormulaRun {

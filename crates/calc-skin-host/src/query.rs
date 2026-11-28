@@ -353,6 +353,7 @@ pub(crate) fn invalidated(
                     .cell()
                     .is_none_or(|at| intersects(&[GridArea::cell(at)], false))
         }
+        WorkbookQuery::ReferenceOperands { .. } => authored,
         WorkbookQuery::ExpressionTree { .. }
         | WorkbookQuery::TrialFor { .. }
         | WorkbookQuery::EvaluateDraftPart { .. } => {
@@ -928,6 +929,9 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             at: stamp,
             body: structure::structure(state, scope, &mut meter)?,
         })?,
+        WorkbookQuery::ReferenceOperands { at } => {
+            query::ReferenceOperandsOf::encode(&crate::references::operands(host, cell(*at)?, &mut meter)?)?
+        }
         WorkbookQuery::InputCandidates { scope } => {
             query::InputCandidates::encode(&structure::inputs(state, scope, &mut meter)?)?
         }

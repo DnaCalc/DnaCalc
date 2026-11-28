@@ -484,6 +484,20 @@ pub(crate) fn prepare(
                     edits.extend(prepare_literal(&state.session, at, text)?);
                     areas.push(GridArea::cell(at));
                 }
+                ModelChange::ReplaceReference { at, expected_old, occurrence, with } => {
+                    require_current_model(request, base.model)?;
+                    let at = cell(*at)?;
+                    rules(&state.session, at)?;
+                    require_formula(&before, at, expected_old, expected_old, request.base.unwrap_or(base.model))?;
+                    let (text, target) = crate::references::replace(
+                        state.session.host(), at, expected_old, *occurrence, with,
+                    )?;
+                    if target == at {
+                        warnings.push("This edit would refer to its own formula cell.".into());
+                    }
+                    edits.extend(prepare_entry(&state.session, at, &text)?);
+                    areas.push(GridArea::cell(at));
+                }
                 ModelChange::IncrementBound { bound } => {
                     require_current_model(request, base.model)?;
                     let at = crate::query::bound_cell(state, bound)?;

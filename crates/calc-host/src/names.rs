@@ -368,6 +368,15 @@ impl HostState {
     pub fn direct_reference(&self, at: CellKey) -> Option<CellKey> {
         calc_engine::DetachedFormula::direct_reference(&self.model, at)
     }
+
+    /// Scalar worksheet operands from the ordinary formula binder, in source order.
+    pub fn scalar_reference_sites(
+        &self, at: CellKey, text: &str,
+    ) -> Vec<(calc_fml::syntax::TextSpan, CellKey)> {
+        calc_engine::DetachedFormula::scalar_reference_sites(
+            &self.model, at, text, &self.user_function_bindings(),
+        )
+    }
     /// Explicit diagnostic evaluation, with a real name identity and caller anchor. No
     /// authored cell or shared name value is created, and no file cache is accepted as current.
     pub fn evaluate_name(

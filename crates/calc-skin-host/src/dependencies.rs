@@ -85,7 +85,9 @@ pub(crate) fn atlas(host: &HostState, meter: &mut QueryWork) -> Result<Dependenc
     for sheet in host.sheets() {
         meter.work(0, 1, 0)?;
         let consumer = Sheet::of(sheet.id());
-        let mut summary = DependencyAtlasSheet { sheet: consumer, formulas: 0, unbound: 0 };
+        let mut summary = DependencyAtlasSheet {
+            sheet: consumer, formulas: 0, unbound: 0, local_references: 0, unattributed_names: 0,
+        };
         for (at, input) in host.model().sheet_cells(sheet.id()).into_iter().flatten() {
             meter.work(1, 0, 0)?;
             if !matches!(input, calc_doc_model::CellInput::Formula(_)) {
@@ -101,7 +103,10 @@ pub(crate) fn atlas(host: &HostState, meter: &mut QueryWork) -> Result<Dependenc
                 for prerequisite in reads {
                     let mut observe = |precedent: Sheet| {
                         meter.work(0, 0, 1)?;
+                        output.total_references += 1;
                         if precedent == consumer {
+                            output.local_references += 1;
+                            summary.local_references += 1;
                             return Ok::<(), Refusal>(());
                         }
                         let entry = links.entry((consumer, precedent)).or_insert(DependencyAtlasLink {
@@ -130,6 +135,8 @@ pub(crate) fn atlas(host: &HostState, meter: &mut QueryWork) -> Result<Dependenc
                                 observe(sheet)?;
                             } else {
                                 output.unattributed_names += 1;
+                                output.total_references += 1;
+                                summary.unattributed_names += 1;
                                 meter.work(0, 0, 1)?;
                             }
                         }

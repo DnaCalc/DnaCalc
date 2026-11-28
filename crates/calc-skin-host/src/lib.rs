@@ -16,6 +16,7 @@ mod query;
 mod rows;
 mod snapshot;
 mod structure;
+mod references;
 mod survey;
 mod validation;
 
