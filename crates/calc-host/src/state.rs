@@ -453,7 +453,7 @@ impl HostState {
             clock: None,
             axis_edits: Vec::new(),
             file: None,
-            application: None,
+            application: Some(crate::facts::excel_application()),
             sheet_view_overrides: std::collections::BTreeMap::new(),
             sheet_protection_saves: std::collections::BTreeMap::new(),
         };

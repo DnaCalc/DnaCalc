@@ -930,6 +930,29 @@ fn enter(session: &mut HostSession, at: CellKey, text: &str) -> IntentReceipt {
     receipt
 }
 
+// Excel 16.0.20527.20088, dcuar_cell catalogue capture, D67:D69.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_xy16l__worksheet_info_reads_the_excel_identity() {
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let actual = [
+        ("A1", "=INFO(\"release\")"),
+        ("A2", "=INFO(\"osversion\")"),
+        ("A3", "=INFO(\"system\")"),
+    ]
+    .map(|(address, formula)| {
+        let cell = at(sheet, address);
+        enter(&mut book, cell, formula);
+        session_calculated(&book, cell)
+            .and_then(|value| value.as_text().map(|text| text.to_string_lossy()))
+    });
+    assert_eq!(
+        actual,
+        ["16.0", "Windows (64-bit) NT 10.00", "pcdos"].map(|text| Some(text.to_owned()))
+    );
+}
+
 /// Excel 16.0.20527, dc-j9k.19: live overflow encodings are numeric values;
 /// saved caches are #NUM!, and a full calculation restores the live encodings.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

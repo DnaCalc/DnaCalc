@@ -848,10 +848,16 @@ mod tests {
                 "dna-view-classic",
                 "dna-view-inspector",
                 "dna-view-notebook",
-                "dna-view-app"
+                "dna-view-app",
+                "dna-view-map"
             ]
         );
         assert!(!rule("dna-onecalc").direct);
+        let map = rule("dna-view-map");
+        assert!(!map.direct);
+        for package in ["calc-engine", "calc-host", "calc-skin-host", "dna-shell"] {
+            assert!(map.forbidden.iter().any(|name| name == package));
+        }
         assert_eq!(
             rule("calc-fml").forbidden,
             ["calc-engine", "calc-host", "calc-doc", "calc-vba"]

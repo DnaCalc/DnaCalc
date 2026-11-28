@@ -3067,13 +3067,13 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// INFO("system") through the product route: the catalogue holds INFO and its kernel refuses
+    /// INFO("directory") through the product route: the catalogue holds INFO and its kernel refuses
     /// the host facts it does not model, so the cell is not modelled under its owner, not a
     /// missing function.
     #[test]
     fn a_kernel_refusal_is_not_modelled_under_its_owner() {
         let calc = super::test_package::calc_sheet(
-            r#"<c r="C1" t="e"><f>INFO("system")</f><v>#VALUE!</v></c>"#,
+            r#"<c r="C1" t="e"><f>INFO("directory")</f><v>#VALUE!</v></c>"#,
         );
         let fixture = super::test_package::package(&super::test_package::inputs_sheet(""), &calc);
         let capture = CaptureRecord::decode(

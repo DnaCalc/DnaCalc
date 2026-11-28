@@ -1,13 +1,12 @@
 //! Application state flags that need no workbook: `Application.ScreenUpdating`.
 use super::*;
 use crate::SkinIntent;
+use crate::facts::EXCEL_OPERATING_SYSTEM;
 
 /// The Excel build the captures record (16.0.20527).
 const EXCEL_BUILD: i32 = 20527;
 /// The calculation engine version the captures record (`calcId`).
 const EXCEL_CALCULATION_VERSION: i32 = 191029;
-/// `Application.OperatingSystem` in the captures.
-const EXCEL_OPERATING_SYSTEM: &str = "Windows (64-bit) NT 10.00";
 
 fn excel_error() -> AutoError {
     AutoError::excel(1004, "Application-defined or object-defined error")

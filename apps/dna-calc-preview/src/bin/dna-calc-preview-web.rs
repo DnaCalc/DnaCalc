@@ -85,6 +85,7 @@ mod browser {
             dna_view_explorer::install_docked(&mut registry);
             dna_view_inspector::install(&mut registry);
             dna_view_notebook::install(&mut registry);
+            dna_view_map::install(&mut registry);
             dna_view_app::install(&mut registry);
             let _ = ready.set_attribute("data-dnacalc-preview-ready", "true");
             let open = view! {

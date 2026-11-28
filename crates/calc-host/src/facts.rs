@@ -3,11 +3,11 @@
 //! windows, the calculation mode and the application, given to the engine before each
 //! recalculation begins ([`calc_engine::EngineState::set_workbook_facts`]).
 //!
-//! The file and the application are what the application states ([`HostState::set_file`],
-//! [`HostState::set_application`]); calc-host reads no file system and no platform of its own,
-//! so until they are set CELL("filename") and INFO("release") and the like are refused. The
-//! Formats and windows retain their imported facts with authored overrides; physical column
-//! widths come from the current model, including structural moves and authored dimensions.
+//! The host starts with the Excel identity. The application can supply the file and current
+//! directory through [`HostState::set_file`] and [`HostState::set_application`]. CalcHost reads
+//! neither from the machine. Formats and windows retain their imported facts with authored
+//! overrides. Physical column widths come from the current model, including structural moves
+//! and authored dimensions.
 
 use crate::state::HostState;
 use calc_doc::{CalcMode, LoadedSheet};
@@ -18,6 +18,19 @@ use calc_fml::{
     WorkbookFacts, WorkbookFile,
 };
 use std::sync::Arc;
+
+/// `Application.OperatingSystem` and `INFO("osversion")` in the Excel captures.
+pub(crate) const EXCEL_OPERATING_SYSTEM: &str = "Windows (64-bit) NT 10.00";
+
+pub(crate) fn excel_application() -> ApplicationFacts {
+    // dcuar_cell D67:D69, Excel 16.0.20527.20088. The directory belongs to the session.
+    ApplicationFacts {
+        release: Some("16.0".into()),
+        os_version: Some(EXCEL_OPERATING_SYSTEM.into()),
+        system: Some("pcdos".into()),
+        directory: None,
+    }
+}
 
 /// One snapshot of the facts (see the module documentation).
 #[derive(Debug)]
