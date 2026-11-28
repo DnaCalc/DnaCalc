@@ -1912,6 +1912,42 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic Freeze Top Row keeps row 1 visible across worksheet pages",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=C4]"),
+            Action::Keys("grid", "\u{e03a}wfr"),
+            Action::Wait(Check::Rendered("[data-cell=D1][class~=dna-frozen-row]", true)),
+            Action::Wait(Check::Attr("[data-cell=C4]", "aria-selected", "true")),
+            Action::Into("name-box", "D40"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-cell=D40]", "aria-selected", "true")),
+        ],
+        checks: &[
+            Check::Rendered("[data-cell=D1][class~=dna-frozen-row]", true),
+            Check::Absent("[data-cell=D2]"),
+            Check::Absent("[data-cell][class~=dna-frozen-column]"),
+        ],
+    },
+    Case {
+        name: "Classic Freeze First Column keeps column A visible across worksheet pages",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Click("[data-cell=C4]"),
+            Action::Keys("grid", "\u{e03a}wfc"),
+            Action::Wait(Check::Rendered("[data-cell=A4][class~=dna-frozen-column]", true)),
+            Action::Wait(Check::Attr("[data-cell=C4]", "aria-selected", "true")),
+            Action::Into("name-box", "Z4"),
+            Action::Keys("name-box", "\u{e007}"),
+            Action::Wait(Check::Attr("[data-cell=Z4]", "aria-selected", "true")),
+        ],
+        checks: &[
+            Check::Rendered("[data-cell=A4][class~=dna-frozen-column]", true),
+            Check::Absent("[data-cell=B4]"),
+            Check::Absent("[data-cell][class~=dna-frozen-row]"),
+        ],
+    },
+    Case {
         name: "Inspector traverses an Orders dependency branch by keyboard across dock and bench",
         actions: &[
             Action::WriteCast("SalesNotebook"),
@@ -2661,6 +2697,20 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         name: "classic-single-fill-right",
         start: 74,
         end: 75,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-freeze-top-row",
+        start: 75,
+        end: 76,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-freeze-first-column",
+        start: 76,
+        end: 77,
         core: 1,
         setup: &[],
     },

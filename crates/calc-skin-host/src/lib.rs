@@ -974,7 +974,8 @@ impl WorkbookPort for Connection {
                 state.session.toggle_gridlines(sheet.id()).map_err(batch::refusal)?;
                 return Ok(state.stamp());
             }
-            Operation::ToggleFreezePanes { workbook, at, off_origin } => {
+            Operation::ToggleFreezePanes { workbook, at, off_origin }
+            | Operation::FreezeLeadingBand { workbook, at, off_origin, .. } => {
                 self.check_write(&state)?;
                 let at = cell(at)?;
                 if workbook != before.workbook || state.selection.active != Some(at) {
@@ -983,16 +984,27 @@ impl WorkbookPort for Connection {
                 let sheet = at.sheet();
                 let view = state.session.host().sheet_view(sheet)
                     .ok_or_else(|| invalid("The worksheet is unavailable"))?;
-                let (rows, columns) = if view.frozen.is_some() {
-                    (0, 0)
-                } else {
-                    if off_origin || view.top_left.is_some_and(|origin| origin != (1, 1)) {
-                        return Err(unavailable("dc-s2xup", "Freezing from a scrolled worksheet (Return to the top-left to freeze at the active cell)"));
+                let band = match operation {
+                    Operation::FreezeLeadingBand { band, .. } => Some(band),
+                    _ => None,
+                };
+                let (rows, columns) = match band {
+                    None if view.frozen.is_some() => (0, 0),
+                    _ if off_origin || view.top_left.is_some_and(|origin| origin != (1, 1)) => {
+                        return Err(unavailable(
+                            "dc-s2xup",
+                            "Freezing from a scrolled worksheet (Return to the top-left before freezing)",
+                        ));
                     }
-                    if (at.row(), at.column()) == (1, 1) {
+                    Some(_) if view.split_window => {
+                        return Err(unavailable("dc-s2xup", "Freezing a leading band in a split worksheet"));
+                    }
+                    Some(FreezeBand::TopRow) => (1, 0),
+                    Some(FreezeBand::FirstColumn) => (0, 1),
+                    None if (at.row(), at.column()) == (1, 1) => {
                         return Err(unavailable("dc-s2xup", "Freezing at the first cell using the window midpoint"));
                     }
-                    (at.row() - 1, at.column() - 1)
+                    None => (at.row() - 1, at.column() - 1),
                 };
                 SkinIntent::Command(calc_host::WorkbookCommand::FreezePanes { sheet, rows, columns })
             }
