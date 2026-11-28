@@ -367,8 +367,21 @@ pub(crate) fn decide(
     let staged = proposal(state, id)?;
     let selected = selected(&staged, accept, reject)?;
     let prepared = checked_units(state, &staged, &selected)?;
-    if !prepared.is_empty() {
-        apply(state, &staged, &selected, prepared)?;
+    let mut events = Vec::new();
+    if trail_enabled(state) {
+        use calc_doc_model::ViewTrailOutcome::{Accepted, Rejected};
+        for (chosen, outcome) in [(accept, Accepted), (reject, Rejected)] {
+            for unit in &staged.review.units {
+                if chosen.contains(&unit.id) {
+                    events.push(trail_event(state, &staged, unit, outcome));
+                }
+            }
+        }
+    }
+    if prepared.is_empty() {
+        state.session.record_trail(events).map_err(batch::refusal)?;
+    } else {
+        apply(state, &staged, &selected, prepared, events)?;
     }
     let proposal = state
         .proposals
@@ -395,6 +408,7 @@ fn apply(
     staged: &StagedProposal,
     units: &[&ProposalUnit],
     prepared: Vec<batch::Prepared>,
+    events: Vec<calc_doc_model::ViewTrailEvent>,
 ) -> Result<(), Refusal> {
     let before = state.stamp();
     let mut ordinary = Vec::new();
@@ -432,6 +446,7 @@ fn apply(
             cells_touched: prepared.preview.writes.len() as u64,
             reversibility: Reversibility::Reversible,
             group: Some(staged.review.id.0.clone()),
+            proposal_unit: Some(unit.id.clone()),
             unreviewed: false,
         };
         match prepared.change {
@@ -439,10 +454,13 @@ fn apply(
             batch::PreparedChange::Paste(plan) => paste = Some((plan, history)),
         }
     }
-    let receipt = if let Some((plan, entry)) = paste {
-        state.session.dispatch_skin_paste(plan, entry)
+    let (receipt, events) = if let Some((plan, entry)) = paste {
+        (state.session.dispatch_skin_paste(plan, entry), events)
     } else {
-        state.session.dispatch_skin_group(ordinary)
+        (
+            state.session.dispatch_skin_group(ordinary, events),
+            Vec::new(),
+        )
     };
     if let Some(error) = receipt.error {
         return Err(batch::refusal(error));
@@ -450,6 +468,7 @@ fn apply(
     let Some(commit) = receipt.committed else {
         return Err(invalid("The proposal did not commit a model change"));
     };
+    state.session.record_trail(events).map_err(batch::refusal)?;
     let touched = (!scope_changed).then(|| commit.input_writes().to_vec());
     state.record_touch(before, touched, commit.pending().to_vec());
     state.record_calculation(before, receipt.recalc.as_ref());
@@ -460,4 +479,108 @@ fn dna_cell_source(at: Key) -> SourceRef {
     batch::source_area(calc_host::value::GridArea::cell(
         at.cell().expect("a written cell"),
     ))
+}
+
+fn trail_enabled(state: &State) -> bool {
+    let part = state.session.host().model().view_part();
+    !part.is_opaque() && part.trail().is_none_or(|trail| trail.enabled)
+}
+
+fn trail_event(
+    state: &State,
+    staged: &StagedProposal,
+    unit: &ProposalUnitReview,
+    outcome: calc_doc_model::ViewTrailOutcome,
+) -> calc_doc_model::ViewTrailEvent {
+    let names = query::address_book(state);
+    let mut targets: BTreeSet<String> = unit
+        .writes
+        .iter()
+        .filter_map(|write| write.at.cell())
+        .map(|at| calc_skin::address::cell(&names, at))
+        .collect();
+    for property in &unit.properties {
+        match property {
+            ModelPropertyDiff::DefinedName { after, before, .. } => {
+                if let Some(name) = after.as_ref().or(before.as_ref()) {
+                    targets.insert(name.name.clone());
+                }
+            }
+            ModelPropertyDiff::AddedScenario { scenario, .. }
+            | ModelPropertyDiff::EditedScenario { scenario, .. } => {
+                targets.insert(scenario.name.clone());
+            }
+            ModelPropertyDiff::WorksheetInserted { name, .. } => {
+                targets.insert(name.clone());
+            }
+            ModelPropertyDiff::CellMoved { from, to } => {
+                targets.extend(
+                    [*from, *to]
+                        .into_iter()
+                        .filter_map(Key::cell)
+                        .map(|at| calc_skin::address::cell(&names, at)),
+                );
+            }
+            ModelPropertyDiff::CellFormat { at, .. } => {
+                if let Some(at) = at.cell() {
+                    targets.insert(calc_skin::address::cell(&names, at));
+                }
+            }
+            ModelPropertyDiff::Scope { source, .. } => {
+                if let Ok(areas) = query::source_areas(state, source) {
+                    targets.extend(
+                        areas
+                            .into_iter()
+                            .map(|area| calc_skin::address::area(&names, area)),
+                    );
+                }
+            }
+        }
+    }
+    calc_doc_model::ViewTrailEvent {
+        timestamp_millis: timestamp_millis(),
+        agent: staged.review.agent.clone(),
+        proposal: staged.review.id.0.clone(),
+        unit: unit.id.0.clone(),
+        intent: staged.review.intent.clone(),
+        targets: targets.into_iter().collect(),
+        outcome,
+    }
+}
+
+fn timestamp_millis() -> u64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() as u64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| {
+                u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+            })
+    }
+}
+
+pub(crate) fn history_trail_event(
+    state: &State,
+    redo: bool,
+) -> Option<calc_doc_model::ViewTrailEvent> {
+    if !trail_enabled(state) {
+        return None;
+    }
+    let entry = state.session.skin_entry_for_restore(redo)?;
+    let Origin::Agent { proposal, .. } = &entry.origin else {
+        return None;
+    };
+    let id = entry.proposal_unit.as_ref()?;
+    let staged = state.proposals.get(&ProposalId(proposal.clone()))?;
+    let unit = staged.review.units.iter().find(|unit| unit.id == *id)?;
+    let outcome = if redo {
+        calc_doc_model::ViewTrailOutcome::Accepted
+    } else {
+        calc_doc_model::ViewTrailOutcome::Undone
+    };
+    Some(trail_event(state, staged, unit, outcome))
 }

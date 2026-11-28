@@ -3216,10 +3216,15 @@ fn operator_reviews_and_accepts_the_selected_proposal_from_the_shell() {
     page.settle();
     let after = session.stamp().unwrap();
     assert_eq!(after.model.0, before.model.0 + 1);
-    assert_eq!(after.view, before.view);
+    assert_eq!(after.view.0, before.view.0 + 1);
     let Live::Ready(proposals) = session.read(proposals) else { panic!("no proposal answer") };
     assert_eq!(proposals.body[0].units[0].status, ProposalStatus::Accepted);
     session.command("edit.undo").unwrap();
     page.settle();
     assert_eq!(session.stamp().unwrap().model.0, after.model.0 + 1);
+    run("proposal.trail", serde_json::json!(false)).unwrap();
+    page.settle();
+    let Live::Ready(view) = session.view_part() else { panic!("no ViewPart answer") };
+    assert!(!view.body.trail.enabled);
+    assert_eq!(view.body.trail.events.len(), 2);
 }

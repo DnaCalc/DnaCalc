@@ -735,7 +735,7 @@ pub(crate) fn show_cell(state: &State, projected: &ProjectedCell) -> WorkbookCel
     }
 }
 
-fn address_book(state: &State) -> AddressBook {
+pub(crate) fn address_book(state: &State) -> AddressBook {
     let host = state.session.host();
     AddressBook {
         sheets: host
@@ -1115,6 +1115,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 }
             });
             query::ViewPartOf::encode(&query::ViewPartFacts {
+                trail: part.trail().map_or_else(TrailFacts::default, trail_facts),
                 skin,
                 skin_issue,
                 opaque: part.is_opaque(),
@@ -1297,4 +1298,29 @@ fn expression_tree(
         at: stamp,
         body,
     })
+}
+
+fn trail_facts(trail: &calc_doc_model::ViewTrail) -> TrailFacts {
+    use calc_doc_model::ViewTrailOutcome;
+    TrailFacts {
+        enabled: trail.enabled,
+        dropped: trail.dropped,
+        events: trail
+            .events()
+            .iter()
+            .map(|event| TrailEvent {
+                timestamp_millis: event.timestamp_millis,
+                agent: event.agent.clone(),
+                proposal: ProposalId(event.proposal.clone()),
+                unit: UnitId(event.unit.clone()),
+                intent: event.intent.clone(),
+                targets: event.targets.clone(),
+                outcome: match event.outcome {
+                    ViewTrailOutcome::Accepted => TrailOutcome::Accepted,
+                    ViewTrailOutcome::Rejected => TrailOutcome::Rejected,
+                    ViewTrailOutcome::Undone => TrailOutcome::Undone,
+                },
+            })
+            .collect(),
+    }
 }

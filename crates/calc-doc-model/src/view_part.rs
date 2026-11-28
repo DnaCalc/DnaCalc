@@ -87,12 +87,81 @@ pub struct ViewSkin {
     pub body: String,
 }
 
+/// The number of agent events the v1 view part retains.
+pub const TRAIL_LIMIT: usize = 256;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ViewTrailOutcome {
+    Accepted,
+    Rejected,
+    Undone,
+}
+
+/// A proposal unit's decision or undo, with targets as shown at the time of the action.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ViewTrailEvent {
+    pub timestamp_millis: u64,
+    pub agent: String,
+    pub proposal: String,
+    pub unit: String,
+    pub intent: String,
+    pub targets: Vec<String>,
+    pub outcome: ViewTrailOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ViewTrail {
+    pub enabled: bool,
+    pub dropped: u64,
+    events: Vec<ViewTrailEvent>,
+}
+
+impl Default for ViewTrail {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dropped: 0,
+            events: Vec::new(),
+        }
+    }
+}
+
+impl ViewTrail {
+    pub fn from_data(enabled: bool, dropped: u64, events: Vec<ViewTrailEvent>) -> Self {
+        let mut trail = Self {
+            enabled,
+            dropped,
+            events,
+        };
+        trail.trim();
+        trail
+    }
+
+    pub fn events(&self) -> &[ViewTrailEvent] {
+        &self.events
+    }
+
+    pub fn record(&mut self, events: impl IntoIterator<Item = ViewTrailEvent>) {
+        if self.enabled {
+            self.events.extend(events);
+            self.trim();
+        }
+    }
+
+    fn trim(&mut self) {
+        let evicted = self.events.len().saturating_sub(TRAIL_LIMIT);
+        self.events.drain(..evicted);
+        self.dropped = self.dropped.saturating_add(evicted as u64);
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ViewPart {
     source: Option<Arc<[u8]>>,
     opaque: bool,
     preferred: Option<String>,
     skin: Option<ViewSkin>,
+    trail: Option<ViewTrail>,
     anchors: BTreeMap<AnchorId, ViewAnchor>,
     notes: BTreeMap<NoteId, ViewNote>,
     documents: BTreeMap<DocId, ViewDocument>,
@@ -110,6 +179,7 @@ impl ViewPart {
             opaque: false,
             preferred: None,
             skin: None,
+            trail: None,
             anchors: anchors
                 .into_iter()
                 .map(|anchor| (anchor.id, anchor))
@@ -151,6 +221,25 @@ impl ViewPart {
 
     pub fn with_skin(mut self, skin: Option<ViewSkin>) -> Self {
         self.skin = skin;
+        self
+    }
+
+    pub fn trail(&self) -> Option<&ViewTrail> {
+        self.trail.as_ref()
+    }
+
+    pub fn with_trail(mut self, trail: Option<ViewTrail>) -> Self {
+        self.trail = trail;
+        self
+    }
+
+    /// Restore view preferences while retaining the current append-only agent records.
+    pub fn retaining_trail_events(mut self, current: &Self) -> Self {
+        if let Some(current) = current.trail() {
+            let mut retained = current.clone();
+            retained.enabled = self.trail().is_none_or(|trail| trail.enabled);
+            self.trail = Some(retained);
+        }
         self
     }
 

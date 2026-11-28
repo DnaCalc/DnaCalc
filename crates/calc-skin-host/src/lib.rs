@@ -744,6 +744,7 @@ impl WorkbookPort for Connection {
                     cells_touched: cells_touched.len() as u64,
                     reversibility: Reversibility::Reversible,
                     group: None,
+                    proposal_unit: None,
                     unreviewed: self.policy == WritePolicy::ApplyThenReview,
                 };
                 let receipt = match prepared.change {
@@ -903,9 +904,17 @@ impl WorkbookPort for Connection {
             }
         };
         let definitions = state.session.host().model().definitions().clone();
+        let audit = match &intent {
+            SkinIntent::Undo => proposal::history_trail_event(&state, false),
+            SkinIntent::Redo => proposal::history_trail_event(&state, true),
+            _ => None,
+        };
         let receipt = state.session.dispatch(intent);
         if let Some(error) = receipt.error {
             return Err(batch::refusal(error));
+        }
+        if let Some(audit) = audit {
+            state.session.record_trail(vec![audit]).map_err(batch::refusal)?;
         }
         if &state.selection != state.session.selection() {
             state.update_selection(SelectionCause::History);

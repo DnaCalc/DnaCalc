@@ -93,7 +93,10 @@ mod name_table;
 pub use name_table::{NameNode, NameOrigin, NameTable};
 mod layout;
 mod view_part;
-pub use view_part::{VIEW_PART_NAMESPACE, ViewAnchor, ViewDocument, ViewNote, ViewPart, ViewSkin};
+pub use view_part::{
+    TRAIL_LIMIT, VIEW_PART_NAMESPACE, ViewAnchor, ViewDocument, ViewNote, ViewPart, ViewSkin,
+    ViewTrail, ViewTrailEvent, ViewTrailOutcome,
+};
 pub use axis_layout::{AxisFormat, AxisFormatEdit, AxisLayouts, OutlineGroup};
 mod op;
 mod revision;

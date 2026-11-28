@@ -271,6 +271,8 @@ pub struct SheetCensus {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ViewPartFacts {
+    #[serde(default)]
+    pub trail: crate::TrailFacts,
     /// The part was written by a later version: it is kept byte for byte and not read.
     pub opaque: bool,
     /// The author's request, subject to the named view's opening criteria.

@@ -850,6 +850,15 @@ pub(crate) fn prepare(
                             body,
                         }))
                     }
+                    PresentationChange::Trail { enabled } => {
+                        let mut trail = part.trail().cloned().unwrap_or_default();
+                        if trail.enabled == *enabled {
+                            part.clone()
+                        } else {
+                            trail.enabled = *enabled;
+                            part.clone().with_trail(Some(trail))
+                        }
+                    }
                     PresentationChange::PreferView { view, expect_view_rev } => {
                         if *expect_view_rev != base.view {
                             return Err(invalid("The view preferences have changed. Retry the edit."));

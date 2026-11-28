@@ -1,13 +1,13 @@
 //! The versioned custom XML part. Retain its source spans so saving an anchor leaves other
 //! sections and data from a later writer intact.
 
-use super::text::{RawTag, Splice, attribute_value, xstring};
-use crate::load::address;
+use super::text::{RawTag, Splice, attribute_value, xstring, xstring_attribute};
+use crate::load::{address, strings};
 use crate::xml::{XmlElement, XmlEvent, XmlPart};
 use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{
     AnchorId, CellInput, DocId, ModelRoot, NoteId, SheetKey, VIEW_PART_NAMESPACE, ViewAnchor,
-    ViewDocument, ViewNote, ViewPart, ViewSkin,
+    ViewDocument, ViewNote, ViewPart, ViewSkin, ViewTrail, ViewTrailEvent, ViewTrailOutcome,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -41,6 +41,7 @@ struct StoredSkin {
 }
 
 struct Index {
+    trail: Option<StoredTrail>,
     root: Span,
     digest: Option<String>,
     root_close: usize,
@@ -108,6 +109,7 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
     let digest = root.attribute("model").map(str::to_owned);
     let root = read.span();
     let mut index = Index {
+        trail: None,
         root,
         digest,
         root_close: root.1,
@@ -125,6 +127,8 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         document_ids: BTreeSet::new(),
     };
     let mut depth = 1;
+    let mut in_trail = false;
+    let mut pending_trail = None;
     let mut in_anchors = false;
     let mut in_notes = false;
     let mut pending = None;
@@ -137,7 +141,30 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
         let span = read.span();
         match event {
             XmlEvent::Start(el) => {
-                if depth == 1 && is(&el, "prefs") {
+                if depth == 1 && is(&el, "trail") {
+                    let trail = StoredTrail {
+                        start: span,
+                        close: span.1,
+                        enabled: !matches!(el.attribute("enabled"), Some("false" | "0")),
+                        dropped: el
+                            .attribute("dropped")
+                            .and_then(|n| n.parse().ok())
+                            .unwrap_or(0),
+                        events: Vec::new(),
+                    };
+                    if index.trail.replace(trail).is_some() {
+                        return None;
+                    }
+                    in_trail = true;
+                } else if depth == 2 && in_trail && is(&el, "event") {
+                    pending_trail = parse_trail_event(&el).map(|event| (event, span));
+                } else if depth == 3 && in_trail && is(&el, "target") {
+                    if let Some((event, _)) = &mut pending_trail
+                        && let Some(target) = trail_text(&el, "ref")
+                    {
+                        event.targets.push(target);
+                    }
+                } else if depth == 1 && is(&el, "prefs") {
                     let preferred = el.attribute("preferred").map(str::to_owned);
                     if index.prefs.replace((span, preferred)).is_some() {
                         return None;
@@ -256,6 +283,16 @@ fn index(xml: &XmlPart, model: &ModelRoot) -> Option<Index> {
                 if depth == 2 && let Some(mut stored) = pending_skin.take() {
                     stored.whole.1 = span.1;
                     index.skin = Some(stored);
+                }
+                if depth == 2
+                    && in_trail
+                    && let Some((event, start)) = pending_trail.take()
+                {
+                    index.trail.as_mut()?.events.push((event, (start.0, span.1)));
+                }
+                if depth == 1 && in_trail {
+                    index.trail.as_mut()?.close = span.0;
+                    in_trail = false;
                 }
                 if depth == 1 && in_skins {
                     index.skins.as_mut().unwrap().1 = span.0;
@@ -449,6 +486,13 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                 .into_values()
                 .map(|stored| stored.document);
             ViewPart::loaded(xml.bytes().to_vec(), anchors, notes, documents)
+                .with_trail(index.trail.map(|trail| {
+                    ViewTrail::from_data(
+                        trail.enabled,
+                        trail.dropped,
+                        trail.events.into_iter().map(|(event, _)| event).collect(),
+                    )
+                }))
                 .with_preferred(index.prefs.and_then(|(_, preferred)| preferred))
                 .with_skin(index.skin.and_then(|skin| {
                     skin.body.map(|body| ViewSkin { id: skin.id, body })
@@ -672,6 +716,7 @@ pub(super) fn item(
         &new,
     );
     write_skin(part, &index, original, &mut splice, &mut new_sections);
+    write_trail(part, &index, original, &mut splice, &mut new_sections);
     write_documents(part, &index, original, &mut splice, &mut new_sections)?;
     if root.is_empty() {
         let mut open = root.rebuilt(&[("model", Some(&digest))], new_sections.is_empty());
@@ -839,5 +884,139 @@ impl PartEdits {
             splice.replace(span, &bytes);
         }
         splice.finish()
+    }
+}
+
+struct StoredTrail {
+    start: Span,
+    close: usize,
+    enabled: bool,
+    dropped: u64,
+    events: Vec<(ViewTrailEvent, Span)>,
+}
+
+fn trail_text(el: &XmlElement, attribute: &str) -> Option<String> {
+    String::from_utf16(&strings::decode(el.attribute(attribute)?)).ok()
+}
+
+fn parse_trail_event(el: &XmlElement) -> Option<ViewTrailEvent> {
+    let outcome = match el.attribute("outcome")? {
+        "accepted" => ViewTrailOutcome::Accepted,
+        "rejected" => ViewTrailOutcome::Rejected,
+        "undone" => ViewTrailOutcome::Undone,
+        _ => return None,
+    };
+    Some(ViewTrailEvent {
+        timestamp_millis: el.attribute("timestamp_millis")?.parse().ok()?,
+        agent: trail_text(el, "agent")?,
+        proposal: trail_text(el, "proposal")?,
+        unit: trail_text(el, "unit")?,
+        intent: trail_text(el, "intent")?,
+        targets: Vec::new(),
+        outcome,
+    })
+}
+
+fn trail_event_bytes(event: &ViewTrailEvent, bytes: &mut Vec<u8>) {
+    let outcome = match event.outcome {
+        ViewTrailOutcome::Accepted => "accepted",
+        ViewTrailOutcome::Rejected => "rejected",
+        ViewTrailOutcome::Undone => "undone",
+    };
+    bytes.extend_from_slice(b"<event xmlns=");
+    attribute_value(VIEW_PART_NAMESPACE, bytes);
+    for (field, value) in [
+        (
+            "timestamp_millis",
+            event.timestamp_millis.to_string().as_str(),
+        ),
+        ("agent", event.agent.as_str()),
+        ("proposal", event.proposal.as_str()),
+        ("unit", event.unit.as_str()),
+        ("intent", event.intent.as_str()),
+        ("outcome", outcome),
+    ] {
+        bytes.push(b' ');
+        bytes.extend_from_slice(field.as_bytes());
+        bytes.push(b'=');
+        xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(), bytes);
+    }
+    bytes.push(b'>');
+    for target in &event.targets {
+        bytes.extend_from_slice(b"<target ref=");
+        xstring_attribute(&target.encode_utf16().collect::<Vec<_>>(), bytes);
+        bytes.extend_from_slice(b"/>");
+    }
+    bytes.extend_from_slice(b"</event>");
+}
+
+fn write_trail(
+    part: &ViewPart,
+    index: &Index,
+    original: &[u8],
+    edits: &mut PartEdits,
+    new_sections: &mut Vec<u8>,
+) {
+    let Some(trail) = part.trail() else {
+        return;
+    };
+    let enabled = if trail.enabled { "true" } else { "false" };
+    let dropped = trail.dropped.to_string();
+    let mut appended = Vec::new();
+    let Some(stored) = &index.trail else {
+        new_sections.extend_from_slice(b"<trail xmlns=");
+        attribute_value(VIEW_PART_NAMESPACE, new_sections);
+        new_sections.extend_from_slice(b" enabled=");
+        attribute_value(enabled, new_sections);
+        new_sections.extend_from_slice(b" dropped=");
+        attribute_value(&dropped, new_sections);
+        new_sections.push(b'>');
+        for event in trail.events() {
+            trail_event_bytes(event, new_sections);
+        }
+        new_sections.extend_from_slice(b"</trail>");
+        return;
+    };
+    // The retained recognised events are a suffix of the recorded timeline.
+    let overlap = (0..=stored.events.len().min(trail.events().len()))
+        .rev()
+        .find(|count| {
+            stored.events[stored.events.len() - count..]
+                .iter()
+                .map(|(event, _)| event)
+                .eq(trail.events()[..*count].iter())
+        })
+        .unwrap_or(0);
+    for (_, span) in &stored.events[..stored.events.len() - overlap] {
+        edits.replace(*span, &[]);
+    }
+    for event in &trail.events()[overlap..] {
+        trail_event_bytes(event, &mut appended);
+    }
+    let attributes_changed = stored.enabled != trail.enabled || stored.dropped != trail.dropped;
+    let tag = RawTag::parse(&original[stored.start.0..stored.start.1]);
+    if tag.is_empty() && !appended.is_empty() {
+        let mut open = tag.rebuilt(
+            &[("enabled", Some(enabled)), ("dropped", Some(&dropped))],
+            false,
+        );
+        open.extend_from_slice(&appended);
+        open.extend_from_slice(b"</");
+        open.extend_from_slice(tag.qualified_name());
+        open.push(b'>');
+        edits.replace(stored.start, &open);
+    } else {
+        if attributes_changed {
+            edits.replace(
+                stored.start,
+                &tag.rebuilt(
+                    &[("enabled", Some(enabled)), ("dropped", Some(&dropped))],
+                    tag.is_empty(),
+                ),
+            );
+        }
+        if !appended.is_empty() {
+            edits.replace((stored.close, stored.close), &appended);
+        }
     }
 }
