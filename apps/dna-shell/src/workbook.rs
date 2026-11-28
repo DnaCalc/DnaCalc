@@ -131,6 +131,7 @@ fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
                 ModelProperty::ColumnVisibility => "Column visibility",
                 ModelProperty::ColumnWidths => "Column widths",
                 ModelProperty::AutoFilter => "AutoFilter",
+                ModelProperty::RowsAndColumns => "Rows and columns",
                 ModelProperty::PivotCache => "PivotTable cache",
                 ModelProperty::Charts => "Charts",
                 ModelProperty::Shapes => "Shapes",
@@ -468,6 +469,7 @@ pub fn probe(session: Session) -> serde_json::Value {
             Seam::Committing => "committing",
         },
         "notice": session.notice(),
+        "dialog": dna_kit::dialog::probe(session),
     })
 }
 

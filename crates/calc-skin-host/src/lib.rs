@@ -1,6 +1,7 @@
 //! Level-one serving of the authoritative CalcHost workbook through the skin contract.
 
 mod batch;
+mod cell_format;
 mod comparison;
 mod contributions;
 mod dependencies;

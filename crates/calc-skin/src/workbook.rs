@@ -311,6 +311,16 @@ pub enum WorkbookQuery {
     ValidationSettings {
         selected: Area,
     },
+    /// What Format Cells shows for these areas, with the active cell's value as its Sample.
+    CellFormat {
+        areas: Vec<Area>,
+        active: Key,
+    },
+    /// The active cell's value under a number format the dialog is trying.
+    FormatSample {
+        at: Key,
+        number_format: String,
+    },
     CalcState,
     CalcChanges,
     /// Retained evaluator entries from the latest publication of an observed command.
@@ -595,6 +605,30 @@ pub enum ModelChange {
         selected: Area,
         settings: ValidationSettings,
     },
+    /// Row Height and Column Width: one size for every row or column of the bands. Heights are
+    /// in points and widths in characters of the default font; 0 hides them.
+    SetAxisSize {
+        sheet: Sheet,
+        rows: bool,
+        /// Inclusive first and last row or column in each band.
+        bands: Vec<(u32, u32)>,
+        size: f64,
+    },
+    /// Insert: blank cells at the selected rectangle, or whole rows or columns through it.
+    InsertCells {
+        selected: Area,
+        shift: InsertShift,
+    },
+    /// Delete: the selected rectangle's cells, or the whole rows or columns through it.
+    DeleteCells {
+        selected: Area,
+        shift: DeleteShift,
+    },
+    /// Format Cells: every property the dialog changed, applied to each area in one edit.
+    FormatCells {
+        areas: Vec<Area>,
+        format: Box<crate::CellFormatting>,
+    },
     SetAllBorders {
         selected: Area,
     },
@@ -692,6 +726,24 @@ pub enum PasteArithmetic {
     Subtract,
     Multiply,
     Divide,
+}
+
+/// The Insert dialog's four choices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InsertShift {
+    Right,
+    Down,
+    EntireRow,
+    EntireColumn,
+}
+
+/// The Delete dialog's four choices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DeleteShift {
+    Left,
+    Up,
+    EntireRow,
+    EntireColumn,
 }
 
 /// A side of a rectangular worksheet selection.
@@ -812,6 +864,8 @@ pub enum ModelProperty {
     ColumnVisibility,
     ColumnWidths,
     AutoFilter,
+    /// Rows or columns were inserted or deleted: cells and what refers to them moved.
+    RowsAndColumns,
     PivotCache,
     Charts,
     Shapes,

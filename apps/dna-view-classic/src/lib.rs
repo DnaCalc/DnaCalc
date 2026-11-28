@@ -26,6 +26,7 @@ impl View for Classic {
         commands.extend(dna_kit::paste_special::commands(&view, session));
         commands.extend(dna_kit::sort_dialog::commands(&view, session));
         commands.extend(dna_kit::scenario_manager::commands(&view, session));
+        commands.extend(dna_kit::dialogs::commands(&view, session));
         commands.push(
             ViewCommand::new(&view, "classic.key-tips", "Key tips", &["F10"], move |_| {
                 session.toggle_key_tips();
@@ -47,6 +48,7 @@ impl View for Classic {
             {dna_kit::data_validation::mount(session)}
             {dna_kit::sort_dialog::mount(session)}
             {dna_kit::scenario_manager::mount(session)}
+            {dna_kit::dialog::mount(session)}
         })
     }
 
@@ -55,6 +57,7 @@ impl View for Classic {
             || dna_kit::data_validation::close(session)
             || dna_kit::sort_dialog::close(session)
             || dna_kit::scenario_manager::close(session)
+            || dna_kit::dialog::close(session)
     }
 }
 

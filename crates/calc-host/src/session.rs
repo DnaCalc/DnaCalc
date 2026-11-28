@@ -1493,6 +1493,16 @@ impl HostSession {
             .map_err(IntentError::Workbook)
     }
 
+    /// Plan a workbook command as the edits of one transaction, without changing the workbook.
+    /// This is the planning step [`SkinIntent::Command`] runs before it commits.
+    pub fn prepare_workbook_command(
+        &self,
+        command: crate::WorkbookCommand,
+    ) -> Result<Vec<CellEdit>, IntentError> {
+        let mut keys = self.sheet_keys.clone();
+        crate::actions::prepare(&self.host, &mut keys, command).map_err(IntentError::Workbook)
+    }
+
     /// Plan a worksheet insertion without assigning its identity or changing the workbook.
     pub fn prepare_worksheet_insert(
         &self,
@@ -1553,6 +1563,7 @@ impl HostSession {
                     | CellEdit::SetName { .. }
                     | CellEdit::RestoreNames(_)
                     | CellEdit::AxisFormat(_)
+                    | CellEdit::Axis(_)
                     | CellEdit::Charts { .. }
                     | CellEdit::Shapes { .. }
                     | CellEdit::View(_)
@@ -1560,7 +1571,7 @@ impl HostSession {
             )
         }) {
             return Err(IntentError::Workbook(
-                "Preview supports worksheet insertion, cell contents, worksheet properties, PivotTable caches and view-part edits".into(),
+                "Preview supports worksheet insertion, rows and columns, cell contents, worksheet properties, PivotTable caches and view-part edits".into(),
             ));
         }
         let edits = self.authored_edits(edits.to_vec());

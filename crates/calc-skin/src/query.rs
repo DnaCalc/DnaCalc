@@ -152,6 +152,14 @@ query!(
     ValidationFor { selected: Area } => crate::ValidationSettings,
     |q: &ValidationFor| WorkbookQuery::ValidationSettings { selected: q.selected });
 query!(
+    /// What Format Cells shows for the selected areas.
+    CellFormatFor { areas: Vec<Area>, active: Key } => crate::CellFormatFacts,
+    |q: &CellFormatFor| WorkbookQuery::CellFormat { areas: q.areas.clone(), active: q.active });
+query!(
+    /// The Number tab's Sample for a format code that is not applied yet.
+    FormatSampleFor { at: Key, number_format: String } => crate::FormatSample,
+    |q: &FormatSampleFor| WorkbookQuery::FormatSample { at: q.at, number_format: q.number_format.clone() });
+query!(
     /// Intended extent and known physical obstructions of a current blocked spill.
     SpillBlockers { anchor: Key } => crate::SpillBlockers,
     |q: &SpillBlockers| WorkbookQuery::SpillBlockers { anchor: q.anchor }

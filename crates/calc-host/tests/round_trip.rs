@@ -70,6 +70,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
                 color: "#ff0000".into(),
             }),
             locked: None,
+            hidden: None,
         };
         let areas = vec![GridArea::cell(a), GridArea::cell(b)];
         let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {

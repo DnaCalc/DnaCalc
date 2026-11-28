@@ -125,6 +125,17 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     pending("W I", "Page Break Preview"),
     group("R P", "Protect"),
     pending("R P S", "Protect Sheet"),
+    // Dialog launchers (lane m3d): each opens a dialog of dna_kit::dialogs.
+    command("H O E", "Format Cells", dna_kit::dialogs::format_cells::OPEN),
+    command("H F N", "Font Settings", dna_kit::dialogs::format_cells::OPEN_FONT),
+    command("H F M", "Number Format", dna_kit::dialogs::format_cells::OPEN_NUMBER),
+    command("H F A", "Alignment Settings", dna_kit::dialogs::format_cells::OPEN_ALIGNMENT),
+    command("H O H", "Row Height", dna_kit::dialogs::axis_size::ROW_HEIGHT),
+    command("H O W", "Column Width", dna_kit::dialogs::axis_size::COLUMN_WIDTH),
+    group("H I", "Insert"),
+    command("H I I", "Insert Cells", dna_kit::dialogs::insert_delete::INSERT_CELLS),
+    group("H D", "Delete"),
+    command("H D D", "Delete Cells", dna_kit::dialogs::insert_delete::DELETE_CELLS),
     // Excel 2003 menu accelerators are accepted alongside the Deck's displayed paths.
     KeyTip {
         hidden: true,

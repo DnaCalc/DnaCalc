@@ -392,6 +392,8 @@ pub(crate) fn invalidated(
         WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
         WorkbookQuery::DefinedName { .. } => authored,
         WorkbookQuery::ValidationSettings { .. } => authored,
+        WorkbookQuery::CellFormat { .. } => authored || recalculated,
+        WorkbookQuery::FormatSample { .. } => authored || recalculated,
         WorkbookQuery::FormulaNames { .. } => authored,
         WorkbookQuery::SpillBlockers { .. } => authored || recalculated,
         WorkbookQuery::Structure { scope } => {
@@ -606,7 +608,7 @@ fn project_window(
     })
 }
 
-fn project_areas(
+pub(crate) fn project_areas(
     host: &HostState,
     areas: &[GridArea],
     budget: Budget,
@@ -1103,6 +1105,12 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::ValidationSettings { selected } => {
             let target = crate::validation::target(host, grid_area(*selected)?, || meter.work(1, 0, 0))?;
             query::ValidationFor::encode(&target.settings)?
+        }
+        WorkbookQuery::CellFormat { areas, active } => {
+            query::CellFormatFor::encode(&crate::cell_format::facts(state, areas, *active, budget, || meter.work(1, 0, 0))?)?
+        }
+        WorkbookQuery::FormatSample { at, number_format } => {
+            query::FormatSampleFor::encode(&crate::cell_format::sample(state, *at, number_format, budget)?)?
         }
         WorkbookQuery::Rows {
             source,

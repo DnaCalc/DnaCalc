@@ -231,6 +231,8 @@ pub struct FormatPatch {
     pub edges: Option<crate::EdgesPatch>,
     /// Format Cells' Protection tab: whether the cells are locked (`Range.Locked`).
     pub locked: Option<bool>,
+    /// Format Cells' Protection tab: whether a protected sheet hides the cells' formulas (`Range.FormulaHidden`).
+    pub hidden: Option<bool>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// Changes to a cell fill. A colour set on a cell without a pattern makes the fill solid, as in Excel.
@@ -563,9 +565,17 @@ pub fn patched_style(
         xf.apply_alignment = true;
     }
     if let Some(locked) = patch.locked {
-        let mut protection = xf.protection.clone().or(parent.protection).unwrap_or_default();
+        let mut protection = xf.protection.clone().or(parent.protection.clone()).unwrap_or_default();
         if protection.locked.unwrap_or(true) != locked {
             protection.locked = Some(locked);
+            xf.protection = Some(protection);
+            xf.apply_protection = true;
+        }
+    }
+    if let Some(hidden) = patch.hidden {
+        let mut protection = xf.protection.clone().or(parent.protection.clone()).unwrap_or_default();
+        if protection.hidden.unwrap_or(false) != hidden {
+            protection.hidden = Some(hidden);
             xf.protection = Some(protection);
             xf.apply_protection = true;
         }
@@ -878,6 +888,83 @@ fn prepare_border_groups(
     edge: &EdgeChange,
 ) -> Result<Vec<CellEdit>, String> {
     groups.extend(neighbour_edges(area).map(|(strip, side)| border_format_group(strip, side, edge)));
+    prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
+}
+
+/// The Border tab's eight borders for one area as a whole. `None` leaves a border as it is.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RangeEdges {
+    /// The area's left outside edge.
+    pub left: Option<EdgeChange>,
+    /// The area's right outside edge.
+    pub right: Option<EdgeChange>,
+    /// The area's top outside edge.
+    pub top: Option<EdgeChange>,
+    /// The area's bottom outside edge.
+    pub bottom: Option<EdgeChange>,
+    /// The horizontal lines between the area's rows.
+    pub inside_horizontal: Option<EdgeChange>,
+    /// The vertical lines between the area's columns.
+    pub inside_vertical: Option<EdgeChange>,
+    /// Every cell's diagonal from the lower left to the upper right.
+    pub diagonal_up: Option<EdgeChange>,
+    /// Every cell's diagonal from the upper left to the lower right.
+    pub diagonal_down: Option<EdgeChange>,
+}
+
+/// Format Cells over whole areas in one transaction: `patch` for every cell, and the Border
+/// tab's eight borders resolved per area.
+///
+/// Each area is split into at most nine disjoint bands (its corners, sides and middle), so that
+/// a cell's format is patched once with every change that applies to it, and the cells beside an
+/// outside edge receive the matching edge, as the border commands do. The caller keeps the
+/// areas and those neighbouring strips ([`border_affected_areas`]) from overlapping.
+pub fn prepare_format_cells(
+    host: &HostState,
+    areas: &[GridArea],
+    patch: &FormatPatch,
+    borders: &RangeEdges,
+) -> Result<Vec<CellEdit>, String> {
+    if *borders == RangeEdges::default() {
+        return prepare(host, areas, patch);
+    }
+    if patch.edges.is_some() || patch.borders.is_some() {
+        return Err("Give the borders of a range once".into());
+    }
+    let mut groups = Vec::new();
+    for &area in areas {
+        let (first, last) = (area.first(), area.last());
+        let columns = edge_bands(first.column(), last.column());
+        for (top, bottom) in edge_bands(first.row(), last.row()) {
+            for &(left, right) in &columns {
+                let pick = |outside: bool, edge: &Option<EdgeChange>, inside: &Option<EdgeChange>| {
+                    if outside { edge.clone() } else { inside.clone() }
+                };
+                let edges = crate::EdgesPatch {
+                    top: pick(top == first.row(), &borders.top, &borders.inside_horizontal),
+                    bottom: pick(bottom == last.row(), &borders.bottom, &borders.inside_horizontal),
+                    left: pick(left == first.column(), &borders.left, &borders.inside_vertical),
+                    right: pick(right == last.column(), &borders.right, &borders.inside_vertical),
+                    diagonal_up: borders.diagonal_up.clone(),
+                    diagonal_down: borders.diagonal_down.clone(),
+                };
+                let part = crate::format_edges::span(area, (top, bottom), (left, right));
+                let edges = (edges != crate::EdgesPatch::default()).then_some(edges);
+                groups.push(([part], FormatPatch { edges, ..patch.clone() }));
+            }
+        }
+        for side in BorderSide::ALL {
+            let change = match side {
+                BorderSide::Left => &borders.left,
+                BorderSide::Top => &borders.top,
+                BorderSide::Bottom => &borders.bottom,
+                BorderSide::Right => &borders.right,
+            };
+            if let (Some(change), (_, Some((strip, facing)))) = (change, strips(area, side)) {
+                groups.push(border_format_group(strip, facing, change));
+            }
+        }
+    }
     prepare_groups(host, groups.iter().map(|(areas, patch)| (areas.as_slice(), patch)))
 }
 

@@ -10,6 +10,7 @@ pub mod query;
 pub mod site;
 pub mod tiles;
 
+mod cell_format;
 mod declarations;
 mod formula;
 mod formula_tools;
@@ -23,6 +24,7 @@ mod wire;
 mod workbook;
 
 pub use calc_syntax::{AnchorId, DocId, InvalidId, NoteId};
+pub use cell_format::*;
 pub use declarations::*;
 pub use formula::*;
 pub use formula_tools::*;

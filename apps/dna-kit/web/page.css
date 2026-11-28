@@ -193,3 +193,65 @@
 .dna-proposal-unit small {
     grid-column: 2;
 }
+
+/* Classic dialogs on the one dialog frame (dna_kit::dialog). */
+.dna-dialog form { display: grid; gap: var(--dna-gap-3); }
+.dna-dialog-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-block-end: 1px solid var(--dna-line); }
+.dna-dialog-tabs [role="tab"] {
+    border: 1px solid transparent;
+    border-block-end: 0;
+    background: transparent;
+    color: inherit;
+    padding: var(--dna-gap-1) var(--dna-gap-3);
+}
+.dna-dialog-tabs [role="tab"][aria-selected="true"] { border-color: var(--dna-line); background: var(--dna-paper); font-weight: 600; }
+.dna-dialog-body { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.dna-dialog-panel:not([hidden]) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: var(--dna-gap-3);
+    align-items: start;
+}
+.dna-dialog-fields, .dna-dialog-group { display: grid; gap: var(--dna-gap-2); align-content: start; min-inline-size: 0; }
+.dna-dialog-group { border: 1px solid var(--dna-line); padding: var(--dna-gap-2) var(--dna-gap-3); margin: 0; }
+.dna-dialog-field:not([hidden]) { display: grid; gap: var(--dna-gap-1); }
+.dna-dialog-field[hidden], .dna-dialog-panel[hidden] { display: none; }
+.dna-dialog-check:not([hidden]) { display: flex; align-items: center; gap: var(--dna-gap-2); }
+.dna-dialog-options { border: 0; margin: 0; padding: 0; }
+.dna-dialog-options label { display: flex; align-items: center; gap: var(--dna-gap-2); }
+.dna-dialog-color:not([hidden]) { grid-template-columns: 1fr auto; align-items: end; }
+.dna-dialog-color .dna-dialog-caption { grid-column: 1 / -1; }
+.dna-dialog-toggle[aria-pressed="true"] { outline: 2px solid var(--dna-ink); outline-offset: -2px; }
+.dna-dialog-toggle[aria-pressed="mixed"] { border-style: dashed; }
+.dna-dialog-caption u { text-decoration: underline; text-underline-offset: 2px; }
+.dna-dialog-sample {
+    display: block;
+    min-block-size: 2.5rem;
+    padding: var(--dna-gap-2);
+    border: 1px solid var(--dna-line);
+    overflow: hidden;
+    white-space: nowrap;
+}
+.dna-dialog-border-preview {
+    position: relative;
+    inline-size: 9rem;
+    block-size: 6rem;
+    display: grid;
+    place-items: center;
+    border: 1px dotted var(--dna-line);
+}
+.dna-dialog-border-preview i { position: absolute; border: 0 solid currentColor; }
+.dna-dialog-border-preview i[data-line="none"] { display: none; }
+.dna-dialog-border-preview i[data-line="mixed"] { opacity: 0.4; }
+.dna-dialog-border-preview i[data-edge="top"] { inset: 0 0 auto 0; border-block-start-width: 2px; }
+.dna-dialog-border-preview i[data-edge="bottom"] { inset: auto 0 0 0; border-block-end-width: 2px; }
+.dna-dialog-border-preview i[data-edge="left"] { inset: 0 auto 0 0; border-inline-start-width: 2px; }
+.dna-dialog-border-preview i[data-edge="right"] { inset: 0 0 0 auto; border-inline-end-width: 2px; }
+.dna-dialog-border-preview i[data-edge="inside-horizontal"] { inset: 50% 0 auto 0; border-block-start-width: 1px; }
+.dna-dialog-border-preview i[data-edge="inside-vertical"] { inset: 0 auto 0 50%; border-inline-start-width: 1px; }
+.dna-dialog-border-preview i[data-edge^="diagonal"] { inset: 50% 0 auto 0; border-block-start-width: 1px; }
+.dna-dialog-border-preview i[data-edge="diagonal-down"] { transform: rotate(33.7deg); }
+.dna-dialog-border-preview i[data-edge="diagonal-up"] { transform: rotate(-33.7deg); }
+.dna-dialog-status:empty, .dna-dialog-message:empty { display: none; }
+.dna-dialog-message { color: var(--dna-danger, #b3261e); margin: 0; }
+.dna-dialog footer { display: flex; justify-content: end; gap: var(--dna-gap-2); }

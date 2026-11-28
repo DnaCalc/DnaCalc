@@ -402,6 +402,7 @@ pub(crate) fn prepare(
     let mut cut = None;
     let mut names = Vec::new();
     let mut scenario_changes = Vec::new();
+    let mut structure = None;
     let removes_anchor = request.changes.iter().any(|change| {
         matches!(change, Change::Presentation(PresentationChange::RemoveAnchor { .. }))
     });
@@ -778,6 +779,74 @@ pub(crate) fn prepare(
                         ranges_with_metadata.push(selected);
                     }
                 }
+                ModelChange::SetAxisSize { sheet, rows, bands, size } => {
+                    require_current_model(request, base.model)?;
+                    let prepared = calc_host::prepare_axis_sizes(state.session.host(), sheet.id(), *rows, bands, *size)
+                        .map_err(|reason| Refusal::Excel { reason })?;
+                    edits.extend(prepared);
+                }
+                ModelChange::InsertCells { selected, .. } | ModelChange::DeleteCells { selected, .. } => {
+                    require_current_model(request, base.model)?;
+                    if request.changes.len() != 1 {
+                        return Err(invalid("Insert or delete cells as one workbook change"));
+                    }
+                    let area = grid_area(*selected)?;
+                    let (first, last) = (area.first(), area.last());
+                    // (insert, rows or columns of the axis edit, shift down or up for a cell shift)
+                    let (insert, axis, down) = match change {
+                        ModelChange::InsertCells { shift, .. } => (true, match shift {
+                            InsertShift::EntireRow => Some(Axis::Rows),
+                            InsertShift::EntireColumn => Some(Axis::Columns),
+                            InsertShift::Right | InsertShift::Down => None,
+                        }, *shift == InsertShift::Down),
+                        ModelChange::DeleteCells { shift, .. } => (false, match shift {
+                            DeleteShift::EntireRow => Some(Axis::Rows),
+                            DeleteShift::EntireColumn => Some(Axis::Columns),
+                            DeleteShift::Left | DeleteShift::Up => None,
+                        }, *shift == DeleteShift::Up),
+                        _ => unreachable!("only insert and delete enter this arm"),
+                    };
+                    match axis {
+                        Some(axis) => {
+                            let (at, count) = match axis {
+                                Axis::Rows => (first.row(), last.row() - first.row() + 1),
+                                Axis::Columns => (first.column(), last.column() - first.column() + 1),
+                            };
+                            let kind = if insert { calc_host::AxisChange::Insert } else { calc_host::AxisChange::Delete };
+                            let edit = calc_host::AxisEdit::new(area.sheet(), axis, kind, at, count)
+                                .map_err(|error| Refusal::Excel { reason: error.to_string() })?;
+                            if request.changes.len() != 1 || !edits.is_empty() {
+                                return Err(invalid("Insert or delete rows and columns as one workbook change"));
+                            }
+                            edits.push(CellEdit::Axis(edit));
+                            structure = Some(Sheet::of(area.sheet()));
+                        }
+                        None => {
+                            let command = calc_host::WorkbookCommand::ShiftCells { area, down, insert, from_after: false };
+                            edits.extend(state.session.prepare_workbook_command(command).map_err(refusal)?);
+                            // Everything from the rectangle to the end of its rows or columns moves.
+                            let end = if down {
+                                CellKey::new(area.sheet(), calc_host::value::MAX_ROWS, last.column())
+                            } else {
+                                CellKey::new(area.sheet(), last.row(), calc_host::value::MAX_COLUMNS)
+                            };
+                            let tail = end.ok().and_then(|end| GridArea::new(first, end).ok())
+                                .ok_or_else(|| invalid("Invalid worksheet area"))?;
+                            areas.push(tail);
+                            ranges_with_metadata.push(tail);
+                        }
+                    }
+                }
+                ModelChange::FormatCells { areas: selected, format } => {
+                    require_current_model(request, base.model)?;
+                    if request.changes.len() != 1 {
+                        return Err(invalid("Apply Format Cells as one workbook change"));
+                    }
+                    let (prepared, touched) = crate::cell_format::prepare(state, selected, format)?;
+                    edits.extend(prepared);
+                    areas.extend(touched.iter().copied());
+                    ranges_with_metadata.extend(touched);
+                }
                 ModelChange::SetAllBorders { selected }
                 | ModelChange::SetOutlineBorder { selected }
                 | ModelChange::ClearBorders { selected }
@@ -1104,6 +1173,12 @@ pub(crate) fn prepare(
     };
     if let Some((sheet, name)) = inserted {
         properties.push(ModelPropertyDiff::WorksheetInserted { sheet, name });
+    }
+    if let Some(sheet) = structure {
+        properties.push(ModelPropertyDiff::Scope {
+            source: SourceRef::Sheet(sheet),
+            property: ModelProperty::RowsAndColumns,
+        });
     }
     let preview = Preview {
         base,

@@ -1435,6 +1435,28 @@ pub fn prepare_row_visibility(
     prepare_axis_visibility(host, sheet, true, bands, hidden)
 }
 
+/// Prepare one height or width for inclusive ranges of rows or columns, preserving drawings
+/// against the final sizes. A size of 0 hides them.
+pub fn prepare_axis_sizes(
+    host: &HostState,
+    sheet: SheetId,
+    rows: bool,
+    bands: &[(u32, u32)],
+    size: f64,
+) -> Result<Vec<CellEdit>, String> {
+    let mut formats = BTreeMap::new();
+    for &(first, last) in bands {
+        let count = last
+            .checked_sub(first)
+            .and_then(|span| span.checked_add(1))
+            .ok_or(if rows { "Invalid row range" } else { "Invalid column range" })?;
+        for edit in axis_formats(host, sheet, rows, first, count, Some(size.to_bits()), None)? {
+            formats.insert(edit.index(), edit);
+        }
+    }
+    Ok(axis_edits_with_drawings(host, sheet, formats.into_values()))
+}
+
 fn prepare_axis_visibility(
     host: &HostState,
     sheet: SheetId,

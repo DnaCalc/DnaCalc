@@ -143,9 +143,9 @@ pub use model_clock::{ClockBalance, ModelClock, ModelClockTick};
 pub use facts::alignment as style_alignment;
 pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
 pub use format::{
-    BorderPatch, FillColor, FormatPatch, InteriorPatch, border_affected_areas, border_for_style,
-    format_regions, format_samples, patched_style, prepare_all_borders, prepare_no_borders,
-    prepare_outline_border, prepare_side_border,
+    BorderPatch, FillColor, FormatPatch, InteriorPatch, RangeEdges, border_affected_areas,
+    border_for_style, format_regions, format_samples, patched_style, prepare_all_borders,
+    prepare_format_cells, prepare_no_borders, prepare_outline_border, prepare_side_border,
 };
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use calc_engine::DependencySpelling;
@@ -166,7 +166,7 @@ mod paste;
 pub mod search;
 pub use actions::{
     ChartSeriesSource, ConditionalChange, SheetChange, StyleChange, SortKey, SortOptions, WorkbookCommand,
-    prepare_column_visibility, prepare_row_visibility, prepare_sort_rows, stored_axis_size,
+    prepare_axis_sizes, prepare_column_visibility, prepare_row_visibility, prepare_sort_rows, stored_axis_size,
 };
 pub use paste::{
     PasteArithmetic, PasteCellOptions, PasteOptionsRefusal, PastePlan, PasteSource, matrix_shape,

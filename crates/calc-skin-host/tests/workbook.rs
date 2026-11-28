@@ -3246,3 +3246,294 @@ fn replace_reference_rewrites_only_the_chosen_utf16_operand_and_undoes() {
     connection.run(Operation::Undo).unwrap();
     assert_eq!(formula(), before);
 }
+
+fn format_cells(id: u64, stamp: Stamp, areas: Vec<Area>, format: CellFormatting) -> Batch {
+    let mut edit = batch(id, vec![Change::Model(ModelChange::FormatCells { areas, format: Box::new(format) })]);
+    edit.workbook = Some(stamp.workbook);
+    edit.base = Some(stamp.model);
+    edit
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn format_cells_applies_every_tab_in_one_undo_step_and_reads_back_mixed_properties() {
+    // The Sample is the grid's text, which is formatted only under a locale.
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(blank_package())),
+        &OpenPolicy::default(),
+        HostOptions { locale: calc_host::FormatProfile::for_culture("en-US"), ..HostOptions::default() },
+    )
+    .unwrap();
+    let sheet = Sheet::of(session.host().sheets()[0].id());
+    let host = SkinHost::new(session);
+    let operator = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    operator.commit(batch(1, vec![enter(key(2, 2), "1234.5"), enter(key(3, 2), "=B2*2")])).unwrap();
+    let selected = Area(key(2, 2), key(3, 3));
+    let request = query::CellFormatFor { areas: vec![selected], active: key(2, 2) };
+    let before = operator.ask(request.request(), BUDGET).unwrap();
+    let facts = ask(&operator, request.clone());
+    // Excel's defaults for an unformatted cell.
+    assert_eq!(facts.common.number_format.as_deref(), Some("General"));
+    assert_eq!(facts.common.horizontal, Some(HorizontalAlignment::General));
+    assert_eq!(facts.common.vertical, Some(VerticalAlignment::Bottom));
+    assert_eq!(facts.common.font_name.as_deref(), Some("Calibri"));
+    assert_eq!(facts.common.font_size.as_deref(), Some("11"));
+    assert_eq!(facts.common.underline, Some(UnderlineStyle::None));
+    assert_eq!(facts.common.pattern, Some(FillPattern::None));
+    assert_eq!((facts.common.locked, facts.common.hidden), (Some(true), Some(false)));
+    assert_eq!(facts.common.merge, Some(false));
+    assert_eq!(facts.common.borders.left, Some(EdgeStroke::NONE));
+    assert_eq!(facts.sample_text, "1234.5");
+
+    let red = FormatColor::Rgb([0xC0, 0x00, 0x00]);
+    let thin = EdgeStroke { line: BorderLine::Thin, color: FormatColor::Automatic };
+    let double = EdgeStroke { line: BorderLine::Double, color: red };
+    let format = CellFormatting {
+        number_format: Some("#,##0.00".into()),
+        horizontal: Some(HorizontalAlignment::Center),
+        vertical: Some(VerticalAlignment::Top),
+        indent: Some(0),
+        wrap: Some(true),
+        orientation: Some(TextOrientation::Degrees(-45)),
+        font_name: Some("Arial".into()),
+        font_size: Some("12".into()),
+        bold: Some(true),
+        underline: Some(UnderlineStyle::DoubleAccounting),
+        font_color: Some(red),
+        strikethrough: Some(true),
+        borders: RangeBorders {
+            left: Some(double),
+            right: Some(double),
+            top: Some(double),
+            bottom: Some(double),
+            inside_horizontal: Some(thin),
+            inside_vertical: Some(thin),
+            ..Default::default()
+        },
+        fill_color: Some(FormatColor::Rgb([0xFF, 0xFF, 0x00])),
+        locked: Some(false),
+        hidden: Some(true),
+        ..Default::default()
+    };
+    let edit = format_cells(2, before.stamp, vec![selected], format.clone());
+    let preview = operator.preview(&edit, PreviewDepth::WritesOnly).unwrap();
+    assert!(preview.refusal.is_none(), "{preview:?}");
+    assert!(preview.writes.is_empty(), "formatting changes no cell entry: {:?}", preview.writes);
+    assert!(preview.properties.contains(&ModelPropertyDiff::Scope {
+        source: SourceRef::Workbook,
+        property: ModelProperty::StyleTable,
+    }));
+    operator.commit(edit).unwrap();
+
+    let facts = ask(&operator, request.clone());
+    assert_eq!(facts.sample_text, "1,234.50");
+    let common = &facts.common;
+    assert_eq!(common.number_format.as_deref(), Some("#,##0.00"));
+    assert_eq!((common.horizontal, common.vertical), (Some(HorizontalAlignment::Center), Some(VerticalAlignment::Top)));
+    assert_eq!((common.wrap, common.shrink), (Some(true), Some(false)));
+    assert_eq!(common.orientation, Some(TextOrientation::Degrees(-45)));
+    assert_eq!((common.font_name.as_deref(), common.font_size.as_deref()), (Some("Arial"), Some("12")));
+    assert_eq!((common.bold, common.italic, common.strikethrough), (Some(true), Some(false), Some(true)));
+    assert_eq!(common.underline, Some(UnderlineStyle::DoubleAccounting));
+    assert_eq!(common.font_color, Some(red));
+    assert_eq!(common.fill_color, Some(FormatColor::Rgb([0xFF, 0xFF, 0x00])));
+    assert_eq!(common.pattern, Some(FillPattern::Solid));
+    assert_eq!((common.locked, common.hidden), (Some(false), Some(true)));
+    assert_eq!(common.borders, format.borders.clone().with_diagonals(EdgeStroke::NONE));
+    // The cell left of the range carries the matching edge, as the border commands leave it.
+    let beside = ask(&operator, query::CellFormatFor { areas: vec![Area(key(2, 1), key(2, 1))], active: key(2, 1) });
+    assert_eq!(beside.common.borders.right, Some(double));
+    assert_eq!(beside.common.borders.left, Some(EdgeStroke::NONE));
+    // The formula and the literal are untouched.
+    let window = ask(&operator, query::Cells { interest: Interest::Area(selected) });
+    let input = |at| window.cells.iter().find(|cell| cell.at == at).map(|cell| cell.input.clone());
+    assert_eq!(input(key(3, 2)).as_deref(), Some("=B2*2"));
+    assert_eq!(input(key(2, 2)).as_deref(), Some("1234.5"));
+
+    // A second change over one cell of the range makes the selection mixed in that property only.
+    let current = operator.ask(request.request(), BUDGET).unwrap().stamp;
+    operator.commit(format_cells(3, current, vec![Area(key(3, 3), key(3, 3))], CellFormatting {
+        italic: Some(true),
+        number_format: Some("0%".into()),
+        ..Default::default()
+    })).unwrap();
+    let mixed = ask(&operator, request.clone()).common;
+    assert_eq!((mixed.italic, mixed.number_format, mixed.bold), (None, None, Some(true)));
+
+    // The sample tries a code without applying it.
+    let trial = ask(&operator, query::FormatSampleFor { at: key(2, 2), number_format: "0.0E+00".into() });
+    assert_eq!(trial.text, "1.2E+03");
+
+    // One undo per commit, and the whole dialog commit goes back at once.
+    operator.run(Operation::Undo).unwrap();
+    operator.run(Operation::Undo).unwrap();
+    let restored = ask(&operator, request);
+    assert_eq!(restored.common.number_format.as_deref(), Some("General"));
+    assert_eq!(restored.common.borders.top, Some(EdgeStroke::NONE));
+    assert_eq!(restored.common.bold, Some(false));
+    assert_eq!(restored.sample_text, "1234.5");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn format_cells_merges_clears_the_fill_and_refuses_what_the_style_model_lacks() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let selected = Area(key(1, 1), key(2, 2));
+    let request = query::CellFormatFor { areas: vec![selected], active: key(1, 1) };
+    let stamp = |operator: &dyn WorkbookPort| operator.ask(request.request(), BUDGET).unwrap().stamp;
+    operator.commit(format_cells(1, stamp(&operator), vec![selected], CellFormatting {
+        merge: Some(true),
+        fill_color: Some(FormatColor::Rgb([1, 2, 3])),
+        pattern: Some(FillPattern::Gray25),
+        pattern_color: Some(FormatColor::Rgb([9, 9, 9])),
+        ..Default::default()
+    })).unwrap();
+    let merged = ask(&operator, request.clone()).common;
+    assert_eq!(merged.merge, Some(true));
+    assert_eq!(merged.pattern, Some(FillPattern::Gray25));
+    assert_eq!(merged.fill_color, Some(FormatColor::Rgb([1, 2, 3])));
+    assert_eq!(merged.pattern_color, Some(FormatColor::Rgb([9, 9, 9])));
+    let geometry = ask(&operator, query::Geometry { sheet });
+    assert_eq!(geometry.merges, vec![selected]);
+
+    // No Color removes the pattern with the colour; clearing Merge cells splits the area.
+    operator.commit(format_cells(2, stamp(&operator), vec![selected], CellFormatting {
+        merge: Some(false),
+        fill_color: Some(FormatColor::Automatic),
+        ..Default::default()
+    })).unwrap();
+    let cleared = ask(&operator, request.clone()).common;
+    assert_eq!((cleared.merge, cleared.pattern), (Some(false), Some(FillPattern::None)));
+    assert!(ask(&operator, query::Geometry { sheet }).merges.is_empty());
+
+    for (id, unmodelled) in [
+        (3, CellFormatting { justify_distributed: Some(true), ..Default::default() }),
+        (4, CellFormatting { direction: Some(TextDirection::RightToLeft), ..Default::default() }),
+    ] {
+        let refused = operator.commit(format_cells(id, stamp(&operator), vec![selected], unmodelled));
+        assert!(matches!(&refused, Err(Refusal::NotModelled { owner, .. }) if owner == "dc-s2xup"), "{refused:?}");
+    }
+    let touching = vec![Area(key(4, 1), key(4, 1)), Area(key(5, 1), key(5, 1))];
+    let borders = CellFormatting {
+        borders: RangeBorders { top: Some(EdgeStroke { line: BorderLine::Thin, color: FormatColor::Automatic }), ..Default::default() },
+        ..Default::default()
+    };
+    let refused = operator.commit(format_cells(5, stamp(&operator), touching, borders));
+    assert!(matches!(refused, Err(Refusal::NotModelled { .. })), "{refused:?}");
+    let stale = format_cells(6, Stamp { model: Revision(0), ..stamp(&operator) }, vec![selected], CellFormatting {
+        bold: Some(true),
+        ..Default::default()
+    });
+    assert!(matches!(operator.commit(stale), Err(Refusal::Conflict { .. })));
+    assert!(matches!(
+        operator.commit(format_cells(7, stamp(&operator), vec![selected], CellFormatting {
+            font_size: Some("500".into()),
+            ..Default::default()
+        })),
+        Err(Refusal::Invalid { .. })
+    ));
+}
+
+fn revised(id: u64, stamp: Stamp, change: ModelChange) -> Batch {
+    let mut edit = batch(id, vec![Change::Model(change)]);
+    edit.workbook = Some(stamp.workbook);
+    edit.base = Some(stamp.model);
+    edit
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn row_height_and_column_width_set_every_band_and_zero_hides() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let geometry = || ask(&operator, query::Geometry { sheet });
+    let stamp = || operator.ask(query::Geometry { sheet }.request(), BUDGET).unwrap().stamp;
+    let heights = revised(1, stamp(), ModelChange::SetAxisSize { sheet, rows: true, bands: vec![(2, 3), (7, 7)], size: 22.5 });
+    let preview = operator.preview(&heights, PreviewDepth::WritesOnly).unwrap();
+    assert!(preview.writes.is_empty());
+    assert_eq!(preview.properties, vec![ModelPropertyDiff::Scope {
+        source: SourceRef::Sheet(sheet),
+        property: ModelProperty::RowHeights,
+    }]);
+    operator.commit(heights).unwrap();
+    assert_eq!(geometry().rows, vec![(2, Some(22.5), false), (3, Some(22.5), false), (7, Some(22.5), false)]);
+    operator.commit(revised(2, stamp(), ModelChange::SetAxisSize { sheet, rows: false, bands: vec![(2, 3)], size: 12.0 })).unwrap();
+    let columns = geometry().columns;
+    assert!(columns.iter().any(|&(first, last, width, hidden)| first <= 2 && last >= 3 && width.is_some() && !hidden), "{columns:?}");
+    // 0 hides, as Excel's Row Height and Column Width do.
+    operator.commit(revised(3, stamp(), ModelChange::SetAxisSize { sheet, rows: true, bands: vec![(7, 7)], size: 0.0 })).unwrap();
+    assert!(geometry().rows.contains(&(7, Some(22.5), true)) || geometry().rows.iter().any(|&(row, _, hidden)| row == 7 && hidden));
+    for (id, rows, size) in [(4, true, 410.0), (5, false, 256.0), (6, true, -1.0)] {
+        let refused = operator.commit(revised(id, stamp(), ModelChange::SetAxisSize { sheet, rows, bands: vec![(1, 1)], size }));
+        assert!(matches!(refused, Err(Refusal::Excel { .. })), "{refused:?}");
+    }
+    // One Undo per commit.
+    operator.run(Operation::Undo).unwrap();
+    assert!(geometry().rows.iter().any(|&(row, _, hidden)| row == 7 && !hidden));
+    operator.run(Operation::Undo).unwrap();
+    operator.run(Operation::Undo).unwrap();
+    assert!(geometry().rows.is_empty() && geometry().columns.is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn insert_and_delete_shift_cells_rows_and_columns_and_rewrite_references() {
+    let (host, sheet) = workbook();
+    let operator = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    operator.commit(batch(1, vec![
+        enter(key(1, 1), "1"), enter(key(2, 1), "2"), enter(key(3, 1), "3"),
+        enter(key(1, 2), "10"), enter(key(2, 2), "20"),
+        enter(key(5, 4), "=A1+A3"),
+    ])).unwrap();
+    let all = Area(key(1, 1), key(8, 6));
+    let inputs = || {
+        let window = ask(&operator, query::Cells { interest: Interest::Area(all) });
+        let mut cells: Vec<_> = window.cells.into_iter().filter(|cell| !cell.input.is_empty())
+            .map(|cell| (cell.at.2, cell.at.3, cell.input)).collect();
+        cells.sort();
+        cells
+    };
+    let stamp = || operator.ask(query::Cells { interest: Interest::Area(all) }.request(), BUDGET).unwrap().stamp;
+    let cell = |row, column, text: &str| (row, column, text.to_owned());
+
+    // Shift cells down at A2: A2:A3 move to A3:A4 and the formula follows A3.
+    let insert = revised(2, stamp(), ModelChange::InsertCells { selected: Area(key(2, 1), key(2, 1)), shift: InsertShift::Down });
+    let preview = operator.preview(&insert, PreviewDepth::WritesOnly).unwrap();
+    assert!(preview.refusal.is_none() && !preview.writes.is_empty(), "{preview:?}");
+    operator.commit(insert).unwrap();
+    assert_eq!(inputs(), vec![
+        cell(1, 1, "1"), cell(1, 2, "10"), cell(2, 2, "20"), cell(3, 1, "2"), cell(4, 1, "3"), cell(5, 4, "=A1+A4"),
+    ]);
+    // Shift cells left at A1: B1 moves into A1.
+    operator.commit(revised(3, stamp(), ModelChange::DeleteCells { selected: Area(key(1, 1), key(1, 1)), shift: DeleteShift::Left })).unwrap();
+    assert_eq!(inputs()[0], cell(1, 1, "10"));
+
+    // Entire row at row 2 and entire column at column A, each one edit.
+    let rows = revised(4, stamp(), ModelChange::InsertCells { selected: Area(key(2, 2), key(2, 3)), shift: InsertShift::EntireRow });
+    let preview = operator.preview(&rows, PreviewDepth::WritesOnly).unwrap();
+    assert!(preview.properties.contains(&ModelPropertyDiff::Scope {
+        source: SourceRef::Sheet(sheet),
+        property: ModelProperty::RowsAndColumns,
+    }), "{preview:?}");
+    operator.commit(rows).unwrap();
+    assert!(inputs().contains(&cell(3, 2, "20")), "row 2 moved down: {:?}", inputs());
+    assert!(inputs().iter().any(|(row, column, input)| (*row, *column) == (6, 4) && input.starts_with('=')));
+    operator.commit(revised(5, stamp(), ModelChange::DeleteCells { selected: Area(key(1, 1), key(1, 1)), shift: DeleteShift::EntireColumn })).unwrap();
+    assert!(inputs().contains(&cell(3, 1, "20")), "column A went: {:?}", inputs());
+    // Four Undos return the sheet to its entries.
+    for _ in 0..4 {
+        operator.run(Operation::Undo).unwrap();
+    }
+    assert_eq!(inputs(), vec![
+        cell(1, 1, "1"), cell(1, 2, "10"), cell(2, 1, "2"), cell(2, 2, "20"), cell(3, 1, "3"), cell(5, 4, "=A1+A3"),
+    ]);
+    let stale = revised(6, Stamp { model: Revision(0), ..stamp() }, ModelChange::InsertCells {
+        selected: Area(key(1, 1), key(1, 1)),
+        shift: InsertShift::Right,
+    });
+    assert!(matches!(operator.commit(stale), Err(Refusal::Conflict { .. })));
+}

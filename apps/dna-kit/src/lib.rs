@@ -1,7 +1,8 @@
 //! Strand components, the workbook session as signals, and the registration surface for views.
 
 pub mod data_validation;
-mod dialog;
+pub mod dialog;
+pub mod dialogs;
 pub mod workbook_open;
 pub mod live_tree;
 pub mod name_manager;
