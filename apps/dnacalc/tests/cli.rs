@@ -176,6 +176,78 @@ fn dialog_workbook(file: &str, source: &str) -> String {
     path
 }
 
+#[cfg(not(windows))]
+#[test]
+fn mounted_workbook_paths_round_trip_through_vba_file_io() {
+    let path = dialog_workbook(
+        "mount-persona.xlsm",
+        r#"Public Function ReadPersona() As String
+    Dim contents As String
+    Open ThisWorkbook.Path & "\mount-persona.txt" For Input As #1
+    Line Input #1, contents
+    Close #1
+    ReadPersona = ThisWorkbook.FullName & "|" & Application.PathSeparator & "|" & Application.DefaultFilePath & "|" & CurDir & "|" & contents
+End Function
+
+Public Function DeniedWrite() As String
+    On Error Resume Next
+    Open ThisWorkbook.Path & "\mount-persona-write.txt" For Output As #1
+    DeniedWrite = CStr(Err.Number)
+End Function
+"#,
+    );
+    std::fs::write(temp("mount-persona.txt"), b"read through the mount\r\n").unwrap();
+    let config = temp("mount-persona.toml");
+    let folder = Path::new(&path).parent().unwrap();
+    std::fs::write(
+        &config,
+        format!("[[mount]]\nwindows = 'D:\\Models'\nhost = '{}'\nmode = 'read'\n", folder.display()),
+    )
+    .unwrap();
+    let (report, code, text) = dnacalc(&[
+        "run", &path, "--mounts", &config, "--macro", "Dialogs.ReadPersona",
+        "--macro-level", "guarded", "--json",
+    ]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(
+        report["result"]["value"],
+        r"D:\Models\mount-persona.xlsm|\|D:\Models|D:\Models|read through the mount",
+    );
+    let (report, code, text) = dnacalc(&[
+        "run", &path, "--mounts", &config, "--macro", "Dialogs.DeniedWrite",
+        "--macro-level", "guarded", "--json",
+    ]);
+    assert_eq!(code, 0, "{text}");
+    assert_eq!(report["result"]["value"], "75");
+    assert!(!folder.join("mount-persona-write.txt").exists());
+    let (report, code, text) = dnacalc(&[
+        "set", &path, "B1", r#"=CELL("filename",A1)"#, "C1", r#"=INFO("directory")"#,
+        "--mounts", &config, "--json",
+    ]);
+    assert_eq!(code, 0, "{text}");
+    let cells = report["cells"].as_array().unwrap();
+    assert_eq!(cells[0]["value"]["value"], r"D:\Models\[mount-persona.xlsm]Sheet1");
+    assert_eq!(cells[1]["value"]["value"], r"D:\Models\");
+}
+
+#[cfg(windows)]
+#[test]
+fn native_workbook_paths_use_the_windows_location() {
+    let path = dialog_workbook("native-persona.xlsm", "Public Sub Unused()\r\nEnd Sub\r\n");
+    let (report, code, text) = dnacalc(&[
+        "set", &path, "B1", r#"=CELL("filename",A1)"#, "--json",
+    ]);
+    assert_eq!(code, 0, "{text}");
+    let directory = Path::new(&path).parent().unwrap().display();
+    assert_eq!(
+        report["cells"][0]["value"]["value"],
+        format!(r"{directory}\[native-persona.xlsm]Sheet1"),
+    );
+    let (_, code, text) = dnacalc(&["get", &path, "A1", "--mounts", "unused.toml", "--json"]);
+    assert_eq!(code, 2, "{text}");
+    assert!(text.contains("--mounts is available on macOS and Linux"), "{text}");
+}
+
 #[test]
 fn headless_dialogs_use_explicit_answers_and_record_each_call() {
     let book = dialog_workbook(

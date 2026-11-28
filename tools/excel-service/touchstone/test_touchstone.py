@@ -61,7 +61,15 @@ ACCEPTED_VBA_SOURCES = [DEFAULT_VBA_SOURCE, IMPLICIT_VBA_PARAMETERS, DICTIONARY_
                         MULTI_DECLARATION_VBA_SOURCE, MODULE_VARIABLE_VBA_SOURCE, TAB_CONTINUATION_VBA_SOURCE]
 
 
-def vba_group(source=None, **changes):
+def explicit(source):
+    """A module begins with Option Explicit (dc-heiq6); the fixtures that predate the rule get the line here."""
+    if isinstance(source, str) and source and not source.lower().startswith("option explicit"):
+        return "Option Explicit\n" + source
+    return source
+
+
+def vba_group(source=None, bare=False, **changes):
+    """bare=True sends the module sources as written, without the Option Explicit line."""
     if source is None:
         source = DEFAULT_VBA_SOURCE
     case = {"sheets": [{"name": "Data", "cells": {"A1": number(ONE)}}], "names": {},
@@ -69,6 +77,9 @@ def vba_group(source=None, **changes):
             "calls": [{"procedure": "Probes.Probe", "args": [number(ONE)]}],
             "readback": ["Data!A1"], "event_log": ["Data!B1"]}
     case.update(changes)
+    if not bare and isinstance(case.get("modules"), list):
+        case["modules"] = [{**m, "source": explicit(m["source"])} if isinstance(m, dict) and "source" in m else m
+                           for m in case["modules"]]
     return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [case]}
 
 
@@ -622,8 +633,9 @@ class AdmissionTests(unittest.TestCase):
                      'Probe = VBA.Shell("a")', 'Probe = Excel.Application.Run("a")', 'Probe = Application.Caller',
                      'x = 1 _\n: Shell "x"'):
             yield body(line), (line.split("\n")[0].split()[0] if line.split() else line)
-        # a comment ending in an underscore does not continue the line; a continuation must follow a space
-        yield body("Probe = x ' comment _", 'Shell "x"'), "Shell"
+        # Excel continues a comment that ends in " _" (the next line is comment there): refused (dc-heiq6).
+        # A continuation must follow a space.
+        yield body("Probe = x ' comment _", 'Shell "x"'), "line continuation"
         yield body("Probe = x_"), "x_"
         yield body("Probe = x+_", "1"), "_"
         yield "Public Function Probe(ByVal x As Long) As Long\r\rShell \"x\"\nEnd Function\n", "carriage"
@@ -697,9 +709,10 @@ class AdmissionTests(unittest.TestCase):
         write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
         probe = lambda line, sig="ByVal x As Long": f"Public Function Probe({sig}) As Long\n{line}\nProbe = 1\nEnd Function\n"
         # 1: a probe function named like an admitted non-Excel worksheet function is callable from a layout formula.
+        #    The grammar refuses the name (dc-heiq6), and separately a formula-callable Variant parameter written to a cell.
         for name in ("FLATTEN", "HAS", "HASANY", "HASALL", "flatten", "Has"):
             hijack = f"Public Function {name}(ByVal x As Variant) As Variant\n{write}x\n{name} = x\nEnd Function\n"
-            yield "layout cell", vba_group(hijack + probe(""),
+            yield "worksheet function", vba_group(hijack + probe(""),
                                         sheets=[{"name": "Data", "cells": {
                                             "A1": {"type": "formula", "formula": f'={name.upper()}("=WEBSERVICE(""http://x"")")'}}}])
         # 2: a number stringifies with a leading minus, which a cell takes as a formula.
@@ -1000,9 +1013,10 @@ class AdmissionTests(unittest.TestCase):
         write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
         probe = lambda line, sig="ByVal x As Long": f"Public Function Probe({sig}) As Long\n{line}\nProbe = 1\nEnd Function\n"
         # 1: a Private Function (and a dotted name's last part) is still callable from a worksheet formula.
+        #    The grammar refuses the name (dc-heiq6), and separately a formula-callable Variant parameter written to a cell.
         for name in ("FLATTEN", "HAS", "HASANY", "HASALL"):
             hijack = f"Private Function {name}(ByVal x As Variant) As Variant\n{write}x\n{name} = x\nEnd Function\n"
-            yield "layout cell", vba_group(hijack + probe(""),
+            yield "worksheet function", vba_group(hijack + probe(""),
                                         sheets=[{"name": "Data", "cells": {
                                             "A1": {"type": "formula", "formula": f'={name}("=WEBSERVICE(""http://x"")")'}}}])
         # 2: a TEXT that can be empty at run time does not make the leading operand safe.
@@ -1049,6 +1063,341 @@ class AdmissionTests(unittest.TestCase):
         for message, group in self.refused_vba_cases():
             with self.subTest(message=message), self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
                 self.check_source(group)
+
+    # --- dc-heiq6: the third review of the grammar, as an attacker -----------------------------------------------
+    HEIQ6_SHEET = 'ThisWorkbook.Worksheets("Data")'
+    HEIQ6_CELL = HEIQ6_SHEET + '.Range("A1")'
+
+    @staticmethod
+    def heiq6_body(*lines, sig="ByVal x As Long", before=""):
+        return before + f"Public Function Probe({sig}) As Variant\n" + "\n".join(lines) + "\nEnd Function\n"
+
+    def heiq6_refused_sources(self):
+        """(finding, reason, source, bare): what the grammar admitted before dc-heiq6 and Excel reads as something else."""
+        body, sheet, cell = self.heiq6_body, self.HEIQ6_SHEET, self.HEIQ6_CELL
+        # 1. Two readers. Excel continues a comment that ends in " _": the next line is code to the grammar only.
+        #    Hidden: the Dim that makes v a Long (so the write counts as a number), an End Function, an On Error.
+        yield "comment continuation", "line continuation", body("' note _", "Dim v As Long", 'v = "=1+1"', f"{cell}.Value = v"), False
+        yield "comment continuation", "line continuation", body("Probe = x ' note _", "x = x"), False
+        yield "comment continuation", "line continuation", body("' note \t_ \t", "Probe = x"), False
+        # 2. Without Option Explicit Excel declares a name the grammar believes is declared elsewhere.
+        yield "option explicit", "Option Explicit", body("Probe = x"), True
+        yield "option explicit", "Option Explicit", "Private n As Long\nOption Explicit\n" + body("Probe = x"), True
+        # 3. A name has one declaration: a local that shadows a module variable or a procedure reads as either.
+        yield "one declaration", "declared", body("n = 5", "Dim n As Variant", 'n = "=1+1"', f"{cell}.Value = n",
+                                                  before="Private n As Long\n"), False
+        yield "one declaration", "declared", body("Probe = Helper", "Dim Helper As Variant", 'Helper = "=1+1"',
+                                                  before="Private Function Helper() As Long\nHelper = 1\nEnd Function\n"), False
+        yield "one declaration", "declared", body("Probe = x", sig="ByVal n As Variant", before="Private n As Long\n"), False
+        yield "one declaration", "declared", ("Private Helper As Long\nPrivate Sub Helper()\nEnd Sub\n" + body("Probe = x")), False
+        # 4. A worksheet formula can call a public function with any cell text: only a numeric parameter is a number.
+        stash = "Private stash As Variant\nPublic Function Keep(ByVal t As {}) As Variant\nstash = t\nEnd Function\n"
+        for kind in ("Variant", "String"):
+            yield "formula-callable parameter", "plainly data", body(f"{cell}.Value = stash", before=stash.format(kind)), False
+        yield "formula-callable parameter", "plainly data", body(f"{cell}.Value = t", sig="ByVal t As Variant"), False
+        yield "formula-callable parameter", "plainly data", body(f"{cell}.Value = t", sig="t"), False
+        yield "formula-callable parameter", "plainly data", (
+            "Public Sub Probe(ByVal t As Variant)\n" + f"{cell}.Value2 = t\nEnd Sub\n"), False
+        # Private keeps a function out of the function list, not out of a cell formula
+        yield "formula-callable parameter", "plainly data", body("Probe = x", before=(
+            "Private Function Keep(ByVal t As Variant) As Variant\n" + f"{cell}.Value2 = t\nEnd Function\n")), False
+        yield "formula-callable parameter", "plainly data", body('Store "plain"', before=(
+            "Private Sub Store(ByVal v As Variant)\n" + f"{cell}.Value2 = v\nEnd Sub\n")), False
+        # Excel answers a formula with its own function before a procedure of that name: a template function a layout
+        # formula may call cannot be named WEBSERVICE, nor Register.ID through a module called Register.
+        yield "worksheet function name", "WEBSERVICE", (        # also a reserved word: refused before the catalogue is asked
+            "Public Function WEBSERVICE(ByVal u As Double) As Variant\nEnd Function\n" + body("Probe = x")), False
+        for head in ("Public Function Image(ByVal u As Double) As Variant", "Private Function Rtd() As Variant",
+                     "Public Sub Indirect(ByVal u As Double)", "Public Function sum(ByVal u As Double) As Variant"):
+            end = "End Sub" if " Sub " in head else "End Function"
+            yield "worksheet function name", "worksheet function", f"{head}\n{end}\n" + body("Probe = x"), False
+        # 5. One call addresses a bounded block of the case workbook: no whole sheet, no address text built at run time
+        #    (a name, an external reference, "A:XFD").
+        for line, reason in (
+                (f"{sheet}.Cells.Value = 1", "Cells"), (f"{sheet}.Rows.Value = 1", "Rows"),
+                (f"{sheet}.Columns.ClearContents", "Columns"), (f"{sheet}.Cells().Clear", "Cells"),
+                (f'{sheet}.Range("A:XFD").Value = 1', "A1 address"), (f'{sheet}.Range("1:1048576").Value = 1', "A1 address"),
+                (f'{sheet}.Range("A1:XFD1048576").Value = 1', "cells"), (f'{sheet}.Range("A1", "XFD1048576").Value = 1', "cells"),
+                (f'{sheet}.Range("Rate").Value = 1', "A1 address"),
+                (f'{sheet}.Range("[Book1]Sheet1!A1").Value = 1', "A1 address"),
+                (f"{sheet}.Range(\"'\\\\host\\share\\[b.xlsx]S'!A1\").Value = 1", "A1 address"),
+                (f'{sheet}.Range("Data!A1").Value = 1', "A1 address"), (f'{sheet}.Range("A1,C3").Value = 1', "A1 address"),
+                (f'{sheet}.Range("A" & x).Value = 1', "A1 address"), (f'{sheet}.Range(CStr(x)).Value = 1', "A1 address"),
+                (f'{sheet}.Range("A1:B2", "C3").Value = 1', "A1 address"),
+                (f'{sheet}.Rows("1:1048576").Value = 1', "plainly a number"),
+                (f'{sheet}.Columns("A:XFD").Value = 1', "plainly a number"),
+                (f'{sheet}.Cells(1, "A").Value = 1', "plainly a number"),
+                (f'{cell}.Rows("1:1048576").Value = 1', "plainly a number"),
+                (f'{cell}.Item("A1").Value = 1', "plainly a number"),
+                (f'{cell}.Offset(x & "", 0).Value = 1', "plainly a number"),
+                (f"{cell}.Resize(1048576, 16384).Value = 1", "Resize"), (f"{cell}.Resize(x, x).Value = 1", "Resize"),
+                (f"{cell}.Resize(0, 1).Value = 1", "Resize"), (f"{cell}.Resize(1 + 1, 1).Value = 1", "Resize"),
+                (f"{sheet}.Rows(1).Resize(1024).Value = 1", "Resize"), (f"{cell}.Resize.Value = 1", "Resize")):
+            yield "bounded addressing", reason, body(line), False
+        yield "bounded addressing", "plainly a number", body("Dim v As Variant", 'v = "1:1048576"', f"{sheet}.Rows(v).Value = 1"), False
+        # 6. The checker itself: nesting is bounded, so a template cannot overflow the worker's stack.
+        yield "nesting", "nested", body("Probe = " + "(" * 100 + "1" + ")" * 100), False
+        # the unqualified names stay refused where they mean the active sheet
+        yield "unqualified", "Range", body('Range("A1").Value2 = 1'), False
+        yield "unqualified", "Cells", body("Cells(1, 1).Value2 = 1"), False
+
+    def heiq6_accepted_sources(self):
+        body, sheet, cell = self.heiq6_body, self.HEIQ6_SHEET, self.HEIQ6_CELL
+        yield body("' a comment with an under_score in it", "Probe = x ' and one after code")
+        yield body(f"{cell}.Value = t", sig="ByVal t As Double")
+        yield body(f"{cell}.Value = CDbl(t)", f"{cell}.Value2 = CLng(t) + 1", sig="ByVal t As Variant")
+        yield "Private Sub Store(ByVal v As Double)\n" + f"{cell}.Value2 = v\nEnd Sub\n" + body("Store 1.5", "Store x")
+        yield body("Dim i As Long", "For i = 1 To 3", f"{sheet}.Cells(i, i + 1).Value = i", f"{sheet}.Rows(i).ClearContents",
+                   f"{sheet}.Columns(CLng(x)).ClearContents", f"{sheet}.Cells(x).Value = 1", "Next i")
+        yield body(f'{sheet}.Range("B2:D4").Value = 1', f'{sheet}.Range("$A$1", "C3").Value2 = 2',
+                   f'{sheet}.Range("A1:XFD64").ClearContents', f"{cell}.Offset(-1 + x, (x) * 2).Resize(3, 1024).Value = 1",
+                   f"{cell}.Resize(2, 3).Rows(x).Item(1, 1).Cells(1, 1).Value = 1", f"{sheet}.UsedRange.Columns(1).Value = 1")
+        yield body("Const k = -5", "Const m = (-5)", "Probe = k + m")
+        yield body("Probe = " + "(" * 20 + "1" + ")" * 20)
+
+    def test_vba_grammar_refuses_what_the_third_review_found(self):
+        for finding, reason, source, bare in self.heiq6_refused_sources():
+            with self.subTest(finding=finding, source=source[-90:]), \
+                    self.assertRaisesRegex(ValueError, "(?i)" + re.escape(reason)):
+                self.check_source(vba_group(source, bare=bare))
+
+    def test_vba_grammar_still_accepts_bounded_probes(self):
+        for source in self.heiq6_accepted_sources():
+            with self.subTest(source=source[-120:]):
+                self.check_source(vba_group(source))
+
+    def test_vba_grammar_mutations_never_admit_a_reach_outside_the_case(self):
+        """Token mutations of admitted probes: whatever the worker still accepts names nothing outside the case workbook
+        (read here by a separate small lexer), and every Range argument is literal A1 text."""
+        import random
+        from touchstone.vba_policy import worker_path
+        worker = worker_path()
+        if worker is None:
+            self.skipTest("build the Excel worker's offline decoder")
+        reach = ["Application", "Shell", "Evaluate", "Run", "Kill", "Open", "Workbooks", "ActiveSheet", "Selection", "Names",
+                 "CreateObject(x)", 'CreateObject("WScript.Shell")', "GetObject", "Declare", "CallByName", "ExecuteExcel4Macro",
+                 "[A1]", "Environ", "Dir", "SendKeys", "VBA", "Excel", "Parent", "Formula", "Hyperlinks", "QueryTables"]
+        pool = reach + ["x", "1", '"A:XFD"', '"Rate"', '"=1"', ".", "(", ")", ",", "&", "=", "Value", "Range", "Cells", "Rows",
+                        "Columns", "Resize", "_", "' note _", ":", "Dim", "As", "Long", "Variant", "Set", "Me", "ThisWorkbook"]
+        seeds = [explicit(source) for source in self.heiq6_accepted_sources()]
+        rng = random.Random(20261128)
+        accepted = 0
+        for _ in range(160):
+            tokens = rng.choice(seeds).split(" ")
+            for _ in range(rng.choice((1, 1, 2))):
+                at = rng.randrange(len(tokens))
+                if rng.random() < 0.5:
+                    tokens[at] = rng.choice(pool)
+                else:
+                    tokens.insert(at, rng.choice(pool))
+            source = " ".join(tokens)
+            result = subprocess.run([str(worker), "--check-vba-expanded"], input=json.dumps(vba_group(source, bare=True)),
+                                    text=True, capture_output=True, timeout=30)
+            self.assertIn(result.returncode, (0, 1), result.stderr)
+            if result.returncode != 0:
+                continue
+            accepted += 1
+            code = re.sub(r"'[^\n]*", "", re.sub(r'"(?:[^"\n]|"")*"', '""', source))
+            words = {word.lower() for word in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", code)}
+            self.assertEqual(sorted(words & {re.match(r"[A-Za-z]*", item).group().lower() for item in reach} - {"createobject"}), [], source)
+            self.assertNotIn("[", code, source)
+            for argument in re.findall(r"\bRange\(([^()]*)\)", re.sub(r"'[^\n]*", "", source)):
+                for part in argument.split(","):
+                    self.assertRegex(part.strip(), r'^"\$?[A-Z]{1,3}\$?[0-9]+(:\$?[A-Z]{1,3}\$?[0-9]+)?"$', source)
+        self.assertGreater(accepted, 5)
+
+    def test_vba_module_and_procedure_together_are_not_a_worksheet_function(self):
+        probe = "Public Function Probe(ByVal x As Long) As Long\nProbe = x\nEnd Function\n"
+        dotted = "Public Function ID(ByVal a As Double, ByVal b As Double) As Variant\nEnd Function\n"
+        group = lambda name: vba_group(modules=[{"name": "Probes", "kind": "standard", "source": probe},
+                                                {"name": name, "kind": "standard", "source": dotted}])
+        self.check_source(group("Lookup"))
+        for name in ("Register", "REGISTER"):
+            with self.subTest(module=name), self.assertRaisesRegex(ValueError, "worksheet function"):
+                self.check_source(group(name))
+
+    def test_vba_worksheet_module_names_its_own_cells_without_me(self):
+        """The known limit of dc-gqzuw: in a worksheet module Range, Cells, Rows and Columns are the module's own sheet."""
+        probe = "Public Function Probe(ByVal x As Long) As Long\nProbe = x\nEnd Function\n"
+        event = "Private Sub Worksheet_Change(ByVal Target As Range)\n{}\nEnd Sub\n"
+        group = lambda name, line: vba_group(modules=[
+            {"name": "Probes", "kind": "standard", "source": probe}, {"name": name, "kind": "document", "source": event.format(line)}])
+        for line in ('Range("B1").Value2 = "Change"', "Cells(1, 2).Value2 = 1", "Rows(2).ClearContents",
+                     "Columns(3).ClearContents", 'Range("B1", "C2").Value = Target.Row'):
+            with self.subTest(accepted=line):
+                self.check_source(group("Sheet1", line))
+        for line, reason in (("Cells.Value2 = 1", "Cells"), ('Range("A:A").Value2 = 1', "A1 address"),
+                             ('Worksheets("Data").Range("A1").Value2 = 1', "Worksheets"), ("UsedRange.Clear", "UsedRange")):
+            with self.subTest(refused=line), self.assertRaisesRegex(ValueError, re.escape(reason)):
+                self.check_source(group("Sheet1", line))
+        workbook = "Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)\n{}\nEnd Sub\n"
+        for line in ('Range("B1").Value2 = 1', "Cells(1, 1).Value2 = 1"):
+            with self.subTest(thisworkbook=line), self.assertRaisesRegex(ValueError, "Range|Cells"):
+                self.check_source(vba_group(modules=[
+                    {"name": "Probes", "kind": "standard", "source": probe},
+                    {"name": "ThisWorkbook", "kind": "document", "source": workbook.format(line)}]))
+
+    def admit_scratch(self, edit):
+        """Run template admission over a scratch copy of vba-probes after edit(directory, manifest); pins are recomputed."""
+        import hashlib
+        import shutil
+        from touchstone.vba_policy import worker_path
+        worker = worker_path()
+        if worker is None:
+            self.skipTest("build the Excel worker's offline decoder")
+        with tempfile.TemporaryDirectory() as directory:
+            scratch = Path(directory)
+            shutil.copytree(HERE.parent / "vba-probes", scratch, dirs_exist_ok=True)
+            path = scratch / "catalogue.json"
+            manifest = json.loads(path.read_text(encoding="ascii"))
+            edit(scratch, manifest)
+            for entry in manifest["templates"].values():
+                for file in [*entry["modules"], entry["layout"]]:
+                    file["sha256"] = hashlib.sha256((scratch / file["file"]).read_bytes()).hexdigest()
+            path.write_text(json.dumps(manifest), encoding="ascii")
+            return subprocess.run([str(worker), "--admit-vba-templates", str(scratch)], text=True, capture_output=True, timeout=30)
+
+    def heiq6_layout(self, *entries):
+        def edit(scratch, manifest):
+            layout = json.loads((scratch / "smoke-layout.json").read_text(encoding="ascii"))
+            (scratch / "smoke-layout.json").write_text(json.dumps([*layout, *entries]), encoding="ascii")
+        return self.admit_scratch(edit)
+
+    def test_vba_template_layout_formulas_are_a_listed_language(self):
+        """A template's layout formula reached the network, another workbook, DDE and Excel 4 calls unchecked."""
+        cell = lambda formula: {"sheet": "Data", "at": "D4", "formula": formula}
+        name = lambda formula: {"name": "Extra", "refers_to": formula}
+        refused = ('=WEBSERVICE("http://example.invalid/")', '=IMAGE("http://example.invalid/a.png")', '=RTD("a",,"b")',
+                   '=HYPERLINK("http://example.invalid/")', '=CALL("kernel32","Beep","JJJ",1,1)',
+                   '=REGISTER.ID("kernel32","Beep")', '=INDIRECT("[b.xlsx]S!A1")', '=INFO("directory")', '=CELL("filename")',
+                   "=[Book.xlsx]Sheet1!A1", "='C:\\x\\[b.xlsx]S'!A1", "='\\\\host\\share\\[b.xlsx]S'!A1", "=cmd|'/c calc'!A0",
+                   "=cmd|Data!A0", '=_xlfn.WEBSERVICE("a")', "=LET(f,SUM,f(1))", "=LAMBDA(x,x)(1)", "=SUM(A1)(1)",
+                   "=MAP(A1,ABS)", "=A1+Unknown", "=Unknown(1)", "=Module1.Probe(1)", "=VBAProject.Module1.Probe(1)",
+                   "=A1 A2", "={1,2}", "=A1#", "=@A1", "=SUM(A:A)", "=Data!Rate", "='It''s'!A1")
+        for formula in refused:
+            for entry in (cell(formula), name(formula)):
+                with self.subTest(formula=formula, name="name" in entry):
+                    result = self.heiq6_layout(entry)
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                    self.assertIn("layout", result.stderr.lower())
+        accepted = ("=SUM(A1:B2)*2", '=IF(A1>1,"big",LEFT("small",2))&"x"', "=Rate+1", "=-A1%+$B$2^2", "=Probe(A1)",
+                    "='Data'!A1+Data!$B$2", "={{target_sheet}}!B7", '=IFERROR(INDEX(A1:C3,2,2),#N/A)', "=TRUE", "=1.5E+3")
+        for formula in accepted:
+            with self.subTest(accepted=formula):
+                result = self.heiq6_layout(cell(formula))
+                self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.heiq6_layout({"name": "Probe", "refers_to": "=1"})      # a name that is also a procedure
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+
+    def test_vba_layout_functions_are_catalogue_functions(self):
+        rules = json.loads((HERE.parent / "vba-probe-policy.json").read_text(encoding="ascii"))
+        families = (ROOT / "crates/calc-catalogue/tests/fixtures/admission-families.tsv").read_text(encoding="ascii")
+        catalogue = {line.split("\t")[1] for line in families.splitlines()}
+        listed = rules["layout_functions"].upper().split()
+        self.assertEqual(sorted(set(listed) - catalogue), [])
+        for reach in ("WEBSERVICE", "RTD", "HYPERLINK", "CALL", "REGISTER.ID", "INDIRECT", "IMAGE", "INFO", "CELL", "LET",
+                      "LAMBDA", "MAP", "FILTERXML", "CUBEVALUE", "STOCKHISTORY", "PY", "COPILOT", "TRANSLATE", "OFFSET"):
+            self.assertNotIn(reach, listed)
+
+    def test_vba_template_admission_applies_the_grammar_findings(self):
+        """The same refusals on the route a template takes: admission of the catalogue's own files."""
+        def module(old, new):
+            def edit(scratch, manifest):
+                path = scratch / "smoke-module1.bas"
+                text = path.read_text(encoding="ascii")
+                self.assertIn(old, text)
+                path.write_bytes(text.replace(old, new, 1).encode("ascii"))
+            return self.admit_scratch(edit)
+        ok = self.admit_scratch(lambda scratch, manifest: None)
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        for old, new, reason in (
+                ("Option Explicit\n", "", "Option Explicit"),
+                ("    Probe = x * 2\n", "    ' note _\n    Probe = x * 2\n", "line continuation"),
+                ("CDbl(x)", "x", "plainly data"),
+                ("Range({{target_cell}})", "Range({{message}})", "A1 address"),
+                ("Range({{target_cell}})", "Range({{target_sheet}})", "A1 address"),
+                ("Range({{target_cell}})", "Range({{target_cell}}, {{target_cell}}).Resize({{target_cell}})", "Resize"),
+                ("Range({{target_cell}})", "Rows({{target_cell}})", "plainly a number")):
+            with self.subTest(new=new):
+                result = module(old, new)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(reason.lower(), result.stderr.lower())
+
+    def test_the_smoke_template_cannot_re_enter_its_own_change_event(self):
+        """A request may name the event sheet as the sheet that carries the handler: the handler guards itself."""
+        group = self.template_group()
+        group["v"][0]["params"].update(event_sheet="Data", event_cell="B1")
+        self.check_vba(group)
+        source = (HERE.parent / "vba-probes" / "smoke-sheet1.bas").read_text(encoding="ascii")
+        self.assertRegex(source, r"(?s)Private busy As Boolean\n.*If busy Then Exit Sub\n\s*busy = True\n.*Value2 = .*\n\s*busy = False\n")
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_checks_the_rendered_modules_it_packages(self):
+        """Checked is used: the module text in the package is text the grammar accepts, read back from the built .xlsm."""
+        import vba_package_reader as reader
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+        smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
+        smoke["params"].update(message='say "hi" {{target_cell}} _', target_sheet="Events", target_cell="XFD1048576")
+        group = {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [protocol.vba_case(smoke)["value"]]}
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "probe.xlsm"
+            result = subprocess.run([worker, "--build-vba-package", str(out)], input=json.dumps(group),
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            streams = reader.read_compound_file(reader.read_package(out.read_bytes())["xl/vbaProject.bin"])
+        modules = []
+        for stream, kind in (("Module1", "standard"), ("Sheet1", "document"), ("Sheet2", "document"), ("ThisWorkbook", "document")):
+            lines = reader.decompress_vba_stream(streams["VBA/" + stream]).decode("ascii").split("\r\n")
+            source = "\n".join(line for line in lines if not line.startswith("Attribute VB_"))
+            if source.strip():
+                modules.append({"name": stream, "kind": kind, "source": source})
+        self.assertEqual([m["name"] for m in modules], ["Module1", "Sheet1"])
+        expanded = {"sheets": smoke["sheets"], "names": {}, "modules": modules, "calls": smoke["calls"],
+                    "readback": [], "event_log": []}
+        self.check_source({"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [expanded]})
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_a_worker_built_from_an_unadmitted_template_refuses_its_cases(self):
+        """The build runs admission after it has written the worker: a failed admission still leaves a worker behind.
+        That worker must refuse, at request time, a template the grammar refuses."""
+        import hashlib
+        import shutil
+        if shutil.which("dotnet") is None:
+            self.skipTest("needs the .NET SDK")
+        service = HERE.parent
+        for old, new, reason in (
+                ("    Probe = x * 2\n", "    ' note _\n    Dim v As Long\n    Probe = x * 2\n", "line continuation"),
+                ("    Probe = x * 2\n", "    Probe = x * 2\n    ThisWorkbook.Worksheets({{target_sheet}}).Rows({{message}}).ClearContents\n",
+                 "plainly a number")):
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as directory:
+                tree = Path(directory)
+                project = tree / "tools/excel-service/engines/excel"
+                project.mkdir(parents=True)
+                for path in (service / "engines/excel").iterdir():
+                    if path.suffix in (".cs", ".csproj"):
+                        shutil.copy(path, project / path.name)
+                shutil.copytree(service / "vba-probes", tree / "tools/excel-service/vba-probes")
+                shutil.copy(service / "vba-probe-policy.json", tree / "tools/excel-service/vba-probe-policy.json")
+                fixtures = tree / "crates/calc-catalogue/tests/fixtures"
+                fixtures.mkdir(parents=True)
+                shutil.copy(ROOT / "crates/calc-catalogue/tests/fixtures/admission-families.tsv", fixtures)
+                probes = tree / "tools/excel-service/vba-probes"
+                text = (probes / "smoke-module1.bas").read_text(encoding="ascii")
+                self.assertIn(old, text)
+                (probes / "smoke-module1.bas").write_bytes(text.replace(old, new, 1).encode("ascii"))
+                manifest = json.loads((probes / "catalogue.json").read_text(encoding="ascii"))
+                manifest["templates"]["smoke"]["modules"][0]["sha256"] = hashlib.sha256(
+                    (probes / "smoke-module1.bas").read_bytes()).hexdigest()
+                (probes / "catalogue.json").write_text(json.dumps(manifest), encoding="ascii")
+                build = subprocess.run(["dotnet", "build", "-c", "Release", "--nologo", "-v", "q"], cwd=project,
+                                       text=True, capture_output=True, timeout=600)
+                self.assertNotEqual(build.returncode, 0, "admission is part of the build")
+                worker = project / "bin" / ("excel-worker.exe" if os.name == "nt" else "excel-worker")
+                self.assertTrue(worker.is_file(), build.stdout[-2000:])
+                result = subprocess.run([str(worker), "--check-vba-policy"], input=json.dumps(self.template_group()),
+                                        text=True, capture_output=True, timeout=60)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(reason, result.stderr)
 
     def test_the_reviewed_smoke_case_is_accepted(self):
         smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
@@ -1228,7 +1577,8 @@ class AdmissionTests(unittest.TestCase):
                 self.assertEqual(sorted(streams), ["PROJECT", "PROJECTwm", "VBA/Probes", "VBA/Sheet1",
                                                    "VBA/ThisWorkbook", "VBA/_VBA_PROJECT", "VBA/dir"])
                 self.assertEqual(reader.decompress_vba_stream(streams["VBA/Probes"]),
-                                 b'Attribute VB_Name = "Probes"\r\n' + source.replace("\r\n", "\n").replace("\n", "\r\n").encode())
+                                 b'Attribute VB_Name = "Probes"\r\n'
+                                 + explicit(source).replace("\r\n", "\n").replace("\n", "\r\n").encode())
                 self.assertEqual(reader.decompress_vba_stream(streams["VBA/Sheet1"]).startswith(b'Attribute VB_Name = "Sheet1"'), True)
                 self.assertNotIn(b"Shell", parts["xl/vbaProject.bin"])
         # two sheets, a document module for each, and the smoke case's own modules
@@ -3134,6 +3484,24 @@ class OrphanAndBuildTests(unittest.TestCase):
             self.assertTrue(engine.worker_is_stale(project))
             self.assertTrue(engine.ensure_worker_built(project, command))
             self.assertEqual(log.read_text().count("built"), 2)
+
+    def test_a_changed_probe_template_makes_the_worker_stale(self):
+        """The templates are embedded in the worker (dc-heiq6): a worker older than a template is rebuilt."""
+        import engine
+        with tempfile.TemporaryDirectory() as folder:
+            project = Path(folder) / "service" / "engines" / "excel"
+            probes = Path(folder) / "service" / "vba-probes"
+            project.mkdir(parents=True)
+            probes.mkdir()
+            (project / "Program.cs").write_text("class P{}")
+            (probes / "smoke-module1.bas").write_text("Option Explicit\n")
+            (project / "bin").mkdir()
+            for name in ("excel-worker.dll", "excel-worker.exe"):
+                (project / "bin" / name).write_text("x")
+            self.assertFalse(engine.worker_is_stale(project))
+            later = time.time() + 100
+            os.utime(probes / "smoke-module1.bas", (later, later))
+            self.assertTrue(engine.worker_is_stale(project))
 
     def test_a_failed_build_or_a_build_that_leaves_no_worker_fails_loudly(self):
         import engine

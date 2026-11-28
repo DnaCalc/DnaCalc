@@ -1,0 +1,1014 @@
+G6Forward	A3	-
+G6Forward	B3	s	Column Labels
+G6Forward	C3	-
+G6Forward	D3	-
+G6Forward	E3	-
+G6Forward	F3	-
+G6Forward	G3	-
+G6Forward	H3	-
+G6Forward	I3	-
+G6Forward	J3	-
+G6Forward	K3	-
+G6Forward	L3	-
+G6Forward	M3	-
+G6Forward	N3	-
+G6Forward	O3	-
+G6Forward	P3	-
+G6Forward	Q3	-
+G6Forward	R3	-
+G6Forward	S3	-
+G6Forward	A4	-
+G6Forward	B4	s	Jan
+G6Forward	C4	-
+G6Forward	D4	-
+G6Forward	E4	-
+G6Forward	F4	-
+G6Forward	G4	-
+G6Forward	H4	s	Feb
+G6Forward	I4	-
+G6Forward	J4	-
+G6Forward	K4	-
+G6Forward	L4	-
+G6Forward	M4	-
+G6Forward	N4	s	Total Sum
+G6Forward	O4	s	Total Average
+G6Forward	P4	s	Total Var
+G6Forward	Q4	s	Total VarP
+G6Forward	R4	s	Total Count
+G6Forward	S4	s	Total CountNums
+G6Forward	A5	s	Row Labels
+G6Forward	B5	s	Sum
+G6Forward	C5	s	Average
+G6Forward	D5	s	Var
+G6Forward	E5	s	VarP
+G6Forward	F5	s	Count
+G6Forward	G5	s	CountNums
+G6Forward	H5	s	Sum
+G6Forward	I5	s	Average
+G6Forward	J5	s	Var
+G6Forward	K5	s	VarP
+G6Forward	L5	s	Count
+G6Forward	M5	s	CountNums
+G6Forward	N5	-
+G6Forward	O5	-
+G6Forward	P5	-
+G6Forward	Q5	-
+G6Forward	R5	-
+G6Forward	S5	-
+G6Forward	A6	s	BlankOnly
+G6Forward	B6	-
+G6Forward	C6	-
+G6Forward	D6	-
+G6Forward	E6	-
+G6Forward	F6	-
+G6Forward	G6	-
+G6Forward	H6	-
+G6Forward	I6	-
+G6Forward	J6	-
+G6Forward	K6	-
+G6Forward	L6	-
+G6Forward	M6	-
+G6Forward	N6	-
+G6Forward	O6	-
+G6Forward	P6	-
+G6Forward	Q6	-
+G6Forward	R6	-
+G6Forward	S6	-
+G6Forward	A7	s	G01
+G6Forward	B7	n	3fe4000000000000
+G6Forward	C7	n	3fcaaaaaaaaaaaab
+G6Forward	D7	n	46293e5939a08ceb
+G6Forward	E7	n	4620d43b7bc05df2
+G6Forward	F7	n	4008000000000000
+G6Forward	G7	n	4008000000000000
+G6Forward	H7	-
+G6Forward	I7	-
+G6Forward	J7	-
+G6Forward	K7	-
+G6Forward	L7	-
+G6Forward	M7	-
+G6Forward	N7	n	3fe4000000000000
+G6Forward	O7	n	3fcaaaaaaaaaaaab
+G6Forward	P7	n	46293e5939a08ceb
+G6Forward	Q7	n	4620d43b7bc05df2
+G6Forward	R7	n	4008000000000000
+G6Forward	S7	n	4008000000000000
+G6Forward	A8	s	G02
+G6Forward	B8	n	3fe6666666666666
+G6Forward	C8	n	3fcddddddddddddd
+G6Forward	D8	n	46293e5939a08ceb
+G6Forward	E8	n	4620d43b7bc05df2
+G6Forward	F8	n	4008000000000000
+G6Forward	G8	n	4008000000000000
+G6Forward	H8	-
+G6Forward	I8	-
+G6Forward	J8	-
+G6Forward	K8	-
+G6Forward	L8	-
+G6Forward	M8	-
+G6Forward	N8	n	3fe6666666666666
+G6Forward	O8	n	3fcddddddddddddd
+G6Forward	P8	n	46293e5939a08ceb
+G6Forward	Q8	n	4620d43b7bc05df2
+G6Forward	R8	n	4008000000000000
+G6Forward	S8	n	4008000000000000
+G6Forward	A9	s	G03
+G6Forward	B9	n	3fe8000000000000
+G6Forward	C9	n	3fd0000000000000
+G6Forward	D9	n	46293e5939a08ceb
+G6Forward	E9	n	4620d43b7bc05df2
+G6Forward	F9	n	4008000000000000
+G6Forward	G9	n	4008000000000000
+G6Forward	H9	-
+G6Forward	I9	-
+G6Forward	J9	-
+G6Forward	K9	-
+G6Forward	L9	-
+G6Forward	M9	-
+G6Forward	N9	n	3fe8000000000000
+G6Forward	O9	n	3fd0000000000000
+G6Forward	P9	n	46293e5939a08ceb
+G6Forward	Q9	n	4620d43b7bc05df2
+G6Forward	R9	n	4008000000000000
+G6Forward	S9	n	4008000000000000
+G6Forward	A10	s	G04
+G6Forward	B10	n	3fe4000000000000
+G6Forward	C10	n	3fcaaaaaaaaaaaab
+G6Forward	D10	n	46293e5939a08cec
+G6Forward	E10	n	4620d43b7bc05df3
+G6Forward	F10	n	4008000000000000
+G6Forward	G10	n	4008000000000000
+G6Forward	H10	-
+G6Forward	I10	-
+G6Forward	J10	-
+G6Forward	K10	-
+G6Forward	L10	-
+G6Forward	M10	-
+G6Forward	N10	n	3fe4000000000000
+G6Forward	O10	n	3fcaaaaaaaaaaaab
+G6Forward	P10	n	46293e5939a08cec
+G6Forward	Q10	n	4620d43b7bc05df3
+G6Forward	R10	n	4008000000000000
+G6Forward	S10	n	4008000000000000
+G6Forward	A11	s	G05
+G6Forward	B11	n	3fe6666666666666
+G6Forward	C11	n	3fcddddddddddddd
+G6Forward	D11	n	46293e5939a08cec
+G6Forward	E11	n	4620d43b7bc05df3
+G6Forward	F11	n	4008000000000000
+G6Forward	G11	n	4008000000000000
+G6Forward	H11	-
+G6Forward	I11	-
+G6Forward	J11	-
+G6Forward	K11	-
+G6Forward	L11	-
+G6Forward	M11	-
+G6Forward	N11	n	3fe6666666666666
+G6Forward	O11	n	3fcddddddddddddd
+G6Forward	P11	n	46293e5939a08cec
+G6Forward	Q11	n	4620d43b7bc05df3
+G6Forward	R11	n	4008000000000000
+G6Forward	S11	n	4008000000000000
+G6Forward	A12	s	G06
+G6Forward	B12	n	3fe8000000000000
+G6Forward	C12	n	3fd0000000000000
+G6Forward	D12	n	46293e5939a08cec
+G6Forward	E12	n	4620d43b7bc05df3
+G6Forward	F12	n	4008000000000000
+G6Forward	G12	n	4008000000000000
+G6Forward	H12	-
+G6Forward	I12	-
+G6Forward	J12	-
+G6Forward	K12	-
+G6Forward	L12	-
+G6Forward	M12	-
+G6Forward	N12	n	3fe8000000000000
+G6Forward	O12	n	3fd0000000000000
+G6Forward	P12	n	46293e5939a08cec
+G6Forward	Q12	n	4620d43b7bc05df3
+G6Forward	R12	n	4008000000000000
+G6Forward	S12	n	4008000000000000
+G6Forward	A13	s	G07
+G6Forward	B13	n	3fe4000000000000
+G6Forward	C13	n	3fcaaaaaaaaaaaab
+G6Forward	D13	n	46293e5939a08cec
+G6Forward	E13	n	4620d43b7bc05df3
+G6Forward	F13	n	4008000000000000
+G6Forward	G13	n	4008000000000000
+G6Forward	H13	-
+G6Forward	I13	-
+G6Forward	J13	-
+G6Forward	K13	-
+G6Forward	L13	-
+G6Forward	M13	-
+G6Forward	N13	n	3fe4000000000000
+G6Forward	O13	n	3fcaaaaaaaaaaaab
+G6Forward	P13	n	46293e5939a08cec
+G6Forward	Q13	n	4620d43b7bc05df3
+G6Forward	R13	n	4008000000000000
+G6Forward	S13	n	4008000000000000
+G6Forward	A14	s	G08
+G6Forward	B14	n	3fe6666666666666
+G6Forward	C14	n	3fcddddddddddddd
+G6Forward	D14	n	46293e5939a08cec
+G6Forward	E14	n	4620d43b7bc05df3
+G6Forward	F14	n	4008000000000000
+G6Forward	G14	n	4008000000000000
+G6Forward	H14	-
+G6Forward	I14	-
+G6Forward	J14	-
+G6Forward	K14	-
+G6Forward	L14	-
+G6Forward	M14	-
+G6Forward	N14	n	3fe6666666666666
+G6Forward	O14	n	3fcddddddddddddd
+G6Forward	P14	n	46293e5939a08cec
+G6Forward	Q14	n	4620d43b7bc05df3
+G6Forward	R14	n	4008000000000000
+G6Forward	S14	n	4008000000000000
+G6Forward	A15	s	G09
+G6Forward	B15	n	3fe8000000000000
+G6Forward	C15	n	3fd0000000000000
+G6Forward	D15	n	46293e5939a08cec
+G6Forward	E15	n	4620d43b7bc05df3
+G6Forward	F15	n	4008000000000000
+G6Forward	G15	n	4008000000000000
+G6Forward	H15	-
+G6Forward	I15	-
+G6Forward	J15	-
+G6Forward	K15	-
+G6Forward	L15	-
+G6Forward	M15	-
+G6Forward	N15	n	3fe8000000000000
+G6Forward	O15	n	3fd0000000000000
+G6Forward	P15	n	46293e5939a08cec
+G6Forward	Q15	n	4620d43b7bc05df3
+G6Forward	R15	n	4008000000000000
+G6Forward	S15	n	4008000000000000
+G6Forward	A16	s	G10
+G6Forward	B16	n	3fe4000000000000
+G6Forward	C16	n	3fcaaaaaaaaaaaab
+G6Forward	D16	n	46293e5939a08cee
+G6Forward	E16	n	4620d43b7bc05df4
+G6Forward	F16	n	4008000000000000
+G6Forward	G16	n	4008000000000000
+G6Forward	H16	-
+G6Forward	I16	-
+G6Forward	J16	-
+G6Forward	K16	-
+G6Forward	L16	-
+G6Forward	M16	-
+G6Forward	N16	n	3fe4000000000000
+G6Forward	O16	n	3fcaaaaaaaaaaaab
+G6Forward	P16	n	46293e5939a08cee
+G6Forward	Q16	n	4620d43b7bc05df4
+G6Forward	R16	n	4008000000000000
+G6Forward	S16	n	4008000000000000
+G6Forward	A17	s	G11
+G6Forward	B17	n	3fe6666666666666
+G6Forward	C17	n	3fcddddddddddddd
+G6Forward	D17	n	46293e5939a08cee
+G6Forward	E17	n	4620d43b7bc05df4
+G6Forward	F17	n	4008000000000000
+G6Forward	G17	n	4008000000000000
+G6Forward	H17	-
+G6Forward	I17	-
+G6Forward	J17	-
+G6Forward	K17	-
+G6Forward	L17	-
+G6Forward	M17	-
+G6Forward	N17	n	3fe6666666666666
+G6Forward	O17	n	3fcddddddddddddd
+G6Forward	P17	n	46293e5939a08cee
+G6Forward	Q17	n	4620d43b7bc05df4
+G6Forward	R17	n	4008000000000000
+G6Forward	S17	n	4008000000000000
+G6Forward	A18	s	G12
+G6Forward	B18	n	3fe8000000000000
+G6Forward	C18	n	3fd0000000000000
+G6Forward	D18	n	46293e5939a08cee
+G6Forward	E18	n	4620d43b7bc05df4
+G6Forward	F18	n	4008000000000000
+G6Forward	G18	n	4008000000000000
+G6Forward	H18	-
+G6Forward	I18	-
+G6Forward	J18	-
+G6Forward	K18	-
+G6Forward	L18	-
+G6Forward	M18	-
+G6Forward	N18	n	3fe8000000000000
+G6Forward	O18	n	3fd0000000000000
+G6Forward	P18	n	46293e5939a08cee
+G6Forward	Q18	n	4620d43b7bc05df4
+G6Forward	R18	n	4008000000000000
+G6Forward	S18	n	4008000000000000
+G6Forward	A19	s	NoNumber
+G6Forward	B19	n	0000000000000000
+G6Forward	C19	e	#DIV/0!
+G6Forward	D19	e	#DIV/0!
+G6Forward	E19	e	#DIV/0!
+G6Forward	F19	n	3ff0000000000000
+G6Forward	G19	n	0000000000000000
+G6Forward	H19	-
+G6Forward	I19	-
+G6Forward	J19	-
+G6Forward	K19	-
+G6Forward	L19	-
+G6Forward	M19	-
+G6Forward	N19	n	0000000000000000
+G6Forward	O19	e	#DIV/0!
+G6Forward	P19	e	#DIV/0!
+G6Forward	Q19	e	#DIV/0!
+G6Forward	R19	n	3ff0000000000000
+G6Forward	S19	n	0000000000000000
+G6Forward	A20	s	Overflow
+G6Forward	B20	e	#NUM!
+G6Forward	C20	e	#NUM!
+G6Forward	D20	e	#NUM!
+G6Forward	E20	e	#NUM!
+G6Forward	F20	n	4000000000000000
+G6Forward	G20	n	4000000000000000
+G6Forward	H20	-
+G6Forward	I20	-
+G6Forward	J20	-
+G6Forward	K20	-
+G6Forward	L20	-
+G6Forward	M20	-
+G6Forward	N20	e	#NUM!
+G6Forward	O20	e	#NUM!
+G6Forward	P20	e	#NUM!
+G6Forward	Q20	e	#NUM!
+G6Forward	R20	e	#NUM!
+G6Forward	S20	e	#NUM!
+G6Forward	A21	s	Square
+G6Forward	B21	-
+G6Forward	C21	-
+G6Forward	D21	-
+G6Forward	E21	-
+G6Forward	F21	-
+G6Forward	G21	-
+G6Forward	H21	n	6001e667904707f5
+G6Forward	I21	n	5ff1e667904707f5
+G6Forward	J21	e	#NUM!
+G6Forward	K21	e	#NUM!
+G6Forward	L21	n	4000000000000000
+G6Forward	M21	n	4000000000000000
+G6Forward	N21	e	#NUM!
+G6Forward	O21	e	#NUM!
+G6Forward	P21	e	#NUM!
+G6Forward	Q21	e	#NUM!
+G6Forward	R21	e	#NUM!
+G6Forward	S21	e	#NUM!
+G6Forward	A22	s	Variance
+G6Forward	B22	n	4010000000000000
+G6Forward	C22	n	4000000000000000
+G6Forward	D22	n	4000000000000000
+G6Forward	E22	n	3ff0000000000000
+G6Forward	F22	n	4000000000000000
+G6Forward	G22	n	4000000000000000
+G6Forward	H22	-
+G6Forward	I22	-
+G6Forward	J22	-
+G6Forward	K22	-
+G6Forward	L22	-
+G6Forward	M22	-
+G6Forward	N22	n	4010000000000000
+G6Forward	O22	n	4000000000000000
+G6Forward	P22	n	4000000000000000
+G6Forward	Q22	n	3ff0000000000000
+G6Forward	R22	n	4000000000000000
+G6Forward	S22	n	4000000000000000
+G6Forward	A23	s	Grand Total
+G6Forward	B23	e	#NUM!
+G6Forward	C23	e	#NUM!
+G6Forward	D23	e	#NUM!
+G6Forward	E23	e	#NUM!
+G6Forward	F23	e	#NUM!
+G6Forward	G23	e	#NUM!
+G6Forward	H23	e	#NUM!
+G6Forward	I23	e	#NUM!
+G6Forward	J23	e	#NUM!
+G6Forward	K23	e	#NUM!
+G6Forward	L23	e	#NUM!
+G6Forward	M23	e	#NUM!
+G6Forward	N23	e	#NUM!
+G6Forward	O23	e	#NUM!
+G6Forward	P23	e	#NUM!
+G6Forward	Q23	e	#NUM!
+G6Forward	R23	e	#NUM!
+G6Forward	S23	e	#NUM!
+G6Reverse	A3	-
+G6Reverse	B3	s	Column Labels
+G6Reverse	C3	-
+G6Reverse	D3	-
+G6Reverse	E3	-
+G6Reverse	F3	-
+G6Reverse	G3	-
+G6Reverse	H3	-
+G6Reverse	I3	-
+G6Reverse	J3	-
+G6Reverse	K3	-
+G6Reverse	L3	-
+G6Reverse	M3	-
+G6Reverse	N3	-
+G6Reverse	O3	-
+G6Reverse	P3	-
+G6Reverse	Q3	-
+G6Reverse	R3	-
+G6Reverse	S3	-
+G6Reverse	A4	-
+G6Reverse	B4	s	Jan
+G6Reverse	C4	-
+G6Reverse	D4	-
+G6Reverse	E4	-
+G6Reverse	F4	-
+G6Reverse	G4	-
+G6Reverse	H4	s	Feb
+G6Reverse	I4	-
+G6Reverse	J4	-
+G6Reverse	K4	-
+G6Reverse	L4	-
+G6Reverse	M4	-
+G6Reverse	N4	s	Total Sum
+G6Reverse	O4	s	Total Average
+G6Reverse	P4	s	Total Var
+G6Reverse	Q4	s	Total VarP
+G6Reverse	R4	s	Total Count
+G6Reverse	S4	s	Total CountNums
+G6Reverse	A5	s	Row Labels
+G6Reverse	B5	s	Sum
+G6Reverse	C5	s	Average
+G6Reverse	D5	s	Var
+G6Reverse	E5	s	VarP
+G6Reverse	F5	s	Count
+G6Reverse	G5	s	CountNums
+G6Reverse	H5	s	Sum
+G6Reverse	I5	s	Average
+G6Reverse	J5	s	Var
+G6Reverse	K5	s	VarP
+G6Reverse	L5	s	Count
+G6Reverse	M5	s	CountNums
+G6Reverse	N5	-
+G6Reverse	O5	-
+G6Reverse	P5	-
+G6Reverse	Q5	-
+G6Reverse	R5	-
+G6Reverse	S5	-
+G6Reverse	A6	s	BlankOnly
+G6Reverse	B6	-
+G6Reverse	C6	-
+G6Reverse	D6	-
+G6Reverse	E6	-
+G6Reverse	F6	-
+G6Reverse	G6	-
+G6Reverse	H6	-
+G6Reverse	I6	-
+G6Reverse	J6	-
+G6Reverse	K6	-
+G6Reverse	L6	-
+G6Reverse	M6	-
+G6Reverse	N6	-
+G6Reverse	O6	-
+G6Reverse	P6	-
+G6Reverse	Q6	-
+G6Reverse	R6	-
+G6Reverse	S6	-
+G6Reverse	A7	s	G01
+G6Reverse	B7	n	0000000000000000
+G6Reverse	C7	n	0000000000000000
+G6Reverse	D7	n	46293e5939a08ceb
+G6Reverse	E7	n	4620d43b7bc05df2
+G6Reverse	F7	n	4008000000000000
+G6Reverse	G7	n	4008000000000000
+G6Reverse	H7	-
+G6Reverse	I7	-
+G6Reverse	J7	-
+G6Reverse	K7	-
+G6Reverse	L7	-
+G6Reverse	M7	-
+G6Reverse	N7	n	0000000000000000
+G6Reverse	O7	n	0000000000000000
+G6Reverse	P7	n	46293e5939a08ceb
+G6Reverse	Q7	n	4620d43b7bc05df2
+G6Reverse	R7	n	4008000000000000
+G6Reverse	S7	n	4008000000000000
+G6Reverse	A8	s	G02
+G6Reverse	B8	n	0000000000000000
+G6Reverse	C8	n	0000000000000000
+G6Reverse	D8	n	46293e5939a08ceb
+G6Reverse	E8	n	4620d43b7bc05df2
+G6Reverse	F8	n	4008000000000000
+G6Reverse	G8	n	4008000000000000
+G6Reverse	H8	-
+G6Reverse	I8	-
+G6Reverse	J8	-
+G6Reverse	K8	-
+G6Reverse	L8	-
+G6Reverse	M8	-
+G6Reverse	N8	n	0000000000000000
+G6Reverse	O8	n	0000000000000000
+G6Reverse	P8	n	46293e5939a08ceb
+G6Reverse	Q8	n	4620d43b7bc05df2
+G6Reverse	R8	n	4008000000000000
+G6Reverse	S8	n	4008000000000000
+G6Reverse	A9	s	G03
+G6Reverse	B9	n	0000000000000000
+G6Reverse	C9	n	0000000000000000
+G6Reverse	D9	n	46293e5939a08ceb
+G6Reverse	E9	n	4620d43b7bc05df2
+G6Reverse	F9	n	4008000000000000
+G6Reverse	G9	n	4008000000000000
+G6Reverse	H9	-
+G6Reverse	I9	-
+G6Reverse	J9	-
+G6Reverse	K9	-
+G6Reverse	L9	-
+G6Reverse	M9	-
+G6Reverse	N9	n	0000000000000000
+G6Reverse	O9	n	0000000000000000
+G6Reverse	P9	n	46293e5939a08ceb
+G6Reverse	Q9	n	4620d43b7bc05df2
+G6Reverse	R9	n	4008000000000000
+G6Reverse	S9	n	4008000000000000
+G6Reverse	A10	s	G04
+G6Reverse	B10	n	0000000000000000
+G6Reverse	C10	n	0000000000000000
+G6Reverse	D10	n	46293e5939a08cec
+G6Reverse	E10	n	4620d43b7bc05df3
+G6Reverse	F10	n	4008000000000000
+G6Reverse	G10	n	4008000000000000
+G6Reverse	H10	-
+G6Reverse	I10	-
+G6Reverse	J10	-
+G6Reverse	K10	-
+G6Reverse	L10	-
+G6Reverse	M10	-
+G6Reverse	N10	n	0000000000000000
+G6Reverse	O10	n	0000000000000000
+G6Reverse	P10	n	46293e5939a08cec
+G6Reverse	Q10	n	4620d43b7bc05df3
+G6Reverse	R10	n	4008000000000000
+G6Reverse	S10	n	4008000000000000
+G6Reverse	A11	s	G05
+G6Reverse	B11	n	3ff0000000000000
+G6Reverse	C11	n	3fd5555555555555
+G6Reverse	D11	n	46293e5939a08cec
+G6Reverse	E11	n	4620d43b7bc05df3
+G6Reverse	F11	n	4008000000000000
+G6Reverse	G11	n	4008000000000000
+G6Reverse	H11	-
+G6Reverse	I11	-
+G6Reverse	J11	-
+G6Reverse	K11	-
+G6Reverse	L11	-
+G6Reverse	M11	-
+G6Reverse	N11	n	3ff0000000000000
+G6Reverse	O11	n	3fd5555555555555
+G6Reverse	P11	n	46293e5939a08cec
+G6Reverse	Q11	n	4620d43b7bc05df3
+G6Reverse	R11	n	4008000000000000
+G6Reverse	S11	n	4008000000000000
+G6Reverse	A12	s	G06
+G6Reverse	B12	n	3ff0000000000000
+G6Reverse	C12	n	3fd5555555555555
+G6Reverse	D12	n	46293e5939a08cec
+G6Reverse	E12	n	4620d43b7bc05df3
+G6Reverse	F12	n	4008000000000000
+G6Reverse	G12	n	4008000000000000
+G6Reverse	H12	-
+G6Reverse	I12	-
+G6Reverse	J12	-
+G6Reverse	K12	-
+G6Reverse	L12	-
+G6Reverse	M12	-
+G6Reverse	N12	n	3ff0000000000000
+G6Reverse	O12	n	3fd5555555555555
+G6Reverse	P12	n	46293e5939a08cec
+G6Reverse	Q12	n	4620d43b7bc05df3
+G6Reverse	R12	n	4008000000000000
+G6Reverse	S12	n	4008000000000000
+G6Reverse	A13	s	G07
+G6Reverse	B13	n	3ff0000000000000
+G6Reverse	C13	n	3fd5555555555555
+G6Reverse	D13	n	46293e5939a08cec
+G6Reverse	E13	n	4620d43b7bc05df3
+G6Reverse	F13	n	4008000000000000
+G6Reverse	G13	n	4008000000000000
+G6Reverse	H13	-
+G6Reverse	I13	-
+G6Reverse	J13	-
+G6Reverse	K13	-
+G6Reverse	L13	-
+G6Reverse	M13	-
+G6Reverse	N13	n	3ff0000000000000
+G6Reverse	O13	n	3fd5555555555555
+G6Reverse	P13	n	46293e5939a08cec
+G6Reverse	Q13	n	4620d43b7bc05df3
+G6Reverse	R13	n	4008000000000000
+G6Reverse	S13	n	4008000000000000
+G6Reverse	A14	s	G08
+G6Reverse	B14	n	3ff2000000000000
+G6Reverse	C14	n	3fd8000000000000
+G6Reverse	D14	n	46293e5939a08cec
+G6Reverse	E14	n	4620d43b7bc05df3
+G6Reverse	F14	n	4008000000000000
+G6Reverse	G14	n	4008000000000000
+G6Reverse	H14	-
+G6Reverse	I14	-
+G6Reverse	J14	-
+G6Reverse	K14	-
+G6Reverse	L14	-
+G6Reverse	M14	-
+G6Reverse	N14	n	3ff2000000000000
+G6Reverse	O14	n	3fd8000000000000
+G6Reverse	P14	n	46293e5939a08cec
+G6Reverse	Q14	n	4620d43b7bc05df3
+G6Reverse	R14	n	4008000000000000
+G6Reverse	S14	n	4008000000000000
+G6Reverse	A15	s	G09
+G6Reverse	B15	n	3ff2000000000000
+G6Reverse	C15	n	3fd8000000000000
+G6Reverse	D15	n	46293e5939a08cec
+G6Reverse	E15	n	4620d43b7bc05df3
+G6Reverse	F15	n	4008000000000000
+G6Reverse	G15	n	4008000000000000
+G6Reverse	H15	-
+G6Reverse	I15	-
+G6Reverse	J15	-
+G6Reverse	K15	-
+G6Reverse	L15	-
+G6Reverse	M15	-
+G6Reverse	N15	n	3ff2000000000000
+G6Reverse	O15	n	3fd8000000000000
+G6Reverse	P15	n	46293e5939a08cec
+G6Reverse	Q15	n	4620d43b7bc05df3
+G6Reverse	R15	n	4008000000000000
+G6Reverse	S15	n	4008000000000000
+G6Reverse	A16	s	G10
+G6Reverse	B16	n	3ff2000000000000
+G6Reverse	C16	n	3fd8000000000000
+G6Reverse	D16	n	46293e5939a08cee
+G6Reverse	E16	n	4620d43b7bc05df4
+G6Reverse	F16	n	4008000000000000
+G6Reverse	G16	n	4008000000000000
+G6Reverse	H16	-
+G6Reverse	I16	-
+G6Reverse	J16	-
+G6Reverse	K16	-
+G6Reverse	L16	-
+G6Reverse	M16	-
+G6Reverse	N16	n	3ff2000000000000
+G6Reverse	O16	n	3fd8000000000000
+G6Reverse	P16	n	46293e5939a08cee
+G6Reverse	Q16	n	4620d43b7bc05df4
+G6Reverse	R16	n	4008000000000000
+G6Reverse	S16	n	4008000000000000
+G6Reverse	A17	s	G11
+G6Reverse	B17	n	3ff4000000000000
+G6Reverse	C17	n	3fdaaaaaaaaaaaab
+G6Reverse	D17	n	46293e5939a08cee
+G6Reverse	E17	n	4620d43b7bc05df4
+G6Reverse	F17	n	4008000000000000
+G6Reverse	G17	n	4008000000000000
+G6Reverse	H17	-
+G6Reverse	I17	-
+G6Reverse	J17	-
+G6Reverse	K17	-
+G6Reverse	L17	-
+G6Reverse	M17	-
+G6Reverse	N17	n	3ff4000000000000
+G6Reverse	O17	n	3fdaaaaaaaaaaaab
+G6Reverse	P17	n	46293e5939a08cee
+G6Reverse	Q17	n	4620d43b7bc05df4
+G6Reverse	R17	n	4008000000000000
+G6Reverse	S17	n	4008000000000000
+G6Reverse	A18	s	G12
+G6Reverse	B18	n	3ff4000000000000
+G6Reverse	C18	n	3fdaaaaaaaaaaaab
+G6Reverse	D18	n	46293e5939a08cee
+G6Reverse	E18	n	4620d43b7bc05df4
+G6Reverse	F18	n	4008000000000000
+G6Reverse	G18	n	4008000000000000
+G6Reverse	H18	-
+G6Reverse	I18	-
+G6Reverse	J18	-
+G6Reverse	K18	-
+G6Reverse	L18	-
+G6Reverse	M18	-
+G6Reverse	N18	n	3ff4000000000000
+G6Reverse	O18	n	3fdaaaaaaaaaaaab
+G6Reverse	P18	n	46293e5939a08cee
+G6Reverse	Q18	n	4620d43b7bc05df4
+G6Reverse	R18	n	4008000000000000
+G6Reverse	S18	n	4008000000000000
+G6Reverse	A19	s	NoNumber
+G6Reverse	B19	n	0000000000000000
+G6Reverse	C19	e	#DIV/0!
+G6Reverse	D19	e	#DIV/0!
+G6Reverse	E19	e	#DIV/0!
+G6Reverse	F19	n	3ff0000000000000
+G6Reverse	G19	n	0000000000000000
+G6Reverse	H19	-
+G6Reverse	I19	-
+G6Reverse	J19	-
+G6Reverse	K19	-
+G6Reverse	L19	-
+G6Reverse	M19	-
+G6Reverse	N19	n	0000000000000000
+G6Reverse	O19	e	#DIV/0!
+G6Reverse	P19	e	#DIV/0!
+G6Reverse	Q19	e	#DIV/0!
+G6Reverse	R19	n	3ff0000000000000
+G6Reverse	S19	n	0000000000000000
+G6Reverse	A20	s	Overflow
+G6Reverse	B20	e	#NUM!
+G6Reverse	C20	e	#NUM!
+G6Reverse	D20	e	#NUM!
+G6Reverse	E20	e	#NUM!
+G6Reverse	F20	n	4000000000000000
+G6Reverse	G20	n	4000000000000000
+G6Reverse	H20	-
+G6Reverse	I20	-
+G6Reverse	J20	-
+G6Reverse	K20	-
+G6Reverse	L20	-
+G6Reverse	M20	-
+G6Reverse	N20	e	#NUM!
+G6Reverse	O20	e	#NUM!
+G6Reverse	P20	e	#NUM!
+G6Reverse	Q20	e	#NUM!
+G6Reverse	R20	e	#NUM!
+G6Reverse	S20	e	#NUM!
+G6Reverse	A21	s	Square
+G6Reverse	B21	-
+G6Reverse	C21	-
+G6Reverse	D21	-
+G6Reverse	E21	-
+G6Reverse	F21	-
+G6Reverse	G21	-
+G6Reverse	H21	n	6001e667904707f5
+G6Reverse	I21	n	5ff1e667904707f5
+G6Reverse	J21	e	#NUM!
+G6Reverse	K21	e	#NUM!
+G6Reverse	L21	n	4000000000000000
+G6Reverse	M21	n	4000000000000000
+G6Reverse	N21	e	#NUM!
+G6Reverse	O21	e	#NUM!
+G6Reverse	P21	e	#NUM!
+G6Reverse	Q21	e	#NUM!
+G6Reverse	R21	e	#NUM!
+G6Reverse	S21	e	#NUM!
+G6Reverse	A22	s	Variance
+G6Reverse	B22	n	4010000000000000
+G6Reverse	C22	n	4000000000000000
+G6Reverse	D22	n	4000000000000000
+G6Reverse	E22	n	3ff0000000000000
+G6Reverse	F22	n	4000000000000000
+G6Reverse	G22	n	4000000000000000
+G6Reverse	H22	-
+G6Reverse	I22	-
+G6Reverse	J22	-
+G6Reverse	K22	-
+G6Reverse	L22	-
+G6Reverse	M22	-
+G6Reverse	N22	n	4010000000000000
+G6Reverse	O22	n	4000000000000000
+G6Reverse	P22	n	4000000000000000
+G6Reverse	Q22	n	3ff0000000000000
+G6Reverse	R22	n	4000000000000000
+G6Reverse	S22	n	4000000000000000
+G6Reverse	A23	s	Grand Total
+G6Reverse	B23	e	#NUM!
+G6Reverse	C23	e	#NUM!
+G6Reverse	D23	e	#NUM!
+G6Reverse	E23	e	#NUM!
+G6Reverse	F23	e	#NUM!
+G6Reverse	G23	e	#NUM!
+G6Reverse	H23	e	#NUM!
+G6Reverse	I23	e	#NUM!
+G6Reverse	J23	e	#NUM!
+G6Reverse	K23	e	#NUM!
+G6Reverse	L23	e	#NUM!
+G6Reverse	M23	e	#NUM!
+G6Reverse	N23	e	#NUM!
+G6Reverse	O23	e	#NUM!
+G6Reverse	P23	e	#NUM!
+G6Reverse	Q23	e	#NUM!
+G6Reverse	R23	e	#NUM!
+G6Reverse	S23	e	#NUM!
+ProdF11	A3	s	Product only
+ProdF11	B3	s	Column Labels
+ProdF11	C3	-
+ProdF11	D3	-
+ProdF11	A4	s	Row Labels
+ProdF11	B4	s	Jan
+ProdF11	C4	s	Feb
+ProdF11	D4	s	Grand Total
+ProdF11	A5	s	A
+ProdF11	B5	n	0000000000000000
+ProdF11	C5	n	7e37e43c8800759b
+ProdF11	D5	n	0000000000000000
+ProdF11	A6	s	B
+ProdF11	B6	n	3ff0000000000000
+ProdF11	C6	n	3fee000000000000
+ProdF11	D6	n	3fee000000000000
+ProdF11	A7	s	Grand Total
+ProdF11	B7	n	0000000000000000
+ProdF11	C7	n	7e3665f8bf806e41
+ProdF11	D7	n	0000000000000000
+ProdF12	A3	s	Product only
+ProdF12	B3	s	Column Labels
+ProdF12	C3	-
+ProdF12	D3	-
+ProdF12	A4	s	Row Labels
+ProdF12	B4	s	Feb
+ProdF12	C4	s	Jan
+ProdF12	D4	s	Grand Total
+ProdF12	A5	s	A
+ProdF12	B5	n	7e37e43c8800759b
+ProdF12	C5	n	0000000000000000
+ProdF12	D5	n	3ddb7cdfd9d7bdba
+ProdF12	A6	s	B
+ProdF12	B6	n	3fee000000000000
+ProdF12	C6	n	3ff0000000000000
+ProdF12	D6	n	3fee000000000000
+ProdF12	A7	s	Grand Total
+ProdF12	B7	n	7e3665f8bf806e41
+ProdF12	C7	n	0000000000000000
+ProdF12	D7	n	3dd9c511dc3a41de
+ProdF21	A3	s	Product only
+ProdF21	B3	s	Column Labels
+ProdF21	C3	-
+ProdF21	D3	-
+ProdF21	A4	s	Row Labels
+ProdF21	B4	s	Jan
+ProdF21	C4	s	Feb
+ProdF21	D4	s	Grand Total
+ProdF21	A5	s	B
+ProdF21	B5	n	3ff0000000000000
+ProdF21	C5	n	3fee000000000000
+ProdF21	D5	n	3fee000000000000
+ProdF21	A6	s	A
+ProdF21	B6	n	0000000000000000
+ProdF21	C6	n	7e37e43c8800759b
+ProdF21	D6	n	0000000000000000
+ProdF21	A7	s	Grand Total
+ProdF21	B7	n	0000000000000000
+ProdF21	C7	n	7e3665f8bf806e42
+ProdF21	D7	n	0000000000000000
+ProdF22	A3	s	Product only
+ProdF22	B3	s	Column Labels
+ProdF22	C3	-
+ProdF22	D3	-
+ProdF22	A4	s	Row Labels
+ProdF22	B4	s	Feb
+ProdF22	C4	s	Jan
+ProdF22	D4	s	Grand Total
+ProdF22	A5	s	B
+ProdF22	B5	n	3fee000000000000
+ProdF22	C5	n	3ff0000000000000
+ProdF22	D5	n	3fee000000000000
+ProdF22	A6	s	A
+ProdF22	B6	n	7e37e43c8800759b
+ProdF22	C6	n	0000000000000000
+ProdF22	D6	n	3ddb7cdfd9d7bdba
+ProdF22	A7	s	Grand Total
+ProdF22	B7	n	7e3665f8bf806e42
+ProdF22	C7	n	0000000000000000
+ProdF22	D7	n	3dd9c511dc3a41de
+ProdR11	A3	s	Product only
+ProdR11	B3	s	Column Labels
+ProdR11	C3	-
+ProdR11	D3	-
+ProdR11	A4	s	Row Labels
+ProdR11	B4	s	Jan
+ProdR11	C4	s	Feb
+ProdR11	D4	s	Grand Total
+ProdR11	A5	s	A
+ProdR11	B5	n	0000000000000000
+ProdR11	C5	n	7e37e43c8800759b
+ProdR11	D5	n	0000000000000000
+ProdR11	A6	s	B
+ProdR11	B6	n	0000000000000000
+ProdR11	C6	n	3fee000000000000
+ProdR11	D6	n	0000000000000000
+ProdR11	A7	s	Grand Total
+ProdR11	B7	n	0000000000000000
+ProdR11	C7	n	7e3665f8bf806e42
+ProdR11	D7	n	0000000000000000
+ProdR12	A3	s	Product only
+ProdR12	B3	s	Column Labels
+ProdR12	C3	-
+ProdR12	D3	-
+ProdR12	A4	s	Row Labels
+ProdR12	B4	s	Feb
+ProdR12	C4	s	Jan
+ProdR12	D4	s	Grand Total
+ProdR12	A5	s	A
+ProdR12	B5	n	7e37e43c8800759b
+ProdR12	C5	n	0000000000000000
+ProdR12	D5	n	3ddb7cdfd9d7bdba
+ProdR12	A6	s	B
+ProdR12	B6	n	3fee000000000000
+ProdR12	C6	n	0000000000000000
+ProdR12	D6	n	0000000000000000
+ProdR12	A7	s	Grand Total
+ProdR12	B7	n	7e3665f8bf806e42
+ProdR12	C7	n	0000000000000000
+ProdR12	D7	n	0000000000000000
+ProdR21	A3	s	Product only
+ProdR21	B3	s	Column Labels
+ProdR21	C3	-
+ProdR21	D3	-
+ProdR21	A4	s	Row Labels
+ProdR21	B4	s	Jan
+ProdR21	C4	s	Feb
+ProdR21	D4	s	Grand Total
+ProdR21	A5	s	B
+ProdR21	B5	n	0000000000000000
+ProdR21	C5	n	3fee000000000000
+ProdR21	D5	n	0000000000000000
+ProdR21	A6	s	A
+ProdR21	B6	n	0000000000000000
+ProdR21	C6	n	7e37e43c8800759b
+ProdR21	D6	n	0000000000000000
+ProdR21	A7	s	Grand Total
+ProdR21	B7	n	0000000000000000
+ProdR21	C7	n	7e3665f8bf806e42
+ProdR21	D7	n	0000000000000000
+ProdR22	A3	s	Product only
+ProdR22	B3	s	Column Labels
+ProdR22	C3	-
+ProdR22	D3	-
+ProdR22	A4	s	Row Labels
+ProdR22	B4	s	Feb
+ProdR22	C4	s	Jan
+ProdR22	D4	s	Grand Total
+ProdR22	A5	s	B
+ProdR22	B5	n	3fee000000000000
+ProdR22	C5	n	0000000000000000
+ProdR22	D5	n	0000000000000000
+ProdR22	A6	s	A
+ProdR22	B6	n	7e37e43c8800759b
+ProdR22	C6	n	0000000000000000
+ProdR22	D6	n	3ddb7cdfd9d7bdba
+ProdR22	A7	s	Grand Total
+ProdR22	B7	n	7e3665f8bf806e42
+ProdR22	C7	n	0000000000000000
+ProdR22	D7	n	0000000000000000
+ProdWords	A3	s	Product only
+ProdWords	B3	s	Column Labels
+ProdWords	C3	-
+ProdWords	D3	-
+ProdWords	A4	s	Row Labels
+ProdWords	B4	s	Jan
+ProdWords	C4	s	Feb
+ProdWords	D4	s	Grand Total
+ProdWords	A5	s	BlankOnly
+ProdWords	B5	-
+ProdWords	C5	-
+ProdWords	D5	-
+ProdWords	A6	s	Finite
+ProdWords	B6	-
+ProdWords	C6	n	3fef800000000000
+ProdWords	D6	n	3fef800000000000
+ProdWords	A7	s	P150
+ProdWords	B7	n	7e37e43c8800759b
+ProdWords	C7	-
+ProdWords	D7	n	7e37e43c8800759b
+ProdWords	A8	s	P154
+ProdWords	B8	n	7fe1ccf385ebc8a0
+ProdWords	C8	-
+ProdWords	D8	n	7fe1ccf385ebc8a0
+ProdWords	A9	s	P-154
+ProdWords	B9	n	0000000000000000
+ProdWords	C9	-
+ProdWords	D9	n	0000000000000000
+ProdWords	A10	s	P155
+ProdWords	B10	e	#NUM!
+ProdWords	C10	-
+ProdWords	D10	e	#NUM!
+ProdWords	A11	s	P-155
+ProdWords	B11	n	0000000000000000
+ProdWords	C11	-
+ProdWords	D11	n	0000000000000000
+ProdWords	A12	s	P-160
+ProdWords	B12	n	0000000000000000
+ProdWords	C12	-
+ProdWords	D12	n	0000000000000000
+ProdWords	A13	s	P-161
+ProdWords	B13	n	0000000000000000
+ProdWords	C13	-
+ProdWords	D13	n	0000000000000000
+ProdWords	A14	s	P-162
+ProdWords	B14	n	0000000000000000
+ProdWords	C14	-
+ProdWords	D14	n	0000000000000000
+ProdWords	A15	s	TextOnly
+ProdWords	B15	-
+ProdWords	C15	n	0000000000000000
+ProdWords	D15	n	0000000000000000
+ProdWords	A16	s	Grand Total
+ProdWords	B16	e	#NUM!
+ProdWords	C16	n	3fef800000000000
+ProdWords	D16	e	#NUM!

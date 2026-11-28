@@ -3975,9 +3975,9 @@ fn dc_8wp_23__crossed_rows_use_layout_and_each_measure_source() {
     let mut passed = 0;
     let mut failures = Vec::new();
     for (row_fields, outline, custom, first_jan) in [
-        (vec![-2, 0], false, false, "D5"),
-        (vec![0, -2, 1], true, false, "E7"),
-        (vec![0, 1, -2], false, true, "E5"),
+        (vec![-2, 0], false, false, "C5"),
+        (vec![0, -2, 1], true, false, "D7"),
+        (vec![0, 1, -2], false, true, "D5"),
     ] {
         let mut table = original.clone();
         table.row_fields = row_fields;
@@ -4436,4 +4436,113 @@ fn dc_8wp_24__product_order_is_independent_of_other_measures() {
     println!("Product with varied measures: {matched}/{compared} words matched");
     assert_eq!(compared, 66);
     assert_eq!(matched, compared, "{failures:?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_24__pivot_refresh_matches_excel_product_order() {
+    macro_rules! capture {
+        ($name:literal) => {
+            (
+                $name,
+                include_bytes!(concat!("fixtures/pivot/product-order/", $name, ".xlsx")).as_slice(),
+                include_str!(concat!("fixtures/pivot/product-order/", $name, ".tsv")),
+            )
+        };
+    }
+
+    let mut matched = 0;
+    let mut mismatched = 0;
+    let mut refused = 0;
+    let mut failures = Vec::new();
+    for (case, bytes, captured) in [
+        capture!("forward-00"),
+        capture!("forward-01"),
+        capture!("forward-10"),
+        capture!("reverse-00"),
+        capture!("reverse-01"),
+        capture!("reverse-10"),
+        capture!("ww10-precision"),
+    ] {
+        let before = (matched, mismatched, refused);
+        let mut expected = BTreeMap::<&str, Vec<(&str, Option<Cell>)>>::new();
+        for line in captured.lines() {
+            let fields: Vec<_> = line.splitn(4, '\t').collect();
+            let cell = match fields[2] {
+                "-" => None,
+                "n" => Some(Cell::Number(f64::from_bits(
+                    u64::from_str_radix(fields[3], 16).unwrap(),
+                ))),
+                "s" => Some(Cell::Text(fields[3].into())),
+                "e" => Some(Cell::Error(fields[3].into())),
+                kind => panic!("unexpected captured cell kind {kind}"),
+            };
+            expected
+                .entry(fields[0])
+                .or_default()
+                .push((fields[1], cell));
+        }
+        let source = Arc::new(MemorySource::new(bytes.to_vec()));
+        let mut book =
+            HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        for (name, cells) in expected {
+            let table = book
+                .host()
+                .model()
+                .definitions()
+                .pivots()
+                .tables()
+                .find(|table| table.name == name)
+                .unwrap_or_else(|| panic!("{case}: missing pivot {name}"));
+            let sheet = table.area.first().sheet();
+            let receipt = book.dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::PivotRefresh {
+                    sheet,
+                    revision: book.host().revision().get(),
+                    part: table.part.clone(),
+                },
+            ));
+            if !receipt.accepted() {
+                refused += cells.len();
+                if case != "ww10-precision" || !name.starts_with("Prod") {
+                    failures.push(format!("{case}/{name}: {receipt:?}"));
+                }
+                continue;
+            }
+            let width = cells
+                .iter()
+                .map(|(a, _)| at(sheet, a).column())
+                .max()
+                .unwrap();
+            let height = cells.iter().map(|(a, _)| at(sheet, a).row()).max().unwrap();
+            let actual = held(&book, sheet, width, height);
+            for (address, expected) in &cells {
+                let value = actual.get(*address);
+                let equal = match expected {
+                    Some(expected) => same_cell_bits(expected, value),
+                    None => value.is_none(),
+                };
+                if equal {
+                    matched += 1;
+                } else {
+                    mismatched += 1;
+                    failures.push(format!(
+                        "{case}/{name}/{address}: Excel {expected:?}, DNA Calc {value:?}"
+                    ));
+                }
+            }
+        }
+        println!(
+            "{case}: {} matched, {} mismatched, {} refused",
+            matched - before.0, mismatched - before.1, refused - before.2
+        );
+    }
+    let total = matched + mismatched + refused;
+    println!(
+        "ww10/ww12 HostSession refresh: {matched}/{total} matched, {mismatched} mismatched, {refused} refused"
+    );
+    assert_eq!(total, 1638);
+    assert!(failures.is_empty(), "{failures:?}");
+    assert_eq!(refused, 216);
+    assert_eq!(matched, total - refused);
 }

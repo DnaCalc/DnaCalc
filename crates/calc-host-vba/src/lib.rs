@@ -42,12 +42,15 @@ pub use command::{
     ProcedureKind, ProcedureResult,
 };
 pub use calc_vba::{DialogAnswer, DialogAnswers, DialogCall};
+#[cfg(not(target_arch = "wasm32"))]
+pub use calc_vba::files;
 mod command;
 mod book;
 pub use book::{ApplicationOptions, install_application};
 
 struct VbaAutomationHost {
     events_enabled: Cell<bool>,
+    default_file_path: Option<String>,
     /// The project `Application.Run` resolves its target in (set once the owner exists).
     owner: std::cell::RefCell<std::rc::Weak<WorkbookEvents>>,
     /// Files macro members wrote (Chart.Export), in order. This crate is portable and touches no
@@ -61,6 +64,10 @@ impl VbaAutomationHost {
     fn new() -> Self {
         Self {
             events_enabled: Cell::new(true),
+            #[cfg(not(target_arch = "wasm32"))]
+            default_file_path: files::default_directory(),
+            #[cfg(target_arch = "wasm32")]
+            default_file_path: None,
             owner: Default::default(),
             files: Default::default(),
             view_requests: Default::default(),
@@ -91,6 +98,10 @@ impl ApplicationHost for VbaAutomationHost {
 }
 
 impl AutomationHost for VbaAutomationHost {
+    fn default_file_path(&self) -> Option<&str> {
+        self.default_file_path.as_deref()
+    }
+
     fn with_invocation(
         &self,
         call: &mut dyn FnMut(&mut dyn calc_func::UserFunctionContext) -> Result<AutoValue, AutoError>,

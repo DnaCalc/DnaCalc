@@ -1128,9 +1128,9 @@ pub(super) fn render_axes(
     let mut row_ids = BTreeMap::<Vec<usize>, usize>::new();
     let mut row_totals: Vec<BTreeMap<Vec<usize>, Total>> =
         (0..row_fields.len()).map(|_| BTreeMap::new()).collect();
-    // With one source field on each axis, Product totals visit the intersections
-    // in display order. The position of Values and the other measures do not order the factors.
-    let product_column = levels
+    // With one source field on each axis, these aggregations visit the intersections
+    // in display order. The grand total combines the rounded row accumulators.
+    let ordered_column = levels
         .iter()
         .position(|level| level.field.is_some())
         .filter(|_| {
@@ -1141,10 +1141,14 @@ pub(super) fn render_axes(
                 && table.filters.is_empty()
                 && table.page_fields.is_empty()
         });
-    let ordered_product = |measure: usize| {
-        product_column.is_some() && table.data_fields[measure].subtotal == "product"
+    let ordered_measure = |measure: usize| {
+        ordered_column.is_some()
+            && matches!(
+                table.data_fields[measure].subtotal.as_str(),
+                "product" | "stdDev"
+            )
     };
-    let mut product_records = BTreeMap::<(usize, usize, usize), Vec<&PivotItem>>::new();
+    let mut ordered_records = BTreeMap::<(usize, usize, usize), Vec<&PivotItem>>::new();
     let mut subtotal_records = BTreeMap::<Vec<usize>, Vec<&PivotItem>>::new();
     for record in &snapshot.records {
         if !page_allows(table, cache, record)? {
@@ -1227,8 +1231,8 @@ pub(super) fn render_axes(
             } else {
                 row_keys.push(row_path[0]);
             }
-            if let Some(column) = product_column.filter(|_| ordered_product(m)) {
-                product_records
+            if let Some(column) = ordered_column.filter(|_| ordered_measure(m)) {
+                ordered_records
                     .entry((m, row_keys[0], indexes[column]))
                     .or_default()
                     .push(value);
@@ -1262,30 +1266,29 @@ pub(super) fn render_axes(
             return Err(bad("The pivot has too many row and column combinations"));
         }
     }
-    if let Some(depth) = product_column {
+    if let Some(depth) = ordered_column {
         // Replay individual factors in source order inside each intersection.
         let mut ordered = BTreeMap::<_, Total>::new();
-        for ((measure, row, column), records) in product_records {
+        let mut row_accumulators = BTreeMap::<(usize, usize), Total>::new();
+        for ((measure, row, column), records) in ordered_records {
             let mut column_path = vec![measure; levels.len()];
             column_path[depth] = column;
             let column_total = (usize::MAX, column_path, measure);
+            let row_total = row_accumulators.entry((measure, row)).or_default();
             for value in records {
-                for key in [
-                    (row, Vec::new(), measure),
-                    column_total.clone(),
-                    (usize::MAX, Vec::new(), measure),
-                ] {
-                    ordered.entry(key).or_default().push(value)?;
-                }
+                row_total.push(value)?;
+                ordered
+                    .entry(column_total.clone())
+                    .or_default()
+                    .push(value)?;
             }
         }
-        if ordered.iter().any(|((row, column, _), total)| {
-            *row == usize::MAX
-                && column.is_empty()
-                && !total.supports_grouped_product("product")
-                && !total.has_finite_zero_product()
-        }) {
-            return Err(bad("The two-axis grand Product order is not modelled"));
+        for ((measure, row), total) in row_accumulators {
+            ordered
+                .entry((usize::MAX, Vec::new(), measure))
+                .or_default()
+                .merge_ordered_row(&total);
+            ordered.insert((row, Vec::new(), measure), total);
         }
         totals.extend(ordered);
     }
@@ -1395,12 +1398,66 @@ pub(super) fn render_axes(
     {
         return Err(bad("Source errors with Values on rows are not modelled"));
     }
-    if totals.iter().any(|((_, _, measure), total)| {
-        let kind = &table.data_fields[*measure].subtotal;
-        !total.supports(kind)
-            || (!ordered_product(*measure)
-                && (multiple_rows || levels.iter().any(|level| level.field.is_some()))
-                && !total.supports_grouped_product(kind))
+    // The ww10 precision reports have one populated intersection per row. A variance
+    // overflow there affects the row total and all grand-row summaries of that source field.
+    let mut variance_overflow_rows = BTreeSet::new();
+    if let Some(depth) = ordered_column.filter(|_| {
+        table
+            .data_fields
+            .iter()
+            .any(|data| matches!(data.subtotal.as_str(), "var" | "varp"))
+            && table.data_fields.iter().all(|data| {
+                matches!(
+                    data.subtotal.as_str(),
+                    "sum" | "average" | "var" | "varp" | "count" | "countNums"
+                )
+            })
+    }) {
+        let mut row_columns = BTreeMap::new();
+        for ((row, column, measure), total) in &totals {
+            if total.source_error().is_some() {
+                variance_overflow_rows.clear();
+                break;
+            }
+            if *row == usize::MAX || column.len() != levels.len() {
+                continue;
+            }
+            if row_columns
+                .insert(*row, column[depth])
+                .is_some_and(|previous| previous != column[depth])
+            {
+                variance_overflow_rows.clear();
+                break;
+            }
+            let data = &table.data_fields[*measure];
+            if total.variance_overflows(&data.subtotal) {
+                variance_overflow_rows.insert((*row, data.field));
+            }
+        }
+    }
+    let variance_overflow_fields: BTreeSet<_> = variance_overflow_rows
+        .iter()
+        .map(|&(_, field)| field)
+        .collect();
+    let variance_overflow = |row, grand_column, field| {
+        if row == usize::MAX {
+            variance_overflow_fields.contains(&field)
+        } else {
+            grand_column && variance_overflow_rows.contains(&(row, field))
+        }
+    };
+    if totals.iter().any(|((row, column, measure), total)| {
+        let data = &table.data_fields[*measure];
+        let kind = data.subtotal.as_str();
+        if variance_overflow_fields.contains(&data.field) && matches!(kind, "var" | "varp") {
+            !variance_overflow(*row, column.is_empty(), data.field) && !total.supports_variance(kind)
+        } else if ordered_measure(*measure) {
+            !total.supports_ordered(kind)
+        } else {
+            !total.supports(kind)
+                || ((multiple_rows || levels.iter().any(|level| level.field.is_some()))
+                    && !total.supports_grouped_product(kind))
+        }
     }) {
         return Err(bad(
             "This numeric input for the value function is not modelled",
@@ -2015,8 +2072,16 @@ pub(super) fn render_axes(
         }
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
-        let value = total.result(&table.data_fields[entry.measure].subtotal);
-        if ordered_product(entry.measure)
+        let data = &table.data_fields[entry.measure];
+        if variance_overflow(row, entry.kind == "grand", data.field) {
+            return CalcValue::error(WorksheetErrorCode::Num);
+        }
+        if total.is_empty() && variance_overflow_fields.contains(&data.field) {
+            return CalcValue::empty();
+        }
+        let value = total.result(&data.subtotal);
+        if ordered_measure(entry.measure)
+            && table.data_fields[entry.measure].subtotal == "product"
             && matches!(value.core_ref(), calc_value::CoreRef::Number(0.0))
         {
             return CalcValue::number(0.0);

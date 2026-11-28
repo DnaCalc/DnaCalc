@@ -146,6 +146,7 @@ pub use format::{
     BorderPatch, FillColor, FormatPatch, InteriorPatch, RangeEdges, border_affected_areas,
     border_for_style, format_regions, format_samples, patched_style, prepare_all_borders,
     prepare_format_cells, prepare_no_borders, prepare_outline_border, prepare_side_border,
+    prepare_thick_outline_border,
 };
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use calc_engine::DependencySpelling;

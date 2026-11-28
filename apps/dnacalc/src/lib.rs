@@ -13,9 +13,8 @@
 //! ```
 //!
 //! Options on workbook commands: `--json` (one JSON document on stdout), `--macro-level
-//! off|guarded|unguarded` (default `off`: the file's VBA project does not run; `guarded` runs it
-//! with the operating-system services refused — `safe` is accepted as an alias; `unguarded` with
-//! full access). `diff` takes `--cells`
+//! off|guarded|unguarded` (default `off`). Guarded uses the configured file mounts on Linux
+//! and macOS. The level controls the policy for other outside capabilities. `diff` takes `--cells`
 //! to list the per-cell rows in text mode (JSON always has them).
 //!
 //! Everything goes through the one session (`calc_host::HostSession`) the applications use, and
@@ -30,6 +29,8 @@ mod cells;
 mod diff;
 mod portability;
 mod session;
+#[cfg(not(windows))]
+mod mounts;
 pub mod serve;
 mod skin;
 
@@ -50,6 +51,8 @@ pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   portability <book> [--host windows|macos|linux|server|web-hosted|web-wasm|wasi|all]   inspect VBA procedures and references
 workbook options: --json  one JSON document on stdout;  --macro-level off|guarded|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
+         --mounts <file>  Windows path mounts on macOS and Linux (default $XDG_CONFIG_HOME/dnacalc/mounts.toml).
+                          Each [[mount]] has windows, host and optional mode (read or read-write).
          NOW and TODAY read this machine's clock (UTC)
 A cell is A1 or Sheet1!A1 (the first sheet when unqualified).
 exit: 0 done (diff: all cells matched), 1 done with differing or refused cells, 2 usage or refusal";
@@ -83,6 +86,7 @@ pub(crate) struct Cli {
     pub(crate) locale: String,
     pub(crate) portability_host: Option<String>,
     pub(crate) dialog_answers: Option<String>,
+    pub(crate) mounts: Option<String>,
 }
 
 fn parse(args: &[String]) -> Result<Cli, Failure> {
@@ -104,6 +108,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
         locale: "en-US".into(),
         portability_host: None,
         dialog_answers: None,
+        mounts: None,
     };
     let mut books = Vec::new();
     while let Some(arg) = rest.next() {
@@ -130,6 +135,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
             "--locale" => cli.locale = value("a culture such as en-US")?,
             "--host" if cli.command == "portability" => cli.portability_host = Some(value("a host kind or all")?),
             "--answers" if cli.command == "run" => cli.dialog_answers = Some(value("a JSON file")?),
+            "--mounts" => cli.mounts = Some(value("a TOML file")?),
             "--macro-level" => {
                 let text = value("off, guarded or unguarded")?;
                 cli.level = calc_macro_security::MacroSecurity::parse(&text).ok_or_else(|| {

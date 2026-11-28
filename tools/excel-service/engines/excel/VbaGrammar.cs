@@ -7,6 +7,10 @@ namespace Touchstone.Excel;
 /// The grammar used when admitting a Touchstone VBA probe template.
 /// Only the listed statement forms, expressions and member chains are accepted. A cell value written through
 /// .Value or .Value2 must provably be data (a number, a boolean, a string that does not start with = + - or @).
+/// The same check runs on the rendered modules of every request (VbaPolicy.CheckGroup), so the package holds
+/// only text this grammar read. Rules that keep this reader and Excel's reader the same (dc-heiq6): a module
+/// begins with Option Explicit, a comment cannot end in a line continuation, a name has one declaration, and one
+/// object-model call addresses a bounded block of the case workbook.
 /// </summary>
 static class VbaGrammar
 {
@@ -23,7 +27,7 @@ static class VbaGrammar
     static readonly Dictionary<string, string> ObjectTypes = new() { ["range"] = "range", ["worksheet"] = "sheet", ["workbook"] = "wb", ["object"] = "pending" };
     static readonly Dictionary<string, (int low, int high, string safety)> Builtins = ((List<object>)Rules["builtins"])
         .Select(r => ((string)r).Split(' ')).ToDictionary(p => p[0], p => (int.Parse(p[1]), int.Parse(p[2]), p[3]));
-    static readonly Dictionary<string, Dictionary<string, (string ret, int low, int high, string flags)>> Members = ReadMembers();
+    static readonly Dictionary<string, Dictionary<string, (string ret, int low, int high, string flags, string rule)>> Members = ReadMembers();
     static readonly HashSet<string> Reserved = Set("reserved").Concat(Keywords).Concat(ValueTypes).Concat(ObjectTypes.Keys)
         .Concat(Constants).Concat(Builtins.Keys).ToHashSet();
     static readonly Dictionary<string, string> Classes = ((List<object>)Rules["classes"]).Cast<string>()
@@ -35,17 +39,38 @@ static class VbaGrammar
     static readonly HashSet<string> BlockWords = new()
         { "if", "else", "elseif", "end", "for", "next", "do", "loop", "while", "wend", "select", "case", "dim", "const" };
 
-    static Dictionary<string, Dictionary<string, (string, int, int, string)>> ReadMembers()
+    // A member row is "owner member returns low high flags [rule]". The rule says what its arguments may be:
+    // a = literal A1 addresses or address parameters, i = plainly numeric indexes, z = whole-number sizes 1..MaxResize.
+    static Dictionary<string, Dictionary<string, (string, int, int, string, string)>> ReadMembers()
     {
-        var table = new Dictionary<string, Dictionary<string, (string, int, int, string)>>();
+        var table = new Dictionary<string, Dictionary<string, (string, int, int, string, string)>>();
         foreach (string row in (List<object>)Rules["members"])
         {
             var p = row.Split(' ');
             if (!table.TryGetValue(p[0], out var owner)) table[p[0]] = owner = new();
-            owner[p[1]] = (p[2], int.Parse(p[3]), int.Parse(p[4]), p[5]);
+            owner[p[1]] = (p[2], int.Parse(p[3]), int.Parse(p[4]), p[5], p.Length > 6 ? p[6] : "");
         }
         return table;
     }
+
+    internal static readonly HashSet<string> LayoutFunctions = Set("layout_functions");
+    // Every worksheet function the catalogue knows, lowercase. Excel answers a formula's call with its own function
+    // before a procedure of the same name, so a procedure with such a name would let a formula call the built-in.
+    internal static readonly HashSet<string> WorksheetFunctions = ReadWorksheetFunctions();
+
+    static HashSet<string> ReadWorksheetFunctions()
+    {
+        using var resource = typeof(VbaGrammar).Assembly.GetManifestResourceStream("admission-families.tsv");
+        using var reader = new StreamReader(resource);
+        var names = new HashSet<string>();
+        while (reader.ReadLine() is string line) names.Add(line.Split('\t')[1].ToLowerInvariant());
+        return names;
+    }
+    static readonly HashSet<string> NumericBuiltins = Builtins.Where(b => b.Value.safety == "num").Select(b => b.Key).ToHashSet();
+    static readonly HashSet<string> SheetNames = new() { "range", "cells", "rows", "columns" };   // a worksheet module's own cells
+    static readonly Regex Rectangle = new(@"\A(\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6})(?::(\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}))?\z", RegexOptions.CultureInvariant);
+    const long MaxRangeCells = 1048576;     // one Range call: at most a column's worth of cells
+    const int MaxResize = 1024, MaxDepth = 32;
 
     public static string Escape(string text)
     {
@@ -119,7 +144,8 @@ static class VbaGrammar
                     int end = at + placeholder.Length;
                     if ((at > 0 && TouchesLiteral(physical[at - 1])) || (end < physical.Length && TouchesLiteral(physical[end])))
                         throw Refuse("a placeholder joined to another token", physical);
-                    tokens.Add(new Token(type == "long" ? "parameter-number" : "parameter-string", "placeholder " + placeholder.Value));
+                    tokens.Add(new Token(type == "long" ? "parameter-number" : type == "address" ? "parameter-address" : "parameter-string",
+                        "placeholder " + placeholder.Value));
                     at = end;
                     afterSpace = false;
                     continue;
@@ -131,6 +157,9 @@ static class VbaGrammar
                 if (parameters != null && (match.Value.Contains("{{", StringComparison.Ordinal)
                     || kind == "cont" && physical[at..].Contains("{{", StringComparison.Ordinal)))
                     throw Refuse("a placeholder inside a quoted string, comment or continuation", physical);
+                // Excel continues a comment that ends in " _": the next physical line would be code here and comment there.
+                if (kind == "comment" && match.Value.TrimEnd(' ', '\t').EndsWith('_'))
+                    throw Refuse("a comment ending in a line continuation", physical);
                 if (kind == "cont")
                 {
                     if (!afterSpace) throw Refuse("_", physical);
@@ -152,7 +181,8 @@ static class VbaGrammar
         return lines;
     }
 
-    static bool TouchesLiteral(char ch) => char.IsAsciiLetterOrDigit(ch) || "_.\"!#%$@&".Contains(ch);
+    static bool TouchesLiteral(char ch) => char.IsAsciiLetterOrDigit(ch) || "_.\"!#%$@&{}".Contains(ch);
+    static bool IsTextParameter(string kind) => kind is "parameter-string" or "parameter-address";
 
     sealed class Var
     {
@@ -182,6 +212,7 @@ static class VbaGrammar
         public readonly HashSet<string> Numeric = new();
         public readonly HashSet<string> Params = new();
         public readonly HashSet<string> Strings = new();     // declared As String: a number assigned becomes number text
+        public readonly HashSet<string> ProcNames = new();
         readonly IReadOnlyDictionary<string, string> parameters;
 
         public Case(List<(string, string, string)> modules, IReadOnlyDictionary<string, string> parameters)
@@ -198,9 +229,21 @@ static class VbaGrammar
             return token.Low;
         }
 
-        public HashSet<string> Run()
+        // A name has one declaration (dc-heiq6): a local or a parameter never shadows a module variable of its module,
+        // and no variable carries a procedure's name. Which declaration a use means then never depends on where the
+        // Dim stands, the one point where this reader and Excel's could differ.
+        public void DeclaredOnce(string name, string module, string line)
+        {
+            if (ModuleVars[module].ContainsKey(name) || ProcNames.Contains(name))
+                throw Refuse(name + " (a name declared twice)", line);
+        }
+
+        public CheckedModules Run()
         {
             foreach (var (name, kind, source) in Modules) Scan(name.ToLowerInvariant(), kind, source);
+            foreach (var (module, vars) in ModuleVars)
+                foreach (var name in vars.Keys)
+                    if (ProcNames.Contains(name)) throw Refuse(name + " (a name declared twice)", module);
             foreach (var proc in Procs.Values.ToList()) new Body(this, proc).Run();
             var classes = new Dictionary<string, int>();
             foreach (var key in Params.Concat(Numeric)) classes[key] = Number;
@@ -224,7 +267,9 @@ static class VbaGrammar
             }
             foreach (var (node, line) in Writes)
                 if (Classify(node, classes) > Number) throw Refuse("a cell value that is not plainly data", line);
-            return Procs.Values.Where(p => p.Public && Kinds[p.Module] == "standard").Select(p => p.Key).ToHashSet();
+            var entries = Procs.Values.Where(p => p.Public && Kinds[p.Module] == "standard").ToList();
+            return new CheckedModules(entries.Select(p => p.Key).ToHashSet(),
+                entries.Where(p => p.IsFunction).Select(p => p.Name).ToHashSet(), ProcNames);
         }
 
         public int Classify(Node node, Dictionary<string, int> classes)
@@ -260,10 +305,19 @@ static class VbaGrammar
             Kinds[module] = kind;
             ModuleVars[module] = new();
             Proc current = null;
-            bool explicitSeen = false;
+            bool first = true;
             foreach (var (text, tokens) in LogicalLines(source, parameters))
             {
                 var words = tokens.Select(t => t.Low).ToList();
+                if (first)
+                {
+                    // With Option Explicit Excel refuses to compile a name it does not see declared, so a declaration
+                    // this reader sees and Excel does not is a compile error there, never an implicit Variant.
+                    if (words.Count != 2 || words[0] != "option" || words[1] != "explicit")
+                        throw Refuse("a module that does not begin with Option Explicit", text);
+                    first = false;
+                    continue;
+                }
                 if (current != null)
                 {
                     if (words[0] == "end" && words.Count == 2 && words[1] is "sub" or "function")
@@ -272,11 +326,6 @@ static class VbaGrammar
                         current = null;
                     }
                     else current.Body.Add((text, tokens));
-                    continue;
-                }
-                if (words.Count == 2 && words[0] == "option" && words[1] == "explicit" && !explicitSeen)
-                {
-                    explicitSeen = true;
                     continue;
                 }
                 var header = Header(module, kind, tokens, text);
@@ -300,6 +349,13 @@ static class VbaGrammar
             bool isFunction = tokens[at].Low == "function";
             if (at + 1 >= tokens.Count) throw Refuse(tokens[at].Text, text);
             var name = Declared(tokens[at + 1], text);
+            // A layout formula may call a template function by name, bare or after its module name. Neither spelling
+            // may be a worksheet function (WEBSERVICE; a module Register with a function ID), or Excel would run its own.
+            if (WorksheetFunctions.Contains(name) || WorksheetFunctions.Contains(module + "." + name))
+                throw Refuse(tokens[at + 1].Text + " (a VBA procedure name collides with a worksheet function)", text);
+            if (name.StartsWith("auto_", StringComparison.Ordinal))
+                throw Refuse(tokens[at + 1].Text + " (an Auto_ macro name)", text);
+            ProcNames.Add(name);
             if (kind == "document")
             {
                 if (!Events.Contains(name) || !name.StartsWith(module == "thisworkbook" ? "workbook_" : "worksheet_", StringComparison.Ordinal))
@@ -353,7 +409,8 @@ static class VbaGrammar
             else Variables(rest, text, ModuleVars[module], $"{module}..", false);
         }
 
-        public void Variables(List<Token> tokens, string text, Dictionary<string, Var> scope, string prefix, bool allowObjects = true)
+        public void Variables(List<Token> tokens, string text, Dictionary<string, Var> scope, string prefix, bool allowObjects = true,
+            string localIn = null)
         {
             int pos = 0;
             while (true)
@@ -361,6 +418,7 @@ static class VbaGrammar
                 if (pos >= tokens.Count) throw Refuse(text, text);
                 var name = Declared(tokens[pos], text);
                 if (scope.ContainsKey(name)) throw Refuse(tokens[pos].Text, text);
+                if (localIn != null) DeclaredOnce(name, localIn, text);
                 pos++;
                 bool array = false;
                 if (pos < tokens.Count && tokens[pos].Text == "(")
@@ -394,20 +452,26 @@ static class VbaGrammar
             }
         }
 
-        public void Constant(List<Token> tokens, string text, Dictionary<string, Var> scope, string prefix)
+        public void Constant(List<Token> tokens, string text, Dictionary<string, Var> scope, string prefix, string localIn = null)
         {
-            if (tokens.Count != 3 || tokens[1].Text != "="
-                || tokens[2].Kind is not ("num" or "str" or "hex" or "parameter-number" or "parameter-string"))
+            // name = literal, or a negative number as -5 or (-5) (the form a negative Long parameter is printed in)
+            if (tokens.Count < 3 || tokens[1].Text != "=") throw Refuse(text, text);
+            var value = tokens.Skip(2).ToList();
+            if (value.Count == 4 && value[0].Text == "(" && value[3].Text == ")") value = value.GetRange(1, 2);
+            bool negative = value.Count == 2 && value[0].Kind == "op" && value[0].Text == "-" && value[1].Kind == "num";
+            if (!negative && (value.Count != 1
+                || value[0].Kind is not ("num" or "str" or "hex" or "parameter-number" or "parameter-string" or "parameter-address")))
                 throw Refuse(text, text);
             var name = Declared(tokens[0], text);
             if (scope.ContainsKey(name)) throw Refuse(tokens[0].Text, text);
+            if (localIn != null) DeclaredOnce(name, localIn, text);
             scope[name] = new Var(prefix + name, isConst: true);
-            Flows.Add((prefix + name, Literal(tokens[2])));
+            Flows.Add((prefix + name, negative ? Num : Literal(value[0])));
         }
 
         public static Node Literal(Token token)
         {
-            if (token.Kind == "parameter-string") return Maybe;
+            if (IsTextParameter(token.Kind)) return Maybe;
             if (token.Kind == "str")
             {
                 var body = token.Text[1..^1].Replace("\"\"", "\"");
@@ -427,17 +491,25 @@ static class VbaGrammar
         public readonly List<string> Stack = new();
         public readonly HashSet<string> Labels = new();
         public readonly List<(string label, string text)> Jumps = new();
+        public int Depth;
 
         public Body(Case c, Proc proc)
         {
             Case = c; Proc = proc; Module = proc.Module; Prefix = proc.Key + ".";
+            // A worksheet formula can call a standard-module procedure with any cell value, text included (a template
+            // layout formula =Probe(A1) over a request's text cell); Private hides a function from the function list,
+            // not from a cell. Only a parameter of a numeric type is then a number: Excel converts the argument or
+            // fails the call. Any other parameter is not plainly data.
+            bool formulaCallable = c.Kinds[proc.Module] == "standard";
             foreach (var (pname, ptype) in proc.Params)
             {
+                c.DeclaredOnce(pname, Module, proc.Line);
                 var kind = ObjectTypes.GetValueOrDefault(ptype, "val");
                 Scope[pname] = new Var(Prefix + pname, kind == "pending" ? "val" : kind, NumericTypes.Contains(ptype), param: true);
                 if (NumericTypes.Contains(ptype)) c.Numeric.Add(Prefix + pname);
                 if (ptype == "string") c.Strings.Add(Prefix + pname);
                 c.Params.Add(Prefix + pname);
+                if (formulaCallable && !NumericTypes.Contains(ptype)) c.Flows.Add((Prefix + pname, Unsafe));
             }
             if (proc.IsFunction) Scope[proc.Name] = new Var(Prefix + proc.Name);
         }
@@ -524,11 +596,11 @@ static class VbaGrammar
             {
                 case "dim":
                     Take();
-                    cs.Variables(tokens.Skip(1).ToList(), text, body.Scope, body.Prefix);
+                    cs.Variables(tokens.Skip(1).ToList(), text, body.Scope, body.Prefix, localIn: body.Module);
                     return;
                 case "const":
                     Take();
-                    cs.Constant(tokens.Skip(1).ToList(), text, body.Scope, body.Prefix);
+                    cs.Constant(tokens.Skip(1).ToList(), text, body.Scope, body.Prefix, body.Module);
                     return;
                 case "set": SetStatement(); return;
                 case "if": IfStatement(); return;
@@ -667,7 +739,7 @@ static class VbaGrammar
             foreach (var part in parts)
             {
                 if (part.Count == 0 || BlockWords.Contains(part[0].Low)) throw Refuse(part.Count > 0 ? part[0].Text : "Then", text);
-                new Statement(body, text, part).Run();
+                new Statement(body, text, part).Run();     // a nested single-line If is refused above
             }
             at = tokens.Count;
         }
@@ -757,7 +829,20 @@ static class VbaGrammar
             return null;
         }
 
+        // The checker recurses with the source; a bound keeps a template from exhausting the worker's stack.
+        void Deeper()
+        {
+            if (++body.Depth > MaxDepth) throw Refuse("a statement or expression nested too deeply", text);
+        }
+
         Node Expression()
+        {
+            Deeper();
+            try { return Operands(); }
+            finally { body.Depth--; }
+        }
+
+        Node Operands()
         {
             var nodes = new List<Node>();
             var ops = new List<string>();
@@ -781,7 +866,7 @@ static class VbaGrammar
             return new Node("cat", items: nodes, ops: ops);
         }
 
-        List<Node> Arguments(int low, int high)
+        List<Node> Arguments(int low, int high, List<(int from, int to)> spans = null)
         {
             var nodes = new List<Node>();
             if (Peek().Text == "(")
@@ -790,7 +875,9 @@ static class VbaGrammar
                 if (Peek().Text != ")")
                     while (true)
                     {
+                        int from = at;
                         nodes.Add(Expression());
+                        spans?.Add((from, at));
                         if (Peek().Text != ",") break;
                         Take();
                     }
@@ -800,13 +887,91 @@ static class VbaGrammar
             return nodes;
         }
 
+        // One object-model call addresses a bounded block of the case workbook (dc-heiq6). Range takes addresses the
+        // checker can read: a literal A1 cell or rectangle of at most MaxRangeCells, or an address parameter (a literal
+        // once rendered). So no address is built at run time: no defined name, no other sheet or workbook, no "A:XFD".
+        // Indexes are plainly numbers, so a string such as "1:1048576" cannot stand for a block; a computed cell is
+        // Cells(row, column). Resize takes both sizes as whole-number literals up to MaxResize. What one chain can then
+        // address is a Range literal, a row, a column, the used range, or MaxResize x MaxResize cells.
+        void CheckArguments(string rule, List<(int from, int to)> spans)
+        {
+            if (rule == "a")
+            {
+                var corners = new List<(long r1, long c1, long r2, long c2)>();
+                bool known = true;
+                foreach (var (from, to) in spans)
+                {
+                    var token = tokens[from];
+                    if (to - from == 1 && token.Kind == "parameter-address") { known = false; continue; }
+                    var match = to - from == 1 && token.Kind == "str" ? Rectangle.Match(token.Text[1..^1]) : Match.Empty;
+                    if (!match.Success || !VbaPolicy.IsAddress(match.Groups[1].Value)
+                        || match.Groups[2].Success && (spans.Count == 2 || !VbaPolicy.IsAddress(match.Groups[2].Value)))
+                        throw Refuse("Range takes a literal A1 address or an address parameter (Cells(row, column) for a computed cell)", text);
+                    var (r1, c1) = RowColumn(match.Groups[1].Value);
+                    var (r2, c2) = match.Groups[2].Success ? RowColumn(match.Groups[2].Value) : (r1, c1);
+                    corners.Add((Math.Min(r1, r2), Math.Min(c1, c2), Math.Max(r1, r2), Math.Max(c1, c2)));
+                }
+                if (known && (corners.Max(c => c.r2) - corners.Min(c => c.r1) + 1) * (corners.Max(c => c.c2) - corners.Min(c => c.c1) + 1) > MaxRangeCells)
+                    throw Refuse($"a Range of more than {MaxRangeCells} cells", text);
+            }
+            else if (rule == "i")
+            {
+                foreach (var (from, to) in spans)
+                    if (!PlainlyNumeric(from, to))
+                        throw Refuse("a row, column or offset that is not plainly a number (a number, a numeric variable, CLng(...))", text);
+            }
+            else if (rule == "z")
+            {
+                foreach (var (from, to) in spans)
+                {
+                    var token = tokens[from];
+                    if (to - from != 1 || token.Kind != "parameter-number" && !(token.Kind == "num" && token.Text.Length <= 4
+                            && token.Text.All(char.IsAsciiDigit) && int.Parse(token.Text) is >= 1 and <= MaxResize))
+                        throw Refuse($"Resize takes whole-number literals from 1 to {MaxResize}", text);
+                }
+            }
+        }
+
+        static (long row, long column) RowColumn(string address)
+        {
+            address = address.Replace("$", "");
+            int i = 0;
+            long column = 0;
+            while (char.IsAsciiLetter(address[i])) column = column * 26 + char.ToUpperInvariant(address[i++]) - 'A' + 1;
+            return (long.Parse(address[i..]), column);
+        }
+
+        // Numbers, numeric variables and arithmetic between them, or one call of a builtin that returns a number.
+        bool PlainlyNumeric(int from, int to)
+        {
+            if (to - from >= 4 && tokens[from].Kind == "id" && NumericBuiltins.Contains(tokens[from].Low) && tokens[from + 1].Text == "(")
+            {
+                int depth = 0, close = -1;
+                for (int i = from + 1; i < to && close < 0; i++)
+                {
+                    if (tokens[i].Kind == "op" && tokens[i].Text == "(") depth++;
+                    else if (tokens[i].Kind == "op" && tokens[i].Text == ")" && --depth == 0) close = i;
+                }
+                if (close == to - 1) return true;
+            }
+            for (int i = from; i < to; i++)
+            {
+                var token = tokens[i];
+                bool numeric = token.Kind is "num" or "hex" or "parameter-number"
+                    || token.Kind == "op" && token.Text is "+" or "-" or "*" or "/" or "\\" or "^" or "(" or ")"
+                    || token.Kind == "id" && (token.Low == "mod" || ScopeVar(token) is { Numeric: true, Array: false, Kind: "val" });
+                if (!numeric) return false;
+            }
+            return to > from;
+        }
+
         (string kind, Node node, Last last) Chain(bool statement)
         {
             var token = Take();
             var word = token.Low;
             if (token.Kind is "num" or "parameter-number") return ("val", Num, null);
             if (token.Kind == "hex") return ("val", Num, null);        // &H8000 is -32768
-            if (token.Kind is "str" or "parameter-string") return ("val", Case.Literal(token), null);
+            if (token.Kind == "str" || IsTextParameter(token.Kind)) return ("val", Case.Literal(token), null);
             if (token.Text == "(")
             {
                 var inner = Expression();
@@ -837,6 +1002,13 @@ static class VbaGrammar
                 kind = body.Module == "thisworkbook" ? "wb" : "sheet";
             }
             else if (word == "err") kind = "err";
+            else if (SheetNames.Contains(word) && cs.Kinds[body.Module] == "document" && body.Module != "thisworkbook")
+            {
+                // In a worksheet module these are the module's own sheet (Me.Range): a member of the document class
+                // comes before the global of the same name. In any other module they mean the active sheet: refused.
+                at--;
+                return MemberChain(token, "sheet", statement, implied: true);
+            }
             else if (word == "createobject")
             {
                 Expect("(");
@@ -877,15 +1049,18 @@ static class VbaGrammar
             return MemberChain(token, kind, statement);
         }
 
-        (string, Node, Last) MemberChain(Token token, string kind, bool statement)
+        (string, Node, Last) MemberChain(Token token, string kind, bool statement, bool implied = false)
         {
-            while (Peek().Text == ".")
+            while (implied || Peek().Text == ".")
             {
-                Take();
+                if (!implied) Take();
+                implied = false;
                 var name = Take();
                 if (name.Kind != "id" || !Members.TryGetValue(kind, out var owner) || !owner.TryGetValue(name.Low, out var entry)) throw Fail(name);
-                var (ret, low, high, flags) = entry;
-                var nodes = Peek().Text == "(" ? Arguments(0, high) : new List<Node>();
+                var (ret, low, high, flags, rule) = entry;
+                var spans = new List<(int from, int to)>();
+                var nodes = Peek().Text == "(" ? Arguments(0, high, spans) : new List<Node>();
+                if (rule != "" && nodes.Count >= low) CheckArguments(rule, spans);
                 if (statement && flags.Contains('c') && high > 0 && nodes.Count == 0 && Peek().Kind != "end" && Peek().Text is not ("=" or "."))
                     while (true)
                     {
@@ -940,8 +1115,9 @@ static class VbaGrammar
         }
     }
 
-    /// <summary>Checks every module of a case; returns the lowercase entry points ("module.procedure") a call may name.</summary>
-    public static HashSet<string> CheckModules(
+    /// <summary>Checks every module of a case; returns the lowercase entry points ("module.procedure") a call may name,
+    /// the public standard-module functions a layout formula may call, and every procedure name.</summary>
+    public static CheckedModules CheckModules(
         List<(string name, string kind, string source)> modules, int sheetCount,
         IReadOnlyDictionary<string, string> parameters = null, IReadOnlyDictionary<string, string[]> signatures = null)
     {
@@ -956,14 +1132,17 @@ static class VbaGrammar
                 throw new RefusedVbaException("invalid or duplicate VBA module name or kind: " + Escape(name));
         }
         var checkedCase = new Case(modules, parameters);
-        var entryPoints = checkedCase.Run();
+        var result = checkedCase.Run();
         if (signatures != null)
             foreach (var (entry, arguments) in signatures)
             {
                 var key = entry.ToLowerInvariant();
-                if (!entryPoints.Contains(key) || checkedCase.Procs[key].Params.Count != arguments.Length)
+                if (!result.EntryPoints.Contains(key) || checkedCase.Procs[key].Params.Count != arguments.Length)
                     throw new RefusedVbaException("VBA template entry point does not match its declared signature: " + entry);
             }
-        return entryPoints;
+        return result;
     }
 }
+
+/// <summary>What the grammar found in the modules it accepted. Names are lowercase.</summary>
+sealed record CheckedModules(HashSet<string> EntryPoints, HashSet<string> Functions, HashSet<string> Procedures);

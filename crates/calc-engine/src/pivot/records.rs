@@ -477,12 +477,31 @@ pub(super) fn field_groups(
         }
         return Ok(scored.into_iter().map(|(group, _)| group).collect());
     }
-    match field
+    let sort = field
         .attributes
         .get("sortType")
         .map(String::as_str)
-        .unwrap_or("manual")
+        .unwrap_or("manual");
+    // The ww10 month captions follow Excel's built-in list under caption sorting.
+    if sort == "ascending"
+        && !grouped
+        && table
+            .attributes
+            .get("customListSort")
+            .is_none_or(|enabled| !matches!(enabled.as_str(), "0" | "false"))
     {
+        const MONTHS: [&str; 12] = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        let month = |group: &Group| match &group.key {
+            PivotItem::Text(label) => MONTHS.iter().position(|name| label.eq_ignore_ascii_case(name)),
+            _ => None,
+        };
+        if groups.iter().all(|group| month(group).is_some()) {
+            groups.sort_by_key(month);
+        }
+    }
+    match sort {
         "manual" => groups.sort_by_key(|g| (g.old, g.first)),
         "ascending" => {}
         "descending" => groups.reverse(),

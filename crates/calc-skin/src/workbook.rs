@@ -426,13 +426,13 @@ pub struct WorkbookCell {
     pub borders: CellBorders,
 }
 
-/// The visible thin, continuous edges of a cell.
+/// The supported continuous edges of a cell.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CellBorders {
-    pub top: Option<ThinBorder>,
-    pub right: Option<ThinBorder>,
-    pub bottom: Option<ThinBorder>,
-    pub left: Option<ThinBorder>,
+    pub top: Option<CellBorder>,
+    pub right: Option<CellBorder>,
+    pub bottom: Option<CellBorder>,
+    pub left: Option<CellBorder>,
 }
 
 impl CellBorders {
@@ -442,10 +442,14 @@ impl CellBorders {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ThinBorder {
+pub enum CellBorder {
     Automatic,
     Rgb([u8; 3]),
+    Thick { rgb: Option<[u8; 3]> },
 }
+
+/// The original thin-edge type name used by workbook tile callers.
+pub type ThinBorder = CellBorder;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CellWindow {
@@ -633,6 +637,9 @@ pub enum ModelChange {
         selected: Area,
     },
     SetOutlineBorder {
+        selected: Area,
+    },
+    SetThickOutlineBorder {
         selected: Area,
     },
     ClearBorders {
