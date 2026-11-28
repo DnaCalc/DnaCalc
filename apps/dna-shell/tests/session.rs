@@ -384,6 +384,55 @@ fn classic_fill_down_and_right_translate_formulas_as_separate_undo_steps() {
     assert_eq!(page.shown(page.at(4, 3)), "");
 }
 
+/// Native-only: drives the Classic key-tip commands through the real workbook service.
+#[test]
+fn classic_fill_menu_copies_from_the_bottom_and_right_edges() {
+    let page = Page::open();
+    let session = page.session;
+    for (row, column, text) in [
+        (2, 1, "5"),
+        (3, 1, "7"),
+        (3, 2, "=A3*2"),
+        (1, 3, "7"),
+        (1, 4, "4"),
+        (2, 4, "=D1+1"),
+    ] {
+        session.begin_edit(page.at(row, column), Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    let fill_menu = || {
+        for key in ["F10", "h", "f", "i"] {
+            assert!(page.press(key, Focus::Stage));
+        }
+        assert_eq!(session.key_tip_path(), Some("H F I"));
+    };
+
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    assert!(page.press("Shift+ArrowDown", Focus::Stage));
+    fill_menu();
+    assert!(page.press("u", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "10");
+    assert_eq!(page.shown(page.at(3, 2)), "14");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "");
+
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    assert!(page.press("Shift+ArrowRight", Focus::Stage));
+    fill_menu();
+    assert!(page.press("l", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "1");
+    assert_eq!(page.shown(page.at(2, 3)), "8");
+    assert_eq!(page.shown(page.at(2, 4)), "5");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    assert_eq!(page.shown(page.at(2, 3)), "");
+}
+
 /// Native-only: drives the Classic name manager through the real workbook service.
 #[test]
 fn classic_name_manager_versions_and_undoes_defined_names() {

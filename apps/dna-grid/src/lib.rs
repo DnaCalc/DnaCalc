@@ -8,7 +8,7 @@
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
 use calc_skin::{Batch, Change, FillDirection, Interest, ModelChange, Operation, Provenance, RawValue, Selection, SourceRef, address, query};
-use dna_kit::{InputMode, Live, Session, ViewCommand};
+use dna_kit::{InputMode, Invocation, Live, Session, ViewCommand, commands::CommandId};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
@@ -68,6 +68,31 @@ fn select_range(session: Session, anchor: Key, to: Key) {
             areas: vec![rectangle(anchor, to)],
         },
         active: Some(anchor),
+        grouped: Vec::new(),
+        item: None,
+    });
+}
+
+fn extend_selection(session: Session, at: Key) {
+    let sheet = Sheet(at.0, at.1);
+    let mut areas = match session.selection().map(|selection| selection.target) {
+        Some(SourceRef::Cells { sheet: selected, areas }) if selected == sheet => areas,
+        _ => Vec::new(),
+    };
+    let added = Area(at, at);
+    let active = if let Some(index) = areas.iter().position(|area| *area == added) && areas.len() > 1 {
+        areas.remove(index);
+        areas[0].0
+    } else {
+        if !areas.iter().any(|area| area.area().is_some_and(|area| at.cell().is_some_and(|at| area.contains(at)))) {
+            areas.push(added);
+        }
+        at
+    };
+    session.select(Selection {
+        seq: 0,
+        target: SourceRef::Cells { sheet, areas },
+        active: Some(active),
         grouped: Vec::new(),
         item: None,
     });
@@ -212,8 +237,8 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         .when("!mode:key-tips && !mode:object")
         .in_editor()
     };
-    let fill = |id, label, chord, direction| {
-        ViewCommand::new(view, id, label, &[chord], move |_| {
+    let fill = |id, label, chords: &[&'static str], direction| {
+        ViewCommand::new(view, id, label, chords, move |_| {
             let areas = selected_areas(session);
             let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
                 return Err("Select one worksheet range to fill.".into());
@@ -244,8 +269,16 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
         extend("grid.extend-up", "Extend up", "Shift+ArrowUp", -1, 0),
         extend("grid.extend-left", "Extend left", "Shift+ArrowLeft", 0, -1),
         extend("grid.extend-right", "Extend right", "Shift+ArrowRight", 0, 1),
-        fill("grid.fill-down", "Fill Down", "Ctrl+D", FillDirection::Down),
-        fill("grid.fill-right", "Fill Right", "Ctrl+R", FillDirection::Right),
+        fill("grid.fill-down", "Fill Down", &["Ctrl+D"], FillDirection::Down),
+        fill("grid.fill-right", "Fill Right", &["Ctrl+R"], FillDirection::Right),
+        fill("grid.fill-up", "Fill Up", &[], FillDirection::Up),
+        fill("grid.fill-left", "Fill Left", &[], FillDirection::Left),
+        ViewCommand::new(view, "grid.add-selection", "Add cell to selection", &[], move |invocation| {
+            let at = serde_json::from_value(invocation.args.clone()).map_err(|_| "Choose a worksheet cell.")?;
+            tab_run.set_value(None);
+            extend_selection(session, at);
+            Ok(())
+        }).when("mode:ready"),
         ViewCommand::new(view, "grid.clear-contents", "Clear Contents", &["Delete"], move |_| {
             let areas = selected_areas(session);
             let stamp = session.stamp().filter(|_| !areas.is_empty())
@@ -490,7 +523,9 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                                 data-filter-header=filter_header.to_string()
                                 title=filter_header.then_some("AutoFilter is enabled for this column")
                                 on:pointerdown=move |event: leptos::ev::PointerEvent| {
-                                    if event.button() == 0 && event.pointer_type() == "mouse" && session.mode() == InputMode::Ready {
+                                    if event.button() == 0 && event.pointer_type() == "mouse"
+                                        && !event.ctrl_key() && !event.meta_key() && session.mode() == InputMode::Ready
+                                    {
                                         let anchor = if event.shift_key() {
                                             session.active().unwrap_or(key)
                                         } else {
@@ -510,6 +545,11 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                                     if let Some(grid) = focus.get() { let _ = grid.focus(); }
                                     if event.shift_key() && session.mode() == InputMode::Ready {
                                         select_range(session, session.active().unwrap_or(key), key);
+                                    } else if (event.ctrl_key() || event.meta_key()) && session.mode() == InputMode::Ready {
+                                        let _ = session.run(&Invocation {
+                                            command: CommandId::new("grid.add-selection"),
+                                            args: serde_json::json!(key),
+                                        });
                                     } else {
                                         session.select_cell(key);
                                     }

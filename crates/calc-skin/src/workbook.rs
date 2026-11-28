@@ -249,6 +249,7 @@ pub enum WorkbookQuery {
         group: crate::DependencyGrouping,
     },
     DependencyAtlas,
+    CompareCells { left: Key, right: Key },
     Issues {
         scope: SourceRef,
     },
@@ -578,6 +579,8 @@ pub enum PasteContents {
 pub enum FillDirection {
     Down,
     Right,
+    Up,
+    Left,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

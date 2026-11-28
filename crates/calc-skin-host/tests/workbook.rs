@@ -1109,6 +1109,50 @@ fn dependency_atlas_counts_cross_sheet_readers_at_sheet_granularity() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cell_comparison_uses_current_numeric_values_and_bound_coverage() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let key = |row, column| Key(sheet.0, sheet.1, row, column);
+    let left = key(1, 3);
+    let right = key(1, 4);
+    connection.commit(batch(1, vec![
+        enter(key(1, 1), "10"),
+        enter(key(2, 1), "20"),
+        enter(key(3, 1), "4"),
+        enter(left, "=SUM(A1:A3)"),
+        enter(right, "=SUM(A1:A2)"),
+    ])).unwrap();
+    while host.advance() {}
+
+    let compare = || {
+        let request = query::CompareCells { left, right };
+        let answer = query::CompareCells::decode(connection.ask(request.request(), BUDGET).unwrap()).unwrap();
+        let Evidence::Derived { body, .. } = answer.body else { panic!("currently bound comparison") };
+        body
+    };
+    let compared = compare();
+    assert_eq!(compared.difference, Some(4f64.to_bits()));
+    assert_eq!(compared.common, 0);
+    for (reads, end) in [(compared.left_only, 3), (compared.right_only, 2)] {
+        let [read] = reads.as_slice() else { panic!("one differing placed area") };
+        assert_eq!(read.kind, DependencyKind::Placed);
+        assert_eq!(read.target, DependencyTarget::Source(SourceRef::Cells {
+            sheet, areas: vec![Area(key(1, 1), key(end, 1))],
+        }));
+    }
+
+    host.with_session(SelectionCause::Open, |session| {
+        assert!(session.dispatch(calc_host::SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());
+    });
+    connection.commit(batch(2, vec![enter(key(1, 1), "11")])).unwrap();
+    let pending = compare();
+    assert_eq!(pending.difference, None);
+    assert!(matches!(pending.left.provenance, Provenance::Stale { .. }));
+    assert!(matches!(pending.right.provenance, Provenance::Stale { .. }));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dependency_query_preserves_dynamic_edges_and_bounds_both_directions() {
     use calc_skin::query::{Deps, Query};
 

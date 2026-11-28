@@ -27,6 +27,7 @@ pub(crate) fn overview(session: Session) -> impl IntoView {
         </div>
         {issues(session)}
         {atlas(session)}
+        {comparison(session)}
         <div class="dna-inspector-card">
             <h2>"Workbook inventory"</h2>
             {move || {
@@ -60,6 +61,49 @@ pub(crate) fn overview(session: Session) -> impl IntoView {
                 }
             }}
         </div>
+    }
+}
+
+fn comparison(session: Session) -> impl IntoView {
+    let read = session.following_with_budget::<query::CompareCells>(crate::INSTRUMENT_BUDGET);
+    move || {
+        let pair = session.compared_cells();
+        let answer = read.at(pair.map(|(left, right)| query::CompareCells { left, right }));
+        pair.map(|(left, right)| {
+            let data = result(answer, "").and_then(|answer| Ok((evidence(answer.body)?, coverage(answer.coverage))));
+            let (data, limit) = match data {
+                Ok(data) => data,
+                Err(message) => return status(message),
+            };
+            let left = crate::cell_label(session, left);
+            let right = crate::cell_label(session, right);
+            view! {
+                <section class="dna-inspector-card" data-inspector="cell-comparison">
+                    <h2>"Compare direct dependencies"</h2>
+                    <p>{format!("{} shared reads · {} left only · {} right only",
+                        data.common, data.left_only.len(), data.right_only.len())}</p>
+                    {limit.map(status)}
+                    <div class="dna-inspector-columns">
+                        {[(left, data.left, data.left_only), (right, data.right, data.right_only)]
+                            .into_iter().map(|(label, value, reads)| view! {
+                                <section>
+                                    <h3>{label} " · " {value.value.display()}</h3>
+                                    {match value.provenance {
+                                        calc_skin::Provenance::AsSaved => Some("As saved"),
+                                        calc_skin::Provenance::Stale { .. } => Some("Stale"),
+                                        calc_skin::Provenance::External { .. } => Some("External"),
+                                        calc_skin::Provenance::Refused { .. } => Some("Refused"),
+                                        _ => None,
+                                    }.map(|origin| view! { <p>{origin}</p> })}
+                                    <ul>{reads.into_iter().map(|read| view! {
+                                        <li>{target_label(session, &read.target)} " · " {format!("{:?}", read.kind)}</li>
+                                    }).collect_view()}</ul>
+                                </section>
+                            }).collect_view()}
+                    </div>
+                </section>
+            }.into_any()
+        })
     }
 }
 

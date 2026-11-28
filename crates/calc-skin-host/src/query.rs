@@ -353,7 +353,7 @@ pub(crate) fn invalidated(
             authored || recalculated || rtd_changed
         }
         WorkbookQuery::Deps { .. } => authored || recalculated,
-        WorkbookQuery::DependencyAtlas => authored || recalculated,
+        WorkbookQuery::DependencyAtlas | WorkbookQuery::CompareCells { .. } => authored || recalculated,
         WorkbookQuery::CalcState => true,
         WorkbookQuery::CalcChanges => recalculated,
         WorkbookQuery::Rules { .. } => authored || recalculated,
@@ -778,6 +778,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::ChartImage { .. } => Some("Choose a chart with fewer points"),
         WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
         WorkbookQuery::DependencyAtlas => Some("Increase the sheet dependency budget"),
+        WorkbookQuery::CompareCells { .. } => Some("Increase the dependency comparison budget"),
         WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
         WorkbookQuery::Notes { .. } => Some("Choose one anchor"),
         WorkbookQuery::Sources => Some("Increase the source inventory budget"),
@@ -926,6 +927,19 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             at: stamp,
             body: dependencies::atlas(host, &mut meter)?,
         })?,
+        WorkbookQuery::CompareCells { left, right } => {
+            let body = crate::comparison::cells(state, *left, *right, &mut meter)?;
+            if !body.unbound.is_empty() {
+                coverage = Coverage::Partial {
+                    done: (body.common + body.left_only.len() + body.right_only.len()) as u64,
+                    total: None,
+                    why: PartialWhy::Pending,
+                };
+            }
+            query::CompareCells::encode(&Evidence::Derived {
+                from: Derivation::Dependencies, at: stamp, body,
+            })?
+        }
         WorkbookQuery::Contributions { at } => {
             query::ContributionsAt::encode(&Evidence::Derived {
                 from: Derivation::Contributions,

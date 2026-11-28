@@ -154,7 +154,7 @@ pub enum DependencyTarget {
     SheetSpan { area: Area, last: Sheet },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum DependencyKind {
     Placed,
     Dynamic,
@@ -226,6 +226,24 @@ pub struct DependencyAtlasLink {
     pub readers: u64,
     pub placed: u64,
     pub dynamic: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CellComparison {
+    pub left: crate::Shown<crate::RawValue>,
+    pub right: crate::Shown<crate::RawValue>,
+    /// Binary64 left minus right when both values are current numbers.
+    pub difference: Option<u64>,
+    pub common: usize,
+    pub left_only: Vec<ComparisonRead>,
+    pub right_only: Vec<ComparisonRead>,
+    pub unbound: Vec<Key>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ComparisonRead {
+    pub target: DependencyTarget,
+    pub kind: DependencyKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
