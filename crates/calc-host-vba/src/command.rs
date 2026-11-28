@@ -256,6 +256,16 @@ impl WorkbookEvents {
         name: &str,
         arguments: &[calc_object_model::AutoValue],
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
+        use calc_object_model::AutoError;
+
+        let verb = name.trim();
+        if verb.eq_ignore_ascii_case("DnaCalc.View.Select") || verb.eq_ignore_ascii_case("DnaCalc.Select") {
+            let [address] = arguments else {
+                return Err(AutoError::excel(450, "Wrong number of arguments"));
+            };
+            let address = address.as_text().ok_or_else(|| AutoError::excel(13, "Type mismatch"))?;
+            return self.automation.select_view_range(&address);
+        }
         let request = match name.rsplit_once('!') {
             Some((book, request)) => {
                 let book = book.trim();
