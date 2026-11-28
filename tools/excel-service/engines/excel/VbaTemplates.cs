@@ -119,7 +119,7 @@ static class VbaTemplates
                 return Quote((string)value);
             case "text":
                 if (value is not string text || text.Length < 1 || text.Length > Limit("text")
-                    || text.Any(c => c < ' ' || c > '~') || "=+-@".Contains(text[0]))
+                    || text.Any(c => c < ' ' || c > '~') || text.TrimStart(' ') is { Length: > 0 } visible && "=+-@".Contains(visible[0]))
                     throw new RefusedVbaException("VBA template text parameter must be 1..255 printable ASCII characters not starting with = + - or @");
                 return Quote(text);
             case "long":

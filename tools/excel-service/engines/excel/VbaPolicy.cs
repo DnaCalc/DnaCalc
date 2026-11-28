@@ -148,7 +148,8 @@ static class VbaPolicy
                     throw new RefusedVbaException("VBA arguments must match the template entry point signature");
                 // Case text reaches cells through the probe's own writes: it must be data, never a formula.
                 if (arg is Dictionary<string, object> cell && Equals(cell.GetValueOrDefault("type"), "text")
-                    && cell.GetValueOrDefault("value") is string text && text.Length > 0 && FormulaStart.Contains(text[0]))
+                    && cell.GetValueOrDefault("value") is string text && text.TrimStart() is { Length: > 0 } visible
+                    && FormulaStart.Contains(visible[0]))
                     throw new RefusedVbaException("VBA text arguments must not start with = + - or @");
             }
         }
@@ -201,6 +202,7 @@ static class VbaPolicy
         {
             if (item is not Dictionary<string, object> sheet || sheet.GetValueOrDefault("name") is not string name
                 || !SheetName.IsMatch(name) || !sheetNames.Add(name.ToLowerInvariant())
+                || name.Equals("History", StringComparison.OrdinalIgnoreCase)       // the one sheet name Excel reserves
                 || (sheet.TryGetValue("cells", out var raw) ? raw as Dictionary<string, object> : new()) is not { } layout
                 || sheet.Keys.Any(k => k is not ("name" or "cells" or "hidden_rows" or "hidden_columns"))
                 || !layout.Keys.All(IsAddress)

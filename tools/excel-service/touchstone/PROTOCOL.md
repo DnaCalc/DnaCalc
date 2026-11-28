@@ -78,7 +78,7 @@ A **VBA case** (function `_VBA`, token `V`) occupies one position in one request
 `excel-worker --check-vba-policy` using the staged worker before queueing the case on the isolation slot.
 The client invokes the same decoder when the worker is available locally. Set
 `TOUCHSTONE_VBA_POLICY_WORKER` to select the local executable. Echo, serial mode, primers, add-ins,
-and sweep are unavailable for VBA cases.
+and sweep are unavailable for VBA cases. A case sheet is not named `History` (Excel reserves it).
 
 | Field | Value |
 | --- | --- |
@@ -98,7 +98,13 @@ the package. A worker whose embedded catalogue fails admission refuses every VBA
 What a template may say (dc-heiq6; `VbaGrammar.cs`, `VbaLayoutFormula.cs`, `vba-probe-policy.json`):
 
 - A module begins with `Option Explicit`. A comment does not end in `_` (Excel continues it over the
-  next line). A local or parameter name is not also a module variable or a procedure.
+  next line). A local or parameter name is not also a module variable or a procedure. A line stays
+  within 1023 characters with every parameter at its longest, and a statement within 24 continuations.
+- A procedure is not named like a worksheet function, alone or as `Module.Procedure` (`Register.ID`),
+  nor `Auto_...`. `Err.Raise` takes a number, a source and a description.
+- A cell takes a number, or text whose first character that is not a blank (space, tab, line break) is
+  not `= + - @`. Number text may follow only a lead with such a visible first character, so `" " & n`
+  and `vbTab & n` are refused and `"n=" & n` is accepted. A `text` parameter obeys the same rule.
 - A parameter of a standard-module procedure counts as a number only when its type is numeric: a
   formula can call the procedure with any cell text (`Private` does not prevent it). Write `CDbl(x)`
   to a cell.

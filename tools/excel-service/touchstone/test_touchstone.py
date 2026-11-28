@@ -969,7 +969,8 @@ class AdmissionTests(unittest.TestCase):
         yield "unknown", self.template_group(template="nosuch")
         yield "do not match", self.template_group(params={k: v for k, v in params.items() if k != "message"})
         yield "do not match", self.template_group(params={**params, "extra": "x"})
-        for bad in ("=WEBSERVICE(1)", "+1", "-1", "@SUM(1)", "", "x" * 256, "caf\u00e9", "line\nbreak", 7, None):
+        for bad in ("=WEBSERVICE(1)", "+1", "-1", "@SUM(1)", "", "x" * 256, "caf\u00e9", "line\nbreak", 7, None,
+                    " =1+1", "   -1", " @SUM(1)", "  +cmd|'/c calc'!A0"):
             yield "text parameter", self.template_group(params={**params, "message": bad})
         yield "case sheet", self.template_group(params={**params, "target_sheet": "Nowhere"})
         yield "case sheet", self.template_group(params={**params, "event_sheet": 'Data"'})
@@ -1135,6 +1136,22 @@ class AdmissionTests(unittest.TestCase):
                 (f"{sheet}.Rows(1).Resize(1024).Value = 1", "Resize"), (f"{cell}.Resize.Value = 1", "Resize")):
             yield "bounded addressing", reason, body(line), False
         yield "bounded addressing", "plainly a number", body("Dim v As Variant", 'v = "1:1048576"', f"{sheet}.Rows(v).Value = 1"), False
+        # A blank lead is not a safe lead: whether Excel keeps " -5*cmd|..." as text is Excel's choice, not the grammar's.
+        # Number text may follow only a lead that has a visible first character.
+        dde = "\"*cmd|'/c calc'!A0\""
+        for lead in ('" "', '"  \t"', "vbTab", "vbLf", "vbCr", "vbCrLf", "vbNewLine"):
+            yield "blank lead", "plainly data", body(f"{cell}.Value = {lead} & CStr(-5) & {dde}"), False
+            yield "blank lead", "plainly data", body(f"{cell}.Value = {lead} & x"), False
+        for literal in ('" =1+1"', '"\t=1+1"', '"  +1"', '" @SUM(1)"', '" -1"'):
+            yield "blank lead", "plainly data", body(f"{cell}.Value = {literal}"), False
+            yield "blank lead", "plainly data", body(f'{cell}.Value = "" & {literal}'), False
+        # Err.Raise takes a number, a source and a description: its fourth argument is a help file path Excel would open.
+        yield "help file", "Raise", body('Err.Raise 5, "a", "b", "\\\\host\\share\\h.chm", 1'), False
+        yield "help file", "Raise", body('Err.Raise 5, "a", "b", "h.chm"'), False
+        # Excel refuses to compile a line over 1023 characters or one continued over more than 24 breaks, and shows a
+        # dialog: text the grammar admits is text Excel compiles.
+        yield "line limits", "1023", body('Probe = "' + "x" * 1014 + '"'), False        # 1024 characters
+        yield "line limits", "continu", body("Probe = 1" + " + _\n 1" * 25), False
         # 6. The checker itself: nesting is bounded, so a template cannot overflow the worker's stack.
         yield "nesting", "nested", body("Probe = " + "(" * 100 + "1" + ")" * 100), False
         # the unqualified names stay refused where they mean the active sheet
@@ -1153,6 +1170,10 @@ class AdmissionTests(unittest.TestCase):
                    f'{sheet}.Range("A1:XFD64").ClearContents', f"{cell}.Offset(-1 + x, (x) * 2).Resize(3, 1024).Value = 1",
                    f"{cell}.Resize(2, 3).Rows(x).Item(1, 1).Cells(1, 1).Value = 1", f"{sheet}.UsedRange.Columns(1).Value = 1")
         yield body("Const k = -5", "Const m = (-5)", "Probe = k + m")
+        yield body("On Error Resume Next", 'Err.Raise 5, "a", "b"', "Err.Raise 6", "Probe = Err.Number")
+        yield body(f'{cell}.Value = "a " & CStr(-5) & "*b"', f'{cell}.Value2 = " " & "plain" & vbLf & "two lines"',
+                   f'{cell}.Value = " x" & x', f"{cell}.Value = vbTab")
+        yield body('Probe = "' + "x" * 1013 + '"', "Probe = 1" + " + _\n 1" * 24)        # 1023 characters; 24 breaks
         yield body("Probe = " + "(" * 20 + "1" + ")" * 20)
 
     def test_vba_grammar_refuses_what_the_third_review_found(self):
@@ -1322,6 +1343,25 @@ class AdmissionTests(unittest.TestCase):
                 result = module(old, new)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertIn(reason.lower(), result.stderr.lower())
+
+    def test_a_long_text_parameter_cannot_push_a_template_line_past_the_compile_limit(self):
+        """Request-reachable: the rendered line is what Excel compiles, so the request-time grammar check measures it."""
+        def edit(scratch, manifest):
+            path = scratch / "smoke-module1.bas"
+            text = path.read_text(encoding="ascii")
+            path.write_bytes(text.replace('"Module1", {{message}}', '"' + "M" * 780 + '", {{message}}').encode("ascii"))
+        result = self.admit_scratch(edit)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)       # 800 + a 255-character text can pass 1023
+        self.assertIn("1023", result.stderr)
+
+    def test_vba_refuses_excel_reserved_sheet_name(self):
+        for name in ("History", "history", "HISTORY"):
+            group = self.template_group()
+            group["v"][0]["sheets"][1]["name"] = name
+            group["v"][0]["params"].update(event_sheet=name)
+            group["v"][0]["event_log"] = [name + "!A1"]
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "layout sheet"):
+                self.check_vba(group)
 
     def test_the_smoke_template_cannot_re_enter_its_own_change_event(self):
         """A request may name the event sheet as the sheet that carries the handler: the handler guards itself."""
@@ -2770,7 +2810,10 @@ class RelayTests(unittest.TestCase):
         rid = "ab" * 16
         request = {"version": 1, "id": rid, "function": "ABS", "rows": [[number(TWO)], [number(ONE)]],
                    "created": time.time(), "expires": time.time() + 120}
-        self.subprocess.run([*self.linux, "bash", "-c", "mkdir -p %s/queue/in && cat > %s/queue/in/%s.json" % (self.dir, self.dir, rid)],
+        # Written as a client writes it (client.atomic_json): whole, then renamed into the queue. A plain "cat >" let the
+        # relay read the file while it was still empty, refuse it, and leave this test waiting for a submit for ever.
+        self.subprocess.run([*self.linux, "bash", "-c", "mkdir -p %s/queue/in && cat > %s/queue/%s.tmp && mv %s/queue/%s.tmp %s/queue/in/%s.json"
+                             % (self.dir, self.dir, rid, self.dir, rid, self.dir, rid)],
                             input=json.dumps(request).encode(), check=True, timeout=60)
         self.answer_submits(1)
         deadline = time.monotonic() + 30

@@ -70,7 +70,7 @@ static class VbaGrammar
     static readonly HashSet<string> SheetNames = new() { "range", "cells", "rows", "columns" };   // a worksheet module's own cells
     static readonly Regex Rectangle = new(@"\A(\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6})(?::(\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}))?\z", RegexOptions.CultureInvariant);
     const long MaxRangeCells = 1048576;     // one Range call: at most a column's worth of cells
-    const int MaxResize = 1024, MaxDepth = 32;
+    const int MaxResize = 1024, MaxDepth = 32, MaxLine = 1023, MaxContinuations = 24;
 
     public static string Escape(string text)
     {
@@ -109,6 +109,9 @@ static class VbaGrammar
     // rw17 (dc-erfm3): SafeText is a string that is also never empty (a non-empty literal, TypeName), the only kind that
     // may lead a concatenation; Text may be empty at run time ("", vbNullString, Empty, Null, Left(s, 0), an unassigned
     // variable), so a number after it could lead the result.
+    // dc-heiq6: "starts" means the first character that is not a blank (space, tab, CR, LF). A blank string (" ", vbTab,
+    // vbLf) is Text, never SafeText, and " =1" is Bad: whether Excel reads a blank-led entry as text is then no part of
+    // the argument.
     const int SafeText = 0, Text = 1, Number = 2, NumText = 3, Bad = 4;
     static readonly Node Safe = new("safe"), Maybe = new("maybe"), Num = new("num"), Unsafe = new("unsafe");
 
@@ -128,11 +131,13 @@ static class VbaGrammar
         var tokens = new List<Token>();
         var text = "";
         bool pending = false;
+        int continued = 0;
         foreach (var physical in source.Replace("\r\n", "\n").Split('\n'))
         {
             int at = 0;
             bool afterSpace = false;
             pending = false;
+            int widest = physical.Length;      // with each placeholder at its longest rendering
             while (at < physical.Length)
             {
                 if (parameters != null && physical.AsSpan(at).StartsWith("{{", StringComparison.Ordinal))
@@ -146,6 +151,7 @@ static class VbaGrammar
                         throw Refuse("a placeholder joined to another token", physical);
                     tokens.Add(new Token(type == "long" ? "parameter-number" : type == "address" ? "parameter-address" : "parameter-string",
                         "placeholder " + placeholder.Value));
+                    widest += Widest(type) - placeholder.Length;
                     at = end;
                     afterSpace = false;
                     continue;
@@ -169,6 +175,10 @@ static class VbaGrammar
                 afterSpace = kind == "ws";
                 if (kind is not ("ws" or "comment")) tokens.Add(new Token(kind, match.Value));
             }
+            // Excel does not compile a longer line or a longer continued statement; it shows a dialog instead.
+            if (widest > MaxLine) throw Refuse($"a line that can exceed {MaxLine} characters", physical);
+            continued = pending ? continued + 1 : 0;
+            if (continued > MaxContinuations) throw Refuse($"a statement continued over more than {MaxContinuations} line breaks", physical);
             text += physical + " ";
             if (!pending)
             {
@@ -180,6 +190,17 @@ static class VbaGrammar
         if (pending) throw Refuse("_", text);
         return lines;
     }
+
+    // The longest text a parameter of this type is printed as (VbaTemplates.Render): a quoted text of 255 characters
+    // with every quote doubled, a quoted sheet name or cell, a parenthesised negative Long, the longest listed word.
+    static int Widest(string type) => type switch
+    {
+        "text" => 2 * 255 + 2,
+        "sheet" => 31 + 2,
+        "address" => 10 + 2,
+        "long" => 13,
+        _ => type.StartsWith("enum:", StringComparison.Ordinal) ? type[5..].Split('|').Max(word => word.Length) + 2 : 2 * 255 + 2,
+    };
 
     static bool TouchesLiteral(char ch) => char.IsAsciiLetterOrDigit(ch) || "_.\"!#%$@&{}".Contains(ch);
     static bool IsTextParameter(string kind) => kind is "parameter-string" or "parameter-address";
@@ -474,9 +495,9 @@ static class VbaGrammar
             if (IsTextParameter(token.Kind)) return Maybe;
             if (token.Kind == "str")
             {
-                var body = token.Text[1..^1].Replace("\"\"", "\"");
-                if (body.Length == 0) return Maybe;
-                return FormulaStart.Contains(body[0]) ? Unsafe : Safe;
+                var visible = token.Text[1..^1].Replace("\"\"", "\"").TrimStart(' ', '\t');
+                if (visible.Length == 0) return Maybe;
+                return FormulaStart.Contains(visible[0]) ? Unsafe : Safe;
             }
             return Num;      // a number or a hex literal (&H8000 is -32768)
         }
@@ -982,7 +1003,7 @@ static class VbaGrammar
             if (word is "true" or "false" || word.StartsWith("xl", StringComparison.Ordinal) && Constants.Contains(word))
                 return ("val", Num, null);
             if (word is "empty" or "null" or "nothing" or "vbnullstring") return ("val", Maybe, null);
-            if (Constants.Contains(word)) return ("val", Safe, null);
+            if (Constants.Contains(word)) return ("val", Maybe, null);      // vbTab, vbCr, vbLf, vbCrLf, vbNewLine: blanks
             if (Builtins.TryGetValue(word, out var builtin))
             {
                 var args = Arguments(builtin.low, builtin.high);
