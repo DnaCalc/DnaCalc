@@ -249,6 +249,7 @@ pub enum WorkbookQuery {
         group: crate::DependencyGrouping,
     },
     DependencyAtlas,
+    CompareCells { left: Key, right: Key },
     Issues {
         scope: SourceRef,
     },

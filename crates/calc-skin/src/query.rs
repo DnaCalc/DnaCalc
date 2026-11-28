@@ -120,6 +120,10 @@ query!(
     /// Summarize bound reads at worksheet granularity.
     DependencyAtlasOf => Evidence<crate::DependencyAtlas>, |_: &DependencyAtlasOf| WorkbookQuery::DependencyAtlas);
 query!(
+    /// Compare current worksheet values and the two formulas' direct dependency footprints.
+    CompareCells { left: Key, right: Key } => Evidence<crate::CellComparison>,
+    |q: &CompareCells| WorkbookQuery::CompareCells { left: q.left, right: q.right });
+query!(
     /// Current worksheet errors and possible roots in the requested scope.
     IssuesIn { scope: SourceRef } => Evidence<Issues>, |q: &IssuesIn| WorkbookQuery::Issues { scope: q.scope.clone() });
 query!(

@@ -10,11 +10,11 @@
 //! that watch.
 
 use crate::view::{View, ViewCommand};
-use calc_skin::grid::Key;
+use calc_skin::grid::{Area, Key};
 use calc_skin::query::{self, Query};
 use calc_skin::{
     Answer, Batch, Budget, Coverage, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply,
-    LookOffer, Operation, Packet, Refusal, Selection, Stamp, Target, ViewId, WorkbookId, WorkbookSummary,
+    LookOffer, Operation, Packet, Refusal, Selection, SourceRef, Stamp, Target, ViewId, WorkbookId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
@@ -280,6 +280,13 @@ impl Session {
     pub fn selection(self) -> Option<Selection> {
         self.selection.track();
         self.peek(|client| client.selection().cloned())
+    }
+
+    /// Comparison applies to two separately selected cells on one worksheet.
+    pub fn compared_cells(self) -> Option<(Key, Key)> {
+        let SourceRef::Cells { areas, .. } = self.selection()?.target else { return None };
+        let [Area(left, left_end), Area(right, right_end)] = areas.as_slice() else { return None };
+        (left == left_end && right == right_end && left != right).then_some((*left, *right))
     }
 
     pub fn active(self) -> Option<Key> {

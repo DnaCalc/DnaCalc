@@ -1,10 +1,14 @@
 //! A session comparison against a pinned workbook publication.
 
-use crate::{State, invalid, query};
+use crate::{State, batch::source_area, cell, dependencies, invalid, query};
 use calc_host::{ChartView, ProjectionRequest, project, value::CellKey};
-use calc_skin::query::{NumericComparison, Query};
-use calc_skin::{AnchorId, Bound, Budget, Provenance, RawValue, Refusal, SourceRef, WorkbookId};
-use std::collections::BTreeMap;
+use calc_skin::grid::Key;
+use calc_skin::query::NumericComparison;
+use calc_skin::{
+    AnchorId, Bound, Budget, CellComparison, ComparisonRead, Dependencies, DependencyDirection,
+    DependencyGrouping, Provenance, RawValue, Refusal, Shown, SourceRef, WorkbookId,
+};
+use std::collections::{BTreeMap, HashSet};
 
 enum Value {
     Number(u64),
@@ -22,17 +26,66 @@ fn number(state: &State, at: CellKey) -> Result<Option<u64>, Refusal> {
     let Some(cell) = page.cells().first() else {
         return Ok(None);
     };
-    let value = query::show_cell(state, cell).shown;
+    Ok(current_number(&query::show_cell(state, cell).shown))
+}
+
+fn current_number(value: &Shown<RawValue>) -> Option<u64> {
     if let RawValue::Number { bits } = value.value
         && matches!(
             value.provenance,
             Provenance::Literal | Provenance::Calculated { .. }
         )
     {
-        Ok(Some(bits))
+        Some(bits)
     } else {
-        Ok(None)
+        None
     }
+}
+
+pub(crate) fn cells(
+    state: &State, left: Key, right: Key, meter: &mut query::QueryWork,
+) -> Result<CellComparison, Refusal> {
+    if left == right {
+        return Err(invalid("Select two different worksheet cells"));
+    }
+    let [left, right] = [cell(left)?, cell(right)?];
+    meter.work(2, 0, 0)?;
+    let page = project(state.session.host(), &ProjectionRequest { cells: vec![left, right] })
+        .map_err(|error| invalid(error.to_string()))?;
+    let shown = |at| {
+        page.cells().iter().find(|cell| cell.at() == at)
+            .map(|cell| query::show_cell(state, cell).shown)
+            .ok_or_else(|| invalid("The compared worksheet cell is unavailable"))
+    };
+    let read = |at, meter: &mut query::QueryWork| {
+        dependencies::deps(state, &source_area(calc_host::value::GridArea::cell(at)),
+            DependencyDirection::Precedents, 1, DependencyGrouping::Reference, meter)
+    };
+    let left_graph = read(left, meter)?;
+    let right_graph = read(right, meter)?;
+    let left = shown(left)?;
+    let right = shown(right)?;
+    let difference = current_number(&left).zip(current_number(&right)).and_then(|(left, right)| {
+        let difference = f64::from_bits(left) - f64::from_bits(right);
+        difference.is_finite().then(|| difference.to_bits())
+    });
+    let left_reads = direct_reads(&left_graph);
+    let right_reads = direct_reads(&right_graph);
+    let left_set: HashSet<_> = left_reads.iter().collect();
+    let right_set: HashSet<_> = right_reads.iter().collect();
+    let common = left_set.intersection(&right_set).count();
+    let left_only = left_reads.iter().filter(|read| !right_set.contains(*read)).cloned().collect();
+    let right_only = right_reads.iter().filter(|read| !left_set.contains(*read)).cloned().collect();
+    let mut unbound = left_graph.unbound;
+    unbound.extend(right_graph.unbound);
+    Ok(CellComparison { left, right, difference, common, left_only, right_only, unbound })
+}
+
+fn direct_reads(graph: &Dependencies) -> Vec<ComparisonRead> {
+    graph.edges.iter()
+        .filter(|edge| edge.from == graph.roots[0])
+        .map(|edge| ComparisonRead { target: graph.nodes[edge.to].clone(), kind: edge.kind })
+        .collect()
 }
 
 impl Baseline {
