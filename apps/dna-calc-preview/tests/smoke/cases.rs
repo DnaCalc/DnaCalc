@@ -1781,7 +1781,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Action::Click("[data-command='inspector.precedents']"),
             Action::Click("[data-command='inspector.trace']"),
             Action::Wait(Check::Text("[data-inspector='trace-coverage']", "2 inspected · 1 match · 0 undetermined")),
-            Action::Click(".dna-inspector-card > [data-command='inspector.filter']"),
+            Action::Click("[class~='dna-inspector-card'] > [data-command='inspector.filter']"),
         ],
         checks: &[
             Check::TextContains("[data-inspector='trace-result']", "FILTER"),
