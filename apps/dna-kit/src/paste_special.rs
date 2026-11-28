@@ -204,6 +204,12 @@ const CHOICES: &[(PastePart, &str, &str, &str)] = &[
         "paste-special-no-borders",
     ),
     (
+        PastePart::ColumnWidths,
+        "W",
+        "Column widths",
+        "paste-special-column-widths",
+    ),
+    (
         PastePart::FormulasAndNumberFormats,
         "R",
         "Formulas and number formats",

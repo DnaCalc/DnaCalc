@@ -5,7 +5,7 @@
 use super::*;
 use crate::{
     CopySnapshot, PasteArithmetic, PasteCellOptions, PasteMode, PasteOptionsRefusal, PasteSource,
-    SkinIntent, WorkbookCommand, prepare_paste_oriented,
+    SkinIntent, WorkbookCommand, prepare_paste_column_widths, prepare_paste_oriented,
 };
 
 /// The open bead that owns the clipboard remainders this file refuses.
@@ -208,48 +208,9 @@ impl WorkbookAutomation {
                 if clip.cut {
                     return Err(failed("PasteSpecial"));
                 }
-                let src_cols = clip.snapshot.area().column_count();
-                let dst_cols = to.column_count();
-                // Excel ww22: whole copies of the source tile across the destination; a destination narrower than
-                // the source still takes one copy.
-                let tiles = (dst_cols / src_cols).max(1);
-                let total_cols = tiles * src_cols;
-                let end_col = to
-                    .first()
-                    .column()
-                    .checked_add(total_cols - 1)
-                    .filter(|&c| c <= calc_value::MAX_COLUMNS)
-                    .ok_or_else(|| failed("PasteSpecial"))?;
-                let target_area = GridArea::new(
-                    to.first(),
-                    CellKey::new(to.sheet(), to.last().row(), end_col).map_err(|_| failed("PasteSpecial"))?,
-                )
-                .map_err(|_| failed("PasteSpecial"))?;
-                self.guard_area(session, target_area)?;
-                let layouts = session.host().model().definitions().axis_layouts();
-                let mut edits = Vec::with_capacity(total_cols as usize);
-                for tile in 0..tiles {
-                    for (offset, index) in
-                        (clip.snapshot.area().first().column()..=clip.snapshot.area().last().column()).enumerate()
-                    {
-                        let src_fmt = clip.snapshot.axis_format(calc_doc_model::Axis::Columns, index);
-                        let column = to.first().column() + tile * src_cols + offset as u32;
-                        let dst_fmt = layouts.get(to.sheet(), calc_doc_model::Axis::Columns, column);
-                        // The width and hidden state transfer; the outline level does not.
-                        let merged = dst_fmt
-                            .with_size(src_fmt.size(), src_fmt.custom())
-                            .ok_or_else(|| failed("PasteSpecial"))?
-                            .with_hidden(src_fmt.hidden());
-                        let edit = calc_doc_model::AxisFormatEdit::new(
-                            to.sheet(),
-                            calc_doc_model::Axis::Columns,
-                            column,
-                            merged,
-                        )
-                        .ok_or_else(|| failed("PasteSpecial"))?;
-                        edits.push(crate::CellEdit::AxisFormat(edit));
-                    }
-                }
+                let (target, edits) = prepare_paste_column_widths(session.host(), &clip.snapshot, to)
+                    .map_err(|_| failed("PasteSpecial"))?;
+                self.guard_area(session, target)?;
                 return Ok(SkinIntent::Edit { edits });
             }
             let plan = prepare_paste_oriented(
