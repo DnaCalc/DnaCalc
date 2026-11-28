@@ -3049,6 +3049,9 @@ fn trying_on_an_agent_skin_requires_the_operators_choice() {
         "id": "review",
         "name": "Review",
         "theme": { "base": "cockpit-dark", "density": "working" },
+
+        "shell": { "panels": { "right": [{ "id": "inspector.trace", "width_px": 320 }] } },
+        "views": { "classic": { "provenance_tints": true } },
         "keymap": {
             "profile": "excel-365-win-en-us",
             "bindings": [{
@@ -3064,17 +3067,27 @@ fn trying_on_an_agent_skin_requires_the_operators_choice() {
     }).unwrap(), before);
     page.settle();
     assert_eq!(session.look_offer().unwrap().agent, "Review assistant");
+
+    assert!(session.skin_panel("inspector.trace").is_none());
+    assert!(session.view_setting("classic", "provenance_tints").is_none());
     assert!(!page.press("Ctrl+Shift+e", Focus::Stage));
     assert!(page.press("F2", Focus::Stage));
     assert!(page.press("Escape", Focus::Editor));
 
     session.command("studio.try-agent").unwrap();
     page.settle();
+
     assert!(session.look_offer().is_none());
+    let (_, side, width) = session.skin_panel("inspector.trace").unwrap();
+    assert_eq!((side, width), (dna_kit::DockSide::Right, Some(320)));
+    assert_eq!(session.view_setting("classic", "provenance_tints"), Some(serde_json::json!(true)));
     assert!(!page.press("F2", Focus::Stage));
     assert!(page.press("Ctrl+Shift+e", Focus::Stage));
     assert!(page.press("Escape", Focus::Editor));
+
     assert!(page.press("Escape", Focus::Stage));
+    assert!(session.skin_panel("inspector.trace").is_none());
+    assert!(session.view_setting("classic", "provenance_tints").is_none());
     assert!(page.press("F2", Focus::Stage));
     assert_eq!(session.stamp(), Some(before));
 }

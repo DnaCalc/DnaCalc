@@ -443,6 +443,7 @@ impl Studio {
                     <aside class="dna-skin-banner" data-dnacalc="skin-try-on" aria-label="Skin preview">
                         <strong>{format!("Trying {}", preview.appearance.manifest.name)}</strong>
                         <span>{departures}</span>
+                        <small>"Presentation only · 0 cells, formulas or names changed"</small>
                         {command_button(session, KEEP_FILE, "Keep for file")}
                         {command_button(session, KEEP_ME, "Keep for me")}
                         {command_button(session, OPEN, "Edit")}

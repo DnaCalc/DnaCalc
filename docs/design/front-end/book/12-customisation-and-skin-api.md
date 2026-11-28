@@ -83,7 +83,7 @@ The agent submits a pure `dna.skin/1` manifest via `Operation::TryOn`—preservi
   "theme": {
     "base": "cockpit-dark",
     "density": "working",
-    "overrides": { "ink.secondary": "#A4B8C2", "surface.panel": "#22343C", "formula.font.size": "15.5px" }
+    "overrides": { "ink.secondary": "#A4B8C2", "ink-3": "#A4B8C2", "surface.panel": "#22343C", "formula.font.size": "15.5px" }
   },
   "shell": { "deck": "compact", "panels": { "right": [{ "id": "inspector.trace", "width_px": 320 }] } },
   "keymap": { "profile": "excel-365-win-en-us", "bindings": [] },

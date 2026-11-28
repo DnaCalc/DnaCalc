@@ -377,15 +377,26 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
 }
 
 pub fn mount(session: Session) -> impl IntoView {
-    worksheet(session, true)
+    mount_with_tints(session, || false)
+}
+
+pub fn mount_with_tints(
+    session: Session,
+    provenance_tints: impl Fn() -> bool + Send + 'static,
+) -> impl IntoView {
+    worksheet(session, true, provenance_tints)
 }
 
 /// The same worksheet surface for selecting sources without entering cells.
 pub fn picker(session: Session) -> impl IntoView {
-    worksheet(session, false)
+    worksheet(session, false, || false)
 }
 
-fn worksheet(session: Session, editable: bool) -> impl IntoView {
+fn worksheet(
+    session: Session,
+    editable: bool,
+    provenance_tints: impl Fn() -> bool + Send + 'static,
+) -> impl IntoView {
     let focus = NodeRef::<leptos::html::Div>::new();
     let content = NodeRef::<leptos::html::Div>::new();
     let active = Memo::new(move |_| session.active());
@@ -400,6 +411,7 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
     }
     view! {
         <div class="dna-sheet" data-dnacalc="grid" tabindex="0" node_ref=focus
+            data-provenance-tints=move || provenance_tints().to_string()
             role="region" aria-label="Worksheet grid"
             on:pointerup=move |_| dragging.set(None)
             on:pointercancel=move |_| dragging.set(None)

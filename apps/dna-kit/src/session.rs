@@ -9,12 +9,13 @@
 //! moves and at no other time, and a component that reads a watch runs again when a frame touches
 //! that watch.
 
-use crate::view::{View, ViewCommand};
+use crate::view::{DockSide, View, ViewCommand};
 use calc_skin::grid::{Area, Key};
 use calc_skin::query::{self, Query};
 use calc_skin::{
-    Answer, Batch, Budget, Coverage, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply,
-    LookOffer, Operation, Packet, Refusal, Selection, SourceRef, Stamp, Target, ViewId, WorkbookId, WorkbookSummary,
+    Answer, Batch, Budget, Coverage, DockPanel, FormulaOperation, FormulaPort, FormulaQuery, FormulaReply,
+    LookOffer, Operation, Packet, Refusal, Selection, SkinManifest, SourceRef, Stamp, Target, ViewId,
+    WorkbookId, WorkbookSummary,
 };
 use dna_skin_runtime::Live;
 use dna_skin_runtime::client::{Changes, Client, EditSession, Seam, Watch, WatchKey, PAGE_BUDGET};
@@ -81,6 +82,7 @@ pub struct Session {
     seam: RwSignal<u64>,
     notice: RwSignal<u64>,
     look: RwSignal<u64>,
+    skin: RwSignal<(u64, Option<Box<SkinManifest>>)>,
     view: RwSignal<ViewId>,
     tip_path: RwSignal<Option<&'static str>>,
 }
@@ -133,6 +135,7 @@ impl Session {
             seam: RwSignal::new(0),
             notice: RwSignal::new(0),
             look: RwSignal::new(0),
+            skin: RwSignal::new((0, None)),
             view: RwSignal::new(view),
             tip_path: RwSignal::new(None),
         };
@@ -839,7 +842,49 @@ impl Session {
         *inner.commands.borrow_mut() = commands;
         *inner.keymap.borrow_mut() = keymap;
         inner.skin_workbook.set(workbook);
+        self.skin.update(|(revision, manifest)| {
+            *revision = revision.wrapping_add(1);
+            *manifest = skin.cloned().map(Box::new);
+        });
         Ok(departures)
+    }
+
+    /// Read a view-owned setting. A workbook's authored settings apply at open.
+    pub fn view_setting(self, view: &str, setting: &str) -> Option<serde_json::Value> {
+        let id = ViewId(view.into());
+        self.skin
+            .with(|(_, skin)| skin.as_ref()?.views.get(&id)?.get(setting).cloned())
+            .or_else(|| {
+                let Live::Ready(part) = self.view_part() else {
+                    return None;
+                };
+                if self.stamp()?.workbook != part.stamp.workbook {
+                    return None;
+                }
+                part.body.skin?.views.get(&id)?.get(setting).cloned()
+            })
+    }
+
+    /// An opted-in layer's panel placement and the revision that owns it.
+    pub fn skin_panel(self, id: &str) -> Option<(u64, DockSide, Option<u16>)> {
+        self.skin.with(|(revision, skin)| {
+            let skin = skin.as_ref()?;
+            for side in [DockSide::Right, DockSide::Bottom] {
+                let Some(panels) = skin.shell.panels.get(side.label()) else {
+                    continue;
+                };
+                for panel in panels {
+                    match panel {
+                        DockPanel::Id(name) if name == id => return Some((*revision, side, None)),
+                        DockPanel::Sized { id: name, width_px } if name == id => {
+                            return Some((*revision, side, Some(width_px.get())));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            None
+        })
     }
 
     /// Runs a command. Every route ends here: a key, a Deck button, the command search, a skin's
@@ -945,6 +990,7 @@ impl Session {
 
     /// The keys a command answers to now, for a button's hint and the search list.
     pub fn chords_for(self, command: &CommandId) -> Vec<Chord> {
+        self.skin.track();
         self.inner()
             .keymap
             .borrow()
