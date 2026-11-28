@@ -124,6 +124,7 @@ fn model_property_text(session: Session, diff: ModelPropertyDiff) -> String {
                 ModelProperty::RichText => "Rich text",
                 ModelProperty::ColumnVisibility => "Column visibility",
                 ModelProperty::AutoFilter => "AutoFilter",
+                ModelProperty::PivotCache => "PivotTable cache",
                 ModelProperty::Charts => "Charts",
                 ModelProperty::Shapes => "Shapes",
             };
